@@ -1,5 +1,6 @@
 using CheatEngine.Client.Hosting;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -14,7 +15,8 @@ public sealed class Plugin : CheatEngineClientPlugin
 	protected override void Configure(CheatEnginePluginBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
-		McpOptions options = McpOptions.Load(builder.Configuration, builder.PluginDirectory,
+		builder.Configuration.AddJsonFile(Path.Combine(builder.PluginDirectory, "appsettings.json"), optional: true, reloadOnChange: false);
+		McpOptions options = McpOptions.Load(builder.Configuration, BundleEntryPoint.PluginDirectory ?? builder.PluginDirectory,
 			McpOptions.ConfigurationDirectory, Environment.GetEnvironmentVariable);
 		builder.Services.AddSingleton(options);
 		builder.Services.AddSingleton<PluginLog>();

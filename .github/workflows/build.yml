@@ -17,7 +17,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7.0.1
         with:
-          submodules: recursive
           fetch-depth: 0
       - name: Setup .NET
         uses: actions/setup-dotnet@v6.0.0
@@ -29,21 +28,27 @@ jobs:
         run: dotnet build CheatEngine.Mcp.slnx --no-restore
       - name: Test
         run: dotnet test --solution CheatEngine.Mcp.slnx --no-restore --no-build --filter-not-trait Category=LiveQualification --filter-not-trait Category=NativeLua --fail-skips on
+      - name: Test bundle writer
+        run: pwsh -NoProfile -File eng/Test-Bundle.ps1
       - name: Check formatting
         run: |
           dotnet format style CheatEngine.Mcp.slnx --no-restore --severity warn --verify-no-changes
           dotnet format whitespace CheatEngine.Mcp.slnx --no-restore --verify-no-changes
       - name: Build Release
         run: dotnet build CheatEngine.Mcp.slnx -c Release --no-restore
-      - name: Upload Debug plugin and gateway folder
+      - name: Publish Debug distribution
+        run: pwsh -NoProfile -File eng/Publish.ps1 -Configuration Debug
+      - name: Publish Release distribution
+        run: pwsh -NoProfile -File eng/Publish.ps1 -Configuration Release
+      - name: Upload Debug distribution
         uses: actions/upload-artifact@v7.0.1
         with:
           name: CheatEngine.Mcp-debug
-          path: artifacts/bin/CheatEngine.Mcp.Gateway/debug/**
+          path: artifacts/dist/debug/**
           if-no-files-found: error
-      - name: Upload Release plugin and gateway folder
+      - name: Upload Release distribution
         uses: actions/upload-artifact@v7.0.1
         with:
           name: CheatEngine.Mcp-release
-          path: artifacts/bin/CheatEngine.Mcp.Gateway/release/**
+          path: artifacts/dist/release/**
           if-no-files-found: error

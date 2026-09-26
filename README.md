@@ -4,31 +4,88 @@ A Windows x64 Cheat Engine plugin and MCP gateway built on [CheatEngine.Client](
 
 Each Cheat Engine process loads its own plugin, with its own Client activation and target state. Enabling publishes an authenticated loopback HTTP backend on an automatically assigned port. The stdio gateway discovers those backends and routes each tool call using an explicit `instanceId`. Disabling withdraws discovery, closes request admission, and lets Client release its resources without blocking Cheat Engine's main thread.
 
-## Build
+[Install and connect](#install-and-connect) · [First use](#first-use) · [Multiple instances](#multiple-cheat-engine-instances) · [Configuration](#configuration) · [Troubleshooting](#troubleshooting) · [Build from source](#build-from-source) · [Tests](#verification)
 
-Install .NET SDK **10.0.401**, then run from this repository:
+## Install and connect
+
+### 1. Get the two deployment files
+
+Use the two files from a build artifact, or publish them from this repository with .NET SDK **10.0.401** and PowerShell 7 installed:
 
 ```powershell
-git submodule update --init --recursive
-dotnet restore CheatEngine.Mcp.slnx --locked-mode
-dotnet build CheatEngine.Mcp.slnx --no-restore
-dotnet test --solution CheatEngine.Mcp.slnx --no-restore --no-build --filter-not-trait Category=LiveQualification --filter-not-trait Category=NativeLua --fail-skips on
-dotnet build CheatEngine.Mcp.slnx -c Release --no-restore
+pwsh -NoProfile -File eng/Publish.ps1
+# Or build the Debug distribution:
+pwsh -NoProfile -File eng/Publish.ps1 -Configuration Debug
 ```
 
-The Git submodule at `CheatEngine.Client/` is pinned to `f88de3d843252c9139f08c71531a02f03c0516bb`, the upstream main revision selected for this migration. Project references compile that exact source. The plugin also directly references **CheatEngine.SDK 2.0.0** for its generated entry point and native bridge.
+Release is the default. Copy these files from `artifacts/dist/release/` into a stable folder, such as `C:\Tools\CheatEngine.Mcp`:
 
-The runtime dependency graph uses current stable releases. Test dependencies follow the pinned Client's xUnit v3/Microsoft.Testing.Platform profile. Existing remote Sonar project identifiers are retained; renaming a local project does not rename the hosted service.
+| File | How it is used |
+| --- | --- |
+| `CheatEngine.Mcp.dll` | Load this plugin in Cheat Engine. It contains the runtime, Client, SDK, native bridge, skill, and licenses. |
+| `CheatEngine.Mcp.Gateway.exe` | Set this as the MCP server command in your AI client. It includes its own .NET runtime. |
 
-Code follows Client conventions: C# 14, file-scoped namespaces, tabs, explicit types, centralized package versions, locked restore, and output under `artifacts/`. The MCP boundary uses reflection and is a framework-dependent managed plugin, not a Native AOT binary.
+Keep the DLL filename unchanged: CE uses its file and assembly identity to resolve the managed entry point. You can also use the files directly from `artifacts/dist/release/`, but close CE and stop the gateway before rebuilding or replacing files they have loaded.
 
-## Install and configure
+### 2. Prepare Cheat Engine's .NET host
 
-Use Cheat Engine **7.7 x64**, .NET 10, and the ASP.NET Core 10 runtime. The host's `ce.runtimeconfig.json` must select compatible .NET 10 frameworks as described by the Client deployment guide.
+Use **Cheat Engine 7.7 x64**. The plugin runs inside CE and needs the **x64 .NET 10 runtime, ASP.NET Core 10 runtime, and Windows Desktop 10 runtime**. The .NET SDK is only needed to build from source. Check installed runtimes with:
 
-Copy the **entire** `artifacts/bin/CheatEngine.Mcp.Gateway/release/` folder to a dedicated directory. Keep the gateway executable, `CheatEngine.Mcp.dll`, both applications' `.deps.json` and `.runtimeconfig.json`, all Client/SDK/dependency assemblies, and `cheatengine-sdk-lua-bridge.dll` together. Select `CheatEngine.Mcp.dll` in each Cheat Engine process's plugin settings and enable it. Do not copy only the DLL.
+```powershell
+dotnet --list-runtimes
+```
 
-Configure a single stdio MCP server in your MCP client, pointing its command to `CheatEngine.Mcp.Gateway.exe`. For clients using the common JSON configuration format:
+The output must include `Microsoft.NETCore.App 10.0.x`, `Microsoft.AspNetCore.App 10.0.x`, and `Microsoft.WindowsDesktop.App 10.0.x`. Missing components are available from the [.NET 10 downloads](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) page; choose Windows x64.
+
+Close all CE processes and back up `ce.runtimeconfig.json` beside the CE executable, commonly under `C:\Program Files\Cheat Engine`. Update that file to select .NET 10. Preserve unrelated settings; a typical configuration is:
+
+```json
+{
+  "runtimeOptions": {
+    "tfm": "net10.0",
+    "rollForward": "LatestMinor",
+    "frameworks": [
+      { "name": "Microsoft.NETCore.App", "version": "10.0.0" },
+      { "name": "Microsoft.WindowsDesktop.App", "version": "10.0.0" },
+      { "name": "Microsoft.AspNetCore.App", "version": "10.0.0" }
+    ]
+  }
+}
+```
+
+Editing a file under Program Files may need an administrator editor. A file that still selects `net9.0` and `9.0.0` will not select .NET 10 merely because .NET 10 is installed. Restart CE after changing this host configuration. The standalone gateway does not use CE's runtime configuration.
+
+### 3. Enable the DLL in Cheat Engine
+
+1. Start the x64 Cheat Engine executable.
+2. Open **Edit → Settings → Plugins**, choose **Add new**, and select your deployed `CheatEngine.Mcp.dll`.
+3. Tick its checkbox to enable it and accept the settings dialog.
+
+The backend starts automatically on enable. You do not need a separate MCP menu, a fixed port, or a configuration file for the default setup. Each CE instance must have the plugin enabled. Leave CE open while using its tools.
+
+On first load, the DLL extracts its verified dependencies into `%LOCALAPPDATA%\CheatEngine.Mcp\cache\<payload SHA256>`. No additional DLLs need to be copied beside it. The plugin does not open or attach to a target automatically.
+
+### 4. Connect your AI client
+
+Run the AI client and CE on the same Windows machine under the same user account. The MCP transport is **stdio**: the AI client launches `CheatEngine.Mcp.Gateway.exe` and communicates with that process. No MCP URL, port, API key, or OAuth login is needed for this setup. Double-clicking the EXE does not configure an AI client.
+
+For **Codex**, run this in PowerShell, replacing the example path with your actual deployment path:
+
+```powershell
+codex mcp add cheatengine -- "C:\Tools\CheatEngine.Mcp\CheatEngine.Mcp.Gateway.exe"
+codex mcp list
+```
+
+Alternatively, add this table to `%USERPROFILE%\.codex\config.toml` (or the config under your custom `CODEX_HOME`). Update an existing `cheatengine` table rather than adding a duplicate:
+
+```toml
+[mcp_servers.cheatengine]
+command = "C:/Tools/CheatEngine.Mcp/CheatEngine.Mcp.Gateway.exe"
+```
+
+Restart your Codex session/app after changing the connection. `codex mcp list` confirms registration; the tool call in [First use](#first-use) verifies that the gateway can actually discover CE. See the [official Codex MCP documentation](https://developers.openai.com/codex/mcp) for client configuration options.
+
+For **other clients using an `mcpServers` JSON configuration**, merge this entry into the client's MCP settings:
 
 ```json
 {
@@ -40,12 +97,58 @@ Configure a single stdio MCP server in your MCP client, pointing its command to 
 }
 ```
 
-Replace the example path with your deployment directory. The MCP client starts the gateway; each CE process runs its own plugin backend. The gateway does not launch CE or choose a target automatically. The bundled [AI skill](skills/cheatengine-mcp/SKILL.md) documents instance selection and tool workflows; install that folder into your AI client's skill directory if it supports skills.
+Use your client's equivalent stdio/command settings if it has a different configuration format. Keep one `cheatengine` connection even when you use several CE processes. A browser-only or remote client needs a Windows-local execution environment capable of launching this EXE.
+
+## First use
+
+Ask your AI client:
+
+> Use the Cheat Engine MCP to list running instances, then show the selected target and plugin version for each. Do not change memory yet.
+
+The agent should call `list_instances`, then pass a returned `instanceId` to `get_current_process` and `get_plugin_version`. A connected gateway can return an empty instance list when no CE backend is enabled. Discovery returns the **CE process ID**; `get_current_process` reports the separate **target process ID**. No selected target is normal before you attach one.
+
+Select a process in CE's process picker, or tell the AI the exact target process name/PID and the intended CE instance so it can use `open_process`. Then give a concrete task, for example:
+
+- "In instance game-a, show the address list and identify which numeric records are frozen."
+- "For my test program in game-a, add a Dword record named Health at the address I provide, set it to 100, and freeze it."
+- "Set game-a's attached test program to half speed, then restore its previous speed when we finish."
+
+Use a real, verified address for memory tasks; the agent should not invent an address from an example. See the [address-list and speedhack guide](skills/cheatengine-mcp/references/address-list-and-speedhack.md) for exact tools and cleanup, and the [tool catalog](skills/cheatengine-mcp/references/tool-catalog.md) for all **140 gateway tools**. Arbitrary Lua and Auto Assembler patches are optional opt-ins; ordinary address-list and speedhack tools work with the default settings.
+
+### Optional AI skill
+
+The [cheatengine-mcp skill](skills/cheatengine-mcp/SKILL.md) teaches instance selection and tool workflows. Copy the complete `skills/cheatengine-mcp` folder from this repository, or from the extracted cache for the loaded DLL, into your AI client's skill directory. Copy it out of the cache rather than editing the cached copy.
+
+For Codex, the user-wide location is `%USERPROFILE%\.agents\skills\cheatengine-mcp\SKILL.md`; a repository-scoped installation goes under `.agents/skills/cheatengine-mcp/`. Keep the accompanying `references/` and `agents/` folders. The skill supplements the MCP connection; installing it alone does not register the gateway. See the [official skill locations](https://developers.openai.com/codex/skills).
+
+## Multiple Cheat Engine instances
+
+Open several CE processes and enable the plugin in each. Keep `Mcp:Port` at its default `0` so each backend receives a free port. One gateway discovers all of them; each tool call identifies its destination with `instanceId`.
+
+Default names contain the CE process ID. For friendly labels, launch each CE from a separate PowerShell window, changing the path for your installation:
+
+```powershell
+# PowerShell window A
+$env:MCP_INSTANCE_NAME = 'game-a'
+& 'C:\Program Files\Cheat Engine\cheatengine-x86_64.exe'
+```
+
+```powershell
+# PowerShell window B
+$env:MCP_INSTANCE_NAME = 'game-b'
+& 'C:\Program Files\Cheat Engine\cheatengine-x86_64.exe'
+```
+
+These environment values apply to processes launched from those shells; they do not rename an already running CE. Attach each instance to its intended target and ask the AI to refresh `list_instances`. A display name can repeat, so route with the returned ID. Restarting CE or disabling/re-enabling the plugin creates a new ID. Two instances attached to the same target can still change that shared target's memory.
+
+## Configuration
+
+Defaults work without creating a settings file. For changes, create or edit `%APPDATA%\CheatEngine.Mcp\appsettings.json`, or place an optional `appsettings.json` beside your original plugin DLL. Disable and re-enable the plugin after editing settings. For instance-specific settings, set an absolute `MCP_DATA_DIRECTORY` in that CE process's launch environment.
 
 Configuration is read once per enable, in this order:
 
-1. Built-in defaults.
-2. `appsettings.json` beside the plugin.
+1. Bundled defaults.
+2. Optional `appsettings.json` beside the original plugin wrapper DLL.
 3. `%APPDATA%/CheatEngine.Mcp/appsettings.json`.
 4. `MCP_HOST`, `MCP_PORT`, `MCP_INSTANCE_NAME`, and `MCP_INSTANCE_DIRECTORY` environment overrides.
 
@@ -73,7 +176,28 @@ Call `list_instances`, choose the intended name/CE PID, and pass its exact `inst
 
 Each CE process logs to `%APPDATA%/CheatEngine.Mcp/CheatEngine.Mcp.<pid>.log` so instances do not compete for one file. Client lifecycle and HTTP logging share that process's isolated NLog factory whose lifetime covers asynchronous shutdown.
 
-`MCP_DATA_DIRECTORY` can select an absolute directory for user settings and logs. The automated live runner uses it to keep its plugin data inside the test run.
+`MCP_DATA_DIRECTORY` can select an absolute directory for user settings and logs. `MCP_BUNDLE_CACHE_DIRECTORY` selects the absolute extracted-payload cache root. Keep settings editable at the original plugin path or user-data path; treat an extracted cache payload as read-only. The automated live runner uses private data and cache directories inside its test run.
+
+## Troubleshooting
+
+| Symptom | What to check |
+| --- | --- |
+| CE refuses to load the plugin | Use CE x64, keep the filename `CheatEngine.Mcp.dll`, check all three x64 .NET 10 runtimes, and check CE's own `ce.runtimeconfig.json`. Restart CE after changing it. |
+| The gateway EXE waits in a console | It is a stdio MCP server. Configure it as the AI client's command; the client starts it and sends protocol requests. |
+| `list_instances` returns an empty list | Enable the plugin in an open CE process. Run CE and the gateway as the same Windows user and check that any `MCP_INSTANCE_DIRECTORY` overrides agree. |
+| One CE works but another cannot start its backend | Leave `Port` at `0`, or give each instance a unique fixed port. Check that the plugin is enabled in both. |
+| An instance becomes unavailable | Call `list_instances` again. Restart or re-enable creates a new ID; do not reuse old instance or resource IDs. |
+| A tool reports no target | Select the intended target in CE or use `open_process` with its exact PID/name and the chosen CE instance ID. |
+| A table file or optional execution tool is refused | Check `CheatEngineClient:AllowedTableRoots` or the relevant execution opt-in in your settings. Enable only the feature needed for the intended task. |
+| Cache integrity check fails | Close all CE processes using that version, remove only the affected hash directory under the cache root, restart CE, and enable the plugin. Never edit files inside a cache version. |
+
+Plugin logs are `%APPDATA%\CheatEngine.Mcp\CheatEngine.Mcp.<CE PID>.log`, or beneath `MCP_DATA_DIRECTORY` when set. A load failure before Client starts may occur before that log exists. Check gateway startup errors in the AI client's MCP diagnostics. Discovery records contain authentication tokens; do not paste their contents into reports. More diagnostic detail is in the [connection troubleshooting guide](skills/cheatengine-mcp/references/connection-troubleshooting.md).
+
+### Updating or removing the installation
+
+To update, finish target cleanup, close CE, stop the MCP connection in your AI client, and replace both deployment files together. Restart CE, enable the plugin, reconnect the client, and refresh `list_instances`. A new payload uses a new cache directory automatically. Keep your settings outside the cache so updates preserve them.
+
+To remove it, undo task-owned freezes, speed changes, and debugger state first. Disable/remove the plugin in CE, close CE, and remove the MCP server configuration from your AI client. You can then delete the two deployed files. Settings, logs, and cached versions remain in the documented user directories unless you choose to remove them. Plugin disable alone does not undo every CE-owned change.
 
 ## Tools and ownership
 
@@ -94,11 +218,30 @@ Client leases are activation-owned. Lua-created global structures, address-list 
 
 ## Migration from CeMCP 1.x
 
-This is a breaking remake. The old CESDK submodule, source compilation, Costura single-DLL packaging, static tools, WPF UI, and old project/test paths have been removed.
+This is a breaking remake. The old CESDK submodule, source compilation, Costura single-DLL packaging, static tools, WPF UI, and old project/test paths have been removed. The current distributable plugin DLL is a verified extracting wrapper, not Costura packaging.
 
 The tool surface is rebuilt around Client high-level APIs for supported operations. Additional debugger, DBVM, injection, process-control, Structure Dissect, RTTI, protection, file-memory, and code-analysis tools use fixed Lua operations through `ICheatEngineClient.Lua`. Bindings follow the installed Cheat Engine `celua.txt`; unavailable host APIs return errors. The complete public surface and each tool description are in the catalog.
 
 Tool parameters and responses have changed where Client ownership requires it: allocations have names, scans are bounded sessions, patches return lease IDs, record content and activation are separate tools, and `execute_lua` reports execution status without serializing Lua return values.
+
+## Build from source
+
+Install .NET SDK **10.0.401** and PowerShell 7, then run from this repository:
+
+```powershell
+dotnet restore CheatEngine.Mcp.slnx --locked-mode
+dotnet build CheatEngine.Mcp.slnx --no-restore
+dotnet test --solution CheatEngine.Mcp.slnx --no-restore --no-build --filter-not-trait Category=LiveQualification --filter-not-trait Category=NativeLua --fail-skips on
+pwsh -NoProfile -File eng/Publish.ps1 -Configuration Release
+```
+
+The distributable files are under `artifacts/dist/release/`. A normal `dotnet build` prepares development outputs; `eng/Publish.ps1` also creates the self-contained gateway and stages the two-file distribution. Publishing uses the checked-in NuGet lock files. CI publishes the same layout for Debug and Release.
+
+The plugin references **[CheatEngine.Client 1.0.0](https://www.nuget.org/packages/CheatEngine.Client/1.0.0)** through NuGet. Its package metadata identifies source revision `f88de3d843252c9139f08c71531a02f03c0516bb`. No submodule checkout is required. The plugin also directly references **CheatEngine.SDK 2.0.0**, as required by Client, for its generated entry point and native bridge.
+
+Dependency versions are centralized in `Directory.Packages.props` and resolved in the checked-in NuGet lock files. Test dependencies follow the Client's xUnit v3/Microsoft.Testing.Platform profile. Existing remote Sonar project identifiers are retained; renaming a local project does not rename the hosted service.
+
+Code follows Client conventions: C# 14, file-scoped namespaces, tabs, explicit types, centralized package versions, locked restore, and output under `artifacts/`. The plugin is a framework-dependent managed component packaged inside an extracting loader. The loader forwards to the SDK-generated entry point; Client owns activation and cleanup. This is not a Native AOT binary.
 
 ## Verification
 
@@ -108,17 +251,18 @@ For an automated live run, close other Cheat Engine instances and run:
 
 ```powershell
 $env:CHEATENGINE_MCP_LIVE_QUALIFICATION = 'I_AUTHORIZE_CE77_LIVE_PROBES_ON_A_DISPOSABLE_TARGET'
+pwsh -NoProfile -File eng/Publish.ps1 -Configuration Release
 dotnet test --project tests/CheatEngine.Mcp.Tests -c Release --filter-trait Category=LiveQualification --fail-skips on
 Remove-Item Env:CHEATENGINE_MCP_LIVE_QUALIFICATION
 ```
 
-`LiveQualification/` contains the C# runner and serial fixture. Like the Client, it requires the exact acknowledgement, refuses `CI=true`, and fails immediately with the command above when explicitly selected without authorization. No PowerShell wrapper, plugin installation, or manual enabling is required. The test build supplies the complete plugin folder from this checkout, since MCP is deployed as a plugin folder rather than a NuGet package.
+`LiveQualification/` contains the C# runner and serial fixture. Like the Client, it requires the exact acknowledgement, refuses `CI=true`, and fails immediately with the command above when explicitly selected without authorization. No PowerShell wrapper, plugin installation, or manual enabling is required. Publish the matching configuration before the live test (`Debug` for a Debug test run); the regular solution build and the publish step are separate.
 
 The runner creates two private copies of installed Windows x64 Cheat Engine 7.7+ under `%LOCALAPPDATA%/CheatEngine.Mcp.LiveQualification/runs/<run>`, selects .NET 10 only in those copies, and loads the plugin automatically. Each gets its own disposable memory target, label, and automatic loopback port; one stdio gateway routes calls through a private discovery directory. Existing CE processes are refused, never closed. The installed host is not modified. Optional `CHEATENGINE_MCP_LIVE_QUALIFICATION_CE_DIRECTORY` selects another installation; `CHEATENGINE_MCP_LIVE_QUALIFICATION_RUN_ROOT` selects another absolute run directory outside the repository and apart from the installation.
 
 The private copy disables existing autorun scripts except the stock `celib.lua`, `monoscript.lua`, and `SpeedhackV3.lua` needed for speedhack. These must match the reviewed hashes from CE 7.7.1.10828; missing or changed scripts fail before launching CE. Review newer stock scripts before updating those hashes in `LiveSandboxSession.cs`.
 
-The Client's registry and application-data backup helpers preserve CE settings, restore and verify them after shutdown, and retain a recovery marker if restoration fails. A later run restores a leftover backup and stops so the recovery is visible. Plugin settings and logs stay in the run folder. Reports contain the exact host version/hash, plugin hash, individual checks, and cleanup results. Local reports and backups stay outside the checkout.
+Local test helpers adapted from Client's MIT-licensed test suite preserve CE settings, restore and verify them after shutdown, and retain a recovery marker if restoration fails. Their provenance is recorded in [the infrastructure notice](tests/CheatEngine.Mcp.Tests/LiveQualification/Infrastructure/NOTICE.md); they do not require a Client source checkout. A later run restores a leftover backup and stops so the recovery is visible. Plugin settings and logs stay in the run folder. Reports contain the exact host version/hash, plugin hash, individual checks, and cleanup results. Local reports and backups stay outside the checkout.
 
 The live scenario checks all tool names, loaded plugin paths, runtime evidence, target attachment, typed memory reads/writes, address-list add/update/delete, actual freeze/unfreeze behavior, and speedhack setting/readback. It verifies that changing A leaves B's separate target and table unchanged, then stops B and verifies A remains available while B calls fail. Speedhack readback does not measure timing accuracy. This smoke test is separate from the Client's qualification against its pinned host build; it does not qualify every MCP tool, debugger backend, or DBVM. Ordinary CI excludes live tests.
 
@@ -136,7 +280,7 @@ $env:CHEATENGINE_MCP_LUA53_PATH = "C:\Program Files\Cheat Engine\lua53-64.dll"
 dotnet test --solution CheatEngine.Mcp.slnx --filter-trait Category=NativeLua --fail-skips on
 ```
 
-These validate the protected adapter and copied-result contracts, not CE functions. Build artifacts are complete deployment folders.
+These validate the protected adapter and copied-result contracts, not CE functions. Deployable build artifacts are the two files under `artifacts/dist/<configuration>/`.
 
 ## Attribution
 

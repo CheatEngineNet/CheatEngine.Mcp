@@ -16,7 +16,7 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 	{
 		LiveQualificationInputs inputs = fixture.RequireAuthorization();
 		await using LiveSandboxSession sandbox = await LiveSandboxSession.StartAsync(inputs);
-		await using LiveMcpClient gateway = await LiveMcpClient.ConnectGatewayAsync(FindGatewayExecutable(inputs.RepositoryRoot), sandbox.InstanceDirectory,
+		await using LiveMcpClient gateway = await LiveMcpClient.ConnectGatewayAsync(sandbox.GatewayExecutablePath, sandbox.InstanceDirectory,
 			TestContext.Current.CancellationToken)
 			.WaitAsync(McpTimeout, TestContext.Current.CancellationToken);
 		int? recordId = null;
@@ -64,10 +64,12 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			step = "instance A plugin version";
 			JsonNode pluginVersionA = await SuccessfulCallAsync(instanceA, "get_plugin_version");
 			Assert.Equal(sandbox.HostA.PluginPath, pluginVersionA["location"]!.GetValue<string>());
+			AssertRuntimeLocation(pluginVersionA, sandbox.BundleCacheDirectory);
 
 			step = "instance B plugin version";
 			JsonNode pluginVersionB = await SuccessfulCallAsync(instanceB, "get_plugin_version");
 			Assert.Equal(sandbox.HostB.PluginPath, pluginVersionB["location"]!.GetValue<string>());
+			AssertRuntimeLocation(pluginVersionB, sandbox.BundleCacheDirectory);
 
 			step = "instance runtime information";
 			JsonNode runtimeA = await SuccessfulCallAsync(instanceA, "get_runtime_info");
@@ -190,22 +192,18 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 		}
 	}
 
-	private static string FindGatewayExecutable(string repository)
-	{
-#if DEBUG
-		const string configuration = "debug";
-#else
-		const string configuration = "release";
-#endif
-		string path = Path.Combine(repository, "artifacts", "bin", "CheatEngine.Mcp.Gateway", configuration, "CheatEngine.Mcp.Gateway.exe");
-		return File.Exists(path) ? path : throw new FileNotFoundException("Build the Gateway project before live qualification.", path);
-	}
-
 	private static void AssertInstance(JsonArray instances, LiveSandboxHost expected)
 	{
 		JsonNode instance = Assert.Single(instances, candidate => candidate!["instanceId"]!.GetValue<string>() == expected.InstanceId)!;
 		Assert.Equal($"Live Qualification {expected.Name}", instance["name"]!.GetValue<string>());
 		Assert.Equal(expected.ProcessId, instance["processId"]!.GetValue<int>());
+	}
+
+	private static void AssertRuntimeLocation(JsonNode pluginVersion, string bundleCacheDirectory)
+	{
+		string runtimeLocation = pluginVersion["runtimeLocation"]!.GetValue<string>();
+		Assert.True(LiveQualificationOptIn.IsSameOrBelow(runtimeLocation, bundleCacheDirectory));
+		Assert.Equal("CheatEngine.Mcp.Runtime.dll", Path.GetFileName(runtimeLocation));
 	}
 
 	private static async Task AssertEventuallyInstancesAsync(LiveMcpClient gateway, string remainingInstanceId)

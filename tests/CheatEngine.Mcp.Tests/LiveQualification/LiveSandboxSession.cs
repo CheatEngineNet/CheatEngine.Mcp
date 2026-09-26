@@ -4,7 +4,6 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-using CheatEngine.Client.Tests.LiveQualification;
 using CheatEngine.Mcp.Instances;
 
 namespace CheatEngine.Mcp.Tests.LiveQualification;
@@ -36,9 +35,19 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 		_report["schema"] = "cheatengine-mcp-live-multi-instance/v1";
 		_report["runId"] = layout.RunId;
 		InstanceDirectory = Path.Combine(layout.RunDirectory, "instances");
+		BundleCacheDirectory = Path.Combine(layout.RunRoot, "bundle-cache");
+		GatewayExecutablePath = Path.Combine(layout.RunDirectory, "gateway", "CheatEngine.Mcp.Gateway.exe");
 	}
 
 	public string InstanceDirectory
+	{
+		get;
+	}
+	public string BundleCacheDirectory
+	{
+		get;
+	}
+	public string GatewayExecutablePath
 	{
 		get;
 	}
@@ -136,6 +145,8 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 		_runtimeHash = HashIfExists(Path.Combine(_source, "ce.runtimeconfig.json"));
 		Record("host", _profile);
 		Directory.CreateDirectory(InstanceDirectory);
+		Directory.CreateDirectory(BundleCacheDirectory);
+		PrepareDistribution(repository);
 		PrepareHostInstallation("A");
 		PrepareHostInstallation("B");
 		RequireNoCheatEngine();
@@ -155,6 +166,28 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 			host.Public.TargetProcessId,
 			port = new Uri(host.Public.Endpoint).Port
 		}).ToArray());
+	}
+
+	private void PrepareDistribution(string repository)
+	{
+#if DEBUG
+		const string configuration = "debug";
+#else
+		const string configuration = "release";
+#endif
+		string distribution = Path.Combine(repository, "artifacts", "dist", configuration);
+		string gatewaySource = Path.Combine(distribution, "CheatEngine.Mcp.Gateway.exe");
+		if (!File.Exists(gatewaySource))
+		{
+			throw new FileNotFoundException("Build the self-contained gateway distribution before live qualification.", gatewaySource);
+		}
+		Directory.CreateDirectory(Path.GetDirectoryName(GatewayExecutablePath)!);
+		File.Copy(gatewaySource, GatewayExecutablePath);
+		Record("gateway_distribution", new
+		{
+			file = Path.GetFileName(GatewayExecutablePath),
+			sha256 = CheatEngineInstallation.Sha256(GatewayExecutablePath)
+		});
 	}
 
 	private void PrepareHostInstallation(string name)
@@ -188,10 +221,16 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 #else
 		const string configuration = "release";
 #endif
-		// The gateway bundle is the canonical distribution and contains the plugin's managed bridge and manifests.
-		string pluginOutput = Path.Combine(repository, "artifacts", "bin", "CheatEngine.Mcp.Gateway", configuration);
-		string pluginPath = Path.Combine(_layout.PluginsDirectory, name, "CheatEngine.Mcp", "CheatEngine.Mcp.dll");
-		CopyTree(pluginOutput, Path.GetDirectoryName(pluginPath)!);
+		string distribution = Path.Combine(repository, "artifacts", "dist", configuration);
+		string wrapperSource = Path.Combine(distribution, "CheatEngine.Mcp.dll");
+		if (!File.Exists(wrapperSource))
+		{
+			throw new FileNotFoundException("Build the wrapper distribution before live qualification.", wrapperSource);
+		}
+		string pluginPath = Path.Combine(_layout.PluginsDirectory, name, "CheatEngine.Mcp.dll");
+		Directory.CreateDirectory(Path.GetDirectoryName(pluginPath)!);
+		File.Copy(wrapperSource, pluginPath);
+		VerifyDistributionStaging(name, pluginPath);
 		Record($"plugin_{name}_sha256", CheatEngineInstallation.Sha256(pluginPath));
 		string stopPath = Path.Combine(_layout.RunDirectory, $"stop-{name}");
 		string targetManifest = Path.Combine(_layout.RunDirectory, $"target-{name}.json");
@@ -222,6 +261,7 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 			hostStart.Environment["MCP_DATA_DIRECTORY"] = Path.Combine(_layout.RunDirectory, "plugin-data", name);
 			hostStart.Environment["MCP_INSTANCE_DIRECTORY"] = InstanceDirectory;
 			hostStart.Environment["MCP_INSTANCE_NAME"] = $"Live Qualification {name}";
+			hostStart.Environment["MCP_BUNDLE_CACHE_DIRECTORY"] = BundleCacheDirectory;
 			host = Process.Start(hostStart) ?? throw new InvalidOperationException($"Private CE host {name} did not start.");
 			owned.Process = host;
 			_debugOutput!.Buffer.Track(host.Id);
@@ -270,6 +310,27 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 			}
 			throw;
 		}
+	}
+
+	private void VerifyDistributionStaging(string name, string pluginPath)
+	{
+		string pluginDirectory = Path.GetDirectoryName(pluginPath)!;
+		string[] pluginFiles = Directory.EnumerateFileSystemEntries(pluginDirectory).Select(path => Path.GetFileName(path)!).Order(StringComparer.Ordinal).ToArray();
+		if (!pluginFiles.SequenceEqual(["CheatEngine.Mcp.dll"], StringComparer.Ordinal))
+		{
+			throw new InvalidOperationException($"Live host {name} staged files beyond the wrapper DLL.");
+		}
+		string gatewayDirectory = Path.GetDirectoryName(GatewayExecutablePath)!;
+		string[] gatewayFiles = Directory.EnumerateFileSystemEntries(gatewayDirectory).Select(path => Path.GetFileName(path)!).Order(StringComparer.Ordinal).ToArray();
+		if (!gatewayFiles.SequenceEqual(["CheatEngine.Mcp.Gateway.exe"], StringComparer.Ordinal))
+		{
+			throw new InvalidOperationException("Live qualification staged files beyond the self-contained gateway executable.");
+		}
+		Record($"distribution_{name}", new
+		{
+			pluginFiles,
+			gatewayFiles
+		});
 	}
 
 	private async Task<InstanceDescriptor> WaitForInstanceAsync(OwnedHost host, TimeSpan timeout)
@@ -593,17 +654,6 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 	private string HostInstallationDirectory(string name) => Path.Combine(_layout.RunDirectory, $"ce-{name}");
 	private static string? HashIfExists(string path) => File.Exists(path) ? CheatEngineInstallation.Sha256(path) : null;
 	private static string LuaString(string value) => '"' + string.Concat(Encoding.UTF8.GetBytes(value).Select(valueByte => "\\" + valueByte.ToString("D3", System.Globalization.CultureInfo.InvariantCulture))) + '"';
-
-	private static void CopyTree(string source, string destination)
-	{
-		Directory.CreateDirectory(destination);
-		foreach (string file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
-		{
-			string path = Path.Combine(destination, Path.GetRelativePath(source, file));
-			Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-			File.Copy(file, path);
-		}
-	}
 
 	private sealed class OwnedHost(Process? process, Process? target, string stopPath, string targetManifest, LiveSandboxHost @public)
 	{

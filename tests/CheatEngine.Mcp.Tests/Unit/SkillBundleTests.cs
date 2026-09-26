@@ -3,7 +3,7 @@ namespace CheatEngine.Mcp.Tests;
 public sealed class SkillBundleTests
 {
 	[Fact]
-	public void ProjectCopiesSkillBesideDllWithoutLocalMachineState()
+	public void RuntimePayloadIncludesReadableSkillWithoutLocalMachineState()
 	{
 		string projectFile = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "src", "CheatEngine.Mcp", "CheatEngine.Mcp.csproj"));
 
@@ -13,9 +13,6 @@ public sealed class SkillBundleTests
 		Assert.Contains("skills/cheatengine-mcp/references/local-cheat-engine.md", projectFile);
 		Assert.True(File.Exists(Path.Combine(AppContext.BaseDirectory, "skills", "cheatengine-mcp", "SKILL.md")));
 		Assert.False(File.Exists(Path.Combine(AppContext.BaseDirectory, "skills", "cheatengine-mcp", "references", "local-cheat-engine.md")));
-		Assert.False(
-			projectFile.Contains("<EmbeddedResource Include=\"skills", StringComparison.OrdinalIgnoreCase),
-			"The distributable skill must be copied beside the DLL, not embedded into it.");
 	}
 
 	[Fact]

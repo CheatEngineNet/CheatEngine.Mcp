@@ -35,7 +35,8 @@ public sealed class ProcessTool
 			{
 				success = true,
 				version = assembly.GetName().Version?.ToString(),
-				location = assembly.Location
+				location = BundleEntryPoint.PluginPath ?? assembly.Location,
+				runtimeLocation = assembly.Location
 			};
 		});
 	}

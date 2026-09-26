@@ -1,0 +1,28 @@
+<Project>
+  <Target Name="McpCollectBundleFiles" DependsOnTargets="ResolveProjectReferences" Condition="'$(DesignTimeBuild)' != 'true'">
+    <PropertyGroup>
+      <McpPayloadPath>$(IntermediateOutputPath)payload.zip</McpPayloadPath>
+      <McpPayloadManifest>$(IntermediateOutputPath)payload-files.txt</McpPayloadManifest>
+    </PropertyGroup>
+    <MSBuild Projects="../CheatEngine.Mcp/CheatEngine.Mcp.csproj" Targets="McpGetBundleFiles"
+             Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="McpBundleFiles" />
+    </MSBuild>
+    <WriteLinesToFile File="$(McpPayloadManifest)" Lines="@(McpBundleFiles->'%(FullPath)|%(RelativePath)')"
+                      Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <FileWrites Include="$(McpPayloadManifest);$(McpPayloadPath)" />
+    </ItemGroup>
+  </Target>
+  <Target Name="McpGenerateBundle" DependsOnTargets="McpCollectBundleFiles"
+          Inputs="@(McpBundleFiles);$(McpPayloadManifest);$(RepoRoot)eng/Write-Bundle.ps1"
+          Outputs="$(McpPayloadPath)" Condition="'$(DesignTimeBuild)' != 'true'">
+    <Exec Command="pwsh -NoProfile -File &quot;$(RepoRoot)eng/Write-Bundle.ps1&quot; -Manifest &quot;$(McpPayloadManifest)&quot; -OutputPath &quot;$(McpPayloadPath)&quot;" />
+  </Target>
+  <Target Name="McpEmbedBundle" BeforeTargets="AssignTargetPaths" DependsOnTargets="McpGenerateBundle"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <EmbeddedResource Include="$(McpPayloadPath)" LogicalName="CheatEngine.Mcp.Payload" />
+    </ItemGroup>
+  </Target>
+</Project>

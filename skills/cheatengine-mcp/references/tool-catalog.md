@@ -249,7 +249,7 @@ The gateway exposes **140 tools**: `list_instances` plus **139 CE tools**. Every
 | Tool | Purpose |
 | --- | --- |
 | `get_current_process` | Get the process currently selected in Cheat Engine. |
-| `get_plugin_version` | Get the loaded plugin version and assembly path. |
+| `get_plugin_version` | Get the loaded plugin version and assembly path, plus the extracted runtime location for deployment diagnostics. |
 | `get_process_list` | List a bounded set of local processes. |
 | `open_process` | Attach Cheat Engine to a process ID or exact process name. |
 

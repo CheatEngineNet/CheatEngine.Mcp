@@ -12,7 +12,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
         with:
-          submodules: recursive
           fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of analysis
       - name: Setup .NET
         uses: actions/setup-dotnet@v6.0.0

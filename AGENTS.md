@@ -9,7 +9,8 @@
 - `src/CheatEngine.Mcp/`: plugin, activation module, HTTP server, options, logging, schema transform, and tools.
 - `src/CheatEngine.Mcp.Gateway/`: stdio discovery, schema routing, and authenticated backend forwarding.
 - `tests/CheatEngine.Mcp.Tests/`: xUnit v3 tests on Microsoft.Testing.Platform.
-- `CheatEngine.Client/`: pinned Git submodule, built through project references. Do not edit it to work around application issues.
+- `CheatEngine.Client`: NuGet package pinned centrally in `Directory.Packages.props`; no source checkout or submodule is required.
+- `tests/CheatEngine.Mcp.Tests/LiveQualification/Infrastructure/`: local test helpers adapted from Client, with provenance in `NOTICE.md` and the full license under `licenses/`.
 - `skills/cheatengine-mcp/`: shipped operator skill and exact tool catalog.
 - `artifacts/`: build/test output.
 - `Directory.Build.props`, `Directory.Packages.props`, `global.json`: centralized build/package/SDK policy.
@@ -32,24 +33,24 @@ Responses use `success` plus result fields. Client failures include kind, operat
 
 ## Configuration and delivery
 
-Precedence: defaults, plugin appsettings.json, user appsettings.json, MCP_HOST/MCP_PORT/MCP_INSTANCE_NAME/MCP_INSTANCE_DIRECTORY. Data/log path: %APPDATA%/CheatEngine.Mcp, or the absolute MCP_DATA_DIRECTORY override. No legacy configuration fallback. Registry defaults to %LOCALAPPDATA%/CheatEngine.Mcp/instances; gateway and plugins must agree on overrides.
+Precedence: bundled defaults, optional appsettings.json beside the original plugin wrapper DLL, user appsettings.json, MCP_HOST/MCP_PORT/MCP_INSTANCE_NAME/MCP_INSTANCE_DIRECTORY. Data/log path: %APPDATA%/CheatEngine.Mcp, or the absolute MCP_DATA_DIRECTORY override. The wrapper extracts its verified payload to %LOCALAPPDATA%/CheatEngine.Mcp/cache/<payload SHA256>, or the absolute MCP_BUNDLE_CACHE_DIRECTORY override. Treat extracted version directories as read-only; configuration remains editable only at the original plugin or user-data paths. No legacy configuration fallback. Registry defaults to %LOCALAPPDATA%/CheatEngine.Mcp/instances; gateway and plugins must agree on overrides.
 
 Backends require literal 127.0.0.1, default port zero, and per-activation bearer authentication. Arbitrary Lua and Client Auto Assembler patches require explicit opt-in, but dedicated mutation tools remain powerful and these flags are not a sandbox; table files need allowed roots. Bound transport, reads, scans, identifiers, and retained resources.
 
-Ship the entire CheatEngine.Mcp.Gateway output directory, including both gateway and plugin deps/runtimeconfig files, dependencies, SDK native bridge, settings, and skill. Never restore single-DLL Costura packaging or claim Native AOT loading. The direct SDK package reference supplies build-time bootstrap assets even though Client is source referenced.
+Run `pwsh -NoProfile -File eng/Publish.ps1` (Release by default) to create `artifacts/dist/<configuration>/CheatEngine.Mcp.dll` and `CheatEngine.Mcp.Gateway.exe`. The plugin DLL is a verified extracting wrapper containing the runtime, Client, SDK, native bridge, skill, and licenses; preserve the `CheatEngine.Mcp.dll` filename because CE resolves the managed entry point by file and assembly identity. The gateway is a self-contained single executable. Never restore Costura packaging or claim Native AOT loading. The CE host still needs .NET 10 ASP.NET Core and Windows Desktop runtimes. Keep the direct SDK package reference alongside the Client package: it supplies build-time bootstrap assets.
 
 ## Commands
 
 ```powershell
-git submodule update --init --recursive
 dotnet restore CheatEngine.Mcp.slnx --locked-mode
 dotnet build CheatEngine.Mcp.slnx --no-restore
 dotnet test --solution CheatEngine.Mcp.slnx --no-restore --no-build --filter-not-trait Category=LiveQualification --filter-not-trait Category=NativeLua --fail-skips on
 dotnet build CheatEngine.Mcp.slnx -c Release --no-restore
+pwsh -NoProfile -File eng/Publish.ps1
 dotnet format style CheatEngine.Mcp.slnx --no-restore --severity warn --verify-no-changes
 dotnet format whitespace CheatEngine.Mcp.slnx --no-restore --verify-no-changes
 ```
 
-Tests use xUnit v3 Facts/Theories and behavior-oriented Subject_Condition_Outcome names. Prefer Client contract doubles and real loopback transport checks over mocking CE internals. `LiveQualification/` follows the Client's C# serial fixture and fail-fast acknowledgement pattern: set `CHEATENGINE_MCP_LIVE_QUALIFICATION=I_AUTHORIZE_CE77_LIVE_PROBES_ON_A_DISPOSABLE_TARGET`, then run `dotnet test --project tests/CheatEngine.Mcp.Tests -c Release --filter-trait Category=LiveQualification --fail-skips on`. It automatically loads the combined gateway bundle into two private CE copies, launches separate owned targets, routes both through one stdio gateway, and restores CE user settings using the Client's linked backup/recovery helpers. Optional `CHEATENGINE_MCP_LIVE_QUALIFICATION_CE_DIRECTORY` overrides the installed source; never edit that source. Reports/backups stay outside the checkout under `%LOCALAPPDATA%/CheatEngine.Mcp.LiveQualification/runs`. No other CE instance may be running. The live scenario covers memory, address-list/freeze and speedhack readback, not full Client host qualification. NativeLua tests require the documented DLL fixture and are excluded from portable CI, rather than skipped. Do not equate offline tests with native host verification.
+Tests use xUnit v3 Facts/Theories and behavior-oriented Subject_Condition_Outcome names. Prefer Client contract doubles and real loopback transport checks over mocking CE internals. `LiveQualification/` follows the Client's C# serial fixture and fail-fast acknowledgement pattern: set `CHEATENGINE_MCP_LIVE_QUALIFICATION=I_AUTHORIZE_CE77_LIVE_PROBES_ON_A_DISPOSABLE_TARGET`, publish the matching configuration first, then run `dotnet test --project tests/CheatEngine.Mcp.Tests -c Release --filter-trait Category=LiveQualification --fail-skips on`. It automatically loads the two-file distribution into two private CE copies, launches separate owned targets, routes both through one stdio gateway, and restores CE user settings using the locally adapted Client backup/recovery helpers. Optional `CHEATENGINE_MCP_LIVE_QUALIFICATION_CE_DIRECTORY` overrides the installed source; never edit that source. Reports/backups stay outside the checkout under `%LOCALAPPDATA%/CheatEngine.Mcp.LiveQualification/runs`. No other CE instance may be running. The live scenario covers memory, address-list/freeze and speedhack readback, not full Client host qualification. NativeLua tests require the documented DLL fixture and are excluded from portable CI, rather than skipped. Do not equate offline tests with native host verification.
 
 Update the skill/catalog when tool contracts or configuration change. Never package or commit references/local-cheat-engine.md. No commit/push/deployment without user authorization.

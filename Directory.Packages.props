@@ -4,6 +4,7 @@
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <ItemGroup>
+    <PackageVersion Include="CheatEngine.Client" Version="1.0.0" />
     <PackageVersion Include="CheatEngine.SDK" Version="2.0.0" />
     <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="2.2.0" />
     <PackageVersion Include="NLog" Version="6.2.1" />
@@ -14,7 +15,7 @@
     <PackageVersion Include="Microsoft.Testing.Extensions.GitHubActionsReport" Version="2.4.1" />
     <PackageVersion Include="Microsoft.Testing.Extensions.HangDump" Version="2.4.1" />
     <PackageVersion Include="Microsoft.Testing.Extensions.CrashDump" Version="2.4.1" />
-    <!-- Keep compatible transitive dependencies current without modifying the Client submodule. -->
+    <!-- Pin compatible transitive dependency versions alongside the published Client package. -->
     <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.10.1" />
     <PackageVersion Include="Microsoft.DiaSymReader" Version="2.2.12" />
     <PackageVersion Include="Microsoft.Extensions.Caching.Abstractions" Version="10.0.12" />

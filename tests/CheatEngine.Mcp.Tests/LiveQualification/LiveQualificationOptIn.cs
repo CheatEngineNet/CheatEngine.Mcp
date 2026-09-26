@@ -1,5 +1,3 @@
-using ClientLivePaths = CheatEngine.Client.Tests.LiveQualification.LiveQualificationOptIn;
-
 namespace CheatEngine.Mcp.Tests.LiveQualification;
 
 internal sealed record LiveQualificationInputs(string RepositoryRoot, string CheatEngineDirectory, string RunRoot);
@@ -58,7 +56,13 @@ internal static class LiveQualificationOptIn
 		return new(new(Path.GetFullPath(repositoryRoot), Path.GetFullPath(source), Path.GetFullPath(runRoot)), null);
 	}
 
-	internal static bool IsSameOrBelow(string path, string directory) => ClientLivePaths.IsSameOrBelow(path, directory);
+	internal static bool IsSameOrBelow(string path, string directory)
+	{
+		string fullPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+		string fullDirectory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));
+		return string.Equals(fullPath, fullDirectory, StringComparison.OrdinalIgnoreCase)
+			|| fullPath.StartsWith(fullDirectory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+	}
 
 	private static LiveQualificationDecision Refuse(string reason) => new(null, reason + Environment.NewLine + Instructions);
 }
