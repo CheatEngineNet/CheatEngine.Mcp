@@ -1,5 +1,12 @@
+using System.Collections.Immutable;
 using System.Net;
 using System.Net.Sockets;
+using System.Text.Json.Nodes;
+
+using CheatEngine.Client;
+using CheatEngine.Client.Results;
+using CheatEngine.Client.Scanning;
+using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Mcp.Tests;
 
@@ -108,6 +115,80 @@ public sealed class McpServerTests
 	}
 
 	[Fact]
+	public async Task IndependentScan_HttpCallsAndReconnect_KeepSessionUntilExplicitResetOrServerShutdown()
+	{
+		HttpScanSessionProbe resetSession = new(new Address(0x1234), "initial");
+		HttpScanSessionProbe shutdownSession = new(new Address(0x5678), "remaining");
+		Queue<HttpScanSessionProbe> sessions = new([resetSession, shutdownSession]);
+		IValueScanner scanner = ClientTestDouble.Create<IValueScanner>((method, _) => method.Name == nameof(IValueScanner.CreateSession) &&
+			sessions.TryDequeue(out HttpScanSessionProbe? session)
+			? session.Session
+			: throw new Xunit.Sdk.XunitException($"Unexpected value-scanner call: {method.Name}."));
+		string directory = Path.Combine(Path.GetTempPath(), $"CheatEngine.Mcp.Tests-{Guid.NewGuid():N}");
+		using PluginLog log = new PluginLog(directory);
+		McpOptions options = new McpOptions { Port = FreePort() };
+		McpServer server = new McpServer(ClientTestDouble.Client((nameof(ICheatEngineClient.ValueScans), scanner)), options, log);
+		try
+		{
+			await server.StartAsync();
+			await using (LiveMcpClient firstClient = await LiveMcpClient.ConnectAsync(options.BaseUrl, TestContext.Current.CancellationToken))
+			{
+				await AssertSuccessfulCallAsync(firstClient, "memory_scan", new Dictionary<string, object?>
+				{
+					["scannerName"] = "reset-me",
+					["valueType"] = "int32",
+					["value"] = "10"
+				});
+				JsonNode? results = await firstClient.CallToolAsync("get_memory_scan_results", new Dictionary<string, object?>
+				{
+					["scannerName"] = "reset-me"
+				});
+				Assert.True(results!["success"]!.GetValue<bool>());
+				Assert.Equal("initial", results["results"]![0]!["value"]!.GetValue<string>());
+			}
+
+			Assert.Equal(0, resetSession.ReleaseCalls);
+			await using (LiveMcpClient reconnectingClient = await LiveMcpClient.ConnectAsync(options.BaseUrl, TestContext.Current.CancellationToken))
+			{
+				await AssertSuccessfulCallAsync(reconnectingClient, "next_memory_scan", new Dictionary<string, object?>
+				{
+					["scannerName"] = "reset-me",
+					["value"] = "11"
+				});
+				Assert.Equal(1, resetSession.NextCalls);
+				Assert.Equal(0, resetSession.ReleaseCalls);
+
+				await AssertSuccessfulCallAsync(reconnectingClient, "reset_memory_scan", new Dictionary<string, object?>
+				{
+					["scannerName"] = "reset-me"
+				});
+				Assert.Equal(1, resetSession.ReleaseCalls);
+
+				await AssertSuccessfulCallAsync(reconnectingClient, "memory_scan", new Dictionary<string, object?>
+				{
+					["scannerName"] = "release-on-shutdown",
+					["valueType"] = "int32",
+					["value"] = "20"
+				});
+			}
+
+			Assert.Equal(0, shutdownSession.ReleaseCalls);
+		}
+		finally
+		{
+			await server.StopAsync();
+			log.Dispose();
+			if (Directory.Exists(directory))
+			{
+				Directory.Delete(directory, recursive: true);
+			}
+		}
+
+		Assert.Equal(1, resetSession.ReleaseCalls);
+		Assert.Equal(1, shutdownSession.ReleaseCalls);
+	}
+
+	[Fact]
 	public async Task Start_OccupiedPort_FailsAndDoesNotReportRunning()
 	{
 		using TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
@@ -137,5 +218,73 @@ public sealed class McpServerTests
 		using TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
 		listener.Start();
 		return ((IPEndPoint) listener.LocalEndpoint).Port;
+	}
+
+	private static async Task AssertSuccessfulCallAsync(LiveMcpClient client, string name, IReadOnlyDictionary<string, object?> arguments)
+	{
+		JsonNode? result = await client.CallToolAsync(name, arguments);
+		Assert.True(result?["success"]?.GetValue<bool>() ?? false, result?.ToJsonString());
+	}
+
+	private sealed class HttpScanSessionProbe
+	{
+		private ValueScanSessionState state = ValueScanSessionState.Created;
+
+		public HttpScanSessionProbe(Address address, string value)
+		{
+			Address = address;
+			Value = value;
+			Session = ClientTestDouble.Create<IValueScanSession>(Handle);
+		}
+
+		public Address Address
+		{
+			get;
+		}
+		public int NextCalls
+		{
+			get; private set;
+		}
+		public int ReleaseCalls
+		{
+			get; private set;
+		}
+		public IValueScanSession Session
+		{
+			get;
+		}
+		public string Value
+		{
+			get;
+		}
+
+		private object? Handle(System.Reflection.MethodInfo method, object?[]? arguments) => method.Name switch
+		{
+			"get_State" => state,
+			"FirstScan" => FirstScan(),
+			"NextScan" => NextScan(),
+			"GetResultCount" => 1UL,
+			"Read" => new ValueScanPage(0, 1, ImmutableArray.Create(new ValueScanMatch(Address, Value))),
+			"Release" => Release(),
+			_ => throw new Xunit.Sdk.XunitException($"Unexpected scan-session call: {method.Name}.")
+		};
+
+		private object? FirstScan()
+		{
+			state = ValueScanSessionState.ResultsReady;
+			return null;
+		}
+
+		private object? NextScan()
+		{
+			NextCalls++;
+			return null;
+		}
+
+		private LeaseReleaseOutcome Release()
+		{
+			ReleaseCalls++;
+			return new LeaseReleaseOutcome(LeaseReleaseKind.Released, CheatEngineHostEffect.Completed);
+		}
 	}
 }

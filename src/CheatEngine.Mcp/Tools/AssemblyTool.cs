@@ -39,16 +39,16 @@ public sealed class AssemblyTool
 			List<object> instructions = [];
 			for (int index = 0; index < count; index++)
 			{
-				AssemblyInstructionSnapshot instruction = _client.Assembly.Disassemble(current, _client.Stopping);
+				AssemblyInstructionSnapshot instruction = DisassembleSnapshot(current, _client.Stopping);
 				instructions.Add(new
 				{
-					address = $"0x{current.Value:X}",
+					address = $"0x{instruction.Address.Value:X}",
 					opcode = instruction.Opcode,
 					extra = instruction.Extra,
 					bytes = Convert.ToHexString(instruction.Bytes.AsSpan()),
 					size = instruction.Length
 				});
-				current = new Address(checked(current.Value + (ulong) instruction.Length));
+				current = new Address(checked(instruction.Address.Value + (ulong) instruction.Length));
 			}
 			return new
 			{
@@ -69,7 +69,7 @@ public sealed class AssemblyTool
 			Address target = ToolExecution.Address(_client, address);
 			if (string.IsNullOrWhiteSpace(requestType) || string.Equals(requestType, "disassemble", StringComparison.OrdinalIgnoreCase))
 			{
-				AssemblyInstructionSnapshot instruction = _client.Assembly.Disassemble(target);
+				AssemblyInstructionSnapshot instruction = DisassembleSnapshot(target, _client.Stopping);
 				return new
 				{
 					success = true,
@@ -114,4 +114,23 @@ public sealed class AssemblyTool
 			};
 		});
 	}
+
+	private AssemblyInstructionSnapshot DisassembleSnapshot(Address address, CancellationToken cancellationToken)
+	{
+		AssemblyInstructionSnapshot typed = _client.Assembly.Disassemble(address, cancellationToken);
+		// Client 1.0/SDK 2.0 maps CE 7.7's splitDisassembledString stack values in documented order.
+		// LuaHandler.pas actually pushes extra, opcode, bytes, address, so copy the display columns here
+		// while retaining Client-owned address, length, and target-memory bytes as authoritative.
+		Dictionary<string, object?> columns = (Dictionary<string, object?>) LuaToolRuntime.Execute(_client, "disassemble_columns", """
+			local text=disassemble(a[1]); local extra,opcode,bytes,addressText=splitDisassembledString(text)
+			if type(addressText)~='string' or type(opcode)~='string' or type(extra)~='string' then error('Cheat Engine returned invalid disassembly columns') end
+			return {addressText=addressText,opcode=opcode,extra=extra}
+			""", typed.Address.Value)!;
+		return new AssemblyInstructionSnapshot(typed.Address, typed.Length,
+			Column(columns, "addressText"), Column(columns, "opcode"), Column(columns, "extra"), typed.Bytes.AsSpan());
+	}
+
+	private static string Column(Dictionary<string, object?> columns, string name) =>
+		columns.TryGetValue(name, out object? value) && value is string text
+			? text : throw new InvalidDataException($"Cheat Engine returned no valid '{name}' disassembly column.");
 }

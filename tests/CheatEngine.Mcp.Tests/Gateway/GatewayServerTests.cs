@@ -27,12 +27,18 @@ public sealed class GatewayServerTests
 
 		IList<McpClientTool> tools = await client.ListToolsAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-		Assert.Equal(140, tools.Count);
+		Assert.Equal(142, tools.Count);
 		Assert.Contains(tools, tool => tool.Name == GatewayToolCatalog.ListInstancesToolName);
-		Assert.Equal(139, tools.Count(tool => tool.Name != GatewayToolCatalog.ListInstancesToolName));
+		Assert.Equal(141, tools.Count(tool => tool.Name != GatewayToolCatalog.ListInstancesToolName));
 		Assert.All(GatewayToolCatalog.GetTools().Where(tool => tool.Name != GatewayToolCatalog.ListInstancesToolName),
 			tool => Assert.Contains(GatewayToolCatalog.InstanceIdArgumentName, tool.InputSchema.GetProperty("required")
 				.EnumerateArray().Select(value => value.GetString())));
+		foreach (string name in new[] { "memory_scan", "next_memory_scan", "get_memory_scan_results", "reset_memory_scan", "get_memory_scan_status" })
+		{
+			Tool tool = Assert.Single(GatewayToolCatalog.GetTools(), tool => tool.Name == name);
+			Assert.Equal("main", tool.InputSchema.GetProperty("properties").GetProperty("scannerName").GetProperty("default").GetString());
+			Assert.DoesNotContain("scannerName", tool.InputSchema.GetProperty("required").EnumerateArray().Select(value => value.GetString()));
+		}
 	}
 
 	[Fact]

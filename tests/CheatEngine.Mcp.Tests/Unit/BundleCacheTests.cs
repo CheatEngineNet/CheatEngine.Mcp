@@ -114,7 +114,7 @@ public sealed class BundleCacheTests
 	}
 
 	[Fact]
-	public void EmbeddedPayload_ContainsRuntimeNativeBridgeAndSkillWithoutLocalState()
+	public void EmbeddedPayload_ContainsRuntimeAndNativeBridgeWithoutSkillOrLocalState()
 	{
 		Assembly bootstrap = typeof(BundleCache).Assembly;
 		Assert.DoesNotContain(bootstrap.GetReferencedAssemblies(), static assembly =>
@@ -127,7 +127,7 @@ public sealed class BundleCacheTests
 		Assert.Contains("CheatEngine.Mcp.Runtime.deps.json", files);
 		Assert.Contains("cheatengine-sdk-lua-bridge.dll", files);
 		Assert.Contains("CheatEngine.Client.Core.dll", files);
-		Assert.Contains("skills/cheatengine-mcp/SKILL.md", files);
+		Assert.DoesNotContain(files, static file => file.StartsWith("skills/", StringComparison.OrdinalIgnoreCase));
 		Assert.Contains("licenses/CheatEngine.Client.LICENSE", files);
 		Assert.DoesNotContain("CheatEngine.Mcp.dll", files);
 		Assert.DoesNotContain(files, static file => file.Contains("local-cheat-engine.md", StringComparison.Ordinal));

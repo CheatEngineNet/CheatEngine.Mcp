@@ -4,9 +4,9 @@ Tools use CheatEngine.Client high-level APIs where available. `Lua*Tool` contain
 
 Arbitrary `execute_lua` and Client Auto Assembler patches are opt-in. Other dedicated mutation tools remain powerful; those flags are not a sandbox. Errors after an operation starts may leave changes in the host. Inspect `hostEffect` and recovery information before retrying.
 
-The Client owns named scan/allocation/symbol/patch leases. Use `release_target_resources` before switching targets. CE-owned structures, breakpoints, comments, address-list changes, debugger state, and injected code can outlive the plugin; remove/stop them explicitly.
+The Client owns independent named scan/allocation/symbol/patch leases. The reserved `main` scanner is borrowed from the visible CE tab; its results survive plugin disable. Omit `scannerName` to use main, or pass another name for an independent scan. Use `release_target_resources` before switching targets. CE-owned structures, breakpoints, comments, address-list changes, debugger state, and injected code can outlive the plugin; remove/stop them explicitly.
 
-The gateway exposes **140 tools**: `list_instances` plus **139 CE tools**. Every CE tool requires the additional string `instanceId` from discovery. The tables below list tool names and purposes; use live schemas for all remaining parameters. Resource IDs and names are scoped to that instance and activation.
+The gateway exposes **142 tools**: `list_instances` plus **141 CE tools**. Every CE tool requires the additional string `instanceId` from discovery. The tables below list tool names and purposes; use live schemas for all remaining parameters. Resource IDs and names are scoped to that instance and activation.
 
 ## Gateway
 
@@ -265,10 +265,12 @@ The gateway exposes **140 tools**: `list_instances` plus **139 CE tools**. Every
 | --- | --- |
 | `aob_scan` | Run a bounded AOB scan using CheatEngine.Client. |
 | `aob_scan_unique` | Find at most one AOB match; truncated results are not proof of uniqueness. |
-| `get_memory_scan_results` | Read one bounded page from a named value scan. |
-| `memory_scan` | Start a named Client value scan. Results are owned until reset. |
-| `next_memory_scan` | Narrow a named Client value scan with a comparison. |
-| `reset_memory_scan` | Release a named value-scan session and its resources. |
+| `get_memory_scan_results` | Read a bounded page from main's visible CE found list (including manual scans), or an independent Client session. |
+| `get_memory_scan_status` | Poll main's UI state or inspect a named independent session. |
+| `list_memory_scanners` | List main (the visible CE scan tab) and up to 32 independent Client sessions. |
+| `memory_scan` | Start main's visible UI scan by default, or an independent Client scan by name. Reset explicitly before another first scan. |
+| `next_memory_scan` | Narrow main's visible scan or an independent named scan with the same comparison API. |
+| `reset_memory_scan` | Clear main through CE's New Scan action, or release one independent named session. Refuses a running main scan. |
 
 ## SymbolRegistryTool
 

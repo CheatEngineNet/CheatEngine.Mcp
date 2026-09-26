@@ -119,7 +119,7 @@ internal static class SchemaTransform
 		DynamicallyAccessedMemberTypes.PublicMethods |
 		DynamicallyAccessedMemberTypes.NonPublicMethods |
 		DynamicallyAccessedMemberTypes.PublicConstructors)] TToolType>(
-		this IMcpServerBuilder builder) where TToolType : class
+		this IMcpServerBuilder builder, bool schemaOnly = false) where TToolType : class
 	{
 		builder.Services.TryAddSingleton<TToolType>();
 		foreach (MethodInfo toolMethod in typeof(TToolType).GetMethods(
@@ -131,10 +131,12 @@ internal static class SchemaTransform
 			}
 
 			MethodInfo method = toolMethod;
-			if (method.IsStatic)
+			if (method.IsStatic || !schemaOnly)
 			{
 				builder.Services.AddSingleton((Func<IServiceProvider, McpServerTool>) (services =>
-					McpServerTool.Create(method, target: null, new McpServerToolCreateOptions
+					// The instance overload borrows the DI-owned singleton. The factory overload
+					// disposes its target after every call, which would release retained resources.
+					McpServerTool.Create(method, target: method.IsStatic ? null : services.GetRequiredService<TToolType>(), new McpServerToolCreateOptions
 					{
 						Services = services,
 						SchemaCreateOptions = SchemaCreateOptions
@@ -145,16 +147,8 @@ internal static class SchemaTransform
 				builder.Services.AddSingleton((Func<IServiceProvider, McpServerTool>) (services =>
 					McpServerTool.Create(
 						method,
-						r =>
-						{
-							if (r.Services is null)
-							{
-								throw new InvalidOperationException(
-									$"Cannot create tool '{typeof(TToolType).Name}': the request has no IServiceProvider.");
-							}
-
-							return r.Services.GetRequiredService<TToolType>();
-						},
+						// Gateway discovery needs method metadata without constructing Client tools.
+						_ => throw new InvalidOperationException("Schema-only tools cannot be invoked."),
 						new McpServerToolCreateOptions
 						{
 							Services = services,

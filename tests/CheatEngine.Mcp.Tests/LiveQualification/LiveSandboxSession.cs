@@ -513,6 +513,25 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 		});
 	}
 
+	internal async Task<string[]> ScanUiAsync(string name, string action)
+	{
+		if (action is not ("prepare" or "snapshot" or "manual" or "hide"))
+		{
+			throw new ArgumentOutOfRangeException(nameof(action));
+		}
+		OwnedHost host = _hosts[name];
+		string response = Path.Combine(_layout.RunDirectory, $"scan-response-{name}.txt");
+		File.Delete(response);
+		await File.WriteAllTextAsync(Path.Combine(_layout.RunDirectory, $"scan-request-{name}.txt"), action);
+		await WaitUntilAsync(() => File.Exists(response), host.Process!, TimeSpan.FromSeconds(10));
+		string[] lines = await File.ReadAllLinesAsync(response);
+		if (lines.Length != 8 || lines[0] != "ok")
+		{
+			throw new InvalidOperationException($"Native scan UI probe failed: {string.Join("; ", lines)}");
+		}
+		return lines;
+	}
+
 	private string BuildDriver(string stopPath, string pluginPath, string name) => $$"""
 		local output = {{LuaString(Path.Combine(_layout.RunDirectory, $"driver-{name}.log"))}}
 		local function log(value)
@@ -521,6 +540,40 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 		log('driver-loaded')
 		local started = getTickCount()
 		local loaded = false
+		local function scanProbe()
+		  local requestPath={{LuaString(Path.Combine(_layout.RunDirectory, $"scan-request-{name}.txt"))}}
+		  local request=io.open(requestPath,'r')
+		  if not request then return end
+		  local action=request:read('*a'); request:close(); os.remove(requestPath)
+		  local ok,answer=pcall(function()
+		    local f=getMainForm()
+		    if action=='prepare' then
+		      f.show()
+		      local manifest=assert(io.open({{LuaString(Path.Combine(_layout.RunDirectory, $"target-{name}.json"))}},'r'))
+		      local contents=manifest:read('*a'); manifest:close()
+		      local address=assert(contents:match('"address"%s*:%s*"([^"]+)"')):gsub('^0x','')
+		      f.FromAddress.Text=address
+		      f.ToAddress.Text=string.format('%X',tonumber(address,16)+63)
+		      f.cbFastScan.Checked=false
+		    elseif action=='manual' then
+		      assert(f.btnNewScan.Enabled, 'scan is busy')
+		      if getCurrentMemscan().LastScanType~='stNewScan' then f.btnNewScan.doClick() end
+		      f.VarType.ItemIndex=3; f.VarType.OnChange(f.VarType)
+		      f.ScanType.ItemIndex=0; f.ScanType.OnChange(f.ScanType)
+		      f.cbHexadecimal.Checked=false; f.Scanvalue.Text='20260927'
+		      f.btnNewScan.doClick()
+		    elseif action=='hide' then f.hide()
+		    else assert(action=='snapshot', 'unknown scan probe') end
+		    local ms=getCurrentMemscan()
+		    return 'ok\n'..tostring(f.Foundlist3.Items.Count)..'\n'..f.FoundCountLabel.Caption..'\n'..
+		      f.Scanvalue.Text..'\n'..tostring(f.VarType.ItemIndex)..'\n'..tostring(ms.FoundList.Count)..'\n'..
+		      f.FromAddress.Text..'|'..f.ToAddress.Text..'|hex='..tostring(f.cbHexadecimal.Checked)..'|type='..tostring(ms.VarType)..'|value='..tostring(ms.LastScanValue)..'|error='..tostring(ms.ErrorString)..'\n'..tostring(f.Visible)
+		  end)
+		  local responsePath={{LuaString(Path.Combine(_layout.RunDirectory, $"scan-response-{name}.txt"))}}
+		  local response=assert(io.open(responsePath..'.tmp','w'))
+		  response:write(ok and answer or ('error: '..tostring(answer))); response:close()
+		  os.rename(responsePath..'.tmp',responsePath)
+		end
 		local timer = createTimer(nil, false)
 		timer.Interval = 100
 		timer.OnTimer = function()
@@ -532,7 +585,8 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 		    pcall(function() getAddressList().clear() end)
 		    closeCE(); return
 		  end
-		  if loaded or not getMainForm() then return end
+		  if loaded then scanProbe(); return end
+		  if not getMainForm() then return end
 		  loaded = true
 		  hideAllCEWindows()
 		  log('loading-plugin')

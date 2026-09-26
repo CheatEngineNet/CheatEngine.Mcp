@@ -22,8 +22,10 @@ Release is the default. Copy these files from `artifacts/dist/release/` into a s
 
 | File | How it is used |
 | --- | --- |
-| `CheatEngine.Mcp.dll` | Load this plugin in Cheat Engine. It contains the runtime, Client, SDK, native bridge, skill, and licenses. |
+| `CheatEngine.Mcp.dll` | Load this plugin in Cheat Engine. It contains the runtime, Client, SDK, native bridge, and licenses. |
 | `CheatEngine.Mcp.Gateway.exe` | Set this as the MCP server command in your AI client. It includes its own .NET runtime. |
+
+The release also contains `skills/cheatengine-mcp/`, an optional separate AI skill. Install it in your AI client's skill directory as described below; it is not embedded in the DLL or needed beside the plugin.
 
 Keep the DLL filename unchanged: CE uses its file and assembly identity to resolve the managed entry point. You can also use the files directly from `artifacts/dist/release/`, but close CE and stop the gateway before rebuilding or replacing files they have loaded.
 
@@ -117,11 +119,11 @@ Select a process in CE's process picker, or tell the AI the exact target process
 - "For my test program in game-a, add a Dword record named Health at the address I provide, set it to 100, and freeze it."
 - "Set game-a's attached test program to half speed, then restore its previous speed when we finish."
 
-Use a real, verified address for memory tasks; the agent should not invent an address from an example. See the [address-list and speedhack guide](skills/cheatengine-mcp/references/address-list-and-speedhack.md) for exact tools and cleanup, and the [tool catalog](skills/cheatengine-mcp/references/tool-catalog.md) for all **140 gateway tools**. Arbitrary Lua and Auto Assembler patches are optional opt-ins; ordinary address-list and speedhack tools work with the default settings.
+Use a real, verified address for memory tasks; the agent should not invent an address from an example. See the [address-list and speedhack guide](skills/cheatengine-mcp/references/address-list-and-speedhack.md) for exact tools and cleanup, and the [tool catalog](skills/cheatengine-mcp/references/tool-catalog.md) for all **142 gateway tools**. Arbitrary Lua and Auto Assembler patches are optional opt-ins; ordinary address-list and speedhack tools work with the default settings.
 
 ### Optional AI skill
 
-The [cheatengine-mcp skill](skills/cheatengine-mcp/SKILL.md) teaches instance selection and tool workflows. Copy the complete `skills/cheatengine-mcp` folder from this repository, or from the extracted cache for the loaded DLL, into your AI client's skill directory. Copy it out of the cache rather than editing the cached copy.
+The [cheatengine-mcp skill](skills/cheatengine-mcp/SKILL.md) teaches instance selection and tool workflows. It ships separately from the plugin. Copy the complete `skills/cheatengine-mcp` folder from the release output (`artifacts/dist/release/skills/cheatengine-mcp/`) or this repository into your AI client's skill directory. The release excludes local-machine notes.
 
 For Codex, the user-wide location is `%USERPROFILE%\.agents\skills\cheatengine-mcp\SKILL.md`; a repository-scoped installation goes under `.agents/skills/cheatengine-mcp/`. Keep the accompanying `references/` and `agents/` folders. The skill supplements the MCP connection; installing it alone does not register the gateway. See the [official skill locations](https://developers.openai.com/codex/skills).
 
@@ -205,15 +207,15 @@ To remove it, undo task-owned freezes, speed changes, and debugger state first. 
 
 ## Tools and ownership
 
-The [catalog](skills/cheatengine-mcp/references/tool-catalog.md) lists **140 gateway tools**: `list_instances` plus **139 CE tools**, each with a required `instanceId`. Use live MCP schemas for parameter types and defaults. The [address-list and speedhack guide](skills/cheatengine-mcp/references/address-list-and-speedhack.md) covers adding records, freezing, unfreezing, and restoring speed.
+The [catalog](skills/cheatengine-mcp/references/tool-catalog.md) lists **142 gateway tools**: `list_instances` plus **141 CE tools**, each with a required `instanceId`. Use live MCP schemas for parameter types and defaults. The [address-list and speedhack guide](skills/cheatengine-mcp/references/address-list-and-speedhack.md) covers adding records, freezing, unfreezing, and restoring speed.
 
-The [scanning and debugging guide](skills/cheatengine-mcp/references/scanning-and-debugging.md) covers unknown-initial/changed/increased/range value scans, pointer maps and rescans, write/access collectors, break-and-trace, and register editing. Value scans and pointer memory access use Client APIs; debugger callbacks use fixed CE Lua operations. Pointer maps are bounded in-memory MCP snapshots, not CE's native pointer-map files. Debugger captures/traces have explicit stop, finite lifetime, and a 30-second result-retention window after completion/expiry.
+The [scanning and debugging guide](skills/cheatengine-mcp/references/scanning-and-debugging.md) covers unknown-initial/changed/increased/range value scans, pointer maps and rescans, write/access collectors, break-and-trace, and register editing. Value scans use the same tools for both modes: omit `scannerName` (or use `main`) for the visible CE scan tab, or choose another name for an independent Client session. Main scans update CE's native controls and result list; use `get_memory_scan_status` to wait for completion and `get_memory_scan_results` to read either MCP-started or manually started UI scans. `list_memory_scanners` lists main and the independent sessions. The UI adapter uses fixed Lua through Client because Client 1.0 has no UI-scan API. Independent scans and pointer memory access use typed Client APIs; debugger callbacks use fixed CE Lua operations. Pointer maps are bounded in-memory MCP snapshots, not CE's native pointer-map files. Debugger captures/traces have explicit stop, finite lifetime, and a 30-second result-retention window after completion/expiry.
 
 - Start with `list_instances`, then `get_runtime_info`, `get_plugin_version`, and `get_current_process` on the chosen instance.
 - Process selection, typed memory, pointers, AOB scans, inspection, and address-table tools use Client contracts.
-- Value scans, allocations, assembly, and Auto Assembler retain Client experimental/capability checks. An API's presence does not establish that the current host supports it.
+- Independent value scans, allocations, assembly, and Auto Assembler retain Client experimental/capability checks. An API's presence does not establish that the current host supports it.
 - Arbitrary `execute_lua` and Client Auto Assembler patches require their respective configuration flags. These flags are not a sandbox: dedicated tools can write memory, launch/inject code, control the debugger, access files, and alter host state. Table load/save uses configured allowed roots.
-- Named scans, allocations, registered symbols, and patches belong to one enable epoch. Before switching processes, use `release_target_resources`; it releases in reverse creation order and stops on incomplete cleanup. A repeated request for the selected PID preserves resources.
+- Independent named scans, allocations, registered symbols, and patches belong to one enable epoch. The `main` scanner belongs to CE: it survives plugin disable, follows the visible CE scan tab, and is never destroyed by MCP. `reset_memory_scan` on main explicitly clears its visible results through CE's New Scan action. Wait for or cancel an active UI scan before switching targets. Before switching processes, use `release_target_resources`; it releases in reverse creation order and stops on incomplete cleanup. A repeated request for the selected PID preserves resources.
 - Failed releases report recovery details and keep retryable handles. If Cheat Engine changes targets outside MCP, inspect cleanup outcomes and perform manual recovery when reported. Never reuse identifiers after disable/re-enable.
 
 The Lua adapter encodes arguments as data, runs a protected call inside the Client activation/main-thread boundary, and copies bounded results. It returns `{ success, result }`; direct Lua calls preserve multiple return values as arrays, including null slots. A Lua failure includes `hostEffect`: an operation that started may have partially changed the host. It is unsafe to blindly retry a failed mutation. Requests are limited to 8 MiB; copied Lua results are limited to 65,536 items, depth 16, and 4 MiB of strings. Individual tools apply tighter limits.
@@ -239,7 +241,7 @@ dotnet test --solution CheatEngine.Mcp.slnx --no-restore --no-build --filter-not
 pwsh -NoProfile -File eng/Publish.ps1 -Configuration Release
 ```
 
-The distributable files are under `artifacts/dist/release/`. A normal `dotnet build` prepares development outputs; `eng/Publish.ps1` also creates the self-contained gateway and stages the two-file distribution. Publishing uses the checked-in NuGet lock files. CI publishes the same layout for Debug and Release.
+The distributable files are under `artifacts/dist/release/`. A normal `dotnet build` prepares development outputs; `eng/Publish.ps1` also creates the self-contained gateway and stages the two deployment files plus the separate `skills/cheatengine-mcp/` folder. Publishing uses the checked-in NuGet lock files. CI publishes the same layout for Debug and Release.
 
 The plugin references **[CheatEngine.Client 1.0.0](https://www.nuget.org/packages/CheatEngine.Client/1.0.0)** through NuGet. Its package metadata identifies source revision `f88de3d843252c9139f08c71531a02f03c0516bb`. No submodule checkout is required. The plugin also directly references **CheatEngine.SDK 2.0.0**, as required by Client, for its generated entry point and native bridge.
 

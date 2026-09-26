@@ -46,7 +46,7 @@ public sealed class LuaCodeTool
 		return Invoke("get_previous_opcodes", """
 			local current=getAddressSafe(a[1]); if current==nil then error('Address could not be resolved') end; local reverse={}
 			for i=1,a[2] do local previous=getPreviousOpcode(current); if previous==nil or previous>=current then break end; current=previous; table.insert(reverse,1,current) end
-			local items={}; for i=1,#reverse do local text=disassemble(reverse[i]); local at,bytes,opcode,extra=splitDisassembledString(text); items[#items+1]={address=reverse[i],addressText=at,bytes=bytes,opcode=opcode,extra=extra} end; return {instructions=items}
+			local items={}; for i=1,#reverse do local text=disassemble(reverse[i]); local extra,opcode,bytes,addressText=splitDisassembledString(text); items[#items+1]={address=reverse[i],addressText=addressText,bytes=bytes,opcode=opcode,extra=extra} end; return {instructions=items}
 			""", address, count);
 	}
 

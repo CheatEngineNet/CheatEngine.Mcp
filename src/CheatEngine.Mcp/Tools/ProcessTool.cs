@@ -16,13 +16,15 @@ public sealed class ProcessTool
 	private readonly ICheatEngineClient _client;
 	private readonly TargetResources? _targetResources;
 	private readonly LuaDebuggerCaptureGuard? _debuggerGuard;
+	private readonly ScanTool? _scans;
 
-	public ProcessTool(ICheatEngineClient client, TargetResources? targetResources = null, LuaDebuggerCaptureGuard? debuggerGuard = null)
+	public ProcessTool(ICheatEngineClient client, TargetResources? targetResources = null, LuaDebuggerCaptureGuard? debuggerGuard = null, ScanTool? scans = null)
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		_client = client;
 		_targetResources = targetResources;
 		_debuggerGuard = debuggerGuard;
+		_scans = scans;
 	}
 
 	[McpServerTool(Name = "get_plugin_version"), Description("Get the loaded plugin version and assembly path.")]
@@ -96,7 +98,8 @@ public sealed class ProcessTool
 				};
 			}
 
-			object? preparation = _debuggerGuard?.PrepareForTransition() ?? _targetResources?.PrepareForTargetChange();
+			object? preparation = _debuggerGuard?.PrepareForTransition() ?? _targetResources?.PrepareForTargetChange()
+				?? _scans?.PrepareForTargetChange();
 			if (preparation is not null)
 			{
 				return preparation;

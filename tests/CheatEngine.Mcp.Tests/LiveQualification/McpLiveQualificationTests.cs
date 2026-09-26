@@ -96,6 +96,12 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			JsonNode speedB = await SuccessfulCallAsync(instanceB, "get_speedhack_speed");
 			Assert.Equal(1.0, speedB["result"]!["speed"]!.GetValue<double>(), precision: 4);
 
+			step = "main UI and independent scanner isolation";
+			await AssertScannerIsolationAsync(sandbox, instanceA, instanceB);
+
+			step = "disassembly columns and retained allocation";
+			await AssertDisassemblyAsync(sandbox, instanceA);
+
 			step = "instance A address-list creation";
 			JsonNode created = await SuccessfulCallAsync(instanceA, "add_memory_record", new Dictionary<string, object?>
 			{
@@ -190,6 +196,154 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 				sandbox.MarkPassed();
 			}
 		}
+	}
+
+	private static async Task AssertDisassemblyAsync(LiveSandboxSession sandbox, ILiveMcpToolClient instance)
+	{
+		const string allocationName = "disassembly-probe";
+		JsonNode allocated = await SuccessfulCallAsync(instance, "allocate_memory", new Dictionary<string, object?>
+		{
+			["name"] = allocationName,
+			["size"] = 64
+		});
+		try
+		{
+			string address = allocated["address"]!.GetValue<string>();
+			await SuccessfulCallAsync(instance, "write_memory", new Dictionary<string, object?>
+			{
+				["address"] = address,
+				["dataType"] = "bytes",
+				["value"] = "90 C3"
+			});
+			JsonNode single = await SuccessfulCallAsync(instance, "disassemble", new Dictionary<string, object?> { ["address"] = address });
+			Assert.Equal("nop", single["opcode"]!.GetValue<string>().Trim(), ignoreCase: true);
+			Assert.Equal(1, single["size"]!.GetValue<int>());
+			Assert.Equal("90", Assert.Single(single["bytes"]!.AsArray())!.GetValue<string>());
+			Assert.False(string.IsNullOrWhiteSpace(single["addressText"]!.GetValue<string>()));
+			Assert.Equal(string.Empty, single["extra"]!.GetValue<string>());
+			JsonNode range = await SuccessfulCallAsync(instance, "disassemble_range", new Dictionary<string, object?> { ["address"] = address, ["count"] = 2 });
+			JsonArray instructions = range["instructions"]!.AsArray();
+			Assert.Equal(2, instructions.Count);
+			Assert.Equal("nop", instructions[0]!["opcode"]!.GetValue<string>().Trim(), ignoreCase: true);
+			Assert.Equal("ret", instructions[1]!["opcode"]!.GetValue<string>().Trim(), ignoreCase: true);
+			Assert.Equal("C3", instructions[1]!["bytes"]!.GetValue<string>());
+			sandbox.Record("disassembly_columns", new
+			{
+				single = single.DeepClone(),
+				range = range.DeepClone()
+			});
+		}
+		finally
+		{
+			await SuccessfulCallAsync(instance, "free_memory", new Dictionary<string, object?> { ["name"] = allocationName });
+		}
+	}
+
+	private static async Task AssertScannerIsolationAsync(LiveSandboxSession sandbox, ILiveMcpToolClient instanceA, ILiveMcpToolClient instanceB)
+	{
+		await sandbox.ScanUiAsync("A", "prepare");
+		await SuccessfulCallAsync(instanceA, "memory_scan", new Dictionary<string, object?> { ["value"] = "20260927" });
+		await WaitForMainScanAsync(instanceA);
+		JsonNode main = await SuccessfulCallAsync(instanceA, "get_memory_scan_results");
+		string[] visible = await sandbox.ScanUiAsync("A", "snapshot");
+		sandbox.Record("main_scan_first", new
+		{
+			response = main.DeepClone(),
+			ui = visible
+		});
+		Assert.Equal("main", main["scannerName"]!.GetValue<string>());
+		Assert.Equal("ui", main["mode"]!.GetValue<string>());
+		Assert.Equal(1, main["count"]!.GetValue<int>());
+		AssertScanContains(main, sandbox.HostA.TargetAddress, "20260927");
+		Assert.Equal("1", visible[1]);
+		Assert.Contains("1", visible[2], StringComparison.Ordinal);
+		Assert.Equal("20260927", visible[3]);
+		Assert.Equal("3", visible[4]);
+		Assert.Equal("1", visible[5]);
+
+		JsonNode independentOne = await SuccessfulCallAsync(instanceA, "memory_scan", new Dictionary<string, object?>
+		{
+			["scannerName"] = "independent-one",
+			["valueType"] = "int32",
+			["value"] = "20260927"
+		});
+		JsonNode independentTwo = await SuccessfulCallAsync(instanceA, "memory_scan", new Dictionary<string, object?>
+		{
+			["scannerName"] = "independent-two",
+			["valueType"] = "int32",
+			["value"] = "20260927"
+		});
+		Assert.Equal(visible, await sandbox.ScanUiAsync("A", "snapshot"));
+		JsonNode listed = await SuccessfulCallAsync(instanceA, "list_memory_scanners");
+		Assert.Equal(3, listed["scanners"]!.AsArray().Count);
+		foreach ((string name, string mode, JsonNode expected) in new[] { ("main", "ui", main), ("independent-one", "independent", independentOne), ("independent-two", "independent", independentTwo) })
+		{
+			JsonNode scanner = Assert.Single(listed["scanners"]!.AsArray(), scanner => scanner!["scannerName"]!.GetValue<string>() == name)!;
+			Assert.Equal(mode, scanner["mode"]!.GetValue<string>());
+			Assert.Equal("ResultsReady", scanner["state"]!.GetValue<string>());
+			Assert.True(scanner["resultsReady"]!.GetValue<bool>());
+			Assert.Equal("int32", scanner["valueType"]!.GetValue<string>());
+			Assert.Equal(expected["count"]!.GetValue<long>(), scanner["count"]!.GetValue<long>());
+			JsonNode status = await SuccessfulCallAsync(instanceA, "get_memory_scan_status", new Dictionary<string, object?> { ["scannerName"] = name });
+			Assert.True(JsonNode.DeepEquals(scanner, status));
+		}
+		Assert.Single((await SuccessfulCallAsync(instanceB, "list_memory_scanners"))["scanners"]!.AsArray());
+
+		await WriteMemoryAsync(instanceA, sandbox.HostA.TargetAddress, 20260932);
+		await SuccessfulCallAsync(instanceA, "next_memory_scan", new Dictionary<string, object?>
+		{
+			["scannerName"] = "independent-one",
+			["value"] = "20260932"
+		});
+		AssertScanContains(await SuccessfulCallAsync(instanceA, "get_memory_scan_results", new Dictionary<string, object?> { ["scannerName"] = "independent-one" }), sandbox.HostA.TargetAddress, "20260932");
+		Assert.Equal(visible, await sandbox.ScanUiAsync("A", "snapshot"));
+		await SuccessfulCallAsync(instanceA, "next_memory_scan", new Dictionary<string, object?> { ["value"] = "20260932" });
+		await WaitForMainScanAsync(instanceA);
+		AssertScanContains(await SuccessfulCallAsync(instanceA, "get_memory_scan_results"), sandbox.HostA.TargetAddress, "20260932");
+		await SuccessfulCallAsync(instanceA, "reset_memory_scan", new Dictionary<string, object?> { ["scannerName"] = "independent-one" });
+		Assert.Equal(1, (await SuccessfulCallAsync(instanceA, "get_memory_scan_results"))["count"]!.GetValue<int>());
+		Assert.True((await SuccessfulCallAsync(instanceA, "get_memory_scan_status", new Dictionary<string, object?> { ["scannerName"] = "independent-two" }))["resultsReady"]!.GetValue<bool>());
+		await SuccessfulCallAsync(instanceA, "reset_memory_scan", new Dictionary<string, object?> { ["scannerName"] = "independent-two" });
+
+		Assert.Equal("false", (await sandbox.ScanUiAsync("A", "hide"))[7]);
+		await SuccessfulCallAsync(instanceA, "reset_memory_scan");
+		string[] resetUi = await sandbox.ScanUiAsync("A", "snapshot");
+		Assert.Equal("0", resetUi[1]);
+		Assert.Equal("true", resetUi[7]);
+		await WriteMemoryAsync(instanceA, sandbox.HostA.TargetAddress, 20260927);
+		await sandbox.ScanUiAsync("A", "manual");
+		await WaitForMainScanAsync(instanceA);
+		AssertScanContains(await SuccessfulCallAsync(instanceA, "get_memory_scan_results"), sandbox.HostA.TargetAddress, "20260927");
+		await SuccessfulCallAsync(instanceA, "reset_memory_scan");
+		sandbox.Record("main_and_independent_scanners", new
+		{
+			visibleRows = visible[1],
+			manualScanReadable = true,
+			independentScanners = 2,
+			instanceIsolation = true
+		});
+	}
+
+	private static void AssertScanContains(JsonNode page, string address, string value) =>
+		Assert.Contains(page["results"]!.AsArray(), row =>
+			string.Equals(row!["address"]!.GetValue<string>(), address, StringComparison.OrdinalIgnoreCase)
+			&& row["value"]!.GetValue<string>() == value);
+
+	private static async Task WaitForMainScanAsync(ILiveMcpToolClient client)
+	{
+		DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(15);
+		do
+		{
+			JsonNode status = await SuccessfulCallAsync(client, "get_memory_scan_status");
+			if (status["state"]!.GetValue<string>() != "Scanning")
+			{
+				Assert.Equal("ResultsReady", status["state"]!.GetValue<string>());
+				return;
+			}
+			await Task.Delay(50, TestContext.Current.CancellationToken);
+		}
+		while (DateTimeOffset.UtcNow < deadline);
+		Assert.Fail("CE's main scanner did not finish within 15 seconds.");
 	}
 
 	private static void AssertInstance(JsonArray instances, LiveSandboxHost expected)

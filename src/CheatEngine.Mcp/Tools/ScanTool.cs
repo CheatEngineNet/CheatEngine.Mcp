@@ -108,9 +108,9 @@ public sealed class ScanTool : IDisposable
 		});
 	}
 
-	[McpServerTool(Name = "memory_scan"), Description("Start a named Client value scan. Results are owned until reset.")]
-	public object MemoryScan([Description("Unique name for this server-owned scan session.")] string scannerName,
-		[Description("byte, int16, int32, int64, float, double, string, wstring, or bytes.")] string valueType,
+	[McpServerTool(Name = "memory_scan"), Description("Start a value scan. The default main scanner uses CE's visible scan tab and UI options; poll its status for completion. Other names create independent Client sessions without changing the UI. Reset explicitly before another first scan.")]
+	public object MemoryScan([Description("main (default) for the visible CE scan tab, or a unique case-sensitive name for an independent session (up to 32). The name main is reserved.")] string scannerName = "main",
+		[Description("byte, int16, int32 (default), int64, float, double, string, wstring, or bytes.")] string valueType = "int32",
 		[Description("Value for exact, between, greater, or less comparisons; omit for unknown initial value.")] string? value = null,
 		[Description("exact, unknown, between, greater, or less.")] string comparison = "exact",
 		[Description("Inclusive upper value for a between comparison.")] string? upperValue = null)
@@ -133,6 +133,10 @@ public sealed class ScanTool : IDisposable
 			}
 
 			ValueScanFirstRequest request = CreateFirstRequest(valueType, comparison, value, upperValue);
+			if (scannerName == "main")
+			{
+				return MainScanner.First(_client, request);
+			}
 			if (!_sessions.TryGetValue(scannerName, out IValueScanSession? session))
 			{
 				if (_sessions.Count >= MaximumScanners)
@@ -155,21 +159,21 @@ public sealed class ScanTool : IDisposable
 
 			session.FirstScan(request);
 			_valueTypes[scannerName] = request.ValueType;
-			return ScanSummary(session);
+			return ScanSummary(scannerName, session);
 		});
 	}
 
-	[McpServerTool(Name = "next_memory_scan"), Description("Narrow a named Client value scan with a comparison.")]
-	public object NextMemoryScan([Description("Name of an existing completed scan session.")] string scannerName,
+	[McpServerTool(Name = "next_memory_scan"), Description("Narrow main's visible CE scan (including a manually started scan), or a named independent Client scan. Poll main's status until completion.")]
+	public object NextMemoryScan([Description("main (default) for the visible CE scan tab, or an existing independent scanner name.")] string scannerName = "main",
 		[Description("Value for exact, between, greater, less, increasedBy, or decreasedBy comparisons; omit for state comparisons.")] string? value = null,
 		[Description("exact, between, greater, less, increased, decreased, increasedBy, decreasedBy, changed, or unchanged.")] string comparison = "exact",
 		[Description("Inclusive upper value for a between comparison.")] string? upperValue = null)
 	{
 		return ToolExecution.Run(_client, () =>
 		{
-			if (!_sessions.TryGetValue(scannerName, out IValueScanSession? session) || !_valueTypes.TryGetValue(scannerName, out ValueScanValueType type))
+			if (ValidateScannerName(scannerName) is { } scannerNameError)
 			{
-				return ToolExecution.Error("No scan exists with that scannerName.");
+				return ToolExecution.Error(scannerNameError);
 			}
 
 			if (ValidateValueLength(value, nameof(value)) is { } valueError)
@@ -181,6 +185,15 @@ public sealed class ScanTool : IDisposable
 			{
 				return ToolExecution.Error(upperValueError);
 			}
+			if (scannerName == "main")
+			{
+				ValueScanValueType mainType = ParseValueType(MainScanner.ValueType(_client));
+				return MainScanner.Next(_client, CreateNextRequest(mainType, comparison, value, upperValue));
+			}
+			if (!_sessions.TryGetValue(scannerName, out IValueScanSession? session) || !_valueTypes.TryGetValue(scannerName, out ValueScanValueType type))
+			{
+				return ToolExecution.Error("No scan exists with that scannerName.");
+			}
 
 			if (session.State != ValueScanSessionState.ResultsReady)
 			{
@@ -189,25 +202,37 @@ public sealed class ScanTool : IDisposable
 
 			ValueScanNextRequest request = CreateNextRequest(type, comparison, value, upperValue);
 			session.NextScan(request);
-			return ScanSummary(session);
+			return ScanSummary(scannerName, session);
 		});
 	}
 
-	[McpServerTool(Name = "get_memory_scan_results"), Description("Read one bounded page from a named value scan.")]
-	public object GetMemoryScanResults([Description("Name of an existing completed scan session.")] string scannerName,
+	[McpServerTool(Name = "get_memory_scan_results"), Description("Read a bounded page from main's visible CE found list, including manual scans, or an independent Client session. Main must have completed; unknown-initial baselines need a next scan first.")]
+	public object GetMemoryScanResults([Description("main (default) for the visible CE scan tab, or an existing independent scanner name.")] string scannerName = "main",
 		[Description("Zero-based result index.")] long startIndex = 0,
 		[Description("Maximum copied results (1-1024).")] int maximumResults = 1000)
 	{
 		return ToolExecution.Run(_client, () =>
 		{
-			if (!_sessions.TryGetValue(scannerName, out IValueScanSession? session))
+			if (ValidateScannerName(scannerName) is { } scannerNameError)
 			{
-				return ToolExecution.Error("No scan exists with that scannerName.");
+				return ToolExecution.Error(scannerNameError);
 			}
 
 			if (maximumResults is < 1 or > 1024)
 			{
 				return ToolExecution.Error("maximumResults must be between 1 and 1024.");
+			}
+			if (startIndex < 0 || startIndex > long.MaxValue - maximumResults)
+			{
+				return ToolExecution.Error("startIndex must be nonnegative and leave room for maximumResults.");
+			}
+			if (scannerName == "main")
+			{
+				return MainScanner.Read(_client, startIndex, maximumResults);
+			}
+			if (!_sessions.TryGetValue(scannerName, out IValueScanSession? session))
+			{
+				return ToolExecution.Error("No scan exists with that scannerName.");
 			}
 
 			ValueScanPage page = session.Read(new ValueScanReadRequest(startIndex, maximumResults));
@@ -215,6 +240,8 @@ public sealed class ScanTool : IDisposable
 			return new
 			{
 				success = true,
+				scannerName,
+				mode = "independent",
 				count = page.ResultCount,
 				results,
 				nextStartIndex = page.NextStartIndex,
@@ -223,11 +250,19 @@ public sealed class ScanTool : IDisposable
 		});
 	}
 
-	[McpServerTool(Name = "reset_memory_scan"), Description("Release a named value-scan session and its resources.")]
-	public object ResetMemoryScan([Description("Name of the server-owned scan session to release.")] string scannerName)
+	[McpServerTool(Name = "reset_memory_scan"), Description("Reset main through CE's New Scan action (clearing visible results), or release one independent Client session. Refuses to reset a running UI scan; cancel it in CE first.")]
+	public object ResetMemoryScan([Description("main (default) for the visible CE scan tab, or the independent scanner name to release.")] string scannerName = "main")
 	{
 		return ToolExecution.Run(_client, () =>
 		{
+			if (ValidateScannerName(scannerName) is { } scannerNameError)
+			{
+				return ToolExecution.Error(scannerNameError);
+			}
+			if (scannerName == "main")
+			{
+				return MainScanner.Reset(_client);
+			}
 			if (!_sessions.TryGetValue(scannerName, out IValueScanSession? session))
 			{
 				return ToolExecution.Error("No scan exists with that scannerName.");
@@ -250,6 +285,33 @@ public sealed class ScanTool : IDisposable
 		});
 	}
 
+	[McpServerTool(Name = "get_memory_scan_status"), Description("Get main's live UI scan state or an independent session's state. Poll main until ResultsReady or BaselineReady before reading or narrowing; Scanning is still in progress.")]
+	public object GetMemoryScanStatus([Description("main (default) for the visible CE scan tab, or an existing independent scanner name.")] string scannerName = "main") =>
+		ToolExecution.Run(_client, () =>
+		{
+			if (ValidateScannerName(scannerName) is { } error)
+			{
+				return ToolExecution.Error(error);
+			}
+			return scannerName == "main" ? MainScanner.Status(_client)
+				: _sessions.TryGetValue(scannerName, out IValueScanSession? session) ? ScanSummary(scannerName, session)
+				: ToolExecution.Error("No scan exists with that scannerName.");
+		});
+
+	[McpServerTool(Name = "list_memory_scanners"), Description("List main (the currently visible CE scan tab) and up to 32 independent Client scan sessions in this instance. Independent scanner names do not refer to CE UI tabs.")]
+	public object ListMemoryScanners() => ToolExecution.Run(_client, () =>
+	{
+		List<object> scanners = [MainScanner.Status(_client)];
+		scanners.AddRange(_sessions.Select(pair => ScanSummary(pair.Key, pair.Value)));
+		return new
+		{
+			success = true,
+			scanners
+		};
+	});
+
+	internal object? PrepareForTargetChange() => MainScanner.PrepareForTargetChange(_client);
+
 	public void Dispose()
 	{
 		if (_disposed)
@@ -269,7 +331,16 @@ public sealed class ScanTool : IDisposable
 		}
 	}
 
-	private static object ScanSummary(IValueScanSession session) => new { success = true, count = session.GetResultCount() };
+	private object ScanSummary(string name, IValueScanSession session) => new
+	{
+		success = true,
+		scannerName = name,
+		mode = "independent",
+		state = session.State.ToString(),
+		resultsReady = session.State == ValueScanSessionState.ResultsReady,
+		count = session.State == ValueScanSessionState.ResultsReady ? (ulong?) session.GetResultCount() : null,
+		valueType = _valueTypes.TryGetValue(name, out ValueScanValueType type) ? MainScanner.TypeName(type) : null
+	};
 
 	private void RemoveSession(string name)
 	{

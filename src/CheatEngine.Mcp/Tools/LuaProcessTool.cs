@@ -14,13 +14,15 @@ public sealed class LuaProcessTool
 	private readonly ICheatEngineClient _client;
 	private readonly TargetResources? _targetResources;
 	private readonly LuaDebuggerCaptureGuard? _debuggerGuard;
+	private readonly ScanTool? _scans;
 
-	public LuaProcessTool(ICheatEngineClient client, TargetResources? targetResources = null, LuaDebuggerCaptureGuard? debuggerGuard = null)
+	public LuaProcessTool(ICheatEngineClient client, TargetResources? targetResources = null, LuaDebuggerCaptureGuard? debuggerGuard = null, ScanTool? scans = null)
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		_client = client;
 		_targetResources = targetResources;
 		_debuggerGuard = debuggerGuard;
+		_scans = scans;
 	}
 
 	[McpServerTool(Name = "create_process"), Description("Launch and open a process through Cheat Engine. This starts an external executable.")]
@@ -46,7 +48,8 @@ public sealed class LuaProcessTool
 
 		return ToolExecution.Run(_client, () =>
 		{
-			object? preparation = _debuggerGuard?.PrepareForTransition() ?? _targetResources?.PrepareForTargetChange();
+			object? preparation = _debuggerGuard?.PrepareForTransition() ?? _targetResources?.PrepareForTargetChange()
+				?? _scans?.PrepareForTargetChange();
 			if (preparation is not null)
 			{
 				return preparation;
@@ -108,7 +111,8 @@ public sealed class LuaProcessTool
 
 		return ToolExecution.Run(_client, () =>
 		{
-			object? preparation = _debuggerGuard?.PrepareForTransition() ?? _targetResources?.PrepareForTargetChange();
+			object? preparation = _debuggerGuard?.PrepareForTransition() ?? _targetResources?.PrepareForTargetChange()
+				?? _scans?.PrepareForTargetChange();
 			if (preparation is not null)
 			{
 				return preparation;

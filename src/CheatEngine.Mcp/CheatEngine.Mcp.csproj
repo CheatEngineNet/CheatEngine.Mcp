@@ -21,12 +21,6 @@
     <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Include="../../README.md;../../LICENSE" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Include="../../licenses/CheatEngine.Client.LICENSE" Link="licenses/CheatEngine.Client.LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="../../skills/cheatengine-mcp/**/*.*"
-             Exclude="../../skills/cheatengine-mcp/references/local-cheat-engine.md;../../skills/cheatengine-mcp/references/.gitignore">
-      <Link>skills/cheatengine-mcp/%(RecursiveDir)%(Filename)%(Extension)</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-    </Content>
   </ItemGroup>
   <Target Name="McpGetBundleFiles" DependsOnTargets="ComputeFilesToPublish" Returns="@(ResolvedFileToPublish)" />
 </Project>
