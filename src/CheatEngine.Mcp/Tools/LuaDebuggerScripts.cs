@@ -5,6 +5,90 @@ namespace CheatEngine.Mcp.Tools;
 /// <summary>CE-owned callbacks contain Lua only; no managed delegate survives a dispatched request.</summary>
 internal static class LuaDebuggerScripts
 {
+	internal const string State = """
+		local function flag(name,...)
+			local value=_G[name](...)
+			assert(type(value)=='boolean', name..' returned '..type(value)..'; debugger state is unavailable')
+			return value
+		end
+		local function interface(attached)
+			if not attached then return nil end
+			local value=debug_getCurrentDebuggerInterface()
+			assert(math.type(value)=='integer' and value>=1 and value<=5, 'Debugger interface is unavailable; inspect Cheat Engine before continuing')
+			return value
+		end
+		local function stopped(extra)
+			return flag('debug_getContext',extra or false)
+		end
+		local function breakpointDescriptor(id)
+			if math.type(id)=='integer' then return id end
+			if type(id)=='table' and math.type(id.PID)=='integer' and math.type(id.DTID)=='integer' and math.type(id.ID)=='integer' then
+				return {PID=id.PID,DTID=id.DTID,ID=id.ID}
+			end
+			return nil
+		end
+		""";
+
+	internal const string Lifecycle = State + "\n" + """
+		local attempts=_G.__cheatengine_mcp_veh_targets or {}
+		_G.__cheatengine_mcp_veh_targets=attempts
+		local function rememberVeh(identity)
+			if identity==nil or attempts[identity] then return end
+			local count=0
+			for _ in pairs(attempts) do count=count+1 end
+			assert(count<256,'VEH target history is full; restart Cheat Engine before attaching another debugger')
+			attempts[identity]=true
+		end
+		""";
+
+	// Arguments: requested interface, PID, process-lifetime identity, previous PID/request/actual.
+	internal const string Attach = Lifecycle + "\n" + """
+		local pid=getOpenedProcessID()
+		assert(pid==a[2] and getProcesslist()[pid]~=nil,'The selected local process is no longer live')
+		local active=flag('debug_isDebugging')
+		local current=interface(active)
+		if current==2 then rememberVeh(a[3]) end
+		if active then
+			assert(a[1]==0 or current==a[1] or (pid==a[4] and a[1]==a[5] and current==a[6]),
+				'A different debugger interface is already attached; detach explicitly before changing interfaces')
+			return {attached=true,alreadyAttached=true,processId=pid,requestedDebuggerInterface=a[1],debuggerInterface=current,usedFallback=a[1]~=0 and current~=a[1]}
+		end
+		assert(not attempts[a[3]],'This target has already used VEH; restart the target before attaching another debugger to avoid the CE VEH reattach crash')
+		-- Record a potentially partial attach before invoking CE. Retain it on failure.
+		if a[1]==0 or a[1]==2 then rememberVeh(a[3]) end
+		debugProcess(a[1])
+		assert(getProcesslist()[pid]~=nil,'The target exited during debugger attachment; no retry was attempted')
+		assert(flag('debug_isDebugging'),'Cheat Engine did not attach the debugger')
+		local actual=interface(true)
+		if actual==2 then rememberVeh(a[3]) else attempts[a[3]]=nil end
+		return {attached=true,alreadyAttached=false,processId=pid,requestedDebuggerInterface=a[1],debuggerInterface=actual,usedFallback=a[1]~=0 and actual~=a[1]}
+		""";
+
+	// Arguments: PID, process-lifetime identity (nil only when the selected process has exited).
+	internal const string Detach = Lifecycle + "\n" + """
+		local pid=getOpenedProcessID()
+		assert(pid==a[1],'The selected process changed before debugger detachment')
+		local active=flag('debug_isDebugging')
+		if interface(active)==2 then rememberVeh(a[2]) end
+		if active and stopped() then debug_continueFromBreakpoint(co_run) end
+		unpause()
+		detachIfPossible()
+		assert(not flag('debug_isDebugging'),'The debugger is still attached')
+		return {processId=pid,attached=false,detached=true}
+		""";
+
+	internal const string Status = State + "\n" + """
+		local ok,result=pcall(function()
+			local attached=flag('debug_isDebugging')
+			local current=interface(attached)
+			return {stateValid=true,attached=attached,canBreak=flag('debug_canBreak'),
+				broken=attached and stopped() or false,reportedBroken=flag('debug_isBroken'),
+				stepping=flag('debug_isStepping'),debuggerInterface=current}
+		end)
+		if not ok then return {stateValid=false,error=tostring(result)} end
+		return result
+		""";
+
 	internal static object Invoke(ICheatEngineClient client, string operation, string body, params object?[] arguments) =>
 		ToolExecution.Run(client, () =>
 		{
@@ -31,9 +115,9 @@ internal static class LuaDebuggerScripts
 		""";
 
 	// Arguments: id, address, kind, trigger, size, limit, lifetimeSeconds.
-	internal const string Start = """
-		assert(debug_isDebugging(), 'Debugger is not attached')
-		assert(not debug_isBroken(), 'Continue the current breakpoint before starting a capture or trace')
+	internal const string Start = State + "\n" + """
+		assert(flag('debug_isDebugging'), 'Debugger is not attached')
+		assert(not stopped(), 'Continue the current breakpoint before starting a capture or trace')
 		assert(targetIsX86(), 'These debugger workflows require an x86 or x64 target')
 		assert(type(debug_removeBreakpointByID)=='function', 'This CE version cannot remove owned breakpoint IDs')
 		assert(_G.debugger_onBreakpoint==nil, 'Another debugger_onBreakpoint hook is installed')
@@ -115,13 +199,15 @@ internal static class LuaDebuggerScripts
 		end
 		local function traceStep()
 			if not entry.active or entry.pid~=getOpenedProcessID() then entry.cleanup('targetChanged'); return 0 end
-			if THREADID~=entry.threadId or not debug_isStepping() then return 0 end
+			local handled=false
 			local ok,err=pcall(function()
+				if THREADID~=entry.threadId or not flag('debug_isStepping') then return end
+				handled=true
 				append()
 				if entry.total>=entry.limit then entry.cleanup('completed') else debug_continueFromBreakpoint(co_stepinto) end
 			end)
 			if not ok then entry.error=tostring(err); entry.cleanup('error'); return 0 end
-			return entry.active and 1 or 0
+			return handled and entry.active and 1 or 0
 		end
 		entry.callback=function()
 			if not entry.active or entry.pid~=getOpenedProcessID() then entry.cleanup('targetChanged'); return 0 end
@@ -138,11 +224,12 @@ internal static class LuaDebuggerScripts
 					if entry.total>=entry.limit then entry.cleanup('completed') else debug_continueFromBreakpoint(co_stepinto) end
 				else
 					append()
-					debug_continueFromBreakpoint(co_run)
 				end
 			end)
-			if not ok then entry.error=tostring(err); entry.cleanup('error'); return 0 end
-			return entry.kind=='capture' and 1 or (entry.active and 1 or 0)
+			if not ok then entry.error=tostring(err); entry.cleanup('error'); return 1 end
+			-- Per-breakpoint callbacks use the opposite convention to the global hook:
+			-- zero lets CE continue; one leaves the event stopped in its UI.
+			return entry.kind=='trace' and not entry.active and 1 or 0
 		end
 		local ok,err=pcall(function()
 			entry.timer=createTimer(nil,false)
@@ -159,10 +246,14 @@ internal static class LuaDebuggerScripts
 			local triggers={execute=bptExecute,access=bptAccess,write=bptWrite}
 			entry.pendingBreakpoint=true
 			local accepted,id=debug_setBreakpoint(address,entry.size,triggers[entry.trigger],entry.callback)
-			entry.breakpointId=id
-			entry.pendingBreakpoint=accepted==true and type(id)~='number'
+			entry.pendingBreakpoint=false
+			if accepted==true then
+				entry.breakpointId=id
+				entry.breakpointDescriptor=breakpointDescriptor(id)
+				entry.pendingBreakpoint=entry.breakpointDescriptor==nil
+			end
 			assert(accepted==true, 'Breakpoint was rejected')
-			assert(type(id)=='number', 'CE did not return an owned breakpoint ID; manual removal is required')
+			assert(entry.breakpointDescriptor~=nil, 'CE did not return an owned breakpoint ID; manual removal is required')
 			entry.timer.Enabled=true
 		end)
 		if not ok then
@@ -173,7 +264,7 @@ internal static class LuaDebuggerScripts
 			return {error=tostring(err),captureId=entry.id,traceId=entry.id,requiresManualRecovery=entry.cleanupError~=nil,cleanupError=entry.cleanupError}
 		end
 		return {captureId=entry.id,traceId=entry.id,processId=entry.pid,address=string.format('0x%X',address),
-			breakpointId=entry.breakpointId,trigger=entry.trigger,size=entry.size,limit=entry.limit,lifetimeSeconds=a[7]}
+			breakpointId=entry.breakpointDescriptor,trigger=entry.trigger,size=entry.size,limit=entry.limit,lifetimeSeconds=a[7]}
 		""";
 
 	// Arguments: id, kind, maximumResults, clear.

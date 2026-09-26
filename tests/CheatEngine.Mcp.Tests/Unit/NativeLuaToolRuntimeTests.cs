@@ -70,11 +70,12 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 	public void LuaDebuggerTool_StartSwitchDetachContinueAndBreakpoint_UseCeStateAndNumericEnums()
 	{
 		using RuntimeScope scope = CreateScope();
+		InstallStubs("pid=" + Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
 		InstallStubs("""
 			active=true; current=1; broken=true; debugCalls=0; detachCalls=0; continueCalls=0; unpauseCalls=0; breakpointTrigger=nil
 			co_run=101; co_stepinto=202; co_stepover=303; bptExecute=11; bptAccess=22; bptWrite=33
-			getOpenedProcessID=function() return 77 end; getProcesslist=function() return {[77]='target'} end
-			debug_isDebugging=function() return active end; debug_getCurrentDebuggerInterface=function() return current end; debug_isBroken=function() return broken end
+			getOpenedProcessID=function() return pid end; getProcesslist=function() return {[pid]='target'} end
+			debug_isDebugging=function() return active end; debug_getCurrentDebuggerInterface=function() return current end; debug_getContext=function() return broken end
 			debug_continueFromBreakpoint=function(mode) continueCalls=continueCalls+1; continuedMode=mode; broken=false end; unpause=function() unpauseCalls=unpauseCalls+1 end
 			detachIfPossible=function() detachCalls=detachCalls+1; active=false end; debugProcess=function(requested) debugCalls=debugCalls+1; active=true; current=2 end
 			openProcess=function() error('must not reopen target') end; getAddressSafe=function(_) return 4096 end
@@ -82,30 +83,24 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 			""");
 		LuaDebuggerTool tool = new(CreateDirectLuaClient());
 
-		Dictionary<string, object?> repeated = ResultMap(tool.Start());
-		Assert.Equal(true, repeated["alreadyAttached"]);
+		Assert.Equal(true, ResultMap(tool.Start())["alreadyAttached"]);
+		Assert.False(ToolResultAssert.GetProperty<bool>(tool.Start(2), "success"));
 		Assert.Equal(0L, ReadGlobal("debugCalls"));
-
-		Dictionary<string, object?> switched = ResultMap(tool.Start(3));
-		Assert.Equal(true, switched["usedFallback"]);
-		Assert.Equal(1L, ReadGlobal("debugCalls"));
-		Assert.Equal(1L, ReadGlobal("detachCalls"));
-		Assert.Equal(101L, ReadGlobal("continuedMode"));
-		Dictionary<string, object?> repeatedFallback = ResultMap(tool.Start(3));
-		Assert.Equal(true, repeatedFallback["alreadyAttached"]);
-		Assert.Equal(true, repeatedFallback["usedFallback"]);
-		Assert.True(ReadGlobal("debugCalls") is 1L, "A known interface fallback must not cause another attach.");
-		Assert.Equal(1L, ReadGlobal("detachCalls"));
+		Assert.Equal(0L, ReadGlobal("detachCalls"));
 
 		ResultMap(tool.Detach());
+		Assert.Equal(101L, ReadGlobal("continuedMode"));
+		Assert.Equal(true, ResultMap(tool.Start(3))["usedFallback"]);
+		Assert.Equal(true, ResultMap(tool.Start(3))["alreadyAttached"]);
+		Assert.Equal(1L, ReadGlobal("debugCalls"));
+		ResultMap(tool.Detach());
 		Assert.Equal(2L, ReadGlobal("detachCalls"));
-		Assert.Equal(2L, ReadGlobal("unpauseCalls"));
+		Assert.False(ToolResultAssert.GetProperty<bool>(new LuaDebuggerTool(CreateDirectLuaClient()).Start(2), "success"));
+		Assert.Equal(1L, ReadGlobal("debugCalls"));
 
 		InstallStubs("broken=true");
-		Dictionary<string, object?> continued = ResultMap(tool.Continue("stepInto"));
-		Assert.Equal("stepInto", continued["mode"]);
+		Assert.Equal("stepInto", ResultMap(tool.Continue("stepInto"))["mode"]);
 		Assert.Equal(202L, ReadGlobal("continuedMode"));
-
 		InstallStubs("active=true");
 		Dictionary<string, object?> breakpoint = ResultMap(tool.AddBreakpoint("0x1000", 4, "access"));
 		Assert.Equal(9L, breakpoint["id"]);

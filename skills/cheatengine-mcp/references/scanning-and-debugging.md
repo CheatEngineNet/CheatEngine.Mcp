@@ -34,11 +34,19 @@ Bounds: four maps, two million total retained pointers, 16 scan result lists, at
 
 Inspect `incomplete`, `limited`, `unreadableBytes`, `traversalLimited`, and `unresolved`. A bounded or partial map cannot prove that a pointer path does not exist. Narrow capture ranges or raise bounds within the supported limits when necessary. Results after an unresolved rescan include both verified matches and retained uncertain candidates: each path's `verification` is `snapshotMatch`, `liveMatch`, or `unresolved`, and `verifiedMatches` excludes uncertain paths.
 
+## Debugger attachment and state
+
+`debugger_start` is idempotent for the active interface. A different interface requires an explicit `debugger_detach`; MCP never combines detach and reattach. Keep one debugger attached while moving between tutorial steps, and remove individual breakpoints or captures when finished with them.
+
+The installed CE 7.7 VEH debugger crashed on a second attachment to the same running tutorial. MCP retains a process-lifetime VEH attempt marker in CE Lua state, including failed/partial attaches, and refuses another attach after detachment. Restart the target before attaching again; choose a fresh process and discard all old addresses. The marker uses PID plus process creation time so PID reuse does not block a new target, and survives plugin reload. CE itself still owns the native debugger; this guard contains the observed sequence rather than repairing its DLL, and cannot protect operations performed outside MCP. Restarting CE clears its Lua state and must not be used to bypass the target-restart requirement.
+
+`debugger_status` returns `stateValid=true` for validated native state. `broken` means CE can actually supply a stopped context; `reportedBroken` retains CE's weaker raw flag for diagnostics. Invalid native return types produce `success=false`, `stateValid=false` and a diagnostic, not an opaque Lua value. Context reads, register edits and continuation require a readable stopped context. A failed or timed-out attach must not be retried automatically.
+
 ## Find writes/accesses
 
 Attach with `debugger_start`, then `debugger_start_capture(address=..., trigger="write")` or `trigger="access"`. Data breakpoint sizes are 1, 2, 4, or 8 and require matching address alignment; eight-byte watches need x64. CE/debugger hardware limits may reject additional watches.
 
-`debugger_poll_capture` returns FIFO hits with thread ID, trap IP, and copied general-purpose registers. Capture callbacks continue the target automatically. Hardware data traps usually report the instruction after the access. `instructionAddress`/`disassembly` are a best-effort reverse-disassembly candidate when `instructionAddressIsHeuristic=true`; verify the boundary using disassembly. Do not treat the trap IP itself as the writer instruction.
+`debugger_poll_capture` returns FIFO hits with thread ID, trap IP, and copied general-purpose registers. Capture callbacks return control to CE for automatic continuation. Breakpoint IDs may be integers or copied `{PID, DTID, ID}` descriptors; use capture/trace IDs for cleanup. MCP retains the original CE breakpoint identifier internally. Hardware data traps usually report the instruction after the access. `instructionAddress`/`disassembly` are a best-effort reverse-disassembly candidate when `instructionAddressIsHeuristic=true`; verify the boundary using disassembly. Do not treat the trap IP itself as the writer instruction.
 
 Polling with `clear=true` consumes only returned hits. Buffers hold at most 1024 hits; overflow increments `dropped`. Call `debugger_stop_capture` to remove the owned breakpoint and release results. Capture lifetime is at most 300 seconds. After expiry, results remain available for 30 seconds before automatic deletion, provided CE's GUI timer can run.
 

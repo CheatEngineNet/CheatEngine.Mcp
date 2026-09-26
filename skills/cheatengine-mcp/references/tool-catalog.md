@@ -115,7 +115,7 @@ The gateway exposes **142 tools**: `list_instances` plus **141 CE tools**. Every
 | `debugger_ignore_thread` | Add or remove a target thread from Cheat Engine's breakpoint-ignore list. |
 | `debugger_remove_breakpoint` | Remove the breakpoint containing the supplied address. |
 | `debugger_set_register` | Set one general-purpose register in the currently broken debugger context, then write the context back before continuation. |
-| `debugger_start` | Attach the selected debugger interface. A repeated request is idempotent; changing interfaces detaches once before attaching. |
+| `debugger_start` | Attach the selected debugger interface. A repeated request is idempotent. Interface changes require explicit detach; targets previously using VEH must restart before reattachment. |
 | `debugger_status` | Read copied debugger state and active interface. |
 
 ## LuaDebuggerTraceTool

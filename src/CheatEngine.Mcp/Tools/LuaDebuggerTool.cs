@@ -1,4 +1,6 @@
 using System.ComponentModel;
+using System.Diagnostics;
+using System.Globalization;
 
 using CheatEngine.Client;
 
@@ -12,7 +14,7 @@ public sealed class LuaDebuggerTool(ICheatEngineClient client, LuaDebuggerCaptur
 	private long? _lastProcessId;
 	private long? _lastRequestedInterface;
 	private long? _lastActualInterface;
-	[McpServerTool(Name = "debugger_start"), Description("Attach the selected debugger interface. A repeated request is idempotent; changing interfaces detaches once before attaching.")]
+	[McpServerTool(Name = "debugger_start"), Description("Attach the selected debugger interface. A repeated request is idempotent. Interface changes require explicit detach; targets previously using VEH must restart before reattachment.")]
 	public object Start([Description("0 default, 1 Windows, 2 VEH, or 3 kernel.")] int debuggerInterface = 0)
 	{
 		if (debuggerInterface is < 0 or > 3)
@@ -23,7 +25,13 @@ public sealed class LuaDebuggerTool(ICheatEngineClient client, LuaDebuggerCaptur
 
 		return WithIdleDebugger(() =>
 		{
-			Dictionary<string, object?> result = (Dictionary<string, object?>) LuaToolRuntime.Execute(client, "debugProcess", "local pid=getOpenedProcessID(); assert(pid and pid>0,'No process is attached'); local processes=getProcesslist(); assert(processes[pid]~=nil,'The selected local process is no longer live'); local active=debug_isDebugging(); local current=debug_getCurrentDebuggerInterface(); if active and (a[1]==0 or current==a[1] or (pid==a[2] and a[1]==a[3] and current==a[4])) then return {attached=true,alreadyAttached=true,processId=pid,requestedDebuggerInterface=a[1],debuggerInterface=current,usedFallback=a[1]~=0 and current~=a[1]} end; if active then if debug_isBroken() then debug_continueFromBreakpoint(co_run) end; unpause(); detachIfPossible() end; debugProcess(a[1]); assert(debug_isDebugging(),'Cheat Engine did not attach the debugger'); local actual=debug_getCurrentDebuggerInterface(); return {attached=true,alreadyAttached=false,processId=pid,requestedDebuggerInterface=a[1],debuggerInterface=actual,usedFallback=a[1]~=0 and actual~=a[1]}", debuggerInterface, _lastProcessId, _lastRequestedInterface, _lastActualInterface)!;
+			(int processId, string? identity) = GetTargetIdentity();
+			if (identity is null)
+			{
+				return ToolExecution.Error("The selected local process is no longer live.");
+			}
+			Dictionary<string, object?> result = (Dictionary<string, object?>) LuaToolRuntime.Execute(client, "debugProcess",
+				LuaDebuggerScripts.Attach, debuggerInterface, processId, identity, _lastProcessId, _lastRequestedInterface, _lastActualInterface)!;
 			_lastProcessId = (long) result["processId"]!;
 			_lastRequestedInterface = debuggerInterface;
 			_lastActualInterface = (long) result["debuggerInterface"]!;
@@ -38,7 +46,8 @@ public sealed class LuaDebuggerTool(ICheatEngineClient client, LuaDebuggerCaptur
 	[McpServerTool(Name = "debugger_detach"), Description("Unpause and detach the debugger while preserving the current target selection.")]
 	public object Detach() => WithIdleDebugger(() =>
 	{
-		object? result = LuaToolRuntime.Execute(client, "detachIfPossible", "local pid=getOpenedProcessID(); if debug_isDebugging() and debug_isBroken() then debug_continueFromBreakpoint(co_run) end; unpause(); detachIfPossible(); assert(not debug_isDebugging(),'The debugger is still attached'); return {processId=pid,attached=false,detached=true}");
+		(int processId, string? identity) = GetTargetIdentity();
+		object? result = LuaToolRuntime.Execute(client, "detachIfPossible", LuaDebuggerScripts.Detach, processId, identity);
 		_lastProcessId = null;
 		_lastRequestedInterface = null;
 		_lastActualInterface = null;
@@ -50,10 +59,10 @@ public sealed class LuaDebuggerTool(ICheatEngineClient client, LuaDebuggerCaptur
 	});
 
 	[McpServerTool(Name = "debugger_status"), Description("Read copied debugger state and active interface.")]
-	public object Status() => LuaToolRuntime.Invoke(client, "debug_isDebugging", "return {attached=debug_isDebugging(),canBreak=debug_canBreak(),broken=debug_isBroken(),stepping=debug_isStepping(),debuggerInterface=debug_getCurrentDebuggerInterface()}");
+	public object Status() => LuaDebuggerScripts.Invoke(client, "debugger_status", LuaDebuggerScripts.Status);
 
 	[McpServerTool(Name = "debugger_break_thread"), Description("Request that Cheat Engine break a target thread; stopping can be asynchronous.")]
-	public object BreakThread([Description("Target thread identifier.")] long threadId) => GuardedInvoke("debug_breakThread", "debug_breakThread(a[1]); return {threadId=a[1],requested=true}", threadId);
+	public object BreakThread([Description("Target thread identifier.")] long threadId) => GuardedInvoke("debug_breakThread", "assert(flag('debug_isDebugging'),'Attach the debugger explicitly before breaking a thread'); debug_breakThread(a[1]); return {threadId=a[1],requested=true}", threadId);
 
 	[McpServerTool(Name = "debugger_add_breakpoint"), Description("Create an execute, access, or write breakpoint. It persists until removed or debugger detachment.")]
 	public object AddBreakpoint([Description("Target address expression or number.")] string address, [Description("Watch size for access or write: 1, 2, 4, or 8.")] int size = 1, [Description("execute, access, or write.")] string trigger = "execute")
@@ -68,7 +77,7 @@ public sealed class LuaDebuggerTool(ICheatEngineClient client, LuaDebuggerCaptur
 			return ToolExecution.Error("trigger must be execute, access, or write.");
 		}
 
-		return GuardedInvoke("debug_setBreakpoint", "local address=getAddressSafe(a[1]); assert(address~=nil,'Address could not be resolved'); assert(debug_isDebugging(),'Debugger is not attached'); local triggers={execute=bptExecute,access=bptAccess,write=bptWrite}; local applied,id=debug_setBreakpoint(address,a[2],triggers[a[3]]); assert(applied==true,'Breakpoint was rejected'); return {address=string.format('0x%X',address),id=id,size=a[2],trigger=a[3]}", address, size, trigger);
+		return GuardedInvoke("debug_setBreakpoint", "local address=getAddressSafe(a[1]); assert(address~=nil,'Address could not be resolved'); assert(flag('debug_isDebugging'),'Debugger is not attached'); local triggers={execute=bptExecute,access=bptAccess,write=bptWrite}; local applied,id=debug_setBreakpoint(address,a[2],triggers[a[3]]); assert(applied==true,'Breakpoint was rejected'); return {address=string.format('0x%X',address),id=breakpointDescriptor(id),size=a[2],trigger=a[3]}", address, size, trigger);
 	}
 
 	[McpServerTool(Name = "debugger_remove_breakpoint"), Description("Remove the breakpoint containing the supplied address.")]
@@ -101,11 +110,11 @@ public sealed class LuaDebuggerTool(ICheatEngineClient client, LuaDebuggerCaptur
 		}
 
 
-		return GuardedInvoke("debug_continueFromBreakpoint", "assert(debug_isBroken(),'Debugger is not broken'); local methods={run=co_run,stepInto=co_stepinto,stepOver=co_stepover}; debug_continueFromBreakpoint(methods[a[1]]); return {continued=true,mode=a[1]}", mode);
+		return GuardedInvoke("debug_continueFromBreakpoint", "assert(stopped(),'Debugger has no stopped context'); local methods={run=co_run,stepInto=co_stepinto,stepOver=co_stepover}; debug_continueFromBreakpoint(methods[a[1]]); return {continued=true,mode=a[1]}", mode);
 	}
 
 	[McpServerTool(Name = "debugger_context"), Description("Read copied current registers; the debugger must be broken for meaningful values.")]
-	public object Context([Description("Include floating-point and XMM registers.")] bool includeExtraRegisters = false) => LuaToolRuntime.Invoke(client, "debug_getCurrentContextTable", "assert(debug_isBroken(),'Debugger is not broken'); return {registers=debug_getCurrentContextTable(a[1])}", includeExtraRegisters);
+	public object Context([Description("Include floating-point and XMM registers.")] bool includeExtraRegisters = false) => LuaToolRuntime.Invoke(client, "debug_getCurrentContextTable", LuaDebuggerScripts.State + "\n" + "assert(stopped(a[1]),'Debugger has no stopped context'); return {registers=debug_getCurrentContextTable(a[1])}", includeExtraRegisters);
 
 	[McpServerTool(Name = "debugger_set_register"), Description("Set one general-purpose register in the currently broken debugger context, then write the context back before continuation.")]
 	public object SetRegister([Description("Register name: EAX through EIP, RAX through R15, RIP, RSP, RBP, or EFLAGS.")] string register, [Description("Integer value to write.")] long value)
@@ -116,7 +125,7 @@ public sealed class LuaDebuggerTool(ICheatEngineClient client, LuaDebuggerCaptur
 			return ToolExecution.Error("register must name a supported general-purpose register.");
 		}
 		return GuardedInvoke("debug_setContext", """
-			assert(debug_isBroken(),'Debugger is not broken')
+			assert(stopped(),'Debugger has no stopped context')
 			assert(targetIsX86(),'Register editing requires an x86 or x64 target')
 			local wide=targetIs64Bit()
 			local name=a[1]
@@ -126,11 +135,11 @@ public sealed class LuaDebuggerTool(ICheatEngineClient client, LuaDebuggerCaptur
 			if is32 then assert(a[2]>=-2147483648 and a[2]<=4294967295,'Value does not fit a 32-bit register') end
 			local expected=is32 and (a[2]&0xFFFFFFFF) or a[2]
 			local actualName=wide and aliases[name] or name
-			assert(debug_getContext(false)~=false,'Could not read the broken context')
+			assert(debug_getContext(false)==true,'Could not read the broken context')
 			assert(math.type(_G[actualName])=='integer','Register is unavailable in the current context')
 			_G[actualName]=expected
-			assert(debug_setContext(false)~=false,'Could not write the broken context')
-			assert(debug_getContext(false)~=false,'Could not verify the written context')
+			assert(debug_setContext(false)==true,'Could not write the broken context')
+			assert(debug_getContext(false)==true,'Could not verify the written context')
 			assert(_G[actualName]==expected,'Register read-back differs from the requested value')
 			debug_updateGUI()
 			return {register=name,contextRegister=actualName,value=string.format('0x%X',expected),verified=true}
@@ -141,5 +150,29 @@ public sealed class LuaDebuggerTool(ICheatEngineClient client, LuaDebuggerCaptur
 	public object IgnoreThread([Description("Target thread identifier.")] long threadId, [Description("True adds; false removes.")] bool ignore = true) => GuardedInvoke("debug_addThreadToNoBreakList", "if a[2] then debug_addThreadToNoBreakList(a[1]) else debug_removeThreadFromNoBreakList(a[1]) end; return {threadId=a[1],ignored=a[2]}", threadId, ignore);
 	private object WithIdleDebugger(Func<object> body) => ToolExecution.Run(client, () => captureGuard?.PrepareForTransition() ?? body());
 
-	private object GuardedInvoke(string operation, string body, params object?[] arguments) => WithIdleDebugger(() => LuaToolRuntime.Invoke(client, operation, body, arguments));
+	private object GuardedInvoke(string operation, string body, params object?[] arguments) => WithIdleDebugger(() => LuaToolRuntime.Invoke(client, operation, LuaDebuggerScripts.State + "\n" + body, arguments));
+	private (int ProcessId, string? Identity) GetTargetIdentity()
+	{
+		long selected = (long) LuaToolRuntime.Execute(client, "debugger_target", "return getOpenedProcessID()")!;
+		int processId = checked((int) selected);
+		if (processId <= 0)
+		{
+			return (processId, null);
+		}
+		try
+		{
+			using Process process = Process.GetProcessById(processId);
+			if (process.HasExited)
+			{
+				return (processId, null);
+			}
+			string identity = processId.ToString(CultureInfo.InvariantCulture) + ":" +
+				process.StartTime.ToUniversalTime().Ticks.ToString(CultureInfo.InvariantCulture);
+			return (processId, identity);
+		}
+		catch (ArgumentException)
+		{
+			return (processId, null);
+		}
+	}
 }
