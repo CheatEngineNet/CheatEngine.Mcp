@@ -1,0 +1,11 @@
+# Working trees use CRLF on every OS; this file owns line-ending normalization while .editorconfig governs formatting.
+* text=auto eol=crlf
+
+# Binary assets are never normalized.
+*.dll binary
+*.exe binary
+*.nupkg binary
+*.snupkg binary
+*.png binary
+*.ico binary
+*.snk binary

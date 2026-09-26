@@ -10,23 +10,23 @@ jobs:
     name: Build and analyze
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: recursive
           fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of analysis
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6.0.0
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "10.0.401"
       - name: Cache SonarQube Cloud packages
-        uses: actions/cache@v6
+        uses: actions/cache@v6.1.0
         with:
           path: ~\.sonar\cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
       - name: Cache SonarQube Cloud scanner
         id: cache-sonar-scanner
-        uses: actions/cache@v6
+        uses: actions/cache@v6.1.0
         with:
           path: .\.sonar\scanner
           key: ${{ runner.os }}-sonar-scanner
@@ -45,6 +45,7 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $true
 
           .\.sonar\scanner\dotnet-sonarscanner begin /k:"shadowninex_ce-mcp" /o:"shadowninex" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io"
-          dotnet build --no-incremental
-          dotnet test --no-restore --no-build --filter "TestCategory!=Live"
+          dotnet restore CheatEngine.Mcp.slnx --locked-mode
+          dotnet build CheatEngine.Mcp.slnx --no-restore --no-incremental
+          dotnet test --solution CheatEngine.Mcp.slnx --no-restore --no-build --filter-not-trait Category=LiveQualification --filter-not-trait Category=NativeLua --fail-skips on
           .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"

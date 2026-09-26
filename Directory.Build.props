@@ -1,0 +1,22 @@
+<Project>
+  <PropertyGroup>
+    <RepoRoot>$(MSBuildThisFileDirectory)</RepoRoot>
+    <ArtifactsPath>$(RepoRoot)artifacts</ArtifactsPath>
+    <LangVersion>14.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>10.0-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <PlatformTarget>x64</PlatformTarget>
+    <Version>2.0.0</Version>
+    <Authors>CheatEngineNet</Authors>
+    <Company>CheatEngineNet</Company>
+    <RepositoryUrl>https://github.com/CheatEngineNet/CheatEngine.Mcp</RepositoryUrl>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <Import Project="$(RepoRoot)eng/Tests.props" Condition="$(MSBuildProjectName.EndsWith('.Tests'))" />
+</Project>

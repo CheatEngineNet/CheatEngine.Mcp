@@ -1,0 +1,99 @@
+{
+  "version": 2,
+  "dependencies": {
+    "net10.0": {
+      "CheatEngine.SDK": {
+        "type": "Direct",
+        "requested": "[2.0.0, )",
+        "resolved": "2.0.0",
+        "contentHash": "NLEdZYJ9LKW3EFNB4X5snKCQf7ZS86GkCQ+El7o+S1XQcxHQGjS45Q1ap8lfjQuIwm004mQ3TPxo+ph1yvRrlQ=="
+      },
+      "ModelContextProtocol.AspNetCore": {
+        "type": "Direct",
+        "requested": "[2.2.0, )",
+        "resolved": "2.2.0",
+        "contentHash": "3JelDMuFIwFzXybsh6K30G6wXu5gmqKnuRnieqgBMuR0FkqqXRv4B+NYZuPgthSyNq5UwRyvv2U2VJBE3RD3PQ==",
+        "dependencies": {
+          "ModelContextProtocol": "[2.2.0]"
+        }
+      },
+      "NLog": {
+        "type": "Direct",
+        "requested": "[6.2.1, )",
+        "resolved": "6.2.1",
+        "contentHash": "fTGNuJyzkgDc1TBEGXF+FMT4b6kB7gygkSN3dLei2Ziiwx/rugXA+OyyFWZ60P1G/+SzzSKiWHlQ4OklC8AgRg=="
+      },
+      "NLog.Extensions.Logging": {
+        "type": "Direct",
+        "requested": "[6.2.1, )",
+        "resolved": "6.2.1",
+        "contentHash": "VVISyXM6nU6akAK9dzit/Yy/Q050PVpW0FZM6ceSA7oZUvMtQZlE0VlNx1VUBe3Uo540/9Ee05RiKlPvyR8dUQ==",
+        "dependencies": {
+          "NLog": "6.2.1"
+        }
+      },
+      "ModelContextProtocol": {
+        "type": "Transitive",
+        "resolved": "2.2.0",
+        "contentHash": "4Pb9u02Nwsp0poueDsqNdyGRojFxOYpljB7zDBsq+aHL+Afou3OgxlBc3GWFVnsRMRJrUtWqDh3s6k2JgPzmrQ==",
+        "dependencies": {
+          "ModelContextProtocol.Core": "[2.2.0]"
+        }
+      },
+      "ModelContextProtocol.Core": {
+        "type": "Transitive",
+        "resolved": "2.2.0",
+        "contentHash": "FeBfXU6T8k+jw4afg4sfxdEX2rL/e5oKOk9ROOGztu9k47+7Bz08sdaToYt2XvMY1opNbwxYQOFMj6wH9TInhA==",
+        "dependencies": {
+          "Microsoft.Extensions.AI.Abstractions": "10.8.3"
+        }
+      },
+      "cheatengine.client": {
+        "type": "Project",
+        "dependencies": {
+          "CheatEngine.Client.Fluent": "[1.0.0, )",
+          "CheatEngine.Client.Hosting": "[1.0.0, )"
+        }
+      },
+      "cheatengine.client.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "CheatEngine.SDK": "[2.0.0, 3.0.0)"
+        }
+      },
+      "cheatengine.client.core": {
+        "type": "Project",
+        "dependencies": {
+          "CheatEngine.Client.Abstractions": "[1.0.0, )",
+          "CheatEngine.SDK": "[2.0.0, 3.0.0)"
+        }
+      },
+      "cheatengine.client.extensions.dependencyinjection": {
+        "type": "Project",
+        "dependencies": {
+          "CheatEngine.Client.Abstractions": "[1.0.0, )",
+          "CheatEngine.Client.Core": "[1.0.0, )"
+        }
+      },
+      "cheatengine.client.fluent": {
+        "type": "Project",
+        "dependencies": {
+          "CheatEngine.Client.Abstractions": "[1.0.0, )"
+        }
+      },
+      "cheatengine.client.hosting": {
+        "type": "Project",
+        "dependencies": {
+          "CheatEngine.Client.Extensions.DependencyInjection": "[1.0.0, )",
+          "CheatEngine.SDK": "[2.0.0, 3.0.0)"
+        }
+      },
+      "Microsoft.Extensions.AI.Abstractions": {
+        "type": "CentralTransitive",
+        "requested": "[10.10.1, )",
+        "resolved": "10.10.1",
+        "contentHash": "Kz6ezQfRb9x2TkIWyaXkVAfpvyoAlEDfC59klPrdr2XD5WM4HNw+PREAZ+Fo43GPldtX+E0i1aYzMFQ/zXYMLg=="
+      }
+    }
+  }
+}

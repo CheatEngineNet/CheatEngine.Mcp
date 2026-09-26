@@ -1,3 +1,3 @@
-[submodule "CESDK"]
-	path = CESDK
-	url = https://github.com/ShadowNineX/CESDK
+[submodule "CheatEngine.Client"]
+	path = CheatEngine.Client
+	url = https://github.com/CheatEngineNet/CheatEngine.Client.git

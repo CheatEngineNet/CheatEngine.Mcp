@@ -1,0 +1,335 @@
+root = true
+
+# Repository-wide, editor-agnostic defaults. Language-specific sections below
+# intentionally override these values where a format has stricter constraints.
+[*]
+charset = utf-8
+insert_final_newline = true
+indent_style = space
+indent_size = 4
+tab_width = 4
+max_line_length = 120
+trim_trailing_whitespace = true
+# Matches .gitattributes (eol=crlf): dotnet format and the IDE0055 build check agree on CRLF.
+end_of_line = crlf
+
+[*.{csproj,props,targets,slnx,config,json,yml,yaml}]
+# YAML cannot use tabs for indentation. Keep project and configuration files
+# compact and portable even though C# uses tabs below.
+indent_style = space
+indent_size = 2
+tab_width = 2
+
+[*.{cs,csx}]
+################################################################################
+# C# team contract
+#
+# Roslyn settings are the portable source of truth: Rider, VS, dotnet format,
+# and CI all understand them. Rider-only settings are marked as such.
+################################################################################
+
+# Tabs describe logical nesting; spaces are retained solely to align continuations.
+indent_style = tab
+indent_size = tab
+tab_width = 4
+csharp_indent_style = tab
+csharp_indent_size = 4
+csharp_tab_width = 4
+csharp_alignment_tab_fill_style = use_spaces
+
+# Make structural boundaries easy to scan.
+csharp_new_line_before_open_brace = all
+csharp_new_line_before_catch = true
+csharp_new_line_before_else = true
+csharp_new_line_before_finally = true
+csharp_new_line_before_members_in_object_initializers = true
+csharp_new_line_between_query_expression_clauses = true
+csharp_indent_braces = false
+csharp_indent_switch_labels = true
+csharp_preserve_single_line_blocks = false
+csharp_preserve_single_line_statements = false
+csharp_space_after_cast = true
+csharp_space_around_binary_operators = before_and_after
+csharp_preferred_modifier_order = public, private, protected, internal, file, static, extern, new, virtual, abstract, sealed, override, readonly, unsafe, required, volatile, async
+
+# Keep imports and namespaces deterministic and minimise needless nesting.
+dotnet_separate_import_directive_groups = true
+dotnet_sort_system_directives_first = true
+csharp_using_directive_placement = outside_namespace
+csharp_style_namespace_declarations = file_scoped
+
+# Prefer syntax that leaves declarations, construction, and contracts visible.
+# `var` is statically typed in C#, but explicit types are the repository's
+# readability convention whenever the language can express them.
+csharp_style_var_for_built_in_types = false
+csharp_style_var_when_type_is_apparent = false
+csharp_style_var_elsewhere = false
+csharp_style_implicit_object_creation_when_type_is_apparent = false
+dotnet_style_require_accessibility_modifiers = always
+dotnet_style_readonly_field = true
+dotnet_style_explicit_tuple_names = true
+dotnet_style_predefined_type_for_locals_parameters_members = true
+dotnet_style_predefined_type_for_member_access = true
+csharp_prefer_braces = true
+csharp_style_prefer_top_level_statements = false
+
+# Enforced now: redundant suppressions report genuine noise and remain build
+# blockers because Directory.Build.props treats warnings as errors.
+dotnet_diagnostic.IDE0079.severity = error
+
+# Style rules enforced since the repository-wide reformat of the audit remediation branch
+# (see .git-blame-ignore-revs). EnforceCodeStyleInBuild plus TreatWarningsAsErrors turns them into build errors;
+# CI's format job additionally runs `dotnet format whitespace --verify-no-changes`.
+dotnet_diagnostic.IDE0007.severity = none
+dotnet_diagnostic.IDE0008.severity = warning
+dotnet_diagnostic.IDE0011.severity = warning
+dotnet_diagnostic.IDE0033.severity = suggestion
+dotnet_diagnostic.IDE0040.severity = warning
+dotnet_diagnostic.IDE0044.severity = warning
+dotnet_diagnostic.IDE0055.severity = warning
+dotnet_diagnostic.IDE0005.severity = suggestion
+dotnet_diagnostic.IDE0065.severity = warning
+dotnet_diagnostic.IDE0090.severity = warning
+dotnet_diagnostic.IDE0160.severity = none
+dotnet_diagnostic.IDE0161.severity = warning
+# Naming fixes rename symbols, which dotnet format cannot apply safely; keep them as editor guidance.
+dotnet_diagnostic.IDE1006.severity = suggestion
+
+################################################################################
+# Second hardening pass (2026-09): closes rules the .NET 10 SDK ships at
+# Suggestion or Silent severity by default. EnforceCodeStyleInBuild only runs
+# these analyzers at build time; it does NOT promote their severity. Only
+# 'warning' (via TreatWarningsAsErrors) or 'error' fails the build, so every
+# dotnet_diagnostic.IDEXXXX / csharp_style_* / dotnet_style_* line below
+# carries an explicit severity for that reason - a bare option value with no
+# ':severity' suffix silently keeps the SDK default, which is frequently
+# Silent and therefore a no-op in CI no matter how the analyzer is configured.
+################################################################################
+
+# Pattern-matching preference: already 'true' by SDK default, only severity was missing.
+# Roslyn only offers the fix when it is provably behavior-preserving.
+dotnet_diagnostic.IDE0078.severity = warning
+dotnet_diagnostic.IDE0260.severity = warning
+dotnet_diagnostic.IDE0019.severity = warning
+dotnet_diagnostic.IDE0020.severity = warning
+dotnet_diagnostic.IDE0038.severity = warning
+
+# Local function over lambda when nothing is captured; avoids an implicit
+# display-class/delegate allocation, which matters on the AOT src/libs surface.
+dotnet_diagnostic.IDE0039.severity = warning
+# Mark a capture-free local function/lambda 'static' to prevent the same allocation.
+dotnet_diagnostic.IDE0062.severity = warning
+dotnet_diagnostic.IDE0320.severity = warning
+
+# Mechanical, compiler-guaranteed-safe simplifications.
+dotnet_diagnostic.IDE0042.severity = warning
+dotnet_diagnostic.IDE0016.severity = warning
+dotnet_diagnostic.IDE0071.severity = warning
+dotnet_diagnostic.IDE0054.severity = warning
+dotnet_diagnostic.IDE0074.severity = warning
+
+# Readonly struct / readonly member: Roslyn only offers the fix when no member
+# mutates instance state. C#-level immutability only; the Client owns no native
+# interop (the ArchitectureRatchetTests metadata ratchets forbid it), so the
+# fix never interacts with memory written through a pointer.
+dotnet_diagnostic.IDE0250.severity = warning
+dotnet_diagnostic.IDE0251.severity = warning
+
+# nameof(List<>) needs zero reflection metadata, unlike typeof(T).Name - the
+# AOT-friendliest spelling, matching the IsAotCompatible shipping libraries
+# and the no-reflection stance the ArchitectureRatchetTests metadata ratchets
+# enforce. C# 14+.
+csharp_style_prefer_unbound_generic_type_in_nameof = true
+dotnet_diagnostic.IDE0340.severity = warning
+
+# Prefer ArgumentNullException.ThrowIfNull / ArgumentOutOfRangeException throw
+# helpers / ObjectDisposedException.ThrowIf over hand-written if-throw blocks.
+# Already active at Suggestion under AnalysisLevel=10.0-recommended; Microsoft
+# documents the fix as non-breaking.
+dotnet_diagnostic.CA1510.severity = warning
+dotnet_diagnostic.CA1511.severity = warning
+dotnet_diagnostic.CA1512.severity = warning
+dotnet_diagnostic.CA1513.severity = warning
+
+# Parameter-name consistency with the base/interface member it implements.
+# The fix is a rename - the same class of fix dotnet/format#348 (open as of
+# 2026-09-23) says 'dotnet format' cannot safely apply, so this stays at
+# suggestion rather than joining IDE1006's exception list at a higher tier.
+dotnet_diagnostic.CA1725.severity = suggestion
+
+# SYSLIB1054 ('use [LibraryImport], not [DllImport]') ships in-box since
+# .NET 7 as part of the runtime's P/Invoke source generator; it lives outside
+# AnalysisLevel/AnalysisMode entirely. Client shipping code declares no
+# P/Invoke. The only [DllImport] in compiled sources is the deliberate
+# NativeImportFixture in ArchitectureRatchetTests, locally suppressed because
+# it proves the native-interop ratchet is not vacuous. The MoveFileEx
+# declaration in the Hosting buildTransitive targets is an inline MSBuild task
+# compiled on consumer machines, outside this analyzer's reach.
+dotnet_diagnostic.SYSLIB1054.severity = error
+
+# Dead-store elimination: a value assigned to a local that is overwritten
+# before being read. Safe, mechanical removal fix.
+csharp_style_unused_value_assignment_preference = discard_variable:warning
+# The build honours the option-format severity above, but `dotnet format`
+# only reads dotnet_diagnostic severities, so state it here as well.
+dotnet_diagnostic.IDE0059.severity = warning
+
+# Roslyn's fix only fires for a simple two-branch if/else; a forced ternary
+# can still push past max_line_length=120 or read less explicitly than the
+# block it replaces, so this stays advisory rather than build-breaking.
+dotnet_style_prefer_conditional_expression_over_assignment = true:suggestion
+dotnet_style_prefer_conditional_expression_over_return = true:suggestion
+
+# Pure formatting, zero behavior change, enforced at build time like IDE0055
+# (EnforceCodeStyleInBuild plus TreatWarningsAsErrors). Removes
+# operator-precedence ambiguity from mixed binary expressions.
+dotnet_style_parentheses_in_arithmetic_binary_operators = always_for_clarity:warning
+dotnet_style_parentheses_in_relational_binary_operators = always_for_clarity:warning
+dotnet_style_parentheses_in_other_binary_operators = always_for_clarity:warning
+dotnet_style_parentheses_in_other_operators = never_if_unnecessary:warning
+# Same reason as IDE0059 above: let `dotnet format` apply these fixes too.
+dotnet_diagnostic.IDE0047.severity = warning
+dotnet_diagnostic.IDE0048.severity = warning
+
+# Flips the VALUE to match this file's own 'explicit types are the
+# readability convention' stance (primary-constructor parameters become
+# implicitly captured fields with different lifetime/visibility than an
+# explicit field + assignment, and complicate per-parameter validation).
+# Severity stays suggestion - a design judgment call, not build-breaking
+# either way - mirroring IDE1006's philosophy.
+csharp_style_prefer_primary_constructors = false:suggestion
+
+# Advisory only: a backing field is sometimes intentionally explicit, for
+# example when it is read with Volatile or updated with Interlocked.
+dotnet_style_prefer_auto_properties = true:suggestion
+
+# Rider derives its own "var or explicit type" inspections from the shared
+# csharp_style_var_* values. Silence those copies so IDE0008 is the one
+# portable diagnostic developers see, rather than reporting each issue twice.
+resharper_suggest_var_or_type_built_in_types_highlighting = none
+resharper_suggest_var_or_type_simple_types_highlighting = none
+resharper_suggest_var_or_type_elsewhere_highlighting = none
+resharper_suggest_var_or_type_deconstruction_declarations_highlighting = none
+
+# Rider-specific, live diagnostic. It complements compiler nullable analysis;
+# it is deliberately a warning rather than a CI-only, non-portable error.
+resharper_possible_null_reference_exception_highlighting = warning
+
+# Naming rules keep public contracts recognisable before a reader opens a type.
+# File order does not matter: Roslyn orders naming rules by specificity -
+# accessibility first, then required modifiers, then symbol kinds - and applies
+# the most specific match. Where two rules overlap (a private const field is
+# both "private" and "const"), an explicit intersection rule below decides.
+# https://learn.microsoft.com/dotnet/fundamentals/code-analysis/style-rules/naming-rules#rule-order
+dotnet_naming_rule.interfaces_must_be_prefixed_i.severity = suggestion
+dotnet_naming_rule.interfaces_must_be_prefixed_i.symbols = interfaces
+dotnet_naming_rule.interfaces_must_be_prefixed_i.style = i_pascal_case
+dotnet_naming_symbols.interfaces.applicable_kinds = interface
+dotnet_naming_style.i_pascal_case.required_prefix = I
+dotnet_naming_style.i_pascal_case.capitalization = pascal_case
+
+dotnet_naming_rule.types_must_be_pascal_case.severity = suggestion
+dotnet_naming_rule.types_must_be_pascal_case.symbols = types
+dotnet_naming_rule.types_must_be_pascal_case.style = pascal_case
+dotnet_naming_symbols.types.applicable_kinds = class, struct, interface, enum, delegate
+dotnet_naming_style.pascal_case.capitalization = pascal_case
+
+# Async methods and local functions end with "Async" at any accessibility.
+# non_private_members_must_be_pascal_case is more specific on accessibility, so
+# it would win for non-private async methods; the intersection rule
+# non_private_async_methods_must_be_suffixed restores the suffix for them.
+# dotnet/roslyn#34833 (still open) means an interface-implementing or
+# overriding async method is not always flagged - editor guidance, not a build
+# gate, for that reason.
+dotnet_naming_rule.async_methods_must_be_suffixed.severity = suggestion
+dotnet_naming_rule.async_methods_must_be_suffixed.symbols = async_methods
+dotnet_naming_rule.async_methods_must_be_suffixed.style = async_pascal_case
+dotnet_naming_symbols.async_methods.applicable_kinds = method, local_function
+dotnet_naming_symbols.async_methods.applicable_accessibilities = *
+dotnet_naming_symbols.async_methods.required_modifiers = async
+dotnet_naming_style.async_pascal_case.required_suffix = Async
+dotnet_naming_style.async_pascal_case.capitalization = pascal_case
+
+dotnet_naming_rule.non_private_async_methods_must_be_suffixed.severity = suggestion
+dotnet_naming_rule.non_private_async_methods_must_be_suffixed.symbols = non_private_async_methods
+dotnet_naming_rule.non_private_async_methods_must_be_suffixed.style = async_pascal_case
+dotnet_naming_symbols.non_private_async_methods.applicable_kinds = method
+dotnet_naming_symbols.non_private_async_methods.applicable_accessibilities = public, internal, protected, protected_internal, private_protected
+dotnet_naming_symbols.non_private_async_methods.required_modifiers = async
+
+dotnet_naming_rule.non_private_members_must_be_pascal_case.severity = suggestion
+dotnet_naming_rule.non_private_members_must_be_pascal_case.symbols = non_private_members
+dotnet_naming_rule.non_private_members_must_be_pascal_case.style = pascal_case
+dotnet_naming_symbols.non_private_members.applicable_kinds = property, method, event
+dotnet_naming_symbols.non_private_members.applicable_accessibilities = public, internal, protected, protected_internal, private_protected
+
+# A const or static-readonly field is PascalCase regardless of accessibility
+# (BCL convention). const and 'static, readonly' are reported as distinct
+# modifier sets by the naming-rule engine, hence two rules.
+# private_fields_must_be_underscore_camel_case is more specific on
+# accessibility, so it would win for the private subset; the two private_*
+# intersection rules restore PascalCase for private constants and private
+# static readonly fields.
+dotnet_naming_rule.constants_must_be_pascal_case.severity = suggestion
+dotnet_naming_rule.constants_must_be_pascal_case.symbols = constant_fields
+dotnet_naming_rule.constants_must_be_pascal_case.style = pascal_case
+dotnet_naming_symbols.constant_fields.applicable_kinds = field
+dotnet_naming_symbols.constant_fields.applicable_accessibilities = *
+dotnet_naming_symbols.constant_fields.required_modifiers = const
+
+dotnet_naming_rule.static_readonly_fields_must_be_pascal_case.severity = suggestion
+dotnet_naming_rule.static_readonly_fields_must_be_pascal_case.symbols = static_readonly_fields
+dotnet_naming_rule.static_readonly_fields_must_be_pascal_case.style = pascal_case
+dotnet_naming_symbols.static_readonly_fields.applicable_kinds = field
+dotnet_naming_symbols.static_readonly_fields.applicable_accessibilities = *
+dotnet_naming_symbols.static_readonly_fields.required_modifiers = static, readonly
+
+dotnet_naming_rule.private_constants_must_be_pascal_case.severity = suggestion
+dotnet_naming_rule.private_constants_must_be_pascal_case.symbols = private_constant_fields
+dotnet_naming_rule.private_constants_must_be_pascal_case.style = pascal_case
+dotnet_naming_symbols.private_constant_fields.applicable_kinds = field
+dotnet_naming_symbols.private_constant_fields.applicable_accessibilities = private
+dotnet_naming_symbols.private_constant_fields.required_modifiers = const
+
+dotnet_naming_rule.private_static_readonly_fields_must_be_pascal_case.severity = suggestion
+dotnet_naming_rule.private_static_readonly_fields_must_be_pascal_case.symbols = private_static_readonly_fields
+dotnet_naming_rule.private_static_readonly_fields_must_be_pascal_case.style = pascal_case
+dotnet_naming_symbols.private_static_readonly_fields.applicable_kinds = field
+dotnet_naming_symbols.private_static_readonly_fields.applicable_accessibilities = private
+dotnet_naming_symbols.private_static_readonly_fields.required_modifiers = static, readonly
+
+# non_private_members (above) covers properties/methods/events but not
+# fields, and enum members are reported as fields too - both previously
+# matched zero naming rule anywhere in this file.
+dotnet_naming_rule.non_private_fields_must_be_pascal_case.severity = suggestion
+dotnet_naming_rule.non_private_fields_must_be_pascal_case.symbols = non_private_fields
+dotnet_naming_rule.non_private_fields_must_be_pascal_case.style = pascal_case
+dotnet_naming_symbols.non_private_fields.applicable_kinds = field
+dotnet_naming_symbols.non_private_fields.applicable_accessibilities = public, internal, protected, protected_internal, private_protected
+
+dotnet_naming_rule.private_fields_must_be_underscore_camel_case.severity = suggestion
+dotnet_naming_rule.private_fields_must_be_underscore_camel_case.symbols = private_fields
+dotnet_naming_rule.private_fields_must_be_underscore_camel_case.style = underscore_camel_case
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private
+dotnet_naming_style.underscore_camel_case.required_prefix = _
+dotnet_naming_style.underscore_camel_case.capitalization = camel_case
+
+# IDE0005 requires XML documentation generation to run during a command-line
+# build. Shipping projects already enable it; tests and samples intentionally
+# retain it as an editor suggestion rather than acquiring build-only XML output.
+
+[libs/**.cs]
+dotnet_diagnostic.IDE0005.severity = error
+# The Client's RS0048 guard: every shipping library must carry both
+# PublicAPI.Shipped.txt and PublicAPI.Unshipped.txt, so a public member can
+# never ship without an explicit API baseline entry.
+dotnet_public_api_analyzer.require_api_files = true
+
+[src/**.cs]
+# This application uses MCP parameter metadata instead of publishing an XML API reference.
+dotnet_diagnostic.IDE0005.severity = suggestion
+
+[tests/**.cs]
+# Preserve behavior-oriented MSTest names: Subject_Condition_Outcome.
+dotnet_diagnostic.CA1707.severity = none

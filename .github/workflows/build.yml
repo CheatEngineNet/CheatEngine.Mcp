@@ -1,0 +1,49 @@
+name: Build CheatEngine.Mcp
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6.0.0
+        with:
+          dotnet-version: "10.0.401"
+      - name: Restore
+        run: dotnet restore CheatEngine.Mcp.slnx --locked-mode
+      - name: Build Debug
+        run: dotnet build CheatEngine.Mcp.slnx --no-restore
+      - name: Test
+        run: dotnet test --solution CheatEngine.Mcp.slnx --no-restore --no-build --filter-not-trait Category=LiveQualification --filter-not-trait Category=NativeLua --fail-skips on
+      - name: Check formatting
+        run: |
+          dotnet format style CheatEngine.Mcp.slnx --no-restore --severity warn --verify-no-changes
+          dotnet format whitespace CheatEngine.Mcp.slnx --no-restore --verify-no-changes
+      - name: Build Release
+        run: dotnet build CheatEngine.Mcp.slnx -c Release --no-restore
+      - name: Upload Debug plugin and gateway folder
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: CheatEngine.Mcp-debug
+          path: artifacts/bin/CheatEngine.Mcp.Gateway/debug/**
+          if-no-files-found: error
+      - name: Upload Release plugin and gateway folder
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: CheatEngine.Mcp-release
+          path: artifacts/bin/CheatEngine.Mcp.Gateway/release/**
+          if-no-files-found: error

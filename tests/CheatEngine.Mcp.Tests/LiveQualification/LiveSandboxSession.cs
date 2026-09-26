@@ -1,0 +1,623 @@
+using System.Diagnostics;
+using System.Runtime.Versioning;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+
+using CheatEngine.Client.Tests.LiveQualification;
+using CheatEngine.Mcp.Instances;
+
+namespace CheatEngine.Mcp.Tests.LiveQualification;
+
+/// <summary>Owns two isolated CE hosts and targets beneath one guarded live-test run.</summary>
+[SupportedOSPlatform("windows")]
+internal sealed class LiveSandboxSession : IAsyncDisposable
+{
+	private static readonly string[] RemovedEnvironmentPrefixes = ["DOTNET_", "MSBUILD", "TESTINGPLATFORM", "VSTEST", "CHEATENGINE_", "CE_SDK_", "CECLIENT_", "MCP_"];
+	private static readonly JsonSerializerOptions ReportJson = new() { WriteIndented = true };
+	private readonly SandboxLayout _layout;
+	private readonly FileStream _runLock;
+	private readonly Dictionary<string, object?> _report = new(StringComparer.Ordinal);
+	private readonly Dictionary<string, OwnedHost> _hosts = new(StringComparer.Ordinal);
+	private ICheatEngineUserStateScope? _userState;
+	private CheatEngineRegistryGuard? _stateGuard;
+	private DebugOutputCapture? _debugOutput;
+	private string? _source;
+	private CheatEngineProfile? _profile;
+	private InstallationFingerprint? _fingerprint;
+	private string? _runtimeHash;
+	private bool _passed;
+	private bool _disposed;
+
+	private LiveSandboxSession(SandboxLayout layout, FileStream runLock)
+	{
+		_layout = layout;
+		_runLock = runLock;
+		_report["schema"] = "cheatengine-mcp-live-multi-instance/v1";
+		_report["runId"] = layout.RunId;
+		InstanceDirectory = Path.Combine(layout.RunDirectory, "instances");
+	}
+
+	public string InstanceDirectory
+	{
+		get;
+	}
+	public LiveSandboxHost HostA => GetHost("A");
+	public LiveSandboxHost HostB => GetHost("B");
+
+	public static async Task<LiveSandboxSession> StartAsync(LiveQualificationInputs inputs)
+	{
+		RequireNoCheatEngine();
+		FileStream runLock = new(Path.Combine(Path.GetTempPath(), "CheatEngine.Mcp.LiveTests.lock"),
+			FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+		LiveSandboxSession? sandbox = null;
+		try
+		{
+			SandboxLayout layout = SandboxLayout.Create(inputs.RunRoot, DateTimeOffset.UtcNow);
+			sandbox = new LiveSandboxSession(layout, runLock);
+			Console.WriteLine($"Live evidence: {layout.RunDirectory}");
+			await sandbox.StartCoreAsync(inputs);
+			return sandbox;
+		}
+		catch (Exception exception)
+		{
+			if (sandbox is not null)
+			{
+				try
+				{
+					sandbox.Record("startupFailure", exception.ToString());
+				}
+				finally { await sandbox.DisposeAsync(); }
+			}
+			else
+			{
+				runLock.Dispose();
+			}
+			throw;
+		}
+	}
+
+	public LiveSandboxHost GetHost(string name) => _hosts.TryGetValue(name, out OwnedHost? host)
+		? host.Public : throw new InvalidOperationException($"Owned host '{name}' has not started.");
+
+	public async Task StopHostAsync(string name)
+	{
+		if (!_hosts.TryGetValue(name, out OwnedHost? host))
+		{
+			throw new InvalidOperationException($"Owned host '{name}' has not started.");
+		}
+		if (host.Stopped)
+		{
+			return;
+		}
+		List<Exception> failures = [];
+		TryCleanup(() => File.WriteAllText(host.StopPath, "stop"), failures);
+		bool hostStopped = await StopOwnedAsync(host.Process, failures);
+		if (hostStopped)
+		{
+			host.Process = null;
+			TryCleanup(() => File.WriteAllText(host.TargetManifest + ".stop", "stop"), failures);
+			bool targetStopped = await StopOwnedAsync(host.Target, failures);
+			if (targetStopped)
+			{
+				host.Target = null;
+			}
+			host.Stopped = targetStopped;
+		}
+		Record($"host_{name}_stopped", new
+		{
+			host.Public.ProcessId,
+			host.Public.TargetProcessId
+		});
+		if (failures.Count != 0)
+		{
+			throw new AggregateException($"Live host {name} did not stop cleanly.", failures);
+		}
+	}
+
+	private async Task StartCoreAsync(LiveQualificationInputs inputs)
+	{
+		string repository = inputs.RepositoryRoot;
+		_source = inputs.CheatEngineDirectory;
+		if (LiveQualificationOptIn.IsSameOrBelow(_layout.RunRoot, _source)
+			|| LiveQualificationOptIn.IsSameOrBelow(_source, _layout.RunRoot))
+		{
+			throw new InvalidOperationException("The CE installation and live-run directory must be separate.");
+		}
+		string hostPath = Path.Combine(_source, "cheatengine-x86_64.exe");
+		ExecutableFacts facts = PortableExecutableInspector.Instance.Describe(hostPath);
+		if (facts.Machine != "Amd64" || !Version.TryParse(facts.FileVersion, out Version? version) || version < new Version(7, 7))
+		{
+			throw new InvalidOperationException("Live smoke tests require Cheat Engine 7.7 or later, x64.");
+		}
+		_profile = new CheatEngineProfile("mcp-installed-host", "cheatengine-x86_64.exe",
+			CheatEngineInstallation.Sha256(hostPath), facts.FileVersion!, "Amd64", new Dictionary<string, string>());
+		_fingerprint = CheatEngineInstallation.Fingerprint(_source, _profile);
+		_runtimeHash = HashIfExists(Path.Combine(_source, "ce.runtimeconfig.json"));
+		Record("host", _profile);
+		Directory.CreateDirectory(InstanceDirectory);
+		PrepareHostInstallation("A");
+		PrepareHostInstallation("B");
+		RequireNoCheatEngine();
+		RegistryTreeSnapshot current = RegistrySnapshot.Capture(CheatEngineUserStateLocations.CheatEngineRegistrySubKey);
+		string[] pluginKeys = current.Root?.Keys.Select(key => key.Name).Where(name => name.StartsWith("Plugin", StringComparison.OrdinalIgnoreCase)).ToArray() ?? [];
+		string[] pluginValues = current.Root?.Values.Select(value => value.Name).Where(name => name.StartsWith("Plugin", StringComparison.OrdinalIgnoreCase)).ToArray() ?? [];
+		_stateGuard = new CheatEngineRegistryGuard(CheatEngineUserStateLocations.Workstation, pluginKeys, pluginValues);
+		_debugOutput = DebugOutputCapture.Start(DebugOutputBuffer.SystemAnsiEncoding());
+		_userState = _stateGuard.Begin(_layout);
+		await StartHostAsync(repository, "A");
+		await StartHostAsync(repository, "B");
+		Record("instances", _hosts.Values.Select(host => new
+		{
+			host.Public.Name,
+			host.Public.InstanceId,
+			host.Public.ProcessId,
+			host.Public.TargetProcessId,
+			port = new Uri(host.Public.Endpoint).Port
+		}).ToArray());
+	}
+
+	private void PrepareHostInstallation(string name)
+	{
+		string installation = HostInstallationDirectory(name);
+		CheatEngineInstallation.CopyTo(_source!, installation, _profile!, PortableExecutableInspector.Instance);
+		string autorun = Path.Combine(installation, "autorun");
+		string disabledAutorun = Path.Combine(installation, "autorun.disabled");
+		RequireInsideRun(autorun);
+		RequireInsideRun(disabledAutorun);
+		if (Directory.Exists(autorun))
+		{
+			Directory.Move(autorun, disabledAutorun);
+		}
+		Directory.CreateDirectory(autorun);
+		CopyReviewedAutorun(disabledAutorun, autorun, "celib.lua", "5871F4E9F6C06B5811C1F4B208B5D6869C5191E7CB5540F2B463D01E5541FAC2");
+		CopyReviewedAutorun(disabledAutorun, autorun, "monoscript.lua", "F139E50B788C85A15ACFA92B892FCCBC3DECA6D8D609AD9E5428B4C336C90600");
+		CopyReviewedAutorun(disabledAutorun, autorun, "SpeedhackV3.lua", "69DE7EE3F4563005B5BC34A27F720D9D6E714A14FE7D6E1C47D5CF0AECD93D9C");
+		File.WriteAllText(Path.Combine(installation, "ce.runtimeconfig.json"), """
+			{"runtimeOptions":{"tfm":"net10.0","rollForward":"LatestMinor","frameworks":[
+			{"name":"Microsoft.NETCore.App","version":"10.0.0"},
+			{"name":"Microsoft.WindowsDesktop.App","version":"10.0.0"},
+			{"name":"Microsoft.AspNetCore.App","version":"10.0.0"}]}}
+			""");
+	}
+
+	private async Task StartHostAsync(string repository, string name)
+	{
+#if DEBUG
+		const string configuration = "debug";
+#else
+		const string configuration = "release";
+#endif
+		// The gateway bundle is the canonical distribution and contains the plugin's managed bridge and manifests.
+		string pluginOutput = Path.Combine(repository, "artifacts", "bin", "CheatEngine.Mcp.Gateway", configuration);
+		string pluginPath = Path.Combine(_layout.PluginsDirectory, name, "CheatEngine.Mcp", "CheatEngine.Mcp.dll");
+		CopyTree(pluginOutput, Path.GetDirectoryName(pluginPath)!);
+		Record($"plugin_{name}_sha256", CheatEngineInstallation.Sha256(pluginPath));
+		string stopPath = Path.Combine(_layout.RunDirectory, $"stop-{name}");
+		string targetManifest = Path.Combine(_layout.RunDirectory, $"target-{name}.json");
+		string driverPath = Path.Combine(HostInstallationDirectory(name), "autorun", "zz_cheatengine_mcp_live.lua");
+		File.WriteAllText(driverPath, BuildDriver(stopPath, pluginPath, name));
+		string targetPath = Path.Combine(repository, "artifacts", "bin", "CheatEngine.Mcp.LiveTarget", configuration, "CheatEngine.Mcp.LiveTarget.exe");
+		Process? target = null;
+		Process? host = null;
+		OwnedHost? owned = null;
+		try
+		{
+			ProcessStartInfo targetStart = CreateStartInfo(targetPath);
+			targetStart.ArgumentList.Add(targetManifest);
+			target = Process.Start(targetStart) ?? throw new InvalidOperationException($"Disposable target {name} did not start.");
+			owned = new OwnedHost(null, target, stopPath, targetManifest,
+				new LiveSandboxHost(name, 0, target.Id, string.Empty, pluginPath, string.Empty, string.Empty));
+			_hosts.Add(name, owned);
+			await WaitUntilAsync(() => File.Exists(targetManifest), target, TimeSpan.FromSeconds(10));
+			JsonNode manifest = JsonNode.Parse(await File.ReadAllTextAsync(targetManifest))!;
+			if (manifest["processId"]!.GetValue<int>() != target.Id)
+			{
+				throw new InvalidOperationException($"Target manifest {name} belongs to a different process.");
+			}
+			string targetAddress = manifest["address"]!.GetValue<string>();
+			ProcessStartInfo hostStart = CreateStartInfo(Path.Combine(HostInstallationDirectory(name), _profile!.HostExecutable));
+			hostStart.Environment["MCP_HOST"] = "127.0.0.1";
+			hostStart.Environment["MCP_PORT"] = "0";
+			hostStart.Environment["MCP_DATA_DIRECTORY"] = Path.Combine(_layout.RunDirectory, "plugin-data", name);
+			hostStart.Environment["MCP_INSTANCE_DIRECTORY"] = InstanceDirectory;
+			hostStart.Environment["MCP_INSTANCE_NAME"] = $"Live Qualification {name}";
+			host = Process.Start(hostStart) ?? throw new InvalidOperationException($"Private CE host {name} did not start.");
+			owned.Process = host;
+			_debugOutput!.Buffer.Track(host.Id);
+			owned.Public = owned.Public with
+			{
+				ProcessId = host.Id,
+				TargetAddress = targetAddress
+			};
+			InstanceDescriptor descriptor = await WaitForInstanceAsync(owned, TimeSpan.FromSeconds(45));
+			owned.Public = owned.Public with
+			{
+				InstanceId = descriptor.InstanceId,
+				Endpoint = descriptor.Endpoint
+			};
+			Record($"target_{name}", new
+			{
+				processId = target.Id,
+				address = targetAddress
+			});
+		}
+		catch (Exception exception)
+		{
+			List<Exception> cleanupFailures = [];
+			if (owned is not null)
+			{
+				try
+				{
+					await StopHostAsync(name);
+				}
+				catch (Exception cleanupException) { cleanupFailures.Add(cleanupException); }
+			}
+			else
+			{
+				if (host is not null)
+				{
+					await StopOwnedAsync(host, cleanupFailures);
+				}
+				if (target is not null)
+				{
+					await StopOwnedAsync(target, cleanupFailures);
+				}
+			}
+			if (cleanupFailures.Count != 0)
+			{
+				throw new AggregateException($"Live host {name} startup and cleanup failed.", [exception, .. cleanupFailures]);
+			}
+			throw;
+		}
+	}
+
+	private async Task<InstanceDescriptor> WaitForInstanceAsync(OwnedHost host, TimeSpan timeout)
+	{
+		Process process = host.Process ?? throw new InvalidOperationException($"CE host {host.Public.Name} did not start.");
+		InstanceRegistry registry = new(InstanceDirectory);
+		Stopwatch elapsed = Stopwatch.StartNew();
+		while (elapsed.Elapsed < timeout)
+		{
+			if (process.HasExited)
+			{
+				throw new InvalidOperationException($"CE host {host.Public.Name} exited with {process.ExitCode}. Inspect {_layout.RunDirectory}.");
+			}
+			InstanceDescriptor? instance = registry.ReadActive().SingleOrDefault(candidate => candidate.ProcessId == process.Id
+				&& string.Equals(candidate.Name, $"Live Qualification {host.Public.Name}", StringComparison.Ordinal));
+			if (instance is not null)
+			{
+				return instance;
+			}
+			await Task.Delay(200);
+		}
+		throw new TimeoutException($"MCP instance {host.Public.Name} did not publish within {timeout.TotalSeconds} seconds. Inspect {_layout.RunDirectory}.");
+	}
+
+	public void Record(string name, object evidence)
+	{
+		_report[name] = evidence;
+		File.AppendAllText(_layout.ReceiptsPath, JsonSerializer.Serialize(new
+		{
+			name,
+			evidence
+		}) + Environment.NewLine);
+	}
+
+	public void MarkPassed() => _passed = true;
+
+	public async ValueTask DisposeAsync()
+	{
+		if (_disposed)
+		{
+			return;
+		}
+		_disposed = true;
+		List<Exception> failures = [];
+		try
+		{
+			foreach (string name in _hosts.Keys.ToArray())
+			{
+				try
+				{
+					await StopHostAsync(name);
+				}
+				catch (Exception exception) { failures.Add(exception); }
+			}
+			if (_debugOutput is not null)
+			{
+				foreach (OwnedHost host in _hosts.Values)
+				{
+					string debugPath = Path.Combine(_layout.RunDirectory, $"sdk-debug-{host.Public.Name}.log");
+					TryCleanup(() => _debugOutput.WriteTo(debugPath, host.Public.ProcessId), failures);
+					if (host.Public.ProcessId > 0)
+					{
+						TryCleanup(() => VerifyLifecycleEvidence(host.Public.Name, debugPath), failures);
+					}
+				}
+				TryCleanup(_debugOutput.Dispose, failures);
+			}
+			if (_stateGuard is not null && _hosts.Values.All(host => host.Stopped))
+			{
+				try
+				{
+					RequireNoCheatEngine();
+					RestoreUserState();
+				}
+				catch (Exception exception) { failures.Add(exception); }
+			}
+			else if (_stateGuard is not null)
+			{
+				failures.Add(new InvalidOperationException("An owned CE host remains active; the settings backup and recovery marker are retained until it stops."));
+			}
+			if (_source is not null && _profile is not null && _fingerprint is not null)
+			{
+				TryCleanup(() =>
+				{
+					IReadOnlyList<string> differences = CheatEngineInstallation.Compare(_fingerprint, CheatEngineInstallation.Fingerprint(_source, _profile));
+					bool unchanged = differences.Count == 0 && _runtimeHash == HashIfExists(Path.Combine(_source, "ce.runtimeconfig.json"));
+					_report["sourceInstallationUnchanged"] = unchanged;
+					if (!unchanged)
+					{
+						throw new InvalidOperationException("The source CE installation changed during the run.");
+					}
+				}, failures);
+			}
+		}
+		finally
+		{
+			_report["passed"] = _passed && failures.Count == 0;
+			_report["cleanupFailures"] = failures.Select(exception => exception.ToString()).ToArray();
+			try
+			{
+				File.WriteAllText(_layout.SummaryPath, JsonSerializer.Serialize(_report, ReportJson));
+			}
+			finally { _runLock.Dispose(); }
+		}
+		if (failures.Count != 0)
+		{
+			throw new AggregateException("Live test cleanup failed; inspect summary.json and any retained recovery marker.", failures);
+		}
+	}
+
+	private void RestoreUserState()
+	{
+		if (_userState is not null)
+		{
+			_userState.Restore();
+			_report["userStateRestored"] = _userState.Restored;
+			return;
+		}
+		if (File.Exists(_layout.RestoreMarkerPath))
+		{
+			try
+			{
+				using ICheatEngineUserStateScope recovery = _stateGuard!.Begin(_layout);
+				recovery.Restore();
+			}
+			catch (InvalidOperationException) when (!File.Exists(_layout.RestoreMarkerPath)) { }
+		}
+		_report["userStateRestored"] = true;
+	}
+
+	private static void TryCleanup(Action action, List<Exception> failures)
+	{
+		try
+		{
+			action();
+		}
+		catch (Exception exception) { failures.Add(exception); }
+	}
+
+	private void VerifyLifecycleEvidence(string name, string debugPath)
+	{
+		string log = File.ReadAllText(debugPath);
+		bool enabled = log.Contains("[CheatEngine.SDK.Hosting] Information: Plugin ", StringComparison.Ordinal)
+			&& log.Contains(" enabled (epoch ", StringComparison.Ordinal);
+		bool disabled = log.Contains("[CheatEngine.SDK.Hosting] Information: Plugin ", StringComparison.Ordinal)
+			&& log.Contains(" disabled.", StringComparison.Ordinal);
+		if (!enabled || !disabled)
+		{
+			throw new InvalidOperationException($"SDK lifecycle evidence for host {name} is incomplete: expected normal plugin enable and disable markers.");
+		}
+		string[] deactivationFailures =
+		[
+			"Client deactivation encountered one or more cleanup failures.",
+			"deactivation cleanup failed",
+			"Plugin disable failed"
+		];
+		string? failure = deactivationFailures.FirstOrDefault(marker => log.Contains(marker, StringComparison.OrdinalIgnoreCase));
+		if (failure is not null)
+		{
+			throw new InvalidOperationException($"SDK lifecycle evidence for host {name} reported deactivation failure marker '{failure}'.");
+		}
+		Record($"sdk_lifecycle_{name}", new
+		{
+			enabled,
+			disabled
+		});
+	}
+
+	private string BuildDriver(string stopPath, string pluginPath, string name) => $$"""
+		local output = {{LuaString(Path.Combine(_layout.RunDirectory, $"driver-{name}.log"))}}
+		local function log(value)
+		  local f = assert(io.open(output, 'a')); f:write(tostring(value)..'\n'); f:close()
+		end
+		log('driver-loaded')
+		local started = getTickCount()
+		local loaded = false
+		local timer = createTimer(nil, false)
+		timer.Interval = 100
+		timer.OnTimer = function()
+		 local tickOk, tickError = pcall(function()
+		  local stop = io.open({{LuaString(stopPath)}}, 'r')
+		  if stop or (getTickCount()-started) % 4294967296 > 300000 then
+		    if stop then stop:close() end
+		    log('closing'); timer.Enabled=false
+		    pcall(function() getAddressList().clear() end)
+		    closeCE(); return
+		  end
+		  if loaded or not getMainForm() then return end
+		  loaded = true
+		  hideAllCEWindows()
+		  log('loading-plugin')
+		  local ok, value = pcall(loadPlugin, {{LuaString(pluginPath)}})
+		  log('loadPlugin ok='..tostring(ok)..' result='..tostring(value))
+		 end)
+		 if not tickOk then log('timer-error '..tostring(tickError)) end
+		end
+		timer.Enabled = true
+		""";
+
+	private static ProcessStartInfo CreateStartInfo(string executable)
+	{
+		ProcessStartInfo start = new(executable)
+		{
+			UseShellExecute = false,
+			WindowStyle = ProcessWindowStyle.Hidden,
+			WorkingDirectory = Path.GetDirectoryName(executable)!
+		};
+		foreach (string key in start.Environment.Keys.ToArray())
+		{
+			if (RemovedEnvironmentPrefixes.Any(prefix => key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
+			{
+				start.Environment.Remove(key);
+			}
+		}
+		return start;
+	}
+
+	private static async Task<bool> StopOwnedAsync(Process? process, List<Exception> failures)
+	{
+		if (process is null)
+		{
+			return true;
+		}
+		try
+		{
+			if (!process.HasExited)
+			{
+				try
+				{
+					await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+				}
+				catch (TimeoutException)
+				{
+					process.Kill(entireProcessTree: true);
+					await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+					failures.Add(new TimeoutException("An owned process needed forced termination instead of closing normally."));
+				}
+			}
+			if (!process.HasExited)
+			{
+				failures.Add(new InvalidOperationException("An owned process is still running after its shutdown deadline."));
+				return false;
+			}
+			process.Dispose();
+			return true;
+		}
+		catch (Exception exception)
+		{
+			failures.Add(exception);
+			return false;
+		}
+	}
+
+	private void RequireInsideRun(string path)
+	{
+		if (!LiveQualificationOptIn.IsSameOrBelow(path, _layout.RunDirectory)
+			|| Path.GetFullPath(path).Equals(Path.GetFullPath(_layout.RunDirectory), StringComparison.OrdinalIgnoreCase))
+		{
+			throw new InvalidOperationException("A sandbox file operation escaped the current run directory.");
+		}
+	}
+
+	private void CopyReviewedAutorun(string source, string destination, string name, string expectedHash)
+	{
+		string path = Path.Combine(source, name);
+		if (!File.Exists(path))
+		{
+			throw new FileNotFoundException($"The stock {name} is required by the live speedhack scenario.", path);
+		}
+		string hash = CheatEngineInstallation.Sha256(path);
+		if (hash != expectedHash)
+		{
+			throw new InvalidOperationException($"The stock {name} differs from the reviewed live-test version; review it before updating its test hash.");
+		}
+		File.Copy(path, Path.Combine(destination, name));
+		Record(name, hash);
+	}
+
+	private static async Task WaitUntilAsync(Func<bool> ready, Process process, TimeSpan timeout)
+	{
+		Stopwatch elapsed = Stopwatch.StartNew();
+		while (!ready())
+		{
+			if (process.HasExited || elapsed.Elapsed > timeout)
+			{
+				throw new TimeoutException("The disposable target did not become ready.");
+			}
+			await Task.Delay(50);
+		}
+	}
+
+	private static void RequireNoCheatEngine()
+	{
+		foreach (Process process in Process.GetProcesses())
+		{
+			using (process)
+			{
+				if (process.ProcessName.StartsWith("cheatengine-", StringComparison.OrdinalIgnoreCase)
+					|| process.ProcessName.Equals("cheatengine", StringComparison.OrdinalIgnoreCase)
+					|| process.ProcessName.Equals("Cheat Engine", StringComparison.OrdinalIgnoreCase)
+					|| process.ProcessName.StartsWith("gtutorial", StringComparison.OrdinalIgnoreCase))
+				{
+					throw new InvalidOperationException($"Close {process.ProcessName} (PID {process.Id}) before live tests; it will not be stopped automatically.");
+				}
+			}
+		}
+	}
+
+	internal static string FindRepository()
+	{
+		for (DirectoryInfo? directory = new(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+		{
+			if (File.Exists(Path.Combine(directory.FullName, "CheatEngine.Mcp.slnx")))
+			{
+				return directory.FullName;
+			}
+		}
+		throw new DirectoryNotFoundException("Run live tests from the CheatEngine.Mcp checkout.");
+	}
+
+	private string HostInstallationDirectory(string name) => Path.Combine(_layout.RunDirectory, $"ce-{name}");
+	private static string? HashIfExists(string path) => File.Exists(path) ? CheatEngineInstallation.Sha256(path) : null;
+	private static string LuaString(string value) => '"' + string.Concat(Encoding.UTF8.GetBytes(value).Select(valueByte => "\\" + valueByte.ToString("D3", System.Globalization.CultureInfo.InvariantCulture))) + '"';
+
+	private static void CopyTree(string source, string destination)
+	{
+		Directory.CreateDirectory(destination);
+		foreach (string file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+		{
+			string path = Path.Combine(destination, Path.GetRelativePath(source, file));
+			Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+			File.Copy(file, path);
+		}
+	}
+
+	private sealed class OwnedHost(Process? process, Process? target, string stopPath, string targetManifest, LiveSandboxHost @public)
+	{
+		public string StopPath { get; } = stopPath;
+		public string TargetManifest { get; } = targetManifest;
+		public Process? Process { get; set; } = process;
+		public Process? Target { get; set; } = target;
+		public LiveSandboxHost Public { get; set; } = @public;
+		public bool Stopped
+		{
+			get; set;
+		}
+	}
+}
+
+internal sealed record LiveSandboxHost(string Name, int ProcessId, int TargetProcessId, string TargetAddress,
+	string PluginPath, string InstanceId, string Endpoint);

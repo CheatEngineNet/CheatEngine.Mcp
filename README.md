@@ -1,273 +1,143 @@
-# Cheat Engine MCP Server
+# CheatEngine.Mcp
 
-`ce-mcp` is an x64 Cheat Engine plugin that exposes Cheat Engine workflows as a stateless Model Context Protocol server over Streamable HTTP. It builds as one `ce-mcp.dll` with managed dependencies embedded and includes a distributable AI skill beside the DLL.
+A Windows x64 Cheat Engine plugin and MCP gateway built on [CheatEngine.Client](https://github.com/CheatEngineNet/CheatEngine.Client). One MCP connection can control multiple named Cheat Engine instances.
 
-[![FOSSA](https://app.fossa.com/api/projects/git%2Bgithub.com%2FShadowNineX%2Fce-mcp.svg?type=large&issueType=license)](https://app.fossa.com/projects/git%2Bgithub.com%2FShadowNineX%2Fce-mcp?ref=badge_large&issueType=license)
+Each Cheat Engine process loads its own plugin, with its own Client activation and target state. Enabling publishes an authenticated loopback HTTP backend on an automatically assigned port. The stdio gateway discovers those backends and routes each tool call using an explicit `instanceId`. Disabling withdraws discovery, closes request admission, and lets Client release its resources without blocking Cheat Engine's main thread.
 
-> [!WARNING]
-> This project is under active development. Memory writes, process control, file operations, injection, compilation, debugger actions, DBVM, Auto Assembler, and arbitrary Lua can alter or crash a target or host. Use a disposable process while testing.
+## Build
 
-## Capabilities
-
-| Area | Examples |
-| --- | --- |
-| Processes | List/open/create processes, pause/resume, inspect threads and state |
-| Memory | Typed reads/writes, regions, protection, allocation, copy/compare, hashes, dump/load |
-| Pointers and scans | Pointer chains, direct-reference scans, AOB, string, first/next value scans |
-| Symbols and structures | Modules, symbols, RTTI, registered symbols, Structure Dissect CRUD and comparison |
-| Code | Assembly, disassembly, bounded analysis, Auto Assembler, target C compilation |
-| Cheat tables | Address-list records and `.CT` load/save |
-| Debugger | Interfaces, breakpoints, hit tracking, threads, registers, XMM, stepping, stack traces, LBR |
-| Injection and execution | Script generation, native/.NET injection, remote function calls |
-| Optional DBVM | Availability, physical-memory access, and watches |
-| Lua and conversion | Structured Lua execution, MD5, ANSI/UTF-8 conversion |
-
-The maintained tool inventory, enum values, and recommended workflows are in [`skills/ce-mcp/references/tool-catalog.md`](skills/ce-mcp/references/tool-catalog.md). Prefer the live MCP schemas for exact parameter names and defaults.
-
-## Quick Start
-
-### 1. Install prerequisites
-
-- Windows x64.
-- Cheat Engine 7.6.2 or newer.
-- [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
-- [ASP.NET Core 10 Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
-
-For development, also install the .NET 10 SDK:
+Install .NET SDK **10.0.401**, then run from this repository:
 
 ```powershell
-winget install Microsoft.DotNet.SDK.10
-winget install Microsoft.DotNet.DesktopRuntime.10
-winget install Microsoft.DotNet.AspNetCore.10
+git submodule update --init --recursive
+dotnet restore CheatEngine.Mcp.slnx --locked-mode
+dotnet build CheatEngine.Mcp.slnx --no-restore
+dotnet test --solution CheatEngine.Mcp.slnx --no-restore --no-build --filter-not-trait Category=LiveQualification --filter-not-trait Category=NativeLua --fail-skips on
+dotnet build CheatEngine.Mcp.slnx -c Release --no-restore
 ```
 
-### 2. Get the plugin
+The Git submodule at `CheatEngine.Client/` is pinned to `f88de3d843252c9139f08c71531a02f03c0516bb`, the upstream main revision selected for this migration. Project references compile that exact source. The plugin also directly references **CheatEngine.SDK 2.0.0** for its generated entry point and native bridge.
 
-Download the latest successful artifact from the [build workflow](https://github.com/ShadowNineX/ce-mcp/actions/workflows/build-dlls.yml):
+The runtime dependency graph uses current stable releases. Test dependencies follow the pinned Client's xUnit v3/Microsoft.Testing.Platform profile. Existing remote Sonar project identifiers are retained; renaming a local project does not rename the hosted service.
 
-- `ce-mcp-release`: optimized build for normal use.
-- `ce-mcp-debug`: build with debugging information.
+Code follows Client conventions: C# 14, file-scoped namespaces, tabs, explicit types, centralized package versions, locked restore, and output under `artifacts/`. The MCP boundary uses reflection and is a framework-dependent managed plugin, not a Native AOT binary.
 
-Each bundle contains:
+## Install and configure
 
-```text
-ce-mcp.dll
-skills/ce-mcp/
-```
+Use Cheat Engine **7.7 x64**, .NET 10, and the ASP.NET Core 10 runtime. The host's `ce.runtimeconfig.json` must select compatible .NET 10 frameworks as described by the Client deployment guide.
 
-Copy `ce-mcp.dll` into Cheat Engine's `plugins` directory. Keep `skills/ce-mcp/` with the distributed bundle for AI clients that consume repository skills.
+Copy the **entire** `artifacts/bin/CheatEngine.Mcp.Gateway/release/` folder to a dedicated directory. Keep the gateway executable, `CheatEngine.Mcp.dll`, both applications' `.deps.json` and `.runtimeconfig.json`, all Client/SDK/dependency assemblies, and `cheatengine-sdk-lua-bridge.dll` together. Select `CheatEngine.Mcp.dll` in each Cheat Engine process's plugin settings and enable it. Do not copy only the DLL.
 
-### 3. Start the server
-
-1. Restart Cheat Engine.
-2. Enable the `ce-mcp` plugin in Cheat Engine's plugin settings.
-3. Choose **MCP** -> **Start MCP Server**.
-4. Connect an MCP client to `http://127.0.0.1:6300/`.
-5. Call `get_plugin_version` to confirm which DLL is loaded.
-
-This is a Cheat Engine plugin, not a standalone executable.
-
-## MCP Client Configuration
-
-For clients that accept a Streamable HTTP endpoint:
+Configure a single stdio MCP server in your MCP client, pointing its command to `CheatEngine.Mcp.Gateway.exe`. For clients using the common JSON configuration format:
 
 ```json
 {
   "mcpServers": {
-    "cheat-engine": {
-      "url": "http://127.0.0.1:6300/"
+    "cheatengine": {
+      "command": "C:/Tools/CheatEngine.Mcp/CheatEngine.Mcp.Gateway.exe"
     }
   }
 }
 ```
 
-The endpoint is stateless and mapped at `/`.
+Replace the example path with your deployment directory. The MCP client starts the gateway; each CE process runs its own plugin backend. The gateway does not launch CE or choose a target automatically. The bundled [AI skill](skills/cheatengine-mcp/SKILL.md) documents instance selection and tool workflows; install that folder into your AI client's skill directory if it supports skills.
 
-## Configuration
+Configuration is read once per enable, in this order:
 
-Choose **MCP** -> **Configure** to edit the host, port, and server name. Settings are persisted to:
-
-```text
-%APPDATA%\CeMCP\config.json
-```
-
-Example:
+1. Built-in defaults.
+2. `appsettings.json` beside the plugin.
+3. `%APPDATA%/CheatEngine.Mcp/appsettings.json`.
+4. `MCP_HOST`, `MCP_PORT`, `MCP_INSTANCE_NAME`, and `MCP_INSTANCE_DIRECTORY` environment overrides.
 
 ```json
 {
-  "Host": "127.0.0.1",
-  "Port": 6300,
-  "ServerName": "Cheat Engine MCP Server"
-}
-```
-
-Configuration precedence is:
-
-```text
-defaults < config.json < MCP_HOST / MCP_PORT
-```
-
-Environment override example:
-
-```powershell
-$env:MCP_HOST = "127.0.0.1"
-$env:MCP_PORT = "6300"
-```
-
-> [!IMPORTANT]
-> The default loopback host is intentional. Binding to a non-loopback interface exposes powerful target and host operations to the network. Add authentication and network controls before doing so.
-
-## Runtime Compatibility
-
-Some Cheat Engine 7.6.x installations still declare .NET 9 frameworks in `ce.runtimeconfig.json`. This plugin targets .NET 10 and requires these shared frameworks:
-
-```json
-{
-  "runtimeOptions": {
-    "tfm": "net10.0",
-    "frameworks": [
-      {
-        "name": "Microsoft.NETCore.App",
-        "version": "10.0.0",
-        "rollForward": "latestMinor"
-      },
-      {
-        "name": "Microsoft.WindowsDesktop.App",
-        "version": "10.0.0",
-        "rollForward": "latestMinor"
-      },
-      {
-        "name": "Microsoft.AspNetCore.App",
-        "version": "10.0.0",
-        "rollForward": "latestMinor"
-      }
-    ]
+  "Mcp": {
+    "Host": "127.0.0.1",
+    "Port": 0,
+    "InstanceName": "game-a",
+    "ServerName": "CheatEngine.Mcp",
+    "EnableUnsafeLua": false,
+    "EnableAutoAssembler": false
+  },
+  "CheatEngineClient": {
+    "AllowedTableRoots": []
   }
 }
 ```
 
-If Cheat Engine reports `CEPluginInitialize (Result=80070002)`, install the Desktop and ASP.NET Core 10 runtimes and verify this file.
+`Port: 0` allocates an available port for each plugin. The host must be `127.0.0.1`. A fixed nonzero port is optional but must be unique across running instances. `InstanceName` is a display label; by default it contains the CE process ID. For different labels with one shared plugin folder, set `MCP_INSTANCE_NAME` separately in each CE process's launch environment, or use separate `MCP_DATA_DIRECTORY` settings directories. Restart the plugin to apply settings.
 
-## Architecture
+Discovery records live in `%LOCALAPPDATA%/CheatEngine.Mcp/instances`. They contain per-activation access tokens used by the gateway; do not share those files. An absolute `MCP_INSTANCE_DIRECTORY` override must agree between plugins and gateway; the gateway also accepts `--instance-directory <path>`. Both run as the same Windows user. Authentication isolates backend calls from unauthenticated HTTP clients; it is not a boundary against other applications running as that user.
 
-```text
-Cheat Engine
-  -> CESDK plugin bootstrap and shared Lua state
-  -> ce-mcp tool adapter
-  -> typed CESDK facade
-  -> LuaUtils / LuaNative
-  -> Cheat Engine API and target process
-```
+Call `list_instances`, choose the intended name/CE PID, and pass its exact `instanceId` to every CE tool. Labels may repeat; IDs are unambiguous and change on every plugin activation. There is no shared selected-instance state, automatic fallback, or automatic retry. A stopped instance fails its calls without redirecting them to another CE. Independent instances have independent CE state, but attaching both to the same target still allows both to change that target.
 
-`src/McpServer.cs` builds the ASP.NET Core host and explicitly registers every tool class with the required schema transform. HTTP requests may be concurrent, but Cheat Engine Lua state and engine objects are not thread-safe. CE-facing work is serialized onto Cheat Engine's GUI thread.
+Each CE process logs to `%APPDATA%/CheatEngine.Mcp/CheatEngine.Mcp.<pid>.log` so instances do not compete for one file. Client lifecycle and HTTP logging share that process's isolated NLog factory whose lifetime covers asynchronous shutdown.
 
-Stateful scanner order matters:
+`MCP_DATA_DIRECTORY` can select an absolute directory for user settings and logs. The automated live runner uses it to keep its plugin data inside the test run.
 
-```text
-deinitialize old results -> scan -> WaitTillDone -> initialize results -> read -> deinitialize
-```
+## Tools and ownership
 
-`CESDK/` is a git submodule and is compiled into the plugin assembly. See [`CESDK/README.md`](CESDK/README.md) for wrapper and plugin-bootstrap guidance.
+The [catalog](skills/cheatengine-mcp/references/tool-catalog.md) lists **140 gateway tools**: `list_instances` plus **139 CE tools**, each with a required `instanceId`. Use live MCP schemas for parameter types and defaults. The [address-list and speedhack guide](skills/cheatengine-mcp/references/address-list-and-speedhack.md) covers adding records, freezing, unfreezing, and restoring speed.
 
-## Build from Source
+The [scanning and debugging guide](skills/cheatengine-mcp/references/scanning-and-debugging.md) covers unknown-initial/changed/increased/range value scans, pointer maps and rescans, write/access collectors, break-and-trace, and register editing. Value scans and pointer memory access use Client APIs; debugger callbacks use fixed CE Lua operations. Pointer maps are bounded in-memory MCP snapshots, not CE's native pointer-map files. Debugger captures/traces have explicit stop, finite lifetime, and a 30-second result-retention window after completion/expiry.
 
-Clone with the CESDK submodule, then build from the repository root:
+- Start with `list_instances`, then `get_runtime_info`, `get_plugin_version`, and `get_current_process` on the chosen instance.
+- Process selection, typed memory, pointers, AOB scans, inspection, and address-table tools use Client contracts.
+- Value scans, allocations, assembly, and Auto Assembler retain Client experimental/capability checks. An API's presence does not establish that the current host supports it.
+- Arbitrary `execute_lua` and Client Auto Assembler patches require their respective configuration flags. These flags are not a sandbox: dedicated tools can write memory, launch/inject code, control the debugger, access files, and alter host state. Table load/save uses configured allowed roots.
+- Named scans, allocations, registered symbols, and patches belong to one enable epoch. Before switching processes, use `release_target_resources`; it releases in reverse creation order and stops on incomplete cleanup. A repeated request for the selected PID preserves resources.
+- Failed releases report recovery details and keep retryable handles. If Cheat Engine changes targets outside MCP, inspect cleanup outcomes and perform manual recovery when reported. Never reuse identifiers after disable/re-enable.
 
-```powershell
-git submodule update --init --recursive
-dotnet restore
-dotnet build
-dotnet test --filter "TestCategory!=Live"
-dotnet build -c Release
-```
+The Lua adapter encodes arguments as data, runs a protected call inside the Client activation/main-thread boundary, and copies bounded results. It returns `{ success, result }`; direct Lua calls preserve multiple return values as arrays, including null slots. A Lua failure includes `hostEffect`: an operation that started may have partially changed the host. It is unsafe to blindly retry a failed mutation. Requests are limited to 8 MiB; copied Lua results are limited to 65,536 items, depth 16, and 4 MiB of strings. Individual tools apply tighter limits.
 
-Outputs:
+Client leases are activation-owned. Lua-created global structures, address-list changes, comments, breakpoints, and debugger/speedhack state are Cheat Engine-owned state. They can persist after plugin disable; use each explicit delete/remove/resume tool or Cheat Engine itself to recover. Injected libraries have host/target lifetimes. DBVM watch captures are timed (at most five seconds) and disable their watch before returning; a failed cleanup reports the watch ID for manual recovery. Inspection bounds limit returned data; some CE APIs internally enumerate a larger collection first. Long native calls run synchronously and cannot be interrupted by an HTTP cancellation.
 
-```text
-bin/x64/Debug/net10.0-windows/ce-mcp.dll
-bin/x64/Release/net10.0-windows/ce-mcp.dll
-```
+## Migration from CeMCP 1.x
 
-CI-equivalent sequence:
+This is a breaking remake. The old CESDK submodule, source compilation, Costura single-DLL packaging, static tools, WPF UI, and old project/test paths have been removed.
+
+The tool surface is rebuilt around Client high-level APIs for supported operations. Additional debugger, DBVM, injection, process-control, Structure Dissect, RTTI, protection, file-memory, and code-analysis tools use fixed Lua operations through `ICheatEngineClient.Lua`. Bindings follow the installed Cheat Engine `celua.txt`; unavailable host APIs return errors. The complete public surface and each tool description are in the catalog.
+
+Tool parameters and responses have changed where Client ownership requires it: allocations have names, scans are bounded sessions, patches return lease IDs, record content and activation are separate tools, and `execute_lua` reports execution status without serializing Lua return values.
+
+## Verification
+
+Tests follow the Client and SDK setup: xUnit v3 on Microsoft.Testing.Platform, with the shared profile in `eng/Tests.props`. The portable suite uses deterministic Client doubles plus real loopback HTTP discovery/start/stop tests. It does not require Cheat Engine and does not prove native host behavior. CI excludes `Category=LiveQualification` and `Category=NativeLua`; selected tests fail rather than skip when required inputs are missing.
+
+For an automated live run, close other Cheat Engine instances and run:
 
 ```powershell
-dotnet restore
-dotnet build -c Debug --no-restore
-dotnet test -c Debug --no-restore --no-build --filter "TestCategory!=Live"
-dotnet build -c Release --no-restore
+$env:CHEATENGINE_MCP_LIVE_QUALIFICATION = 'I_AUTHORIZE_CE77_LIVE_PROBES_ON_A_DISPOSABLE_TARGET'
+dotnet test --project tests/CheatEngine.Mcp.Tests -c Release --filter-trait Category=LiveQualification --fail-skips on
+Remove-Item Env:CHEATENGINE_MCP_LIVE_QUALIFICATION
 ```
 
-There is no repository formatter or lint command. SonarCloud is the configured static-analysis gate.
+`LiveQualification/` contains the C# runner and serial fixture. Like the Client, it requires the exact acknowledgement, refuses `CI=true`, and fails immediately with the command above when explicitly selected without authorization. No PowerShell wrapper, plugin installation, or manual enabling is required. The test build supplies the complete plugin folder from this checkout, since MCP is deployed as a plugin folder rather than a NuGet package.
 
-## Testing
+The runner creates two private copies of installed Windows x64 Cheat Engine 7.7+ under `%LOCALAPPDATA%/CheatEngine.Mcp.LiveQualification/runs/<run>`, selects .NET 10 only in those copies, and loads the plugin automatically. Each gets its own disposable memory target, label, and automatic loopback port; one stdio gateway routes calls through a private discovery directory. Existing CE processes are refused, never closed. The installed host is not modified. Optional `CHEATENGINE_MCP_LIVE_QUALIFICATION_CE_DIRECTORY` selects another installation; `CHEATENGINE_MCP_LIVE_QUALIFICATION_RUN_ROOT` selects another absolute run directory outside the repository and apart from the installation.
 
-### Normal tests
+The private copy disables existing autorun scripts except the stock `celib.lua`, `monoscript.lua`, and `SpeedhackV3.lua` needed for speedhack. These must match the reviewed hashes from CE 7.7.1.10828; missing or changed scripts fail before launching CE. Review newer stock scripts before updating those hashes in `LiveSandboxSession.cs`.
 
-The normal suite is deterministic and does not require Cheat Engine:
+The Client's registry and application-data backup helpers preserve CE settings, restore and verify them after shutdown, and retain a recovery marker if restoration fails. A later run restores a leftover backup and stops so the recovery is visible. Plugin settings and logs stay in the run folder. Reports contain the exact host version/hash, plugin hash, individual checks, and cleanup results. Local reports and backups stay outside the checkout.
+
+The live scenario checks all tool names, loaded plugin paths, runtime evidence, target attachment, typed memory reads/writes, address-list add/update/delete, actual freeze/unfreeze behavior, and speedhack setting/readback. It verifies that changing A leaves B's separate target and table unchanged, then stops B and verifies A remains available while B calls fail. Speedhack readback does not measure timing accuracy. This smoke test is separate from the Client's qualification against its pinned host build; it does not qualify every MCP tool, debugger backend, or DBVM. Ordinary CI excludes live tests.
+
+Check formatting with:
 
 ```powershell
-dotnet test --filter "TestCategory!=Live"
+dotnet format style CheatEngine.Mcp.slnx --no-restore --severity warn --verify-no-changes
+dotnet format whitespace CheatEngine.Mcp.slnx --no-restore --verify-no-changes
 ```
 
-Test layout:
-
-- `tests/CeMCP.Tests/Unit/`: validation, schemas, configuration, metadata, result shapes, logging, and skill packaging.
-- `tests/CeMCP.Tests/Live/`: opt-in MCP tests against a CE-loaded plugin.
-- `tests/CeMCP.Tests/Support/`: shared result assertions.
-- `CESDK/tests/`: separate CE-loaded wrapper harness and JSON report validator.
-
-### Safe live MCP tests
-
-Build and install the fresh Debug DLL, restart CE, start the MCP server, then run:
+Optional standalone Lua bridge tests use a Lua 5.3 DLL without loading Cheat Engine:
 
 ```powershell
-$env:CE_MCP_LIVE = "1"
-$env:CE_MCP_URL = "http://127.0.0.1:6300/"
-dotnet test --filter TestCategory=Live
+$env:CHEATENGINE_MCP_LUA53_PATH = "C:\Program Files\Cheat Engine\lua53-64.dll"
+dotnet test --solution CheatEngine.Mcp.slnx --filter-trait Category=NativeLua --fail-skips on
 ```
 
-The default live suite uses inspection calls. Scan regressions execute only when CE already has a readable target; otherwise they are inconclusive.
+These validate the protected adapter and copied-result contracts, not CE functions. Build artifacts are complete deployment folders.
 
-### Dedicated Notepad suite
+## Attribution
 
-The opt-in Notepad suite launches a disposable Notepad process through MCP, discovers the real Windows 11 Notepad PID, exercises every process-scoped tool with a safe scenario, restores CE table state, frees allocations, deletes owned temporary files, detaches the debugger, and terminates only that PID.
-
-```powershell
-$env:CE_MCP_LIVE = "1"
-$env:CE_MCP_NOTEPAD_LIVE = "1"
-$env:CE_MCP_URL = "http://127.0.0.1:6300/"
-dotnet test tests/CeMCP.Tests/CeMCP.Tests.csproj `
-  -p:Platform=x64 `
-  --filter TestCategory=NotepadLive
-```
-
-The suite fails if any live tool has neither a test scenario nor a documented exclusion. Exclusions are limited to operations that are not safely scoped to Notepad: foreground retargeting, symbol downloads/kernel symbols, native/.NET payload injection, and DBVM initialization/physical-memory/watch operations.
-
-## Logging and Troubleshooting
-
-CESDK and the ASP.NET Core host use one isolated NLog factory and one log file:
-
-```text
-%APPDATA%\CeMCP\ce-mcp.log
-```
-
-The file rolls at 10 MiB and retains five archives.
-
-Common checks:
-
-1. Call `get_plugin_version` and verify the reported DLL path/version.
-2. Confirm CE was restarted after replacing the DLL.
-3. Verify the Desktop and ASP.NET Core 10 runtimes are installed.
-4. Verify `ce.runtimeconfig.json` declares the .NET 10 frameworks.
-5. Inspect `%APPDATA%\CeMCP\ce-mcp.log`.
-6. Keep the server on loopback while debugging connectivity.
-
-If a build reports a locked Fody or DLL file, close Cheat Engine and any process loading the build output, then rebuild.
-
-## Contributors
-
-<a href="https://github.com/ShadowNineX/ce-mcp/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=ShadowNineX/ce-mcp" alt="Contributors" />
-</a>
-
-Made with [contrib.rocks](https://contrib.rocks).
+This remake builds on the original [ce-mcp contributors](https://github.com/ShadowNineX/ce-mcp/graphs/contributors), [CheatEngine.Client](https://github.com/CheatEngineNet/CheatEngine.Client), [CheatEngine.SDK](https://github.com/CheatEngineNet/CheatEngine.SDK), and Cheat Engine. Existing license files remain authoritative.

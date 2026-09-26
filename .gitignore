@@ -381,7 +381,6 @@ FodyWeavers.xsd
 *.sln.iml
 
 cheat-engine/
-ce-mcp-client/
 celua.txt
 
 # Claude Code

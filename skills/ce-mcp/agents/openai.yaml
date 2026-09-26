@@ -1,4 +1,0 @@
-interface:
-  display_name: "CE MCP"
-  short_description: "Use Cheat Engine MCP safely and effectively"
-  default_prompt: "Use $ce-mcp to inspect a target process with Cheat Engine MCP."

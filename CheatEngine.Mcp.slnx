@@ -1,0 +1,19 @@
+<Solution>
+  <Folder Name="/dependencies/CheatEngine.Client/">
+    <Project Path="CheatEngine.Client/libs/CheatEngine.Client.Abstractions/CheatEngine.Client.Abstractions.csproj" />
+    <Project Path="CheatEngine.Client/libs/CheatEngine.Client.Core/CheatEngine.Client.Core.csproj" />
+    <Project Path="CheatEngine.Client/libs/CheatEngine.Client.Extensions.DependencyInjection/CheatEngine.Client.Extensions.DependencyInjection.csproj" />
+    <Project Path="CheatEngine.Client/libs/CheatEngine.Client.Fluent/CheatEngine.Client.Fluent.csproj" />
+    <Project Path="CheatEngine.Client/libs/CheatEngine.Client.Hosting/CheatEngine.Client.Hosting.csproj" />
+    <Project Path="CheatEngine.Client/source-generators/CheatEngine.Client.SourceGenerators.Lua/CheatEngine.Client.SourceGenerators.Lua.csproj" />
+    <Project Path="CheatEngine.Client/src/CheatEngine.Client/CheatEngine.Client.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/CheatEngine.Mcp/CheatEngine.Mcp.csproj" />
+    <Project Path="src/CheatEngine.Mcp.Gateway/CheatEngine.Mcp.Gateway.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CheatEngine.Mcp.LiveTarget/CheatEngine.Mcp.LiveTarget.csproj" />
+    <Project Path="tests/CheatEngine.Mcp.Tests/CheatEngine.Mcp.Tests.csproj" />
+  </Folder>
+</Solution>

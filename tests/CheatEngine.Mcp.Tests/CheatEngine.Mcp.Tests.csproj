@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoWarn>$(NoWarn);CECLIENT5001;CECLIENT5002;CECLIENT5003;CECLIENT5004</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/CheatEngine.Mcp/CheatEngine.Mcp.csproj" />
+    <ProjectReference Include="../../src/CheatEngine.Mcp.Gateway/CheatEngine.Mcp.Gateway.csproj" />
+    <ProjectReference Include="../CheatEngine.Mcp.LiveTarget/CheatEngine.Mcp.LiveTarget.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Reuse the Client's checked backup, crash-recovery and installation helpers, without its package-qualification runner. -->
+    <Compile Include="../../CheatEngine.Client/tests/CheatEngine.Client.Tests/LiveQualification/CheatEngineInstallation.cs" Link="LiveQualification/Client/CheatEngineInstallation.cs" />
+    <Compile Include="../../CheatEngine.Client/tests/CheatEngine.Client.Tests/LiveQualification/DebugOutputCapture.cs" Link="LiveQualification/Client/DebugOutputCapture.cs" />
+    <Compile Include="../../CheatEngine.Client/tests/CheatEngine.Client.Tests/LiveQualification/CheatEngineRegistryGuard.cs" Link="LiveQualification/Client/CheatEngineRegistryGuard.cs" />
+    <Compile Include="../../CheatEngine.Client/tests/CheatEngine.Client.Tests/LiveQualification/CheatEngineUserState.cs" Link="LiveQualification/Client/CheatEngineUserState.cs" />
+    <Compile Include="../../CheatEngine.Client/tests/CheatEngine.Client.Tests/LiveQualification/RegistrySnapshot.cs" Link="LiveQualification/Client/RegistrySnapshot.cs" />
+    <Compile Include="../../CheatEngine.Client/tests/CheatEngine.Client.Tests/LiveQualification/SandboxLayout.cs" Link="LiveQualification/Client/SandboxLayout.cs" />
+  </ItemGroup>
+</Project>
