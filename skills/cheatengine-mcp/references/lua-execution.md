@@ -1,6 +1,6 @@
 # Lua execution
 
-`execute_lua(instanceId, script, chunkName)` uses the selected instance's optional Client IUnsafeLuaClient. It is available only when Mcp:EnableUnsafeLua is true at plugin enable. Otherwise it returns a structured failure before executing source. Lua globals and CE objects belong to that instance; do not reuse another instance's handles or route a failed call elsewhere.
+`execute_lua(instanceId, script, chunkName)` uses the selected instance's Client IUnsafeLuaClient, enabled by default. Setting `Mcp:EnableUnsafeLua` to `false` explicitly disables it at plugin enable; a call then returns a structured failure before executing source. Auto Assembler is also enabled by default through `Mcp:EnableAutoAssembler`. Existing explicit `false` overrides take precedence over bundled defaults; settings changes apply after disabling and re-enabling the plugin. Lua globals and CE objects belong to that instance; do not reuse another instance's handles or route a failed call elsewhere.
 
 The Client owns protection, dispatch, and activation validity. No raw Lua state or reference crosses the MCP boundary. Success means execution completed; this tool does not serialize Lua return values.
 

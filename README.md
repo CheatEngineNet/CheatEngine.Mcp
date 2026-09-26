@@ -119,7 +119,7 @@ Select a process in CE's process picker, or tell the AI the exact target process
 - "For my test program in game-a, add a Dword record named Health at the address I provide, set it to 100, and freeze it."
 - "Set game-a's attached test program to half speed, then restore its previous speed when we finish."
 
-Use a real, verified address for memory tasks; the agent should not invent an address from an example. See the [address-list and speedhack guide](skills/cheatengine-mcp/references/address-list-and-speedhack.md) for exact tools and cleanup, and the [tool catalog](skills/cheatengine-mcp/references/tool-catalog.md) for all **142 gateway tools**. Arbitrary Lua and Auto Assembler patches are optional opt-ins; ordinary address-list and speedhack tools work with the default settings.
+Use a real, verified address for memory tasks; the agent should not invent an address from an example. See the [address-list and speedhack guide](skills/cheatengine-mcp/references/address-list-and-speedhack.md) for exact tools and cleanup, and the [tool catalog](skills/cheatengine-mcp/references/tool-catalog.md) for all **142 gateway tools**. Lua execution, Auto Assembler patches, and the dedicated tools are enabled by default; no execution opt-in is needed.
 
 ### Optional AI skill
 
@@ -165,14 +165,16 @@ Configuration is read once per enable, in this order:
     "Port": 0,
     "InstanceName": "game-a",
     "ServerName": "CheatEngine.Mcp",
-    "EnableUnsafeLua": false,
-    "EnableAutoAssembler": false
+    "EnableUnsafeLua": true,
+    "EnableAutoAssembler": true
   },
   "CheatEngineClient": {
     "AllowedTableRoots": []
   }
 }
 ```
+
+`EnableUnsafeLua` and `EnableAutoAssembler` default to `true`. You can explicitly set either to `false` to disable that capability. Existing settings files with `false` values override the new defaults; remove those overrides or set them to `true`, then disable and re-enable the plugin.
 
 `Port: 0` allocates an available port for each plugin. The host must be `127.0.0.1`. A fixed nonzero port is optional but must be unique across running instances. `InstanceName` is a display label; by default it contains the CE process ID. For different labels with one shared plugin folder, set `MCP_INSTANCE_NAME` separately in each CE process's launch environment, or use separate `MCP_DATA_DIRECTORY` settings directories. Restart the plugin to apply settings.
 
@@ -194,7 +196,8 @@ Each CE process logs to `%APPDATA%/CheatEngine.Mcp/CheatEngine.Mcp.<pid>.log` so
 | One CE works but another cannot start its backend | Leave `Port` at `0`, or give each instance a unique fixed port. Check that the plugin is enabled in both. |
 | An instance becomes unavailable | Call `list_instances` again. Restart or re-enable creates a new ID; do not reuse old instance or resource IDs. |
 | A tool reports no target | Select the intended target in CE or use `open_process` with its exact PID/name and the chosen CE instance ID. |
-| A table file or optional execution tool is refused | Check `CheatEngineClient:AllowedTableRoots` or the relevant execution opt-in in your settings. Enable only the feature needed for the intended task. |
+| Lua execution or Auto Assembler is refused | Both are enabled by default. Check plugin-adjacent and user settings for explicit `false` overrides, then reload the plugin after changing them. |
+| A table file is refused | Check `CheatEngineClient:AllowedTableRoots` and use an absolute table path. |
 | Cache integrity check fails | Close all CE processes using that version, remove only the affected hash directory under the cache root, restart CE, and enable the plugin. Never edit files inside a cache version. |
 
 Plugin logs are `%APPDATA%\CheatEngine.Mcp\CheatEngine.Mcp.<CE PID>.log`, or beneath `MCP_DATA_DIRECTORY` when set. A load failure before Client starts may occur before that log exists. Check gateway startup errors in the AI client's MCP diagnostics. Discovery records contain authentication tokens; do not paste their contents into reports. More diagnostic detail is in the [connection troubleshooting guide](skills/cheatengine-mcp/references/connection-troubleshooting.md).

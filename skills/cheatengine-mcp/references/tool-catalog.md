@@ -2,7 +2,7 @@
 
 Tools use CheatEngine.Client high-level APIs where available. `Lua*Tool` containers cover additional documented CE APIs through fixed protected Client Lua operations. Capabilities depend on the loaded CE build and selected target. Use the running MCP schema for exact parameter types, bounds, and defaults.
 
-Arbitrary `execute_lua` and Client Auto Assembler patches are opt-in. Other dedicated mutation tools remain powerful; those flags are not a sandbox. Errors after an operation starts may leave changes in the host. Inspect `hostEffect` and recovery information before retrying.
+`execute_lua`, Client Auto Assembler patches, and dedicated mutation tools are enabled by default. Lua and Auto Assembler can be explicitly disabled in configuration; those flags are not a sandbox. Errors after an operation starts may leave changes in the host. Inspect `hostEffect` and recovery information before retrying.
 
 The Client owns independent named scan/allocation/symbol/patch leases. The reserved `main` scanner is borrowed from the visible CE tab; its results survive plugin disable. Omit `scannerName` to use main, or pass another name for an independent scan. Use `release_target_resources` before switching targets. CE-owned structures, breakpoints, comments, address-list changes, debugger state, and injected code can outlive the plugin; remove/stop them explicitly.
 
@@ -130,7 +130,7 @@ The gateway exposes **142 tools**: `list_instances` plus **141 CE tools**. Every
 
 | Tool | Purpose |
 | --- | --- |
-| `execute_lua` | Execute trusted Lua when the server explicitly enables unsafe Lua execution. Prefer typed MCP tools whenever possible. |
+| `execute_lua` | Execute trusted Lua through the Client capability, enabled by default. Prefer typed MCP tools whenever possible. |
 
 ## LuaInjectionTool
 

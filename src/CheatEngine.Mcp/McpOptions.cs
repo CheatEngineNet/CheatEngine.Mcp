@@ -16,14 +16,8 @@ public sealed class McpOptions
 	public string ServerName { get; set; } = "CheatEngine.Mcp";
 	public string InstanceName { get; set; } = $"Cheat Engine {Environment.ProcessId}";
 	public string InstanceDirectory { get; set; } = InstanceRegistry.DefaultDirectory;
-	public bool EnableUnsafeLua
-	{
-		get; set;
-	}
-	public bool EnableAutoAssembler
-	{
-		get; set;
-	}
+	public bool EnableUnsafeLua { get; set; } = true;
+	public bool EnableAutoAssembler { get; set; } = true;
 
 	public string BaseUrl => new UriBuilder("http", Host, Port).Uri.GetLeftPart(UriPartial.Authority);
 

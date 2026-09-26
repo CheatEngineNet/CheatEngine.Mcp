@@ -22,15 +22,45 @@ public sealed class McpOptionsTests
 		Assert.Throws<ArgumentException>(() => McpOptions.ResolveConfigurationDirectory(directory));
 	}
 
-	[Fact]
-	public void Load_Defaults_AreLoopbackAndOptionalExecutionIsDisabled()
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public void Load_Defaults_AreLoopbackAndAllExecutionIsEnabled(bool useBundledDefaults)
 	{
 		using SettingsFixture fixture = new SettingsFixture();
+		if (useBundledDefaults)
+		{
+			File.Copy(Path.Combine(AppContext.BaseDirectory, "appsettings.json"), Path.Combine(fixture.PluginDirectory, "appsettings.json"));
+		}
 		McpOptions options = fixture.Load();
 		Assert.Equal("http://127.0.0.1:0", options.BaseUrl);
 		Assert.Equal("CheatEngine.Mcp", options.ServerName);
-		Assert.False(options.EnableUnsafeLua);
-		Assert.False(options.EnableAutoAssembler);
+		Assert.True(options.EnableUnsafeLua);
+		Assert.True(options.EnableAutoAssembler);
+	}
+
+	[Theory]
+	[InlineData(false, false)]
+	[InlineData(false, true)]
+	[InlineData(true, false)]
+	public void Load_ExplicitExecutionOverrides_RespectUserChoice(bool enableLua, bool enableAssembler)
+	{
+		using SettingsFixture fixture = new SettingsFixture();
+		File.Copy(Path.Combine(AppContext.BaseDirectory, "appsettings.json"), Path.Combine(fixture.PluginDirectory, "appsettings.json"));
+		File.WriteAllText(Path.Combine(fixture.UserDirectory, "appsettings.json"),
+			System.Text.Json.JsonSerializer.Serialize(new
+			{
+				Mcp = new
+				{
+					EnableUnsafeLua = enableLua,
+					EnableAutoAssembler = enableAssembler
+				}
+			}));
+
+		McpOptions options = fixture.Load();
+
+		Assert.Equal(enableLua, options.EnableUnsafeLua);
+		Assert.Equal(enableAssembler, options.EnableAutoAssembler);
 	}
 
 	[Fact]

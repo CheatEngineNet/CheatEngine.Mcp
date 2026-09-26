@@ -7,7 +7,7 @@ using ModelContextProtocol.Server;
 
 namespace CheatEngine.Mcp.Tools;
 
-/// <summary>Runs trusted arbitrary Lua only when the host explicitly enables the optional Client capability.</summary>
+/// <summary>Runs trusted arbitrary Lua through the Client capability, enabled by default.</summary>
 [McpServerToolType]
 public sealed class LuaExecutionTool
 {
@@ -20,7 +20,7 @@ public sealed class LuaExecutionTool
 		_unsafeLua = unsafeLua;
 	}
 
-	[McpServerTool(Name = "execute_lua"), Description("Execute trusted Lua when the server explicitly enables unsafe Lua execution. Prefer typed MCP tools whenever possible.")]
+	[McpServerTool(Name = "execute_lua"), Description("Execute trusted Lua through the Client capability, enabled by default. Prefer typed MCP tools whenever possible.")]
 	public object ExecuteLua(
 		[Description("Trusted Lua source to execute.")] string script,
 		[Description("Optional non-empty chunk name for Lua diagnostics.")] string? chunkName = null)
