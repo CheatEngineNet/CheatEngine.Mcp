@@ -9,6 +9,8 @@ Use the configured CheatEngine.Mcp gateway. Each Cheat Engine process loads its 
 
 For setup, missing instances, load failures, or updates, read [connection-troubleshooting.md](references/connection-troubleshooting.md). Inspect the connection and host configuration before changing them; distinguish a registered gateway from an enabled CE backend and an attached target.
 
+CE's menu bar shows **MCP: Enabled**, **MCP: Disabled**, or **MCP: Start failed** after module activation. Clicking it shows instance and log details. Enabled means the backend is ready; verify AI connectivity separately with `list_instances`. A disabled status item remains until CE closes and does not keep the plugin active.
+
 1. Call `list_instances`. Match the user's task to the returned name and Cheat Engine process ID. Names can repeat; ask which instance only when the intended one remains ambiguous.
 2. Retain its exact `instanceId`. Supply it to every other tool, including inspection and cleanup. There is no global selected instance and no implicit default, even with only one CE running.
 3. Call `get_runtime_info`, `get_plugin_version`, and `get_current_process` on that instance. The CE process ID from discovery differs from the attached target process ID.

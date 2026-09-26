@@ -34,6 +34,24 @@ internal static class LuaToolRuntime
 		return client.Lua.Execute<LuaToolOperation, object?>(request, client.Stopping);
 	}
 
+	internal static bool ShowPluginStatus(ICheatEngineClient client, string state, string details, bool existingOnly)
+	{
+		if (!client.Dispatcher.IsMainThread)
+		{
+			throw new InvalidOperationException("The MCP status must be updated on Cheat Engine's main thread.");
+		}
+		// Client 1.0 has no UI API. SDK dispatch opens after OnEnable returns and closes before
+		// OnDisable, but protected SDK Lua admission spans both callbacks (SDK 2.0.0).
+		// Keep this exception limited to the fixed, main-thread status UI; tools still use Client.
+		LuaToolOperation operation = new("mcp_status",
+			BuildSource(McpStatusIndicator.UpdateSource, ["MCP: " + state, details, existingOnly]));
+		if (!operation.TryExecuteInRuntime(out object? result, out CheatEngineFailure failure))
+		{
+			failure.Throw();
+		}
+		return result is true;
+	}
+
 	public static object Call(ICheatEngineClient client, string function, params object?[] arguments)
 	{
 		// Only implementation-owned global names are accepted here, never Lua expressions supplied by callers.
@@ -128,6 +146,11 @@ internal static class LuaToolRuntime
 		public bool TryExecute(ILuaExecutionContext context, out object? result, out CheatEngineFailure failure)
 		{
 			context.ThrowIfExpired();
+			return TryExecuteInRuntime(out result, out failure);
+		}
+
+		internal bool TryExecuteInRuntime(out object? result, out CheatEngineFailure failure)
+		{
 			result = null;
 			CheatEngineHostEffect effect = CheatEngineHostEffect.NotStarted;
 			try

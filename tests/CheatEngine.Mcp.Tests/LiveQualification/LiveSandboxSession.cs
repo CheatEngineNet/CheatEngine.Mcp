@@ -472,6 +472,20 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 
 	private void VerifyLifecycleEvidence(string name, string debugPath)
 	{
+		string driverLog = File.ReadAllText(Path.Combine(_layout.RunDirectory, $"driver-{name}.log"));
+		string pluginLog = File.ReadAllText(Path.Combine(_layout.RunDirectory, "plugin-data", name,
+			$"CheatEngine.Mcp.{GetHost(name).ProcessId}.log"));
+		bool enabledIndicator = driverLog.Contains("mcp-status MCP: Enabled count=1", StringComparison.Ordinal);
+		bool disabledIndicator = pluginLog.Contains("MCP status indicator: Disabled.", StringComparison.Ordinal);
+		if (!enabledIndicator || !disabledIndicator)
+		{
+			throw new InvalidOperationException($"MCP menu status evidence for host {name} is incomplete: expected enabled and disabled indicators.");
+		}
+		Record($"mcp_status_{name}", new
+		{
+			enabledIndicator,
+			disabledIndicator
+		});
 		string log = File.ReadAllText(debugPath);
 		bool enabled = log.Contains("[CheatEngine.SDK.Hosting] Information: Plugin ", StringComparison.Ordinal)
 			&& log.Contains(" enabled (epoch ", StringComparison.Ordinal);
@@ -524,6 +538,13 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 		  log('loading-plugin')
 		  local ok, value = pcall(loadPlugin, {{LuaString(pluginPath)}})
 		  log('loadPlugin ok='..tostring(ok)..' result='..tostring(value))
+		  local menu = getMainForm().Menu
+		  local status = assert(menu.findComponentByName('CheatEngineMcpStatus'), 'MCP status menu is missing')
+		  local count = 0
+		  for i=0,menu.Items.Count-1 do
+		    if menu.Items[i].Name == 'CheatEngineMcpStatus' then count=count+1 end
+		  end
+		  log('mcp-status '..status.Caption..' count='..count)
 		 end)
 		 if not tickOk then log('timer-error '..tostring(tickError)) end
 		end

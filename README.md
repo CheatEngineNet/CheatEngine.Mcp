@@ -61,7 +61,11 @@ Editing a file under Program Files may need an administrator editor. A file that
 2. Open **Edit → Settings → Plugins**, choose **Add new**, and select your deployed `CheatEngine.Mcp.dll`.
 3. Tick its checkbox to enable it and accept the settings dialog.
 
-The backend starts automatically on enable. You do not need a separate MCP menu, a fixed port, or a configuration file for the default setup. Each CE instance must have the plugin enabled. Leave CE open while using its tools.
+The backend starts automatically on enable. **MCP: Enabled** appears in CE's menu bar once the listener is running and the instance is published. Click it to see the instance name, listening address, and log location. This reports the CE backend's state; it does not mean an AI client is currently connected.
+
+Disabling the plugin changes the menu to **MCP: Disabled**. A server startup failure shows **MCP: Start failed**. The status item remains available until CE closes and is reused on the next enable; its details do not depend on the disabled plugin. Bootstrap or configuration failures before the module starts can prevent the indicator from appearing.
+
+You do not need a fixed port or a configuration file for the default setup. Each CE instance must have the plugin enabled. Leave CE open while using its tools.
 
 On first load, the DLL extracts its verified dependencies into `%LOCALAPPDATA%\CheatEngine.Mcp\cache\<payload SHA256>`. No additional DLLs need to be copied beside it. The plugin does not open or attach to a target automatically.
 
