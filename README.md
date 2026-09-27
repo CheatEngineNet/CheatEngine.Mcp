@@ -10,7 +10,11 @@ Each Cheat Engine process loads its own plugin, with its own Client activation a
 
 ### 1. Get the two deployment files
 
-Use the two files from a build artifact, or publish them from this repository with .NET SDK **10.0.401** and PowerShell 7 installed:
+Download **CheatEngine.Mcp-2.0.0-beta.1-win-x64.zip** from the [2.0.0-beta.1 prerelease](https://github.com/CheatEngineNet/CheatEngine.Mcp/releases/tag/v2.0.0-beta.1) and extract it into a stable folder, such as `C:\Tools\CheatEngine.Mcp`. The ZIP includes both binaries, the separate AI skill, setup instructions, and licenses. This is a beta release for Windows x64 and Cheat Engine 7.7; see the release notes for validation scope and known limitations.
+
+The prebuilt download does not require the .NET SDK or PowerShell. Continue with [Prepare Cheat Engine's .NET host](#2-prepare-cheat-engines-net-host) to install the required runtimes and configure CE.
+
+To build the two files yourself, publish from this repository with .NET SDK **10.0.401** and PowerShell 7 installed:
 
 ```powershell
 pwsh -NoProfile -File eng/Publish.ps1
