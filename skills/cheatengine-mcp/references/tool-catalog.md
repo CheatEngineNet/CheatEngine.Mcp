@@ -6,7 +6,7 @@ Tools use CheatEngine.Client high-level APIs where available. `Lua*Tool` contain
 
 The Client owns independent named scan/allocation/symbol/patch leases. The reserved `main` scanner is borrowed from the visible CE tab; its results survive plugin disable. Omit `scannerName` to use main, or pass another name for an independent scan. Use `release_target_resources` before switching targets. CE-owned structures, breakpoints, comments, address-list changes, debugger state, and injected code can outlive the plugin; remove/stop them explicitly.
 
-The gateway exposes **142 tools**: `list_instances` plus **141 CE tools**. Every CE tool requires the additional string `instanceId` from discovery. The tables below list tool names and purposes; use live schemas for all remaining parameters. Resource IDs and names are scoped to that instance and activation.
+The gateway exposes **146 tools**: `list_instances` plus **145 CE tools**. Every CE tool requires the additional string `instanceId` from discovery. The tables below list tool names and purposes; use live schemas for all remaining parameters. Resource IDs and names are scoped to that instance and activation.
 
 ## Gateway
 
@@ -231,12 +231,16 @@ The gateway exposes **142 tools**: `list_instances` plus **141 CE tools**. Every
 | Tool | Purpose |
 | --- | --- |
 | `delete_pointer_map` | Delete an MCP pointer snapshot. Existing copied scan paths remain usable. |
-| `generate_pointer_map` | Capture a bounded pointer snapshot with Client memory APIs. Maps live until deleted or plugin disable; they are not CE .scandata files. Inspect incomplete before relying on absence. |
+| `generate_pointer_map` | Capture a bounded pointer snapshot with Client memory APIs. Save it with save_pointer_map for native CE .scandata interchange. Inspect incomplete before relying on absence. |
 | `get_pointer_scan_results` | Page stored pointer chains. Offsets are in dereference order; CE's address-list offset order is reversed. |
 | `list_pointer_maps` | List bounded MCP-owned snapshots and their capture completeness. |
+| `load_pointer_map` | Load a native CE version-1 .scandata file for offline pointer searches/rescans. Reads 32/64-bit width and static roots from the file. Oversized files are rejected, not partially imported. Capture completeness is unknown. |
+| `load_pointer_scan` | Reopen saved MCP JSON pointer results under a new scan name. Paths start unresolved until rescanned against a new map or live target; module-relative roots can rebase after restart. |
 | `pointer_scan` | Find pointer chains in a captured map using nonnegative offsets. Results and traversal are bounded; module-relative roots support later rebasing. |
 | `rescan_pointer_scan` | Filter existing paths against a new map or live Client pointer-chain reads. Module roots rebase; absolute roots remain absolute. Unresolved paths are retained and counted; interrupted scans keep original results. |
 | `reset_pointer_scan` | Release an MCP-owned pointer result list. |
+| `save_pointer_map` | Save a captured or loaded map as a native CE version-1 .scandata file. Bounded captures remain bounded; native files do not store capture completeness. Empty maps cannot be exported. |
+| `save_pointer_scan` | Save pointer result paths and module-relative roots to a versioned MCP JSON file for later reopening/rescanning. This is not a CE .ptr file or a paused native scan queue. |
 
 ## PointerTool
 

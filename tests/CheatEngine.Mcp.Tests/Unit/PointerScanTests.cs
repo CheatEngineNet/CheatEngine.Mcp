@@ -187,6 +187,68 @@ public sealed class PointerScanTests
 	}
 
 	[Fact]
+	public void PointerFiles_NewToolInstance_ReopensMapsAndResultsAndRescansChangedTarget()
+	{
+		string directory = Directory.CreateTempSubdirectory("CheatEngine.Mcp.PointerRestart-").FullName;
+		try
+		{
+			Fixture fixture = new(0x4000);
+			fixture.Put(0x1000, 0x2000);
+			fixture.Put(0x2010, 0x3000);
+			PointerScanTool before = new(fixture.Client);
+			ToolResultAssert.IsSuccess(before.GeneratePointerMap("before"));
+			ToolResultAssert.IsSuccess(before.PointerScan("health", "before", "3020", maximumOffset: 0x20));
+			string mapFile = Path.Combine(directory, "before.scandata");
+			string resultFile = Path.Combine(directory, "health.json");
+			ToolResultAssert.IsSuccess(before.SavePointerMap("before", mapFile));
+			ToolResultAssert.IsSuccess(before.SavePointerScan("health", resultFile));
+
+			PointerScanTool after = new(fixture.Client);
+			ToolResultAssert.IsSuccess(after.LoadPointerMap("reopened", mapFile));
+			ToolResultAssert.IsSuccess(after.LoadPointerScan("health", resultFile));
+			object[] paths = ToolResultAssert.GetProperty<object[]>(after.GetPointerScanResults("health"), "results");
+			ToolResultAssert.HasPropertyValue(Assert.Single(paths), "verification", "unresolved");
+			ToolResultAssert.HasPropertyValue(after.RescanPointerScan("health", "3020", "reopened"), "verifiedMatches", 1);
+			fixture.Put(0x2010, 0x3500);
+			ToolResultAssert.IsSuccess(after.GeneratePointerMap("new-target"));
+			ToolResultAssert.HasPropertyValue(after.RescanPointerScan("health", "3520", "new-target"), "verifiedMatches", 1);
+			ToolResultAssert.HasPropertyValue(after.GetPointerScanResults("health"), "count", 1);
+		}
+		finally
+		{
+			Directory.Delete(directory, recursive: true);
+		}
+	}
+
+	[Fact]
+	public void PointerFiles_FailedLoad_DoesNotConsumeNamesOrReplaceExistingState()
+	{
+		string directory = Directory.CreateTempSubdirectory("CheatEngine.Mcp.PointerFailure-").FullName;
+		try
+		{
+			Fixture fixture = new(64);
+			fixture.Put(0x1000, 0x2000);
+			PointerScanTool tool = new(fixture.Client);
+			string mapFile = Path.Combine(directory, "map.scandata");
+			string resultFile = Path.Combine(directory, "scan.json");
+			File.WriteAllText(mapFile, "broken");
+			File.WriteAllText(resultFile, "{}");
+			ToolResultAssert.HasPropertyValue(tool.LoadPointerMap("map", mapFile), "success", false);
+			ToolResultAssert.HasPropertyValue(tool.LoadPointerScan("scan", resultFile), "success", false);
+			ToolResultAssert.IsSuccess(tool.GeneratePointerMap("map"));
+			ToolResultAssert.IsSuccess(tool.PointerScan("scan", "map", "2000", maximumDepth: 1, maximumOffset: 0));
+			ToolResultAssert.HasPropertyValue(tool.LoadPointerMap("map", mapFile), "success", false);
+			ToolResultAssert.HasPropertyValue(tool.LoadPointerScan("scan", resultFile), "success", false);
+			ToolResultAssert.HasPropertyValue(tool.GetPointerScanResults("scan"), "count", 1);
+			Assert.Single(ToolResultAssert.GetProperty<object[]>(tool.ListPointerMaps(), "maps"));
+		}
+		finally
+		{
+			Directory.Delete(directory, recursive: true);
+		}
+	}
+
+	[Fact]
 	public void PointerTools_InvalidBounds_RefuseBeforeHostRead()
 	{
 		PointerScanTool tool = new(ClientTestDouble.Client());

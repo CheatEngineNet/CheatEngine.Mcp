@@ -1,6 +1,6 @@
 # Scanning and debugging workflows
 
-Use the live MCP schema for bounds and defaults. Every call requires the exact `instanceId` from `list_instances`; pass it alongside the arguments shown below. These operations use that Cheat Engine instance's selected target; verify `get_current_process` on the same instance first. Scan names, pointer maps, captures, traces, and debugger state cannot be shared across instances. After an instance restarts, rediscover it and discard its old handles.
+Use the live MCP schema for bounds and defaults. Every call requires the exact `instanceId` from `list_instances`; pass it alongside the arguments shown below. Operations on live memory use that Cheat Engine instance's selected target; verify `get_current_process` on the same instance first. Scan names, pointer maps, captures, traces, and debugger state belong to one activation. After an instance restarts, rediscover it and discard its old handles. Saved pointer files can be loaded under new names, including in another instance; loading a file never attaches to its old process.
 
 ## Value scans
 
@@ -28,7 +28,29 @@ Use `reset_memory_scan(scannerName="health")` to release only that independent s
 4. After a target restart or value relocation, select the intended process, find the new address, and call `rescan_pointer_scan` with that address. Omit `mapName` for live Client pointer-chain reads, or provide a newly captured map to compare snapshots. Module roots rebase by name. Absolute roots stay absolute. Only confirmed mismatches are discarded; unreadable or missing hops remain candidates and increment `unresolved`.
 5. Release data with `delete_pointer_map` and `reset_pointer_scan`. Deleting a map preserves already copied scan paths.
 
-Maps are managed snapshots retained only for the current plugin activation. They survive process selection changes to permit rescans, but are not CE `.scandata`/`.ptr` files and are not saved to disk. This is a bounded in-memory scanner, without CE's distributed scanner, stack-root heuristics, negative offsets, or native map-file import/export.
+### Save now, continue later
+
+Before closing CE, call both:
+
+```text
+save_pointer_map(mapName="before", filePath="C:\\Scans\\before.scandata")
+save_pointer_scan(scannerName="healthPointers", filePath="C:\\Scans\\health-pointers.json")
+```
+
+Use your own existing local directory. Save never replaces an existing file unless `overwrite=true`; replacement is atomic. `.scandata` stores the map, while the separate `.json` stores the result paths. Keep both if you want to reproduce the old search and continue filtering its candidates.
+
+After restarting CE, rediscover `instanceId`, then:
+
+```text
+load_pointer_map(mapName="before", filePath="C:\\Scans\\before.scandata")
+load_pointer_scan(scannerName="healthPointers", filePath="C:\\Scans\\health-pointers.json")
+```
+
+Reopened maps can be searched offline without an attached target. To continue against a restarted game, attach it, find the value's **new** address, and call `rescan_pointer_scan(scannerName="healthPointers", targetAddress=...)`, or generate a new map and pass its name. Reopened paths begin `unresolved`; only a rescan establishes a new match. Module roots rebase by name; absolute roots do not become portable by saving them. Deleting/resetting in-memory data never deletes saved files.
+
+Map files use CE's native version-1 `.scandata` format: zlib compression, 32/64-bit addresses, module metadata, and per-address static roots. They can be imported from CE and exported for CE's pointer-map loader. Imports accept at most 64 MiB compressed and one million pointer addresses (or a lower `maximumPointers`); larger files are refused without partial state. Module names must be UTF-8, up to 4096 bytes, with at most 4096 modules. Empty maps cannot be exported because CE's native loader cannot load them. Static module offsets above 32 bits cannot be exported losslessly and are refused.
+
+The native format does not contain the capture's process identity, module image sizes, completeness, or read statistics. Loaded maps therefore report `processId=null`, `captureCompleteness="unknown"`, and `incomplete=true`; zero byte statistics mean unavailable. Exporting a bounded capture does **not** turn it into a full-process map. Results use versioned MCP JSON (16 MiB maximum), preserving pointer width, module-relative paths, and the incomplete flag. This is not CE `.ptr` import/export or native `.resume.*` scan-queue continuation. The scanner still has no distributed workers, stack-root heuristics, or negative offsets.
 
 Bounds: four maps, two million total retained pointers, 16 scan result lists, at most 64 MiB attempted reads per capture (16 MiB default), one million pointers per map, eight dereferences, 10,000 result paths, and one million visited candidates. Capture/live rescan work stops after five seconds between host calls; pure snapshot searches stop after one second. One host call itself cannot be interrupted. Guard pages are skipped. Memory changes while the target runs can produce an inconsistent snapshot; pause explicitly if appropriate.
 

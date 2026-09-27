@@ -25,7 +25,7 @@ Use the same value-scan tools for both modes. Omit `scannerName` (or use `main`)
 
 Before changing processes, wait for or cancel any running main UI scan, then release owned state with `release_target_resources`. Cleanup proceeds in reverse creation order and stops at an incomplete outcome. Respect retryable/manual-recovery details; a failed cleanup must not be treated as successful. Changing targets in Cheat Engine itself may leave resources requiring manual recovery.
 
-Read [scanning-and-debugging.md](references/scanning-and-debugging.md) for value comparisons, pointer snapshots/rescans, write/access captures, single-step traces, and register editing. Stop active debugger jobs before target changes. Pointer snapshots and paths are bounded managed copies; debugger callbacks are CE-owned Lua with expiry and explicit cleanup.
+Read [scanning-and-debugging.md](references/scanning-and-debugging.md) for value comparisons, pointer maps/rescans, native `.scandata` save/load, persistent result JSON, write/access captures, single-step traces, and register editing. Stop active debugger jobs before target changes. Save pointer maps and results before closing CE; after rediscovery, load them under new names and rescan before treating old paths as current matches. Native map imports have unknown capture completeness. Debugger callbacks are CE-owned Lua with expiry and explicit cleanup.
 
 Memory writes, allocation, table changes, patches, and Lua can alter the target or host. Stay within the user's authorized target and operation. Table loading may execute Lua and needs a configured allowed root.
 

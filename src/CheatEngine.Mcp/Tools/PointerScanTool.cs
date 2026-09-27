@@ -23,9 +23,9 @@ public sealed class PointerScanTool(ICheatEngineClient client)
 	private const int MaximumScans = 16;
 	private const int MaximumTotalPointers = 2_000_000;
 	private readonly Dictionary<string, PointerMap> _maps = new(StringComparer.Ordinal);
-	private readonly Dictionary<string, Scan> _scans = new(StringComparer.Ordinal);
+	private readonly Dictionary<string, PointerScanSnapshot> _scans = new(StringComparer.Ordinal);
 
-	[McpServerTool(Name = "generate_pointer_map"), Description("Capture a bounded pointer snapshot with Client memory APIs. Maps live until deleted or plugin disable; they are not CE .scandata files. Inspect incomplete before relying on absence.")]
+	[McpServerTool(Name = "generate_pointer_map"), Description("Capture a bounded pointer snapshot with Client memory APIs. Save it with save_pointer_map for native CE .scandata interchange. Inspect incomplete before relying on absence.")]
 	public object GeneratePointerMap([Description("Unique snapshot name, 1-128 characters.")] string mapName,
 		[Description("Optional first address expression to capture; requires endAddress.")] string? startAddress = null,
 		[Description("Optional inclusive last address expression; requires startAddress.")] string? endAddress = null,
@@ -162,7 +162,7 @@ public sealed class PointerScanTool(ICheatEngineClient client)
 			PointerMap map = GetMap(mapName);
 			ulong target = ParseAddress(targetAddress, map.Width);
 			PointerSearchResult result = map.Search(target, maximumDepth, maximumOffset, moduleRootsOnly, maximumResults, maximumNodes, client.Stopping);
-			Scan scan = new(map.Width, result.Paths, result.Truncated || map.Incomplete);
+			PointerScanSnapshot scan = new(map.Width, result.Paths, result.Truncated || map.Incomplete);
 			_scans.Add(scannerName, scan);
 			return new
 			{
@@ -183,7 +183,7 @@ public sealed class PointerScanTool(ICheatEngineClient client)
 	{
 		return ToolExecution.Run(client, () =>
 		{
-			Scan scan = GetScan(scannerName);
+			PointerScanSnapshot scan = GetScan(scannerName);
 			ulong target = ParseAddress(targetAddress, scan.Width);
 			PointerMap? map = mapName is null ? null : GetMap(mapName);
 			ProcessSnapshot? process = map is null ? client.Processes.GetCurrentProcess() : null;
@@ -243,7 +243,7 @@ public sealed class PointerScanTool(ICheatEngineClient client)
 			{
 				return ToolExecution.Error("Target selection changed during rescan; the original results were retained.");
 			}
-			Scan updated = new(scan.Width, retained.ToArray(), scan.Incomplete || map?.Incomplete == true || unresolved != 0);
+			PointerScanSnapshot updated = new(scan.Width, retained.ToArray(), scan.Incomplete || map?.Incomplete == true || unresolved != 0);
 			_scans[scannerName] = updated;
 			return new
 			{
@@ -269,7 +269,7 @@ public sealed class PointerScanTool(ICheatEngineClient client)
 			{
 				return ToolExecution.Error("startIndex must be nonnegative and maximumResults must be 1-1024.");
 			}
-			Scan scan = GetScan(scannerName);
+			PointerScanSnapshot scan = GetScan(scannerName);
 			object[] results = scan.Paths.Skip(startIndex).Take(maximumResults).Select(path => (object) new
 			{
 				baseAddress = Hex(path.BaseAddress),
@@ -290,6 +290,90 @@ public sealed class PointerScanTool(ICheatEngineClient client)
 			};
 		});
 	}
+
+	[McpServerTool(Name = "save_pointer_map"), Description("Save a captured or loaded map as a native CE version-1 .scandata file. Bounded captures remain bounded; native files do not store capture completeness. Empty maps cannot be exported.")]
+	public object SavePointerMap([Description("Existing pointer map name.")] string mapName,
+		[Description("Absolute local .scandata file path in an existing directory.")] string filePath,
+		[Description("Explicitly replace an existing file atomically; false by default.")] bool overwrite = false) => ToolExecution.Run(client, () =>
+	{
+		PointerMap map = GetMap(mapName);
+		NativePointerMapFile.Save(filePath, map, overwrite, client.Stopping);
+		return new
+		{
+			success = true,
+			filePath = Path.GetFullPath(filePath),
+			format = "CE.scandata.v1",
+			pointers = map.Entries.Length,
+			incomplete = map.Incomplete
+		};
+	});
+
+	[McpServerTool(Name = "load_pointer_map"), Description("Load a native CE version-1 .scandata file for offline pointer searches/rescans. Reads 32/64-bit width and static roots from the file. Oversized files are rejected, not partially imported. Capture completeness is unknown.")]
+	public object LoadPointerMap([Description("Unique map name, 1-128 characters.")] string mapName,
+		[Description("Absolute local .scandata file path, at most 64 MiB compressed.")] string filePath,
+		[Description("Maximum pointers accepted, 1-1000000. Files above this count are rejected intact.")] int maximumPointers = 1_000_000) => ToolExecution.Run(client, () =>
+	{
+		ValidateName(mapName);
+		if (_maps.ContainsKey(mapName) || _maps.Count >= MaximumMaps)
+		{
+			return ToolExecution.Error("Map name already exists or the 4-map limit was reached; delete a map first.");
+		}
+		if (maximumPointers is < 1 or > 1_000_000)
+		{
+			return ToolExecution.Error("maximumPointers must be 1-1000000.");
+		}
+		int available = MaximumTotalPointers - _maps.Values.Sum(map => map.Entries.Length);
+		if (available == 0)
+		{
+			return ToolExecution.Error("The 2000000 total-pointer limit was reached; delete a map first.");
+		}
+		PointerMap map = NativePointerMapFile.Load(filePath, Math.Min(maximumPointers, available), client.Stopping);
+		_maps.Add(mapName, map);
+		return new
+		{
+			success = true,
+			map = DescribeMap(mapName, map),
+			captureCompleteness = "unknown",
+			format = "CE.scandata.v1"
+		};
+	});
+
+	[McpServerTool(Name = "save_pointer_scan"), Description("Save pointer result paths and module-relative roots to a versioned MCP JSON file for later reopening/rescanning. This is not a CE .ptr file or a paused native scan queue.")]
+	public object SavePointerScan([Description("Existing pointer scan name.")] string scannerName,
+		[Description("Absolute local .json file path in an existing directory.")] string filePath,
+		[Description("Explicitly replace an existing file atomically; false by default.")] bool overwrite = false) => ToolExecution.Run(client, () =>
+	{
+		PointerScanSnapshot scan = GetScan(scannerName);
+		PointerScanFile.Save(filePath, scan, overwrite, client.Stopping);
+		return new
+		{
+			success = true,
+			filePath = Path.GetFullPath(filePath),
+			count = scan.Paths.Length,
+			incomplete = scan.Incomplete
+		};
+	});
+
+	[McpServerTool(Name = "load_pointer_scan"), Description("Reopen saved MCP JSON pointer results under a new scan name. Paths start unresolved until rescanned against a new map or live target; module-relative roots can rebase after restart.")]
+	public object LoadPointerScan([Description("Unique scan name, 1-128 characters.")] string scannerName,
+		[Description("Absolute local MCP pointer-result .json path, at most 16 MiB.")] string filePath) => ToolExecution.Run(client, () =>
+	{
+		ValidateName(scannerName);
+		if (_scans.ContainsKey(scannerName) || _scans.Count >= MaximumScans)
+		{
+			return ToolExecution.Error("Scan name already exists or the 16-scan limit was reached; reset a pointer scan first.");
+		}
+		PointerScanSnapshot scan = PointerScanFile.Load(filePath, client.Stopping);
+		_scans.Add(scannerName, scan);
+		return new
+		{
+			success = true,
+			scannerName,
+			count = scan.Paths.Length,
+			incomplete = scan.Incomplete,
+			unresolved = scan.Paths.Length
+		};
+	});
 
 	[McpServerTool(Name = "list_pointer_maps"), Description("List bounded MCP-owned snapshots and their capture completeness.")]
 	public object ListPointerMaps() => ToolExecution.Run(client, () => new { success = true, maps = _maps.Select(pair => DescribeMap(pair.Key, pair.Value)).ToArray() });
@@ -317,7 +401,7 @@ public sealed class PointerScanTool(ICheatEngineClient client)
 		.Where(module => module.Size != 0).ToArray();
 
 	private PointerMap GetMap(string name) => _maps.TryGetValue(name, out PointerMap? map) ? map : throw new ArgumentException("No pointer map exists with that name.");
-	private Scan GetScan(string name) => _scans.TryGetValue(name, out Scan? scan) ? scan : throw new ArgumentException("No pointer scan exists with that name.");
+	private PointerScanSnapshot GetScan(string name) => _scans.TryGetValue(name, out PointerScanSnapshot? scan) ? scan : throw new ArgumentException("No pointer scan exists with that name.");
 	private static void ValidateName(string name)
 	{
 		if (string.IsNullOrWhiteSpace(name) || name.Length > 128)
@@ -336,6 +420,5 @@ public sealed class PointerScanTool(ICheatEngineClient client)
 		return value;
 	}
 	private static string Hex(ulong address) => $"0x{address:X}";
-	private static object DescribeMap(string name, PointerMap map) => new { name, processId = map.Process.Id.Value, pointerSize = map.Width, pointers = map.Entries.Length, bytesRead = map.BytesRead, unreadableBytes = map.UnreadableBytes, incomplete = map.Incomplete };
-	private sealed record Scan(int Width, PointerPath[] Paths, bool Incomplete);
+	private static object DescribeMap(string name, PointerMap map) => new { name, processId = map.Process?.Id.Value, pointerSize = map.Width, pointers = map.Entries.Length, bytesRead = map.BytesRead, unreadableBytes = map.UnreadableBytes, incomplete = map.Incomplete };
 }

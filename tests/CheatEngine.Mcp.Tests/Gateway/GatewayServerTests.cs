@@ -27,9 +27,9 @@ public sealed class GatewayServerTests
 
 		IList<McpClientTool> tools = await client.ListToolsAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-		Assert.Equal(142, tools.Count);
+		Assert.Equal(146, tools.Count);
 		Assert.Contains(tools, tool => tool.Name == GatewayToolCatalog.ListInstancesToolName);
-		Assert.Equal(141, tools.Count(tool => tool.Name != GatewayToolCatalog.ListInstancesToolName));
+		Assert.Equal(145, tools.Count(tool => tool.Name != GatewayToolCatalog.ListInstancesToolName));
 		Assert.All(GatewayToolCatalog.GetTools().Where(tool => tool.Name != GatewayToolCatalog.ListInstancesToolName),
 			tool => Assert.Contains(GatewayToolCatalog.InstanceIdArgumentName, tool.InputSchema.GetProperty("required")
 				.EnumerateArray().Select(value => value.GetString())));

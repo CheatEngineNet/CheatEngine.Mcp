@@ -6,18 +6,24 @@ using CheatEngine.Client.Processes;
 namespace CheatEngine.Mcp.Tools;
 
 /// <summary>A bounded, managed memory snapshot. It owns no target memory or CE handles.</summary>
-internal sealed class PointerMap(ProcessSnapshot process, int width, PointerEntry[] entries, PointerModule[] modules,
-	bool incomplete, ulong bytesRead, ulong unreadableBytes)
+internal sealed class PointerMap(ProcessSnapshot? process, int width, PointerEntry[] entries, PointerModule[] modules,
+	bool incomplete, ulong bytesRead, ulong unreadableBytes, Dictionary<ulong, PointerStaticRoot>? staticRoots = null,
+	PointerStaticRange? staticRange = null)
 {
-	internal ProcessSnapshot Process { get; } = process;
+	internal ProcessSnapshot? Process { get; } = process;
 	internal int Width { get; } = width;
 	internal PointerEntry[] Entries { get; } = entries;
 	internal PointerModule[] Modules { get; } = modules;
 	internal bool Incomplete { get; } = incomplete;
 	internal ulong BytesRead { get; } = bytesRead;
 	internal ulong UnreadableBytes { get; } = unreadableBytes;
+	// Native maps classify individual roots; module sizes are not stored in .scandata.
+	internal Dictionary<ulong, PointerStaticRoot>? StaticRoots { get; } = staticRoots;
+	internal PointerStaticRange? StaticRange { get; } = staticRange;
 	private readonly PointerEntry[] _byValue = entries.OrderBy(entry => entry.Value).ThenBy(entry => entry.Address).ToArray();
-	private readonly PointerModule[] _byBase = modules.OrderBy(module => module.BaseAddress).ToArray();
+	internal ReadOnlySpan<PointerEntry> EntriesByValue => _byValue;
+	private readonly (PointerModule Module, int Index)[] _byBase = modules.Select((module, index) => (Module: module, Index: index))
+		.OrderBy(entry => entry.Module.BaseAddress).ToArray();
 
 	internal static void CopyEntries(List<PointerEntry> entries, ulong address, ReadOnlySpan<byte> bytes,
 		int width, int alignment, int maximumEntries)
@@ -65,11 +71,12 @@ internal sealed class PointerMap(ProcessSnapshot process, int width, PointerEntr
 					continue;
 				}
 				reversedOffsets.Add((long) (destination - entry.Value));
-				PointerModule? module = FindModule(entry.Address);
+				PointerStaticRoot? root = GetStaticRoot(entry.Address);
+				PointerModule? module = root is { ModuleIndex: >= 0 } ? Modules[root.Value.ModuleIndex] : null;
 				if (!moduleRootsOnly || module is not null)
 				{
 					paths.Add(new PointerPath(entry.Address, module?.Name,
-						module is null ? 0 : entry.Address - module.BaseAddress, reversedOffsets.AsEnumerable().Reverse().ToArray()));
+						module is null ? 0 : root!.Value.Offset, reversedOffsets.AsEnumerable().Reverse().ToArray()));
 				}
 				if (reversedOffsets.Count < maximumDepth)
 				{
@@ -85,14 +92,18 @@ internal sealed class PointerMap(ProcessSnapshot process, int width, PointerEntr
 		}
 	}
 
-	private PointerModule? FindModule(ulong address)
+	internal PointerStaticRoot? GetStaticRoot(ulong address)
 	{
+		if (StaticRoots is not null)
+		{
+			return StaticRoots.TryGetValue(address, out PointerStaticRoot root) ? root : null;
+		}
 		int low = 0;
 		int high = _byBase.Length;
 		while (low < high)
 		{
 			int middle = low + ((high - low) / 2);
-			if (_byBase[middle].BaseAddress <= address)
+			if (_byBase[middle].Module.BaseAddress <= address)
 			{
 				low = middle + 1;
 			}
@@ -101,7 +112,12 @@ internal sealed class PointerMap(ProcessSnapshot process, int width, PointerEntr
 				high = middle;
 			}
 		}
-		return low > 0 && _byBase[low - 1].Contains(address) ? _byBase[low - 1] : null;
+		if (low == 0 || !_byBase[low - 1].Module.Contains(address))
+		{
+			return null;
+		}
+		(PointerModule module, int index) = _byBase[low - 1];
+		return new PointerStaticRoot(index, address - module.BaseAddress);
 	}
 
 	internal bool TryResolve(PointerPath path, out ulong destination)
@@ -171,6 +187,8 @@ internal sealed class PointerMap(ProcessSnapshot process, int width, PointerEntr
 }
 
 internal readonly record struct PointerEntry(ulong Address, ulong Value);
+internal readonly record struct PointerStaticRoot(int ModuleIndex, ulong Offset);
+internal readonly record struct PointerStaticRange(ulong Start, ulong End);
 internal sealed record PointerModule(string Name, ulong BaseAddress, ulong Size)
 {
 	internal bool Contains(ulong address) => address >= BaseAddress && address - BaseAddress < Size;

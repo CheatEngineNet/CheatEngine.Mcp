@@ -102,6 +102,9 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			step = "disassembly columns and retained allocation";
 			await AssertDisassemblyAsync(sandbox, instanceA);
 
+			step = "native pointer-map files and persisted results";
+			await AssertPointerFilesAsync(sandbox, instanceA, instanceB);
+
 			step = "instance A address-list creation";
 			JsonNode created = await SuccessfulCallAsync(instanceA, "add_memory_record", new Dictionary<string, object?>
 			{
@@ -236,6 +239,91 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 		finally
 		{
 			await SuccessfulCallAsync(instance, "free_memory", new Dictionary<string, object?> { ["name"] = allocationName });
+		}
+	}
+
+	private static async Task AssertPointerFilesAsync(LiveSandboxSession sandbox, ILiveMcpToolClient instanceA, ILiveMcpToolClient instanceB)
+	{
+		string mapFile = Path.Combine(Path.GetDirectoryName(sandbox.GatewayExecutablePath)!, "live.scandata");
+		string scanFile = Path.ChangeExtension(mapFile, ".json");
+		JsonNode allocation = await SuccessfulCallAsync(instanceA, "allocate_memory", new Dictionary<string, object?> { ["name"] = "pointer-files", ["size"] = 64 });
+		string address = allocation["address"]!.GetValue<string>();
+		ulong root = Convert.ToUInt64(address.Replace("0x", string.Empty, StringComparison.OrdinalIgnoreCase), 16);
+		string destination = $"0x{root + 8:X}";
+		try
+		{
+			await SuccessfulCallAsync(instanceA, "write_memory", new Dictionary<string, object?>
+			{
+				["address"] = address,
+				["dataType"] = "int64",
+				["value"] = (root + 8).ToString(System.Globalization.CultureInfo.InvariantCulture)
+			});
+			await SuccessfulCallAsync(instanceA, "generate_pointer_map", new Dictionary<string, object?>
+			{
+				["mapName"] = "persisted",
+				["startAddress"] = address,
+				["endAddress"] = $"0x{root + 7:X}",
+				["maximumBytes"] = 8,
+				["alignment"] = 8
+			});
+			await SuccessfulCallAsync(instanceA, "pointer_scan", new Dictionary<string, object?>
+			{
+				["scannerName"] = "persisted",
+				["mapName"] = "persisted",
+				["targetAddress"] = destination,
+				["maximumDepth"] = 1,
+				["maximumOffset"] = 0,
+				["moduleRootsOnly"] = false
+			});
+			await SuccessfulCallAsync(instanceA, "save_pointer_map", new Dictionary<string, object?> { ["mapName"] = "persisted", ["filePath"] = mapFile });
+			await SuccessfulCallAsync(instanceA, "save_pointer_scan", new Dictionary<string, object?> { ["scannerName"] = "persisted", ["filePath"] = scanFile });
+			// Test the actual CE native reader, not a second call to our codec. The userdata is NOT GC-owned.
+			string luaPath = "'" + string.Concat(System.Text.Encoding.UTF8.GetBytes(mapFile).Select(value => "\\" + value.ToString("D3", System.Globalization.CultureInfo.InvariantCulture))) + "'";
+			await SuccessfulCallAsync(instanceA, "execute_lua", new Dictionary<string, object?>
+			{
+				["script"] = $$"""
+					local map,err=createReversePointerListHandlerFromFile({{luaPath}})
+					assert(map,err)
+					local ok,result=pcall(function()
+					  local addresses=map:findPointerValue({{destination}})
+					  assert(addresses and #addresses==1,'native pointer group count')
+					  assert(addresses[1]==0x{{root:X}},'native pointer address')
+					  assert(next(map:enumModules())~=nil,'native module metadata')
+					end)
+					map:destroy()
+					assert(ok,result)
+					"""
+			});
+			// A second plugin activation has no in-memory state from A and a different selected process.
+			JsonNode loaded = await SuccessfulCallAsync(instanceB, "load_pointer_map", new Dictionary<string, object?> { ["mapName"] = "reopened", ["filePath"] = mapFile });
+			Assert.Null(loaded["map"]!["processId"]);
+			Assert.Equal(8, loaded["map"]!["pointerSize"]!.GetValue<int>());
+			Assert.Equal("unknown", loaded["captureCompleteness"]!.GetValue<string>());
+			await SuccessfulCallAsync(instanceB, "load_pointer_scan", new Dictionary<string, object?> { ["scannerName"] = "reopened", ["filePath"] = scanFile });
+			JsonNode page = await SuccessfulCallAsync(instanceB, "get_pointer_scan_results", new Dictionary<string, object?> { ["scannerName"] = "reopened" });
+			Assert.Equal("unresolved", Assert.Single(page["results"]!.AsArray())!["verification"]!.GetValue<string>());
+			JsonNode rescan = await SuccessfulCallAsync(instanceB, "rescan_pointer_scan", new Dictionary<string, object?>
+			{
+				["scannerName"] = "reopened",
+				["mapName"] = "reopened",
+				["targetAddress"] = destination
+			});
+			Assert.Equal(1, rescan["verifiedMatches"]!.GetValue<int>());
+			Assert.Equal(0, rescan["unresolved"]!.GetValue<int>());
+			sandbox.Record("native_pointer_map_loader_and_persisted_results", new
+			{
+				nativeLoader = true,
+				reopenedInIndependentActivation = true,
+				verifiedMatches = 1
+			});
+			await SuccessfulCallAsync(instanceB, "reset_pointer_scan", new Dictionary<string, object?> { ["scannerName"] = "reopened" });
+			await SuccessfulCallAsync(instanceB, "delete_pointer_map", new Dictionary<string, object?> { ["mapName"] = "reopened" });
+			await SuccessfulCallAsync(instanceA, "reset_pointer_scan", new Dictionary<string, object?> { ["scannerName"] = "persisted" });
+			await SuccessfulCallAsync(instanceA, "delete_pointer_map", new Dictionary<string, object?> { ["mapName"] = "persisted" });
+		}
+		finally
+		{
+			await SuccessfulCallAsync(instanceA, "free_memory", new Dictionary<string, object?> { ["name"] = "pointer-files" });
 		}
 	}
 
