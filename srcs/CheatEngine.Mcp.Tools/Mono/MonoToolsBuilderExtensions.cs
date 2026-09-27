@@ -6,15 +6,16 @@ public static class MonoToolsBuilderExtensions
 	extension(ICheatEngineMcpBuilder builder)
 	{
 		/// <summary>
-		///     Declares the <c>mono_*</c> tool containers and their JSON metadata. None is declared yet; the domain is
-		///     new in v2 and replaces no legacy tool.
+		///     Declares the <c>mono_*</c> tool container and its JSON metadata. Attach state and instance-search jobs are
+		///     activation-owned target resources and are released through the runtime lifecycle.
 		/// </summary>
 		/// <returns>The same builder.</returns>
 		public ICheatEngineMcpBuilder AddMonoTools()
 		{
 			ArgumentNullException.ThrowIfNull(builder);
-			// B12 adds AddJsonTypeInfoResolver(MonoJsonContext.Default) and one AddToolType<...>() per container here.
-			return builder;
+			return builder
+				.AddJsonTypeInfoResolver(MonoJsonContext.Default)
+				.AddToolType<MonoTools>();
 		}
 	}
 }

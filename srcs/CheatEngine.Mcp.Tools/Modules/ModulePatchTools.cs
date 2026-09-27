@@ -100,7 +100,7 @@ public sealed class ModulePatchTools
 		}, cancellationToken);
 		ModuleInfo found = target.Module;
 		using HeldFile held = OpenModuleFile(found, operation);
-		using SafeFileHandle file = File.OpenHandle(held.FullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+		using SafeFileHandle file = File.OpenHandle(held.FullPath);
 		PeHeaders fileHeaders = ParseFileHeaders(found, file, held.Length);
 
 		byte[] memoryHeaderBytes = _dispatch.Run(operation, token =>
@@ -120,6 +120,7 @@ public sealed class ModulePatchTools
 
 		PatchCollector collector = new(limit);
 		long compared = 0;
+		long examined = 0;
 		long unreadable = 0;
 		int applied = 0;
 		bool truncated = false;
@@ -135,18 +136,20 @@ public sealed class ModulePatchTools
 				continue;
 			}
 
-			ulong available = Math.Min((ulong) section.FileBackedSize,
+			ulong available = Math.Min(section.FileBackedSize,
 				(ulong) Math.Max(0, held.Length - section.PointerToRawData));
-			ulong sectionEnd = Math.Min((ulong) section.VirtualAddress + available, mappedSize);
+			ulong sectionEnd = Math.Min(section.VirtualAddress + available, mappedSize);
 			for (ulong start = section.VirtualAddress; start < sectionEnd; start += ChunkBytes)
 			{
 				uint chunkStart = (uint) start;
 				uint chunkEnd = (uint) Math.Min(sectionEnd, start + ChunkBytes);
-				if (compared + (chunkEnd - chunkStart) > MaximumComparedBytes)
+				if (examined + (chunkEnd - chunkStart) > MaximumComparedBytes)
 				{
 					truncated = true;
 					break;
 				}
+
+				examined += chunkEnd - chunkStart;
 
 				List<MemorySegment> segments = _dispatch.Run(operation, token =>
 				{
@@ -205,11 +208,12 @@ public sealed class ModulePatchTools
 		}
 		catch (CheatEngineToolException exception) when (exception.Error.Kind is ToolErrorKind.InvalidArgument)
 		{
-			throw new CheatEngineToolException(exception.Error with
-			{
-				Kind = ToolErrorKind.InvalidState,
-				Message = $"The file of {module.Name} is refused: {exception.Error.Message}"
-			}, exception);
+			throw new CheatEngineToolException(
+				exception.Error with
+				{
+					Kind = ToolErrorKind.InvalidState,
+					Message = $"The file of {module.Name} is refused: {exception.Error.Message}"
+				}, exception);
 		}
 	}
 

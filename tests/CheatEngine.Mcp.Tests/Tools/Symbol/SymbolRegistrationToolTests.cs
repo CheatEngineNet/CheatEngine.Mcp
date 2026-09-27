@@ -18,7 +18,7 @@ public sealed class SymbolRegistrationToolTests
 	{
 		Harness harness = new();
 
-		RegisteredSymbol symbol = harness.Tools.Register("playerBase", "game.exe+10", false, cancellationToken: Token);
+		RegisteredSymbol symbol = harness.Tools.Register("playerBase", "game.exe+10", false, Token);
 
 		Assert.Equal(("playerBase", "140000010", false), (symbol.Name, symbol.Address, symbol.DoNotSave));
 		TargetResourceDescriptor resource = Assert.Single(harness.Resources.List());
@@ -113,7 +113,7 @@ public sealed class SymbolRegistrationToolTests
 		Harness harness = new();
 		harness.Tools.Register("playerBase", "game.exe+10", cancellationToken: Token);
 
-		SymbolReleaseResult result = harness.Tools.Unregister("PlayerBase", cancellationToken: Token);
+		SymbolReleaseResult result = harness.Tools.Unregister("PlayerBase", Token);
 
 		Assert.Equal(("playerBase", "140000010", ResourceReleaseKind.Released, true),
 			(result.Name, result.Address, result.Release.Kind, result.Release.IsComplete));
@@ -128,7 +128,7 @@ public sealed class SymbolRegistrationToolTests
 		Harness harness = new();
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			harness.Tools.Unregister("tableSymbol", cancellationToken: Token));
+			harness.Tools.Unregister("tableSymbol", Token));
 
 		Assert.Equal(ToolErrorKind.NotFound, exception.Error.Kind);
 		Assert.Contains("symbol_list_registered", exception.Error.Hint, StringComparison.Ordinal);
@@ -144,7 +144,7 @@ public sealed class SymbolRegistrationToolTests
 			CheatEngineHostEffect.NotStarted);
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			harness.Tools.Unregister("playerBase", cancellationToken: Token));
+			harness.Tools.Unregister("playerBase", Token));
 
 		Assert.Equal((ToolErrorKind.PartialEffect, ToolHostEffect.NotStarted, true),
 			(exception.Error.Kind, exception.Error.HostEffect, exception.Error.Retryable));
@@ -163,7 +163,7 @@ public sealed class SymbolRegistrationToolTests
 			CheatEngineHostEffect.CleanupUnconfirmed);
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			harness.Tools.Unregister("playerBase", cancellationToken: Token));
+			harness.Tools.Unregister("playerBase", Token));
 
 		Assert.Equal((ToolErrorKind.PartialEffect, false), (exception.Error.Kind, exception.Error.Retryable));
 		Assert.Empty(harness.Resources.List());
@@ -181,7 +181,7 @@ public sealed class SymbolRegistrationToolTests
 
 		Assert.Equal("symbol", Assert.Single(released.Released).Resource.Kind);
 		Assert.Equal(0, harness.Registrations.Count);
-		Assert.Throws<CheatEngineToolException>(() => harness.Tools.Unregister("playerBase", cancellationToken: Token));
+		Assert.Throws<CheatEngineToolException>(() => harness.Tools.Unregister("playerBase", Token));
 	}
 
 	[Fact]
@@ -192,8 +192,8 @@ public sealed class SymbolRegistrationToolTests
 		harness.Target.LuaResults[typeof(LuaRegisteredSymbols)] = new LuaRegisteredSymbols(
 		[
 			new LuaRegisteredSymbol("playerbase", "140000010", null, null, true),
-			new LuaRegisteredSymbol("tableAlloc", "20000000", 4096, ModuleSymbolTarget.ProcessId, null),
-			new LuaRegisteredSymbol("other", "30000000", null, null, null)
+			new LuaRegisteredSymbol("tableAlloc", "20000000", 4096, ModuleSymbolTarget.ProcessId),
+			new LuaRegisteredSymbol("other", "30000000")
 		], 9000, true);
 
 		RegisteredSymbolList page = harness.Tools.ListRegistered(limit: 2, cancellationToken: Token);
@@ -203,7 +203,7 @@ public sealed class SymbolRegistrationToolTests
 		Assert.Equal(new RegisteredSymbolEntry("playerbase", true, "140000010", true, null, null, owned.ResourceId),
 			page.Symbols[0]);
 		Assert.Equal(new RegisteredSymbolEntry("tableAlloc", false, "20000000", null, 4096,
-			ModuleSymbolTarget.ProcessId, null), page.Symbols[1]);
+			ModuleSymbolTarget.ProcessId), page.Symbols[1]);
 		Assert.Equal("tableAlloc", Assert.Single(filtered.Symbols).Name);
 		Assert.Contains($"[1] = {SymbolScripts.MaximumRegisteredSymbols}", harness.Target.LuaSources[0],
 			StringComparison.Ordinal);
@@ -217,7 +217,7 @@ public sealed class SymbolRegistrationToolTests
 		Harness harness = new();
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			harness.Tools.ListRegistered(null, offset, limit, cancellationToken: Token));
+			harness.Tools.ListRegistered(null, offset, limit, Token));
 
 		Assert.Equal(kind, exception.Error.Kind);
 		Assert.Equal(0, harness.Target.Dispatcher.Calls);

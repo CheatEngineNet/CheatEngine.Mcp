@@ -1,7 +1,4 @@
-using CheatEngine.Client;
 using CheatEngine.Mcp.Core.Contract;
-using CheatEngine.Mcp.Tests.Support;
-using CheatEngine.Mcp.Tools;
 
 namespace CheatEngine.Mcp.Tests.Core;
 
@@ -79,21 +76,6 @@ public sealed class TargetTransitionGuardsTests
 
 		Assert.Equal(ToolErrorKind.Internal, error.Error.Kind);
 		Assert.Equal(0, later.Calls);
-	}
-
-	[Fact]
-	public void ProcessTool_WithoutExplicitGuards_IsGuardedByItsTargetResources()
-	{
-		TargetResources resources = new();
-		resources.Track(ClientTestDouble.Create<ICheatEngineLease>((method, _) =>
-			method.Name == "get_IsReleased" ? false : throw new NotSupportedException(method.Name)), "scan");
-		ProcessTool tool = new(ClientTestDouble.Client(), TestRuntime.Info, resources);
-
-		object result = tool.OpenProcess("attach-by-name.exe");
-
-		Assert.False(ToolResultAssert.GetProperty<bool>(result, "success"));
-		Assert.Contains("still hold state", ToolResultAssert.GetProperty<string>(result, "error"),
-			StringComparison.Ordinal);
 	}
 
 	private static CheatEngineToolException Busy(string message)

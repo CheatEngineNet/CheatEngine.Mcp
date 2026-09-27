@@ -4,7 +4,6 @@ using System.Text.Json;
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Hosting.Discovery;
 
-using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
@@ -17,6 +16,7 @@ internal sealed class GatewayInstanceTool(InstanceRegistry registry, InstanceIde
 	internal const string Name = CheatEngineToolNames.InstanceList;
 
 	private const int MaximumParallelProbes = 16;
+	private static readonly JsonSerializerOptions SerializerOptions = CreateSerializerOptions();
 
 	/// <summary>How long discovery may take before it returns the instances verified so far.</summary>
 	internal static readonly TimeSpan DiscoveryBudget = TimeSpan.FromSeconds(10);
@@ -67,7 +67,7 @@ internal sealed class GatewayInstanceTool(InstanceRegistry registry, InstanceIde
 	{
 		McpServerToolCreateOptions options = new()
 		{
-			SerializerOptions = CreateSerializerOptions(),
+			SerializerOptions = SerializerOptions,
 			SchemaCreateOptions = SchemaTransform.SchemaCreateOptions
 		};
 		// Schema only: the router calls ListAsync on its own instance, so this factory never runs.
@@ -107,9 +107,9 @@ internal sealed class GatewayInstanceTool(InstanceRegistry registry, InstanceIde
 
 	private static JsonSerializerOptions CreateSerializerOptions()
 	{
-		JsonSerializerOptions options = new(McpJsonUtilities.DefaultOptions);
-		options.TypeInfoResolverChain.Insert(0, HostingJsonContext.Default);
-		options.MakeReadOnly();
-		return options;
+		CheatEngineMcpPrimitiveOptions manifest = CheatEngineMcpComposition.CreateManifest(
+			CheatEngineMcpMode.Catalog,
+			static builder => builder.AddJsonTypeInfoResolver(HostingJsonContext.Default));
+		return CheatEngineMcpJson.CreateOptions(manifest);
 	}
 }

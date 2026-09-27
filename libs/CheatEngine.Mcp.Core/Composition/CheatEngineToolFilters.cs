@@ -70,7 +70,7 @@ internal static partial class CheatEngineToolFilters
 				ToolError error = Classify(exception);
 				if (error.Kind is ToolErrorKind.Internal && exception is not CheatEngineToolException)
 				{
-					LogUnexpectedToolFailure(CreateLogger(context), context.Params?.Name ?? string.Empty, exception);
+					LogUnexpectedToolFailure(CreateLogger(context), context.Params?.Name ?? string.Empty);
 				}
 
 				return ToolErrorResults.Create(error);
@@ -244,5 +244,5 @@ internal static partial class CheatEngineToolFilters
 
 	[LoggerMessage(EventId = 3002, Level = LogLevel.Error,
 		Message = "MCP tool {ToolName} failed with an unexpected exception; reported as internal.")]
-	private static partial void LogUnexpectedToolFailure(ILogger logger, string toolName, Exception exception);
+	private static partial void LogUnexpectedToolFailure(ILogger logger, string toolName);
 }

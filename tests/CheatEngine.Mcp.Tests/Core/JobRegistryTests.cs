@@ -84,6 +84,50 @@ public sealed class JobRegistryTests
 	}
 
 	[Fact]
+	public async Task StartManaged_TtlExpiresWithoutAnotherRegistryOperation()
+	{
+		StateTestHarness harness = new();
+		TaskCompletionSource<bool> entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		ManagedJob<long> job = harness.Jobs.StartManaged<long>("probe", TimeSpan.FromSeconds(30), 8,
+			async (_, token) =>
+			{
+				entered.TrySetResult(true);
+				await Task.Delay(Timeout.InfiniteTimeSpan, token).ConfigureAwait(false);
+			});
+		await entered.Task.WaitAsync(Wait, Token);
+
+		harness.Time.Advance(TimeSpan.FromSeconds(30));
+
+		await job.Completion.WaitAsync(Wait, Token);
+		Assert.Equal(JobState.Expired, job.State);
+		Assert.True(job.IsEnded);
+		Assert.Equal((0, 0), (harness.Jobs.Count, harness.Resources.Count));
+	}
+
+	[Fact]
+	public async Task StartManaged_TtlExpiryWinsWhenWorkIgnoresCancellationUntilItReturns()
+	{
+		StateTestHarness harness = new();
+		TaskCompletionSource<bool> entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		TaskCompletionSource<bool> finish = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		ManagedJob<long> job = harness.Jobs.StartManaged<long>("probe", TimeSpan.FromSeconds(30), 8,
+			async (_, _) =>
+			{
+				entered.TrySetResult(true);
+				await finish.Task.ConfigureAwait(false);
+			});
+		await entered.Task.WaitAsync(Wait, Token);
+
+		harness.Time.Advance(TimeSpan.FromSeconds(30));
+		finish.TrySetResult(true);
+
+		await job.Completion.WaitAsync(Wait, Token);
+		Assert.Equal(JobState.Expired, job.State);
+		Assert.True(job.IsEnded);
+		Assert.Equal((0, 0), (harness.Jobs.Count, harness.Resources.Count));
+	}
+
+	[Fact]
 	public async Task Get_JobIds_ClassifyMalformedMismatchedForeignAndUnknownIds()
 	{
 		StateTestHarness harness = new();
@@ -321,13 +365,20 @@ public sealed class JobRegistryTests
 	}
 
 	[Fact]
-	public void StartLua_StartFails_FreesTheSlotAndTracksNothing()
+	public void StartLua_StartFailsAfterArming_ReleasesLuaStateAndPreservesTheOriginalFailure()
 	{
 		StateTestHarness harness = new(new McpExecutionOptions { MaxJobs = 1 });
+		harness.Answer<LuaJobStop>(_ => new LuaJobStop(true, true, true, "stopped"));
 
-		Assert.Throws<InvalidOperationException>(() => harness.Jobs.StartLua("capture", TimeSpan.FromSeconds(60), 8,
-			StateTestJsonContext.Default.Int64, static _ => throw new InvalidOperationException("start failed")));
+		InvalidOperationException failure = Assert.Throws<InvalidOperationException>(() => harness.Jobs.StartLua("capture", TimeSpan.FromSeconds(60), 8,
+			StateTestJsonContext.Default.Int64, _ =>
+			{
+				harness.Stopping.Cancel();
+				throw new InvalidOperationException("start failed");
+			}));
 
+		Assert.Equal("start failed", failure.Message);
+		Assert.Equal("mcp_job_stop", Assert.Single(harness.LuaCalls).Operation);
 		Assert.Equal((0, 0), (harness.Jobs.Count, harness.Resources.Count));
 		LuaJob<long> job = harness.Jobs.StartLua("capture", TimeSpan.FromSeconds(60), 8,
 			StateTestJsonContext.Default.Int64, static _ =>
@@ -405,6 +456,27 @@ public sealed class JobRegistryTests
 	}
 
 	[Fact]
+	public void Dispose_LuaJob_RunsItsBoundedStopHookBeforeTheActivationEnds()
+	{
+		StateTestHarness harness = new();
+		LuaJob<long> job = harness.Jobs.StartLua("capture", TimeSpan.FromSeconds(60), 16,
+			StateTestJsonContext.Default.Int64, static _ =>
+			{
+			});
+		harness.Answer<LuaJobStop>(source =>
+		{
+			Assert.Contains(job.Id, source, StringComparison.Ordinal);
+			return new LuaJobStop(true, true, true, "stopped");
+		});
+
+		harness.Jobs.Dispose();
+
+		Assert.Equal("mcp_job_stop", Assert.Single(harness.LuaCalls).Operation);
+		Assert.Equal(JobState.Stopped, job.State);
+		Assert.Equal((0, 0), (harness.Jobs.Count, harness.Resources.Count));
+	}
+
+	[Fact]
 	public void LuaJob_StopWithFailedCleanup_IsAPartialEffectThatNeedsManualRecovery()
 	{
 		StateTestHarness harness = new();
@@ -418,7 +490,8 @@ public sealed class JobRegistryTests
 			error = Assert.Throws<CheatEngineToolException>(() => harness.Jobs.Stop(job.Id, Token));
 
 		Assert.Equal((ToolErrorKind.PartialEffect, false), (error.Error.Kind, error.Error.Retryable));
-		Assert.Contains("breakpoint removal refused", error.Error.Message, StringComparison.Ordinal);
+		Assert.Contains(McpStateLedger.CleanupFailedMessage, error.Error.Message, StringComparison.Ordinal);
+		Assert.DoesNotContain("breakpoint removal refused", error.Error.Message, StringComparison.Ordinal);
 		Assert.True(error.Error.Details!.Value.GetProperty("release").GetProperty("requiresManualRecovery")
 			.GetBoolean());
 		Assert.Equal(ToolErrorKind.NotFound, Refusal(() => harness.Jobs.Stop(job.Id, Token)).Kind);

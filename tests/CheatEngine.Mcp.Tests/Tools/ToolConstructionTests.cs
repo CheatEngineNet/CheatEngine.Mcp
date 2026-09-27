@@ -1,9 +1,11 @@
 using System.Reflection;
 
 using CheatEngine.Client;
+using CheatEngine.Mcp.Core.Files;
 using CheatEngine.Mcp.Core.Jobs;
 using CheatEngine.Mcp.Tests.Support;
-using CheatEngine.Mcp.Tools;
+using CheatEngine.Mcp.Tools.Processes;
+using CheatEngine.Mcp.Tools.Scan;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -23,8 +25,9 @@ public sealed class ToolConstructionTests
 			accessed.Add(method.Name);
 			throw new NotSupportedException($"Tool construction must not use Client member {method.Name}.");
 		});
-		Type[] toolTypes = typeof(CheatEngineToolsBuilderExtensions).Assembly.GetTypes()
-			.Where(static type => type.GetCustomAttribute<McpServerToolTypeAttribute>() is not null)
+		Type[] toolTypes = TestComposition.BackendManifest.Primitives
+			.Where(static primitive => primitive.Kind == CheatEngineMcpPrimitiveKind.Tool)
+			.Select(static primitive => primitive.Type)
 			.OrderBy(static type => type.FullName, StringComparer.Ordinal)
 			.ToArray();
 
@@ -32,11 +35,10 @@ public sealed class ToolConstructionTests
 		McpPrimitiveTargets targets = activation.Targets;
 		Assert.NotNull(activation.Module);
 
-		// Every tool container in the assembly is composed, whichever domains have replaced their legacy tools.
-		Assert.Equal(toolTypes, TestComposition.BackendManifest.Primitives
-			.Where(static primitive => primitive.Kind == CheatEngineMcpPrimitiveKind.Tool)
-			.Select(static primitive => primitive.Type).OrderBy(static type => type.FullName, StringComparer.Ordinal));
-		Assert.All(toolTypes, type => Assert.IsType(type, targets.Get(type)));
+		// Every registered tool container can be constructed without touching the Client.
+		Assert.All(toolTypes.Where(static type => type.GetMethods(BindingFlags.Public | BindingFlags.Instance)
+				.Any(static method => method.GetCustomAttribute<McpServerToolAttribute>() is not null)),
+			type => Assert.IsType(type, targets.Get(type)));
 		activation.DisposeScope();
 		Assert.Empty(accessed);
 	}
@@ -47,23 +49,23 @@ public sealed class ToolConstructionTests
 		using TestActivation activation = new(ClientTestDouble.Client());
 		TargetTransitionGuards guards = activation.Services.GetRequiredService<TargetTransitionGuards>();
 
-		// Every guard is consulted: retained resources and orphans, active debugger jobs and the running main scan.
-		Assert.Equal([typeof(TargetResources), typeof(LuaDebuggerCaptureGuard), typeof(MainScannerTransitionGuard)],
+		// Every guard is consulted: retained resources and jobs, plus the running main scan.
+		Assert.Equal([typeof(TargetResources), typeof(MainScannerTransitionGuard)],
 			guards.Guards.Select(static guard => guard.GetType()).ToArray());
 		Assert.Same(activation.Services.GetRequiredService<TargetResources>(), guards.Guards[0]);
-		Assert.Same(activation.Services.GetRequiredService<LuaDebuggerCaptureGuard>(), guards.Guards[1]);
+		Assert.IsType<MainScannerTransitionGuard>(guards.Guards[1]);
 		Assert.Same(activation.Services.GetRequiredService<JobRegistry>(),
 			activation.Services.GetRequiredService<JobRegistry>());
 		Assert.Same(activation.Services.GetRequiredService<McpStateLedger>(),
 			activation.Services.GetRequiredService<TargetResources>().Ledger);
-		foreach (Type type in new[] { typeof(ProcessTool), typeof(LuaProcessTool) })
-		{
-			Assert.Same(guards, type.GetField("_guards", BindingFlags.Instance | BindingFlags.NonPublic)!
-				.GetValue(activation.Targets.Get(type)));
-		}
+		Assert.Same(guards, typeof(ProcessTools).GetField("_guards", BindingFlags.Instance | BindingFlags.NonPublic)!
+			.GetValue(activation.Targets.Get(typeof(ProcessTools))));
 
 		Assert.Same(activation.Services.GetRequiredService<TargetResources>(),
-			typeof(ProcessTool).GetField("_targetResources", BindingFlags.Instance | BindingFlags.NonPublic)!
-				.GetValue(activation.Targets.Get(typeof(ProcessTool))));
+			typeof(ProcessTools).GetField("_resources", BindingFlags.Instance | BindingFlags.NonPublic)!
+				.GetValue(activation.Targets.Get(typeof(ProcessTools))));
+		Assert.Same(activation.Services.GetRequiredService<McpFilePaths>(),
+			typeof(ProcessTools).GetField("_files", BindingFlags.Instance | BindingFlags.NonPublic)!
+				.GetValue(activation.Targets.Get(typeof(ProcessTools))));
 	}
 }

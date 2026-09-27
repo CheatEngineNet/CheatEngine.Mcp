@@ -76,7 +76,7 @@ internal sealed partial class McpBackendHost(
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 		{
-			LogDiscoveryWithdrawalFailed(Logger, exception);
+			LogDiscoveryWithdrawalFailed(Logger, exception.GetType().Name);
 		}
 	}
 
@@ -114,7 +114,7 @@ internal sealed partial class McpBackendHost(
 		// Cheat Engine owns the process lifetime and Client Hosting owns the activation's.
 		builder.Services.AddSingleton<IHostLifetime, ActivationHostLifetime>();
 		// The web container never disposes this instance registration; StopCoreAsync does, after the host stopped.
-		builder.Logging.SetMinimumLevel(logging.MinimumLevel).AddProvider(_logProvider);
+		builder.Logging.SetMinimumLevel(logging.MinimumLevel).AddProvider(_logProvider).AddTokenSafeFloor();
 		// The transport container holds no Client service and no primitive instance: tools are borrowed from the
 		// activation scope, so HTTP can never construct another Client activation or dispose activation state.
 		builder.Services.AddMcpServer(server =>
@@ -189,7 +189,7 @@ internal sealed partial class McpBackendHost(
 		}
 		catch (Exception exception)
 		{
-			LogListenerShutdownFailed(Logger, exception);
+			LogListenerShutdownFailed(Logger, exception.GetType().Name);
 		}
 		finally
 		{
@@ -199,7 +199,7 @@ internal sealed partial class McpBackendHost(
 			}
 			catch (Exception exception)
 			{
-				LogHostDisposalFailed(Logger, exception);
+				LogHostDisposalFailed(Logger, exception.GetType().Name);
 			}
 			finally
 			{
@@ -209,12 +209,12 @@ internal sealed partial class McpBackendHost(
 	}
 
 	[LoggerMessage(Level = LogLevel.Warning,
-		Message = "Could not withdraw instance discovery; the stopped backend will reject calls.")]
-	private static partial void LogDiscoveryWithdrawalFailed(ILogger logger, Exception exception);
+		Message = "Could not withdraw instance discovery ({FailureType}); the stopped backend will reject calls.")]
+	private static partial void LogDiscoveryWithdrawalFailed(ILogger logger, string failureType);
 
-	[LoggerMessage(Level = LogLevel.Warning, Message = "MCP listener shutdown failed.")]
-	private static partial void LogListenerShutdownFailed(ILogger logger, Exception exception);
+	[LoggerMessage(Level = LogLevel.Warning, Message = "MCP listener shutdown failed ({FailureType}).")]
+	private static partial void LogListenerShutdownFailed(ILogger logger, string failureType);
 
-	[LoggerMessage(Level = LogLevel.Warning, Message = "MCP host disposal failed.")]
-	private static partial void LogHostDisposalFailed(ILogger logger, Exception exception);
+	[LoggerMessage(Level = LogLevel.Warning, Message = "MCP host disposal failed ({FailureType}).")]
+	private static partial void LogHostDisposalFailed(ILogger logger, string failureType);
 }

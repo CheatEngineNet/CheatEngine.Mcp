@@ -107,7 +107,8 @@
       "cheatengine.mcp.resources": {
         "type": "Project",
         "dependencies": {
-          "CheatEngine.Mcp.Core": "[2.0.0, )"
+          "CheatEngine.Mcp.Core": "[2.0.0, )",
+          "CheatEngine.Mcp.Tools": "[2.0.0, )"
         }
       },
       "cheatengine.mcp.tools": {

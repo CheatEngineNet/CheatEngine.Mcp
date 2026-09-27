@@ -186,18 +186,19 @@ internal sealed class ModuleSymbolTarget
 		get;
 	} = [];
 
+	internal int TotalClientCalls => _calls.Values.Sum();
+
 	internal int Calls(string member)
 	{
 		return _calls.GetValueOrDefault(member);
 	}
 
-	internal int TotalClientCalls => _calls.Values.Sum();
-
 	internal static ToolDispatch CreateDispatch(ICheatEngineClient client)
 	{
 		IOptions<McpExecutionOptions> options = Options.Create(new McpExecutionOptions());
 		return new ToolDispatch(client, new McpFeatureGate(Options.Create(new McpFeatureOptions())), options,
-			new DispatchStatistics(options), TimeProvider.System, new RecordingLogger<ToolDispatch>());
+			new DispatchStatistics(options), TimeProvider.System, new RecordingLogger<ToolDispatch>(),
+			new PluginFixedLuaExecutor(client));
 	}
 
 	internal ModuleInfo AddModule(string name, ulong baseAddress, ulong size, string path = "C:\\Games\\Game\\game.exe")
@@ -228,12 +229,14 @@ internal sealed class ModuleSymbolTarget
 					InspectionCollectionRequest request = (InspectionCollectionRequest) arguments[0]!;
 					if (!Attached && arguments[1] is null)
 					{
-						return Fail(arguments, 3, CheatEngineFailureKind.TargetNotAttached, ImmutableArray<ModuleInfo>.Empty);
+						return Fail(arguments, 3, CheatEngineFailureKind.TargetNotAttached,
+							ImmutableArray<ModuleInfo>.Empty);
 					}
 
 					if (Modules.Count > request.MaximumItems)
 					{
-						return Fail(arguments, 3, CheatEngineFailureKind.ResultLimitExceeded, ImmutableArray<ModuleInfo>.Empty);
+						return Fail(arguments, 3, CheatEngineFailureKind.ResultLimitExceeded,
+							ImmutableArray<ModuleInfo>.Empty);
 					}
 
 					arguments[2] = Modules.ToImmutableArray();

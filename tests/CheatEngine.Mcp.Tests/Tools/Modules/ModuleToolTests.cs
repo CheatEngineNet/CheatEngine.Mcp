@@ -11,6 +11,15 @@ public sealed class ModuleToolTests
 {
 	private static CancellationToken Token => TestContext.Current.CancellationToken;
 
+	public static TheoryData<int?, string?, int, int, ToolErrorKind> RefusedListArguments => new()
+	{
+		{ 0, null, 0, 200, ToolErrorKind.InvalidArgument },
+		{ null, new string('a', 257), 0, 200, ToolErrorKind.InvalidArgument },
+		{ null, null, -1, 200, ToolErrorKind.InvalidArgument },
+		{ null, null, 0, 0, ToolErrorKind.InvalidArgument },
+		{ null, null, 0, 1001, ToolErrorKind.LimitExceeded }
+	};
+
 	[Fact]
 	public void List_AttachedProcess_PagesTheFilteredModulesInBothFormats()
 	{
@@ -21,11 +30,12 @@ public sealed class ModuleToolTests
 		ModuleTools tools = new(target.Dispatch);
 
 		ModuleList concise = tools.List(nameContains: "MONO", limit: 1, cancellationToken: Token);
-		ModuleList detailed = tools.List(nameContains: "mono", offset: 1, format: ResultFormat.Detailed, cancellationToken: Token);
+		ModuleList detailed = tools.List(nameContains: "mono", offset: 1, format: ResultFormat.Detailed,
+			cancellationToken: Token);
 
 		Assert.Equal((ModuleSymbolTarget.ProcessId, 2, 1), (concise.ProcessId, concise.Total, concise.NextOffset));
 		ModuleEntry first = Assert.Single(concise.Modules);
-		Assert.Equal(new ModuleEntry("mono-2.0-bdwgc.dll", "7FFA00000000", 0x20000, null, null), first);
+		Assert.Equal(new ModuleEntry("mono-2.0-bdwgc.dll", "7FFA00000000", 0x20000), first);
 		Assert.Null(detailed.NextOffset);
 		Assert.Equal(new ModuleEntry("MonoBleedingEdge.dll", "7FFB00000000", 0x1000, true, "C:\\Games\\Game\\game.exe"),
 			Assert.Single(detailed.Modules));
@@ -41,7 +51,7 @@ public sealed class ModuleToolTests
 		};
 		target.AddModule("other.exe", 0x400000, 0x1000);
 
-		ModuleList list = new ModuleTools(target.Dispatch).List(processId: 77, cancellationToken: Token);
+		ModuleList list = new ModuleTools(target.Dispatch).List(77, cancellationToken: Token);
 
 		Assert.Equal(77, list.ProcessId);
 		Assert.Equal(0, target.Calls("GetCurrentProcess"));
@@ -77,15 +87,6 @@ public sealed class ModuleToolTests
 		Assert.Equal(ToolErrorKind.NotAttached, exception.Error.Kind);
 	}
 
-	public static TheoryData<int?, string?, int, int, ToolErrorKind> RefusedListArguments => new()
-	{
-		{ 0, null, 0, 200, ToolErrorKind.InvalidArgument },
-		{ null, new string('a', 257), 0, 200, ToolErrorKind.InvalidArgument },
-		{ null, null, -1, 200, ToolErrorKind.InvalidArgument },
-		{ null, null, 0, 0, ToolErrorKind.InvalidArgument },
-		{ null, null, 0, 1001, ToolErrorKind.LimitExceeded }
-	};
-
 	[Theory]
 	[MemberData(nameof(RefusedListArguments))]
 	public void List_RefusedArgument_NeverDispatches(int? processId, string? nameContains, int offset, int limit,
@@ -106,7 +107,7 @@ public sealed class ModuleToolTests
 	{
 		ModuleSymbolTarget target = LoadedSample();
 
-		ModuleDetails details = new ModuleTools(target.Dispatch).Get("SAMPLE.dll", cancellationToken: Token);
+		ModuleDetails details = new ModuleTools(target.Dispatch).Get("SAMPLE.dll", Token);
 
 		Assert.Equal(("sample.dll", "7FFA00000000", 0x6000L, true), (details.Name, details.Base, details.Size,
 			details.Is64Bit));
@@ -131,7 +132,7 @@ public sealed class ModuleToolTests
 		ModuleSymbolTarget target = LoadedSample();
 		target.Addresses["sample.dll+4010"] = SampleModule.LoadedBase + 0x4010;
 
-		Assert.Equal("sample.dll", new ModuleTools(target.Dispatch).Get("sample.dll+4010", cancellationToken: Token).Name);
+		Assert.Equal("sample.dll", new ModuleTools(target.Dispatch).Get("sample.dll+4010", Token).Name);
 	}
 
 	[Fact]
@@ -140,7 +141,7 @@ public sealed class ModuleToolTests
 		ModuleSymbolTarget target = LoadedSample();
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			new ModuleTools(target.Dispatch).Get("missing.dll", cancellationToken: Token));
+			new ModuleTools(target.Dispatch).Get("missing.dll", Token));
 
 		Assert.Equal(ToolErrorKind.NotFound, exception.Error.Kind);
 		Assert.Contains("module_list", exception.Error.Hint, StringComparison.Ordinal);
@@ -153,7 +154,7 @@ public sealed class ModuleToolTests
 		ModuleSymbolTarget target = LoadedSample();
 		target.UnreadablePages.Add(SampleModule.LoadedBase);
 
-		ModuleDetails details = new ModuleTools(target.Dispatch).Get("sample.dll", cancellationToken: Token);
+		ModuleDetails details = new ModuleTools(target.Dispatch).Get("sample.dll", Token);
 
 		Assert.Null(details.Pe);
 		Assert.Equal(2, details.Sections.Length);
@@ -169,7 +170,7 @@ public sealed class ModuleToolTests
 		ModuleSymbolTarget target = new();
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			new ModuleTools(target.Dispatch).Get(module, cancellationToken: Token));
+			new ModuleTools(target.Dispatch).Get(module, Token));
 
 		Assert.Equal(ToolErrorKind.InvalidArgument, exception.Error.Kind);
 		Assert.Equal(0, target.Dispatcher.Calls);
@@ -182,7 +183,7 @@ public sealed class ModuleToolTests
 		ModuleExportTools tools = new(target.Dispatch);
 
 		ExportList all = tools.ListExports("sample.dll", cancellationToken: Token);
-		ExportList filtered = tools.ListExports("sample.dll", "a", 1, 1, cancellationToken: Token);
+		ExportList filtered = tools.ListExports("sample.dll", "a", 1, 1, Token);
 
 		Assert.Equal(("sample.dll", 4, (int?) null), (all.Module, all.Total, all.NextOffset));
 		ModuleExport[] expected =
@@ -232,7 +233,7 @@ public sealed class ModuleToolTests
 		ModuleSymbolTarget target = LoadedSample();
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			new ModuleExportTools(target.Dispatch).ListExports("sample.dll", null, offset, limit, cancellationToken: Token));
+			new ModuleExportTools(target.Dispatch).ListExports("sample.dll", null, offset, limit, Token));
 
 		Assert.Equal(kind, exception.Error.Kind);
 		Assert.Equal(0, target.Dispatcher.Calls);
@@ -250,7 +251,8 @@ public sealed class ModuleToolTests
 		ModuleInfo module = target.AddModule("sample.dll", SampleModule.LoadedBase, pe.SizeOfImage, path);
 		target.Sections[module.Name] =
 		[
-			new ModuleSectionInfo(".data", new MemorySize(0x200), new Address(SampleModule.LoadedBase + SampleModule.DataRva),
+			new ModuleSectionInfo(".data", new MemorySize(0x200),
+				new Address(SampleModule.LoadedBase + SampleModule.DataRva),
 				new ModuleFileOffset(0x600)),
 			new ModuleSectionInfo(".text", new MemorySize(0x2000),
 				new Address(SampleModule.LoadedBase + SampleModule.TextRva), new ModuleFileOffset(0xA00))

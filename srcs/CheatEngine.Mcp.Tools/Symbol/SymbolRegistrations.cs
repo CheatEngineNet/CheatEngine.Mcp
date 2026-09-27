@@ -134,7 +134,10 @@ public sealed class SymbolRegistrations
 /// <param name="Lease">The Client lease that owns it.</param>
 /// <param name="Resource">The resource that tracks the lease.</param>
 /// <param name="DoNotSave">Whether saved tables omit it.</param>
-internal sealed record OwnedSymbol(string Name, ISymbolRegistrationLease Lease, ITargetResource Resource,
+internal sealed record OwnedSymbol(
+	string Name,
+	ISymbolRegistrationLease Lease,
+	ITargetResource Resource,
 	bool DoNotSave);
 
 /// <summary>Why a name could not be reserved.</summary>

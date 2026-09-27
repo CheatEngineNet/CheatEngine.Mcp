@@ -100,8 +100,8 @@ public sealed class ModuleExportTools
 	internal static CheatEngineToolException Malformed(ModuleInfo module, InvalidDataException exception)
 	{
 		return new CheatEngineToolException(new ToolError(ToolErrorKind.InvalidState,
-			$"The mapped PE image of {module.Name} is malformed or unreadable: {exception.Message}", null,
-			ToolHostEffect.Completed, false, "Check that the module is fully loaded, or read it with memory_read."),
+				$"The mapped PE image of {module.Name} is malformed or unreadable: {exception.Message}", null,
+				ToolHostEffect.Completed, false, "Check that the module is fully loaded, or read it with memory_read."),
 			exception);
 	}
 }

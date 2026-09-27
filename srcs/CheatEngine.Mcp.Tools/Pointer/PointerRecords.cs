@@ -303,7 +303,8 @@ public sealed record PointerPathPage(
 /// <param name="ResourceId">The tracked resource that still holds the scan.</param>
 /// <param name="Retryable">Whether releasing it again may succeed.</param>
 public sealed record PointerCleanupDetails(
-	[property: Description("The resource that still holds the temporary scan; release it with runtime_release_resources.")]
+	[property:
+		Description("The resource that still holds the temporary scan; release it with runtime_release_resources.")]
 	string ResourceId,
 	[property: Description("Whether releasing it again may succeed.")]
 	bool Retryable);

@@ -1,12 +1,26 @@
+using System.Collections.Immutable;
 using System.ComponentModel.DataAnnotations;
+using System.Reflection;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
+using CheatEngine.Client.Inspection;
 using CheatEngine.Mcp.Prompts;
 using CheatEngine.Mcp.Resources;
 using CheatEngine.Mcp.Resources.Docs;
 using CheatEngine.Mcp.Resources.Knowledge;
+using CheatEngine.Mcp.Resources.Live;
 using CheatEngine.Mcp.Tests.Support;
+using CheatEngine.Mcp.Tests.Tools.Memory;
+using CheatEngine.Mcp.Tests.Tools.Modules;
+using CheatEngine.Mcp.Tests.Tools.Structures;
+using CheatEngine.Mcp.Tools.Memory;
+using CheatEngine.Mcp.Tools.Modules;
+using CheatEngine.Mcp.Tools.Structures;
+using CheatEngine.SDK.Engine.Enums;
+using CheatEngine.SDK.Engine.Inspection;
+using CheatEngine.SDK.Engine.Values;
 
 using ModelContextProtocol;
 using ModelContextProtocol.Client;
@@ -17,7 +31,7 @@ namespace CheatEngine.Mcp.Tests.Resources;
 /// <summary>The embedded knowledge documents and workflow bodies, and how every host serves them.</summary>
 public sealed partial class KnowledgeResourceTests
 {
-	private const int DocumentBudgetBytes = 16 * 1024;
+	private const int DocumentBudgetBytes = 24 * 1024;
 	private const int TotalBudgetBytes = 200 * 1024;
 
 	/// <summary>Reference files that stay in the skill only: local notes and the legacy files P6 removes.</summary>
@@ -25,6 +39,13 @@ public sealed partial class KnowledgeResourceTests
 	[
 		"local-cheat-engine", "local-cheat-engine.example", "address-list-and-speedhack", "lua-execution",
 		"scanning-and-debugging", "tool-catalog"
+	];
+
+	private static readonly string[] LiveResourceUris =
+	[
+		"cheatengine://instance/memory/regions", "cheatengine://instance/modules",
+		"cheatengine://instance/process", "cheatengine://instance/records", "cheatengine://instance/runtime",
+		"cheatengine://instance/structures"
 	];
 
 	private static string ReferencesFolder => Path.Combine(RepositoryPaths.Root, "skills", "cheatengine-mcp",
@@ -76,7 +97,8 @@ public sealed partial class KnowledgeResourceTests
 		McpPrimitiveCatalog catalog = McpPrimitiveCatalog.Create(KnowledgeManifest);
 
 		Assert.Equal(CheatEngineKnowledge.DocumentSlugs.Select(McpResourceUris.Doc).Order(StringComparer.Ordinal),
-			catalog.Resources.Select(static resource => resource.Uri).Order(StringComparer.Ordinal));
+			catalog.LocalResources.Where(static resource => resource.Resource is not null)
+				.Select(static resource => resource.Resource!.Uri).Order(StringComparer.Ordinal));
 		foreach (string slug in CheatEngineKnowledge.DocumentSlugs)
 		{
 			Resource resource = Assert.Single(catalog.Resources,
@@ -90,7 +112,8 @@ public sealed partial class KnowledgeResourceTests
 		}
 
 		Assert.All(catalog.LocalResources, static entry => Assert.Equal(McpPrimitiveRouting.Local, entry.Routing));
-		Assert.Empty(catalog.InstanceResources);
+		Assert.Equal(LiveResourceUris,
+			catalog.InstanceResources.Select(static resource => resource.Template.UriTemplate));
 		ResourceTemplate template = Assert.Single(catalog.ResourceTemplates);
 		Assert.Equal("cheatengine://docs/workflows/{workflow}", template.UriTemplate);
 		Assert.Equal(McpResourceUris.MarkdownMimeType, template.MimeType);
@@ -163,7 +186,10 @@ public sealed partial class KnowledgeResourceTests
 		ReadResourceResult workflow = await pipeline.Client.ReadResourceAsync(
 			McpResourceUris.Workflow("find-writer"), cancellationToken: TestContext.Current.CancellationToken);
 
-		Assert.Equal(18, resources.Count);
+		Assert.Equal(CheatEngineKnowledge.DocumentSlugs.Select(McpResourceUris.Doc).Order(StringComparer.Ordinal),
+			resources.Where(static resource => McpResourceUris.IsDocs(resource.Uri))
+				.Select(static resource => resource.Uri)
+				.Order(StringComparer.Ordinal));
 		TextResourceContents text = Assert.IsType<TextResourceContents>(Assert.Single(safety.Contents));
 		Assert.Equal(McpResourceUris.Doc("safety"), text.Uri);
 		Assert.Equal(McpResourceUris.MarkdownMimeType, text.MimeType);
@@ -173,6 +199,79 @@ public sealed partial class KnowledgeResourceTests
 		TextResourceContents body = Assert.IsType<TextResourceContents>(Assert.Single(workflow.Contents));
 		Assert.Equal(McpResourceUris.Workflow("find-writer"), body.Uri);
 		Assert.StartsWith("# Find what writes or accesses an address", body.Text, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void LiveResources_AreInstanceProjectionsAndHaveGatewayForms()
+	{
+		McpPrimitiveCatalog catalog = McpPrimitiveCatalog.Create(KnowledgeManifest);
+
+		Assert.Equal(LiveResourceUris,
+			catalog.InstanceResources.Select(static resource => resource.Template.UriTemplate));
+		Assert.All(catalog.InstanceResources,
+			static resource => Assert.Equal(McpPrimitiveRouting.Instance, resource.Routing));
+		Assert.Equal(LiveResourceUris.Select(uri => McpResourceUris.ToGateway(uri, "{instanceId}")),
+			catalog.InstanceResources.Select(static resource =>
+				McpResourceUris.ToGateway(resource.Template.UriTemplate, "{instanceId}")));
+	}
+
+	[Fact]
+	public void LiveModules_ProjectsTheDefaultModuleList()
+	{
+		ModuleSymbolTarget target = new();
+		target.AddModule("game.exe", 0x140000000, 0x5000);
+		ModuleLiveResources resources = new(new ModuleTools(target.Dispatch));
+
+		ReadResourceResult result = resources.Modules(TestContext.Current.CancellationToken);
+
+		TextResourceContents contents = Assert.IsType<TextResourceContents>(Assert.Single(result.Contents));
+		Assert.Equal("cheatengine://instance/modules", contents.Uri);
+		Assert.Equal(McpResourceUris.JsonMimeType, contents.MimeType);
+		Assert.Equal(JsonSerializer.Serialize(new ModuleList(ModuleSymbolTarget.ProcessId, 1,
+			[new ModuleEntry("game.exe", "140000000", 0x5000)]), ModuleJsonContext.Default.ModuleList), contents.Text);
+		Assert.Equal(TimeSpan.Zero, result.TimeToLive);
+		Assert.Equal(CacheScope.Private, result.CacheScope);
+	}
+
+	[Fact]
+	public void LiveMemoryRegions_ProjectsTheDefaultRegionList()
+	{
+		TargetDouble target = new()
+		{
+			Inspection = LiveResourceInspection.Regions
+		};
+		MemoryLiveResources resources = new(new MemoryInfoTools(target.Dispatch));
+
+		ReadResourceResult result = resources.Regions(TestContext.Current.CancellationToken);
+
+		TextResourceContents contents = Assert.IsType<TextResourceContents>(Assert.Single(result.Contents));
+		Assert.Equal("cheatengine://instance/memory/regions", contents.Uri);
+		using JsonDocument json = JsonDocument.Parse(contents.Text);
+		Assert.Equal(1, json.RootElement.GetProperty("total").GetInt32());
+		Assert.Equal(("401000", "committed"), (
+			json.RootElement.GetProperty("regions")[0].GetProperty("base").GetString(),
+			json.RootElement.GetProperty("regions")[0].GetProperty("state").GetString()));
+		Assert.False(json.RootElement.TryGetProperty("nextOffset", out _));
+	}
+
+	[Fact]
+	public void LiveStructures_ProjectsTheDefaultStructureList()
+	{
+		StructureToolHarness target = new()
+		{
+			Lua = static call => call.Runs(StructureLuaScripts.List)
+				? """{"structures":[{"name":"Player","size":16,"elementCount":2}],"total":1,"truncated":false}"""
+				: null
+		};
+		StructureLiveResources resources = new(new StructureTools(target.Dispatch));
+
+		ReadResourceResult result = resources.Structures(TestContext.Current.CancellationToken);
+
+		TextResourceContents contents = Assert.IsType<TextResourceContents>(Assert.Single(result.Contents));
+		Assert.Equal("cheatengine://instance/structures", contents.Uri);
+		Assert.Equal(JsonSerializer.Serialize(
+			new StructurePage([new StructureSummary("Player", 16, 2)], 1, null, false),
+			StructuresJsonContext.Default.StructurePage), contents.Text);
 	}
 
 	[Theory]
@@ -233,4 +332,20 @@ public sealed partial class KnowledgeResourceTests
 
 	[GeneratedRegex(@"\]\((?<target>[^)\s]+)\)", RegexOptions.CultureInvariant)]
 	private static partial Regex MarkdownLink();
+
+	private static class LiveResourceInspection
+	{
+		internal static object? Regions(MethodInfo method, object?[] _)
+		{
+			return method.Name switch
+			{
+				nameof(IInspectionClient.GetModules) => ImmutableArray<ModuleInfo>.Empty,
+				nameof(IInspectionClient.GetMemoryRegions) => ImmutableArray.Create(new MemoryRegionInfo(
+					new Address(0x401000), new Address(0x401000), MemoryProtection.ReadWrite,
+					new MemorySize(0x1000), MemoryRegionState.Committed, MemoryProtection.ReadWrite,
+					MemoryRegionType.Private, null)),
+				_ => throw new InvalidOperationException($"Unexpected inspection call {method.Name}.")
+			};
+		}
+	}
 }

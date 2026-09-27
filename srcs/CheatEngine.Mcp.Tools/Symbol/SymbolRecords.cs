@@ -20,7 +20,8 @@ public sealed record SymbolResolveResult(
 public sealed record SymbolResolution(
 	[property: Description("The expression as given.")]
 	string Expression,
-	[property: Description("The resolved address as uppercase hexadecimal without 0x; omitted when it did not resolve.")]
+	[property:
+		Description("The resolved address as uppercase hexadecimal without 0x; omitted when it did not resolve.")]
 	string? Address = null,
 	[property: Description(
 		"Cheat Engine's best name for the address: a registered symbol, module.export or module+offset.")]
@@ -108,7 +109,8 @@ public sealed record RegisteredSymbolList(
 public sealed record RegisteredSymbolEntry(
 	[property: Description("The symbol name.")]
 	string Name,
-	[property: Description("Whether this plugin activation registered it (symbol_register); only those can be unregistered.")]
+	[property:
+		Description("Whether this plugin activation registered it (symbol_register); only those can be unregistered.")]
 	bool OwnedByMcp,
 	[property: Description("The address it names, as uppercase hexadecimal without 0x.")]
 	string? Address = null,
@@ -152,6 +154,9 @@ public sealed record SymbolModuleLoad(
 	string Base,
 	[property: Description("Whether PDB structures were enumerated for structure_get_pdb_layout.")]
 	bool EnumStructures);
+
+/// <summary>The requested system symbol sources enabled in Cheat Engine.</summary>
+public sealed record SymbolSourcesEnabled(bool WindowsEnabled, bool KernelEnabled, bool ExternalAccess);
 
 /// <summary>Which symbols <c>symbol_reload</c> reloads; the wire value is the <c>snake_case</c> member name.</summary>
 [JsonConverter(typeof(ContractEnumConverter<SymbolReloadScope>))]

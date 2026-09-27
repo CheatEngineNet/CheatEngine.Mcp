@@ -77,7 +77,14 @@ internal static partial class WindowsAnchoredFiles
 	internal static SafeFileHandle CreateNewFile(SafeFileHandle directory, string name)
 	{
 		return OpenRelative(directory, name, FileWriteData | Delete | Synchronize, FileCreate,
-			FileNonDirectoryFile | FileSynchronousIoNonAlert, shareAccess: 0);
+			FileNonDirectoryFile | FileSynchronousIoNonAlert, 0);
+	}
+
+	/// <summary>Reopens one direct child for an exclusive anchored rename or cleanup operation.</summary>
+	internal static SafeFileHandle OpenExistingFile(SafeFileHandle directory, string name)
+	{
+		return OpenRelative(directory, name, Delete | Synchronize, FileOpen,
+			FileNonDirectoryFile | FileSynchronousIoNonAlert, 0);
 	}
 
 	/// <summary>Renames a file handle into a direct child of <paramref name="directory" />.</summary>
@@ -157,7 +164,7 @@ internal static partial class WindowsAnchoredFiles
 				throw new WindowsFileException("A secure file operation was refused.", status);
 			}
 
-			SafeFileHandle handle = new(rawHandle, ownsHandle: true);
+			SafeFileHandle handle = new(rawHandle, true);
 			if (handle.IsInvalid)
 			{
 				handle.Dispose();
@@ -188,7 +195,7 @@ internal static partial class WindowsAnchoredFiles
 			return;
 		}
 
-		using SafeFileHandle handle = new(rawHandle, ownsHandle: true);
+		using SafeFileHandle handle = new(rawHandle, true);
 	}
 
 	[LibraryImport("kernel32.dll", EntryPoint = "CreateFileW", SetLastError = true,

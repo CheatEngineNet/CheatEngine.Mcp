@@ -28,8 +28,8 @@ namespace CheatEngine.Mcp.Core.Jobs;
 ///     </para>
 ///     <para>
 ///         The registry's lock is never held while a job starts, a dispatch runs or a Client call is made. Disposing it,
-///         as the activation ends, only asks managed jobs to stop; it never waits for them, and Lua jobs end by their TTL
-///         in Cheat Engine's Lua without any Client call.
+///         as the activation ends, asks managed jobs to stop without waiting and runs each Lua job's bounded stop hook
+///         once through the Client dispatcher. A failed Lua cleanup remains recorded for recovery by the next activation.
 ///     </para>
 /// </remarks>
 public sealed class JobRegistry : IDisposable
@@ -93,7 +93,7 @@ public sealed class JobRegistry : IDisposable
 		}
 	}
 
-	/// <summary>Asks every managed job to stop without waiting for any, as the activation ends.</summary>
+	/// <summary>Stops Lua jobs through their fixed cleanup script and asks managed jobs to stop without waiting.</summary>
 	public void Dispose()
 	{
 		McpJob[] jobs;
@@ -110,7 +110,25 @@ public sealed class JobRegistry : IDisposable
 
 		foreach (McpJob job in jobs)
 		{
-			job.CancelWithoutJoin();
+			if (job is not ILuaStateBacked)
+			{
+				job.CancelWithoutJoin();
+				continue;
+			}
+
+			try
+			{
+				ResourceReleaseOutcome outcome = _dispatch.Client.Dispatcher.Invoke(
+					() => job.Release(CancellationToken.None), CancellationToken.None);
+				if (!outcome.IsRetryable)
+				{
+					Remove(job, outcome.IsComplete);
+				}
+			}
+			catch
+			{
+				// The activation is ending. The Lua ledger remains for the next activation to list and recover.
+			}
 		}
 	}
 
@@ -175,8 +193,10 @@ public sealed class JobRegistry : IDisposable
 	///     held, to create the job in Cheat Engine: usually one dispatch whose fixed script prepends
 	///     <see cref="LuaJobKernelScripts.Strategies" /> and calls <c>jobStart(a[1], a[2], kind, a[3], a[4], setup)</c> with
 	///     the
-	///     arguments of <see cref="JobStart" />. When <paramref name="start" /> throws, the slot is freed and nothing is
-	///     tracked; a Lua job it created anyway ends by its TTL.
+	///     arguments of <see cref="JobStart" />. When <paramref name="start" /> throws after creating Lua state, the
+	///     registry immediately stops it through the Client dispatcher with an activation-independent cancellation token
+	///     before freeing the slot; a failed cleanup stays in the
+	///     ledger for <c>runtime_list_resources</c> and manual recovery.
 	/// </summary>
 	/// <typeparam name="TItem">The item type.</typeparam>
 	/// <param name="kind">The job kind, a lowercase identifier of at most 32 characters, such as <c>capture</c>.</param>
@@ -205,7 +225,26 @@ public sealed class JobRegistry : IDisposable
 		}
 		catch
 		{
-			Unreserve();
+			ResourceReleaseOutcome cleanup;
+			try
+			{
+				cleanup = _dispatch.Client.Dispatcher.Invoke(
+					() => job.Release(CancellationToken.None), CancellationToken.None);
+			}
+			catch
+			{
+				throw StartCleanupFailed(job, ToolHostEffect.Unknown);
+			}
+			finally
+			{
+				Unreserve();
+			}
+
+			if (!cleanup.IsComplete)
+			{
+				throw StartCleanupFailed(job, cleanup.HostEffect, cleanup);
+			}
+
 			throw;
 		}
 
@@ -246,7 +285,7 @@ public sealed class JobRegistry : IDisposable
 		catch
 		{
 			// The job has an identity only internally: no caller saw it because its work never started.
-			Remove(job, tombstone: false);
+			Remove(job, false);
 			throw;
 		}
 
@@ -452,6 +491,18 @@ public sealed class JobRegistry : IDisposable
 		{
 			_reserved--;
 		}
+	}
+
+	private static CheatEngineToolException StartCleanupFailed(McpJob job, ToolHostEffect effect,
+		ResourceReleaseOutcome? outcome = null)
+	{
+		ResourceReleaseOutcome release = outcome ?? new ResourceReleaseOutcome(ResourceReleaseKind.CleanupUnconfirmed,
+			effect, false, false, true);
+		ReleasedResource details = new(job.Descriptor, release);
+		return CheatEngineToolException.PartialEffect(
+			$"The Lua job {job.Id} may have started, but its cleanup did not complete.", effect, details,
+			StateJsonContext.Default.ReleasedResource, false,
+			"Inspect it with runtime_list_resources, recover it if needed, then acknowledge it with runtime_release_resources.");
 	}
 
 	private void Register(McpJob job)

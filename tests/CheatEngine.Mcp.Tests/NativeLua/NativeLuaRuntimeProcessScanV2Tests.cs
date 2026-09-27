@@ -1,0 +1,234 @@
+using System.Reflection;
+
+using CheatEngine.Mcp.Core.Contract;
+using CheatEngine.Mcp.Core.Features;
+using CheatEngine.Mcp.Core.Files;
+using CheatEngine.Mcp.Tests.Support;
+using CheatEngine.Mcp.Tools.Processes;
+using CheatEngine.Mcp.Tools.Scan;
+
+namespace CheatEngine.Mcp.Tests.NativeLua;
+
+/// <summary>Native Lua coverage for fixed runtime, process and scanner v2 bodies.</summary>
+public sealed partial class NativeLuaToolRuntimeTests
+{
+	[Fact]
+	public void V2FixedLuaBodies_NeverLoadCallerCode()
+	{
+		IEnumerable<string> bodies = new[] { typeof(ProcessTools), typeof(ScanTools) }
+			.SelectMany(static type => type.GetFields(BindingFlags.NonPublic | BindingFlags.Static))
+			.Where(static field =>
+				field.FieldType == typeof(string) && field.Name.EndsWith("Script", StringComparison.Ordinal))
+			.Select(static field => (string) field.GetRawConstantValue()!);
+
+		Assert.NotEmpty(bodies);
+		foreach (string body in bodies)
+		{
+			LuaFixedScriptAssert.NeverLoadsCode(body);
+		}
+	}
+
+	[Fact]
+	public void ScanV2_MainScannerFirstReadResetAndStop_UseTypedBoundedResults()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallMainScanner();
+		ScanTools tools = new(CreateNativeDispatch(new McpFeatureOptions()), new TargetResources());
+
+		ScanStatusResult started = tools.First(value: "25", cancellationToken: Token);
+		Assert.Equal(("main", "ui", "Scanning"), (started.ScannerName, started.Mode, started.State));
+		Assert.Equal(1L, ReadGlobal("firstCalls"));
+		InstallStubs("complete(false)");
+		ScanResultsResult page = tools.ListResults(maximumResults: 2, cancellationToken: Token);
+		Assert.Equal(3UL, page.Count);
+		Assert.Equal(2, page.Results.Length);
+		Assert.Equal("0xABCD", page.Results[0].Address);
+		Assert.Equal("ResultsReady", tools.GetStatus(cancellationToken: Token).State);
+		Assert.Equal("Created", tools.Reset(cancellationToken: Token).Status!.State);
+
+		tools.First(value: "25", cancellationToken: Token);
+		InstallStubs(
+			"stopCalls=0; ms.terminate=function() stopCalls=stopCalls+1; ms.LastScanType='stNewScan'; f.btnNewScan.Enabled=true end");
+		ScanStopResult stopped = tools.Stop(cancellationToken: Token);
+		Assert.True(stopped.StopRequested);
+		Assert.Equal("Created", stopped.Status!.State);
+		Assert.Equal(1L, ReadGlobal("stopCalls"));
+	}
+
+	[Fact]
+	public void ScanV2_MainScannerTransitionGuard_RefusesTargetChangeWhileUiScanRuns()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallMainScanner();
+		InstallStubs("f.btnNewScan.Enabled=false");
+		ToolDispatch dispatch = CreateNativeDispatch(new McpFeatureOptions());
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			new MainScannerTransitionGuard(dispatch).EnsureCanChangeTarget(new TargetTransition(77, 88), Token));
+
+		Assert.Equal(ToolErrorKind.Busy, exception.Error.Kind);
+		Assert.Equal(ToolHostEffect.NotStarted, exception.Error.HostEffect);
+		Assert.Equal(ScanTools.MainScannerBusyMessage, exception.Error.Message);
+	}
+
+	[Theory]
+	[InlineData(true, "exact", "10", null, 0)]
+	[InlineData(true, "greater", "10", null, 1)]
+	[InlineData(true, "less", "10", null, 2)]
+	[InlineData(true, "between", "10", "20", 3)]
+	[InlineData(true, "unknown", null, null, 4)]
+	[InlineData(false, "exact", "10", null, 0)]
+	[InlineData(false, "greater", "10", null, 1)]
+	[InlineData(false, "less", "10", null, 2)]
+	[InlineData(false, "between", "10", "20", 3)]
+	[InlineData(false, "increased", null, null, 4)]
+	[InlineData(false, "increasedBy", "10", null, 5)]
+	[InlineData(false, "decreased", null, null, 6)]
+	[InlineData(false, "decreasedBy", "10", null, 7)]
+	[InlineData(false, "changed", null, null, 8)]
+	[InlineData(false, "unchanged", null, null, 9)]
+	public void ScanV2_MainScannerComparison_UsesTheExpectedNativeControlIndex(bool first, string comparison,
+		string? value, string? upperValue, long expectedIndex)
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallMainScanner();
+		using ScanTools tools = new(CreateNativeDispatch(new McpFeatureOptions()), new TargetResources());
+		if (!first)
+		{
+			InstallStubs("complete(false)");
+		}
+
+		ScanStatusResult status = first
+			? tools.First(value: value, comparison: comparison, upperValue: upperValue, cancellationToken: Token)
+			: tools.Next(value: value, comparison: comparison, upperValue: upperValue, cancellationToken: Token);
+
+		Assert.Equal("Scanning", status.State);
+		Assert.Equal(expectedIndex, ReadGlobal("requestedComparison"));
+		Assert.Equal(first ? 1L : 0L, ReadGlobal("firstCalls"));
+		Assert.Equal(first ? 0L : 1L, ReadGlobal("nextCalls"));
+	}
+
+	[Theory]
+	[InlineData("byte", "25", 1, false, false)]
+	[InlineData("int16", "25", 2, false, false)]
+	[InlineData("int32", "25", 3, false, false)]
+	[InlineData("int64", "25", 4, false, false)]
+	[InlineData("float", "25.25", 5, false, false)]
+	[InlineData("double", "25.25", 6, false, false)]
+	[InlineData("string", "fox", 7, false, false)]
+	[InlineData("wstring", "fox", 7, true, false)]
+	[InlineData("bytes", "AB CD", 8, false, true)]
+	public void ScanV2_MainScannerValueType_UsesTheExpectedNativeControlAndEncoding(string valueType, string value,
+		long expectedIndex, bool expectedUnicode, bool expectedHexadecimal)
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallMainScanner();
+		using ScanTools tools = new(CreateNativeDispatch(new McpFeatureOptions()), new TargetResources());
+
+		ScanStatusResult status = tools.First(valueType: valueType, value: value, cancellationToken: Token);
+
+		Assert.Equal(valueType, status.ValueType);
+		Assert.Equal(expectedIndex, ReadGlobal("requestedType"));
+		Assert.Equal(expectedUnicode, ReadGlobal("requestedUnicode"));
+		Assert.Equal(expectedHexadecimal, ReadGlobal("requestedHex"));
+	}
+
+	[Fact]
+	public void ScanV2_MainScannerUnknownBaseline_RequiresNarrowingBeforeResultsCanBeRead()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallMainScanner();
+		using ScanTools tools = new(CreateNativeDispatch(new McpFeatureOptions()), new TargetResources());
+
+		tools.First(comparison: "unknown", cancellationToken: Token);
+		InstallStubs("complete(true)");
+		ScanStatusResult baseline = tools.GetStatus(cancellationToken: Token);
+		CheatEngineToolException unreadable = Assert.Throws<CheatEngineToolException>(() =>
+			tools.ListResults(cancellationToken: Token));
+		ScanStatusResult narrowed = tools.Next(comparison: "unchanged", cancellationToken: Token);
+		InstallStubs("complete(false)");
+
+		Assert.Equal("BaselineReady", baseline.State);
+		Assert.Equal(ToolErrorKind.HostRefused, unreadable.Error.Kind);
+		Assert.Equal(("Scanning", 9L), (narrowed.State, ReadGlobal("requestedComparison")));
+		Assert.True(tools.GetStatus(cancellationToken: Token).ResultsReady);
+	}
+
+	[Fact]
+	public void ScanV2_MainScannerHiddenReset_ShowsTheWindowBeforeInvokingNewScan()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallMainScanner();
+		InstallStubs("complete(false); f.Visible=false");
+		using ScanTools tools = new(CreateNativeDispatch(new McpFeatureOptions()), new TargetResources());
+
+		ScanReleaseResult reset = tools.Reset(cancellationToken: Token);
+
+		Assert.Equal("Created", reset.Status!.State);
+		Assert.Equal((1L, 1L), (ReadGlobal("showCalls"), ReadGlobal("resetCalls")));
+	}
+
+	[Fact]
+	public void ProcessV2_FixedEffects_ReturnObservedTypedHostState()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs("""
+		             pid=77; created=0; opened=0; saved=0; paused=false; pointerSize=8
+		             createProcess=function(path, parameters, debug, breakAtEntry) created=created+1; createdPath=path; pid=88 end
+		             openFileAsProcess=function(filename, is64Bit, startAddress) opened=opened+1; openedFilename=filename; pid=99 end
+		             getOpenedProcessID=function() return pid end
+		             getOpenedFileSize=function() return 4096 end
+		             saveOpenedFile=function(filename) saved=saved+1; savedFilename=filename end
+		             pause=function() paused=true end
+		             unpause=function() paused=false end
+		             isPaused=function() return paused end
+		             getThreadlist=function() return {100, 200, 300} end
+		             setPointerSize=function(value) pointerSize=value end
+		             getPointerSize=function() return pointerSize end
+		             """);
+		string input = typeof(ProcessTools).Assembly.Location;
+		string output = Path.Combine(Path.GetTempPath(), $"ce-mcp-save-{Guid.NewGuid():N}.bin");
+		ProcessTools tools = new(CreateNativeDispatch(new McpFeatureOptions()), new TargetResources(),
+			new TargetTransitionGuards([]), CreateProcessFiles());
+
+		try
+		{
+			ProcessCreateResult created = tools.Create(input, "--probe", true, true,
+				Token);
+			ProcessOpenFileResult opened = tools.OpenFile(input, false, "400000",
+				Token);
+			ProcessSaveFileResult saved = tools.SaveFile(output, Token);
+			ProcessPausedResult paused = tools.SetPaused(true, Token);
+			ProcessThreadListResult threads = tools.ListThreads(Token);
+			ProcessPointerSizeResult pointerSize = tools.SetPointerSize(4, Token);
+
+			Assert.Equal(88, created.ProcessId);
+			Assert.Equal((99, 4096L, Path.GetFileName(input), false),
+				(opened.ObservedProcessId, opened.ObservedFileSize, opened.InputFileName, opened.Requested64Bit));
+			Assert.Equal((true, Path.GetFileName(output)), (saved.Saved, saved.FileName));
+			Assert.True(paused.Paused);
+			Assert.Equal(new long[] { 100, 200, 300 }, threads.Threads);
+			Assert.Equal(4, pointerSize.PointerSize);
+			Assert.Equal(1L, ReadGlobal("created"));
+			Assert.Equal(1L, ReadGlobal("opened"));
+			Assert.Equal(1L, ReadGlobal("saved"));
+			Assert.Equal(input, ReadGlobal("createdPath"));
+			Assert.Equal(input, ReadGlobal("openedFilename"));
+			string savedTemporary = Assert.IsType<string>(ReadGlobal("savedFilename"));
+			Assert.NotEqual(output, savedTemporary);
+			Assert.StartsWith(".", Path.GetFileName(savedTemporary));
+			Assert.EndsWith(".partial", Path.GetFileName(savedTemporary));
+		}
+		finally
+		{
+			File.Delete(output);
+		}
+	}
+
+	private static McpFilePaths CreateProcessFiles()
+	{
+		string root = Path.GetTempPath();
+		return new McpFilePaths(new McpFileOptions { AllowedRoots = [root] },
+			Path.Combine(root, "ce-mcp-native-registry"), Path.Combine(root, "ce-mcp-native-data"));
+	}
+}

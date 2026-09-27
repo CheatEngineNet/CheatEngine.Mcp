@@ -67,20 +67,19 @@ internal sealed class TestMcpPipeline : IAsyncDisposable
 		await _services.DisposeAsync();
 	}
 
-	internal static Task<TestMcpPipeline> StartAsync(string protocolVersion = DefaultProtocolVersion,
-		bool strictJson = false)
+	internal static Task<TestMcpPipeline> StartAsync(string protocolVersion = DefaultProtocolVersion)
 	{
 		// The probes are static, so the catalog binding invokes them without any activation target.
-		return StartAsync(ProbeManifest, McpPrimitiveBinding.Catalog, protocolVersion, strictJson);
+		return StartAsync(ProbeManifest, McpPrimitiveBinding.Catalog, protocolVersion);
 	}
 
 	/// <summary>Serves a manifest through a binding, such as an activation's live targets.</summary>
 	internal static async Task<TestMcpPipeline> StartAsync(CheatEngineMcpPrimitiveOptions manifest,
-		McpPrimitiveBinding binding, string protocolVersion = DefaultProtocolVersion, bool strictJson = false)
+		McpPrimitiveBinding binding, string protocolVersion = DefaultProtocolVersion)
 	{
 		ServiceCollection services = new();
 		services.AddLogging();
-		services.AddMcpServer().WithCheatEnginePrimitives(manifest, binding, strictJson);
+		services.AddMcpServer().WithCheatEnginePrimitives(manifest, binding);
 		ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
 		{
 			ValidateOnBuild = true,

@@ -33,7 +33,7 @@ public sealed class ArchitectureTests
 	{
 		{ "CheatEngine.Mcp.Core", ["CheatEngine.Client", "CheatEngine.SDK"] },
 		{ "CheatEngine.Mcp.Tools", ["CheatEngine.Mcp.Core", "CheatEngine.Client", "CheatEngine.SDK"] },
-		{ "CheatEngine.Mcp.Resources", ["CheatEngine.Mcp.Core"] },
+		{ "CheatEngine.Mcp.Resources", ["CheatEngine.Mcp.Core", "CheatEngine.Mcp.Tools"] },
 		{ "CheatEngine.Mcp.Prompts", ["CheatEngine.Mcp.Core"] },
 		// The transport never sees the Client: it borrows primitive instances through the Core manifest.
 		{ "CheatEngine.Mcp.Hosting", ["CheatEngine.Mcp.Core"] },
@@ -78,12 +78,16 @@ public sealed class ArchitectureTests
 	}
 
 	[Fact]
-	public void InternalsVisibleTo_ProductAssemblies_OnlyExposeInternalsToTheTests()
+	public void InternalsVisibleTo_ProductAssemblies_OnlyExposeCoreLuaBridgeToThePlugin()
 	{
 		foreach (Assembly subject in Product)
 		{
-			Assert.All(subject.GetCustomAttributes<InternalsVisibleToAttribute>(),
-				attribute => Assert.Equal("CheatEngine.Mcp.Tests", attribute.AssemblyName));
+			string[] expected = subject == Core
+				? ["CheatEngine.Mcp.Plugin", "CheatEngine.Mcp.Tests"]
+				: subject == Gateway ? [] : ["CheatEngine.Mcp.Tests"];
+			Assert.Equal(expected, subject.GetCustomAttributes<InternalsVisibleToAttribute>()
+				.Select(static attribute => attribute.AssemblyName)
+				.Order());
 		}
 	}
 
@@ -122,7 +126,8 @@ public sealed class ArchitectureTests
 			.Order(StringComparer.Ordinal)
 			.ToArray();
 		Assert.Equal(
-			["libs/CheatEngine.Mcp.Core/Lua/LuaToolRuntime.cs", "srcs/CheatEngine.Mcp.Plugin/McpStatusIndicator.cs"],
+			["srcs/CheatEngine.Mcp.Plugin/Lua/PluginLuaToolRuntime.cs",
+				"srcs/CheatEngine.Mcp.Plugin/McpStatusIndicator.cs"],
 			callers);
 	}
 

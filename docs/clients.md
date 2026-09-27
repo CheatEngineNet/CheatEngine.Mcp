@@ -98,7 +98,7 @@ Stdio servers also accept `args`, `env`, `envFile` and `cwd` ([VS Code MCP confi
 
 Notes:
 
-- **128 tools per request.** VS Code allows at most 128 enabled tools in one chat request, and the CheatEngine.Mcp catalog alone has about 170 ([VS Code: use tools with agents](https://code.visualstudio.com/docs/copilot/agents/agent-tools)). Either deselect tools or whole groups you do not need in the tools picker (**Configure Tools** in the chat input), or enable virtual tools with the `github.copilot.chat.virtualTools.threshold` setting. Tools from other servers and extensions count too. If you see "Cannot have more than 128 tools per request", this is the cause.
+- **128 tools per request.** VS Code allows at most 128 enabled tools in one chat request, while CheatEngine.Mcp exposes 173 tools ([VS Code: use tools with agents](https://code.visualstudio.com/docs/copilot/agents/agent-tools)). Either deselect tools or whole groups you do not need in the tools picker (**Configure Tools** in the chat input), or enable virtual tools with the `github.copilot.chat.virtualTools.threshold` setting. Tools from other servers and extensions count too. If you see "Cannot have more than 128 tools per request", this is the cause.
 - **Prompts**: type `/cheatengine.<prompt>` in the chat input, for example `/cheatengine.attach_and_orient`.
 - **Resources**: choose **Add Context > MCP Resources**, or run **MCP: Browse Resources**.
 - **Logs**: run **MCP: List Servers**, select `cheatengine` and choose **Show Output**.
@@ -156,7 +156,9 @@ A browser-only or remote client needs a Windows-local component that can start t
 
 ## Clients and the large catalog
 
-The gateway advertises one full catalog of about 170 tools, 22 prompts and the `cheatengine://` resources; there are no reduced profiles.
+The gateway advertises one full effective tool catalogue, 22 prompts, and the `cheatengine://` resources; there are no reduced profiles.
+The catalogue has 173 tools: `instance_list` and 172 instance-routed backend tools.
+`tools/list` provides their exact schemas and annotations.
 
 | Client | Behavior with many tools | What to do |
 | --- | --- | --- |

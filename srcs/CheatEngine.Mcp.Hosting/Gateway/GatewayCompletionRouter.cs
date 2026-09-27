@@ -16,11 +16,11 @@ internal sealed class GatewayCompletionRouter(
 	GatewayResourceCatalog catalog,
 	InstanceRegistry registry)
 {
-	/// <summary>How recent a verified identity must be to be offered.</summary>
-	internal static readonly TimeSpan IdentityWindow = InstanceIdentityVerifier.VerificationWindow;
-
 	/// <summary>The most values one completion returns.</summary>
 	internal const int MaximumValues = 100;
+
+	/// <summary>How recent a verified identity must be to be offered.</summary>
+	internal static readonly TimeSpan IdentityWindow = InstanceIdentityVerifier.VerificationWindow;
 
 	internal ValueTask<CompleteResult> CompleteAsync(RequestContext<CompleteRequestParams> context,
 		CancellationToken cancellationToken)

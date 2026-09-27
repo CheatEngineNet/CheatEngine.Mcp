@@ -93,7 +93,8 @@ internal static partial class McpContractRules
 
 				if (!titles.TryAdd(protocol.Title, name))
 				{
-					failures.Add($"Prompt '{name}' repeats the title '{protocol.Title}' of '{titles[protocol.Title]}'.");
+					failures.Add(
+						$"Prompt '{name}' repeats the title '{protocol.Title}' of '{titles[protocol.Title]}'.");
 				}
 			}
 
@@ -106,7 +107,8 @@ internal static partial class McpContractRules
 			{
 				if (string.Equals(argument.Name, RoutingArgument, StringComparison.OrdinalIgnoreCase))
 				{
-					failures.Add($"Prompt '{name}' declares '{RoutingArgument}', which only the gateway uses for routing.");
+					failures.Add(
+						$"Prompt '{name}' declares '{RoutingArgument}', which only the gateway uses for routing.");
 				}
 
 				if (string.IsNullOrWhiteSpace(argument.Description))
@@ -123,7 +125,8 @@ internal static partial class McpContractRules
 					failures.Add($"Prompt '{name}' must be a static method: a prompt is served locally, never routed.");
 				}
 
-				ValidateParameters(failures, $"Prompt '{name}'", method, typeof(RequestContext<GetPromptRequestParams>));
+				ValidateParameters(failures, $"Prompt '{name}'", method,
+					typeof(RequestContext<GetPromptRequestParams>));
 			}
 		}
 
@@ -136,8 +139,10 @@ internal static partial class McpContractRules
 	internal static bool IsPromptName(string name)
 	{
 		return name.Length <= MaxPromptNameLength && (IsSnakeName(name) || (name.Length > 0 &&
-			char.IsAsciiLetterLower(name[0]) && name.All(static character =>
-				char.IsAsciiLetterLower(character) || char.IsAsciiDigit(character))));
+																			char.IsAsciiLetterLower(name[0]) &&
+																			name.All(static character =>
+																				char.IsAsciiLetterLower(character) ||
+																				char.IsAsciiDigit(character))));
 	}
 
 	/// <summary>
@@ -250,7 +255,8 @@ internal static partial class McpContractRules
 		}
 		else if (routing is McpPrimitiveRouting.Local && !McpResourceUris.IsDocs(uri))
 		{
-			failures.Add($"{subject} is static, so it is served locally and must be under {McpResourceUris.DocsPrefix}.");
+			failures.Add(
+				$"{subject} is static, so it is served locally and must be under {McpResourceUris.DocsPrefix}.");
 		}
 		else if (routing is McpPrimitiveRouting.Instance && !McpResourceUris.IsInstance(uri))
 		{

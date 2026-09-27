@@ -2,9 +2,12 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text.Json.Serialization.Metadata;
 
+using CheatEngine.Client;
+
 using CheatEngine.Mcp.Core.Execution;
 using CheatEngine.Mcp.Core.Features;
 using CheatEngine.Mcp.Core.Jobs;
+using CheatEngine.Mcp.Core.Lua;
 using CheatEngine.Mcp.Core.Targets;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -81,7 +84,15 @@ public static class CheatEngineMcpBuilderExtensions
 				builder.Services.TryAddSingleton(TimeProvider.System);
 				builder.Services.TryAddScoped<McpFeatureGate>();
 				builder.Services.TryAddScoped<DispatchStatistics>();
-				builder.Services.TryAddScoped<ToolDispatch>();
+				builder.Services.TryAddScoped<IFixedLuaExecutor>(static _ => UnavailableFixedLuaExecutor.Instance);
+				builder.Services.TryAdd(ServiceDescriptor.Scoped<ToolDispatch>(static services => new ToolDispatch(
+					services.GetRequiredService<ICheatEngineClient>(),
+					services.GetRequiredService<McpFeatureGate>(),
+					services.GetRequiredService<IOptions<McpExecutionOptions>>(),
+					services.GetRequiredService<DispatchStatistics>(),
+					services.GetRequiredService<TimeProvider>(),
+					services.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ToolDispatch>>(),
+					services.GetRequiredService<IFixedLuaExecutor>())));
 				builder.Services.TryAddScoped<McpStateLedger>();
 				builder.Services.TryAddScoped<TargetResources>();
 				builder.Services.TryAddEnumerable(

@@ -1,7 +1,6 @@
 using System.Buffers.Binary;
 using System.ComponentModel;
 using System.Globalization;
-using System.Text;
 using System.Text.Json;
 
 using CheatEngine.Client;
@@ -184,7 +183,8 @@ public sealed class MemoryWriteTools
 	public ProtectionChange SetProtection(
 		[Description("An address or Cheat Engine address expression.")]
 		string address,
-		[Description("The number of bytes whose pages change, 1 to 16777216; all must fit in one committed memory region.")]
+		[Description(
+			"The number of bytes whose pages change, 1 to 16777216; all must fit in one committed memory region.")]
 		long size,
 		[Description("Whether the pages can be read.")]
 		bool read = true,
@@ -294,7 +294,8 @@ public sealed class MemoryWriteTools
 					string parameter = $"items[{index.ToString(CultureInfo.InvariantCulture)}].value";
 					writes[index] = writes[index] with
 					{
-						Bytes = McpValueCodec.Encode(McpValueType.Pointer, writes[index].Value, pointerBytes, parameter)
+						Bytes = McpValueCodec.Encode(McpValueType.Pointer, writes[index].Value, pointerBytes,
+							parameter)
 					};
 				}
 			}
@@ -339,8 +340,8 @@ public sealed class MemoryWriteTools
 				? client.Memory.TryWriteBytes(new MemoryBytesWriteRequest(addresses[position], write.Bytes),
 					out CheatEngineFailure failure, token)
 				: client.Memory.TryWriteString(new MemoryStringWriteRequest(addresses[position], write.Value,
-					write.Bytes.Length / (type is McpValueType.WString ? 2 : 1),
-					type is McpValueType.WString ? MemoryStringEncoding.Utf16 : MemoryStringEncoding.Utf8),
+						write.Bytes.Length / (type is McpValueType.WString ? 2 : 1),
+						type is McpValueType.WString ? MemoryStringEncoding.Utf16 : MemoryStringEncoding.Utf8),
 					out failure, token);
 			token = client.Stopping;
 			if (!succeeded)
@@ -424,7 +425,9 @@ public sealed class MemoryWriteTools
 		int? failedIndex, BatchWriteEffect effect, CheatEngineFailure failure)
 	{
 		MemoryWriteBatchFailure details = new(completed, failedIndex, effect);
-		string failedItem = failedIndex is { } index ? $"item {index.ToString(CultureInfo.InvariantCulture)}" : "an item";
+		string failedItem = failedIndex is { } index
+			? $"item {index.ToString(CultureInfo.InvariantCulture)}"
+			: "an item";
 		string message =
 			$"{completed.ToString(CultureInfo.InvariantCulture)} of {requested.ToString(CultureInfo.InvariantCulture)} items were written before {failedItem} failed: {failure.Message}";
 		if (effect is BatchWriteEffect.NotStarted)
@@ -432,7 +435,8 @@ public sealed class MemoryWriteTools
 			ToolError error = ToolFailureMapping.Map(failure, client.Stopping.IsCancellationRequested) with
 			{
 				Message = message,
-				Details = JsonSerializer.SerializeToElement(details, MemoryJsonContext.Default.MemoryWriteBatchFailure)
+				Details = JsonSerializer.SerializeToElement(details,
+					MemoryJsonContext.Default.MemoryWriteBatchFailure)
 			};
 			return new CheatEngineToolException(error, failure.Exception);
 		}

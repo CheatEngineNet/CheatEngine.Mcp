@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using CheatEngine.Mcp.Gateway;
 using CheatEngine.Mcp.Prompts;
 using CheatEngine.Mcp.Resources.Docs;
+using CheatEngine.Mcp.Resources.Live;
 using CheatEngine.Mcp.Tests.Support;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -32,7 +33,12 @@ public sealed class CompositionParityTests
 		// The tool set itself is pinned by the tools golden; each primitive type is declared once.
 		Assert.Equal(TestComposition.BackendManifest.Primitives.Count,
 			TestComposition.BackendManifest.Primitives.Distinct().Count());
-		Assert.Equal([typeof(CheatEngineDocResources)], Types(CheatEngineMcpPrimitiveKind.Resource));
+		Assert.Equal(
+		[
+			typeof(CheatEngineDocResources), typeof(RuntimeLiveResources), typeof(ProcessLiveResources),
+			typeof(ModuleLiveResources), typeof(MemoryLiveResources), typeof(RecordLiveResources),
+			typeof(StructureLiveResources)
+		], Types(CheatEngineMcpPrimitiveKind.Resource));
 		Assert.Equal([typeof(CheatEngineWorkflowPrompts)], Types(CheatEngineMcpPrimitiveKind.Prompt));
 	}
 
@@ -99,7 +105,8 @@ public sealed class CompositionParityTests
 			.RoutedTemplates;
 
 		// Every resource is either served locally (docs) or routed by instance; every prompt is Local.
-		Assert.All(catalog.LocalResources, static entry => Assert.True(McpResourceUris.IsDocs(entry.Template.UriTemplate)));
+		Assert.All(catalog.LocalResources,
+			static entry => Assert.True(McpResourceUris.IsDocs(entry.Template.UriTemplate)));
 		Assert.All(catalog.InstanceResources, static entry =>
 			Assert.True(McpResourceUris.IsInstance(entry.Template.UriTemplate)));
 		Assert.Equal(catalog.LocalResources.Count + catalog.InstanceResources.Count, catalog.Entries.Count);

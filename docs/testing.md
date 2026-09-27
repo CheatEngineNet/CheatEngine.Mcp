@@ -87,7 +87,7 @@ Prefer these over mocking Cheat Engine internals; each lives in `tests/CheatEngi
 | `SerialTestGroup` | Serialize tests that touch process-wide state; NativeLua tests run in it. |
 | `TestJsonContext`, `StateTestJsonContext` | Source-generated JSON for the shapes tests read, so tests need no reflection-based JSON. |
 
-The test project will also turn reflection-based JSON off (`JsonSerializerIsReflectionEnabledByDefault=false`) once the last pre-2.0.0 tool is gone (v2, in progress).
+The gateway project sets `JsonSerializerIsReflectionEnabledByDefault=false`; its catalog and routed payloads therefore require the generated JSON metadata registered by the product projects.
 
 ## Golden snapshots
 
@@ -95,11 +95,12 @@ The test project will also turn reflection-based JSON off (`JsonSerializerIsRefl
 
 | File | Produced by |
 |---|---|
-| `backend-tools.json`, `backend-initialize.json` | A real backend over loopback, and the schema-only catalog, which must match it. |
-| `gateway-tools.json`, `gateway-initialize.json` | The gateway catalog, and the built gateway executable over stdio with no instance running. |
+| `backend-tools.json`, `backend-initialize.json`, `backend-resources.json`, `backend-prompts.json` | A real backend over loopback, and the schema-only catalog, which must match it. |
+| `gateway-tools.json`, `gateway-initialize.json`, `gateway-resources.json`, `gateway-prompts.json` | The gateway catalog, and the built gateway executable over stdio with no instance running. |
 | `plugin-files.txt` | The top-level `*.dll`, `*.json` and `*.pdb` files of the plugin build output, which the Client deployment copies: 26 files. |
+| `tool-summary.txt`, `open-world-tools.txt` | The v2 tool names, annotations and dispatch classes, including the reviewed open-world subset. |
 
-Planned additions are `tool-summary.txt` (names, annotations and dispatch classes), `open-world-tools.txt`, and the resource, template and prompt listings (v2, in progress).
+The resource and prompt snapshots include the static documents and workflow prompts, the instance discovery resource, and the six live resource templates.
 
 To change a golden file on purpose:
 
@@ -159,7 +160,7 @@ Remove-Item Env:CHEATENGINE_MCP_LIVE_QUALIFICATION
 | V | Locked restore, Debug build, portable tests | Every change. |
 | V+ | V, `dotnet format style` and `dotnet format whitespace` with `--verify-no-changes`, Release build, `pwsh -NoProfile -File eng/Publish.ps1`, and a reviewed golden diff | Every pull request; CI runs everything except the review. |
 | VN | The NativeLua suite | Every change to a fixed Lua script, the Lua runtime, the job kernel or the status indicator. |
-| AOT | The Native AOT gateway publication, then the `GatewayExecutableTests` smoke test with `CHEATENGINE_MCP_GATEWAY_EXECUTABLE` pointing at the published executable | (v2, in progress) |
+| AOT | `eng/Publish.ps1` publishes the Windows x64 Native AOT gateway and runs its MCP executable smoke check against the published file. | Every distribution build. |
 | VL | Live qualification | On a maintainer's request, announced before each run. |
 
 ## Continuous integration

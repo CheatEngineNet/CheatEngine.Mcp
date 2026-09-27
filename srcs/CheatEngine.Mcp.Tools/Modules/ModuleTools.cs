@@ -174,7 +174,7 @@ public sealed class ModuleTools
 			return null;
 		}
 		catch (CheatEngineToolException exception) when (exception.Error.Kind is ToolErrorKind.MemoryReadFailed
-															   or ToolErrorKind.LimitExceeded)
+															 or ToolErrorKind.LimitExceeded)
 		{
 			// The PDB reference is optional: an unreadable or oversized debug directory leaves it out.
 			return null;

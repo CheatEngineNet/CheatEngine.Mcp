@@ -25,9 +25,10 @@ public sealed class PointerMapTools
 	/// <summary>The default pointer limit of one capture.</summary>
 	internal const int DefaultPointers = 1024 * 1024;
 
-	private readonly TimeSpan _slice;
 	private readonly ToolDispatch _dispatch;
 	private readonly JobRegistry _jobs;
+
+	private readonly TimeSpan _slice;
 	private readonly PointerStore _store;
 	private readonly TimeProvider _time;
 
@@ -118,6 +119,7 @@ public sealed class PointerMapTools
 			map.Prepare(plan.Process.Id.Value, plan.Width, plan.PlannedBytes);
 			ThrowIfDeleting(map);
 			DateTimeOffset expires = _time.GetUtcNow() + lifetime;
+
 			void Attach(ManagedJob<int> job)
 			{
 				if (!map.TryAttach(job))

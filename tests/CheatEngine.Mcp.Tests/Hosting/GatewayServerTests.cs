@@ -26,13 +26,13 @@ public sealed class GatewayServerTests
 			await client.ListToolsAsync(cancellationToken: TestContext.Current.CancellationToken);
 
 		// The exact catalog is pinned by the gateway-tools golden; here the live listing must match the composition.
-		Assert.Equal(TestComposition.GatewayTools.Select(static tool => tool.Name), tools.Select(static tool => tool.Name));
+		Assert.Equal(TestComposition.GatewayTools.Select(static tool => tool.Name),
+			tools.Select(static tool => tool.Name));
 		Assert.Equal(GatewayToolCatalog.InstanceListToolName, tools[0].Name);
 		Assert.Single(tools, static tool => tool.Name == GatewayToolCatalog.InstanceListToolName);
 		foreach (string name in new[]
 				 {
-					 "memory_scan", "next_memory_scan", "get_memory_scan_results", "reset_memory_scan",
-					 "get_memory_scan_status"
+					 "scan_first", "scan_next", "scan_list_results", "scan_reset", "scan_get_status"
 				 })
 		{
 			Tool tool = Assert.Single(TestComposition.GatewayTools, tool => tool.Name == name);
@@ -64,13 +64,13 @@ public sealed class GatewayServerTests
 		Assert.Equal("first", entries[0]!["name"]!.GetValue<string>());
 		Assert.Equal(first.Descriptor.ProcessId, entries[0]!["processId"]!.GetValue<int>());
 
-		JsonObject firstResult = await CallJsonAsync(client, "get_plugin_version",
+		JsonObject firstResult = await CallJsonAsync(client, "runtime_get_info",
 			new Dictionary<string, object?>
 			{
 				[GatewayToolCatalog.InstanceIdArgumentName] = first.Descriptor.InstanceId,
 				["marker"] = "first payload"
 			});
-		JsonObject secondResult = await CallJsonAsync(client, "get_plugin_version",
+		JsonObject secondResult = await CallJsonAsync(client, "runtime_get_info",
 			new Dictionary<string, object?>
 			{
 				[GatewayToolCatalog.InstanceIdArgumentName] = second.Descriptor.InstanceId,
@@ -97,7 +97,7 @@ public sealed class GatewayServerTests
 		CallToolResult result = await client.CallToolAsync(
 			new CallToolRequestParams
 			{
-				Name = "get_plugin_version",
+				Name = "runtime_get_info",
 				Arguments = Arguments(backend),
 				Meta = new JsonObject
 				{
@@ -130,7 +130,7 @@ public sealed class GatewayServerTests
 		CallToolResult result = await client.CallToolAsync(
 			new CallToolRequestParams
 			{
-				Name = "get_plugin_version",
+				Name = "runtime_get_info",
 				Arguments = Arguments(backend),
 				Meta = new JsonObject { ["traceparent"] = Traceparent, ["progressToken"] = "p1" }
 			}, TestContext.Current.CancellationToken);
@@ -152,7 +152,7 @@ public sealed class GatewayServerTests
 		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "no-meta");
 		await using McpClient client = await gateway.ConnectAsync();
 
-		await CallJsonAsync(client, "get_plugin_version", ObjectArguments(backend));
+		await CallJsonAsync(client, "runtime_get_info", ObjectArguments(backend));
 
 		Assert.Null(Assert.Single(backend.ReceivedMeta));
 	}
@@ -167,7 +167,7 @@ public sealed class GatewayServerTests
 		selected.HangUntilCancelled = true;
 		using CancellationTokenSource cancellation = new(TimeSpan.FromSeconds(10));
 
-		Task<CallToolResult> call = client.CallToolAsync("get_plugin_version", ObjectArguments(selected),
+		Task<CallToolResult> call = client.CallToolAsync("runtime_get_info", ObjectArguments(selected),
 			cancellationToken: cancellation.Token).AsTask();
 		await selected.WaitUntilForwardedAsync(TestContext.Current.CancellationToken);
 		await cancellation.CancelAsync();
@@ -217,8 +217,8 @@ public sealed class GatewayServerTests
 		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "pooled");
 		await using McpClient client = await gateway.ConnectAsync();
 
-		await CallJsonAsync(client, "get_plugin_version", backend.RoutedArguments());
-		await CallJsonAsync(client, "get_plugin_version", backend.RoutedArguments());
+		await CallJsonAsync(client, "runtime_get_info", backend.RoutedArguments());
+		await CallJsonAsync(client, "runtime_get_info", backend.RoutedArguments());
 
 		Assert.Equal(2, backend.ForwardedCallCount);
 		Assert.Equal(1, backend.InitializeCount);
@@ -230,11 +230,11 @@ public sealed class GatewayServerTests
 		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync();
 		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "republished");
 		await using McpClient client = await gateway.ConnectAsync();
-		await CallJsonAsync(client, "get_plugin_version", backend.RoutedArguments());
+		await CallJsonAsync(client, "runtime_get_info", backend.RoutedArguments());
 
 		// Same instance and activation, new token: the old client must never be reused.
 		backend.RepublishWithNewToken();
-		await CallJsonAsync(client, "get_plugin_version", backend.RoutedArguments());
+		await CallJsonAsync(client, "runtime_get_info", backend.RoutedArguments());
 
 		Assert.Equal(2, backend.ForwardedCallCount);
 		Assert.Equal(2, backend.InitializeCount);
@@ -249,19 +249,19 @@ public sealed class GatewayServerTests
 		await using McpClient client = await gateway.ConnectAsync();
 		backend.HangUntilCancelled = true;
 
-		CallToolResult result = await client.CallToolAsync("get_plugin_version", backend.RoutedArguments(),
+		CallToolResult result = await client.CallToolAsync("runtime_get_info", backend.RoutedArguments(),
 			cancellationToken: TestContext.Current.CancellationToken);
 
 		ToolError error = AssertEnvelope(result, ToolErrorKind.Timeout, ToolHostEffect.Unknown);
 		Assert.False(error.Retryable);
 		Assert.Equal("Do not repeat a mutation; inspect state with a read-only tool first.", error.Hint);
-		Assert.Equal("get_plugin_version", error.Operation);
+		Assert.Equal("runtime_get_info", error.Operation);
 		await backend.Cancelled.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
 		Assert.Equal(1, backend.ForwardedCallCount);
 
 		// The timed-out client was evicted: the next call connects again and is sent exactly once.
 		backend.HangUntilCancelled = false;
-		await CallJsonAsync(client, "get_plugin_version", backend.RoutedArguments());
+		await CallJsonAsync(client, "runtime_get_info", backend.RoutedArguments());
 		Assert.Equal(2, backend.ForwardedCallCount);
 		Assert.Equal(2, backend.InitializeCount);
 	}
@@ -273,16 +273,16 @@ public sealed class GatewayServerTests
 		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "only");
 		await using McpClient client = await gateway.ConnectAsync();
 
-		CallToolResult missing = await client.CallToolAsync("get_plugin_version", new Dictionary<string, object?>(),
+		CallToolResult missing = await client.CallToolAsync("runtime_get_info", new Dictionary<string, object?>(),
 			cancellationToken: TestContext.Current.CancellationToken);
-		CallToolResult numeric = await client.CallToolAsync("get_plugin_version",
+		CallToolResult numeric = await client.CallToolAsync("runtime_get_info",
 			new Dictionary<string, object?> { [GatewayToolCatalog.InstanceIdArgumentName] = 42 },
 			cancellationToken: TestContext.Current.CancellationToken);
 
 		foreach (CallToolResult result in new[] { missing, numeric })
 		{
 			ToolError error = AssertEnvelope(result, ToolErrorKind.InvalidArgument, ToolHostEffect.NotStarted);
-			Assert.Equal("get_plugin_version", error.Operation);
+			Assert.Equal("runtime_get_info", error.Operation);
 			Assert.Equal(GatewayToolCatalog.InstanceIdArgumentName,
 				error.Details!.Value.GetProperty("parameter").GetString());
 		}
@@ -297,7 +297,7 @@ public sealed class GatewayServerTests
 		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "only");
 		await using McpClient client = await gateway.ConnectAsync();
 
-		CallToolResult result = await client.CallToolAsync("get_plugin_version",
+		CallToolResult result = await client.CallToolAsync("runtime_get_info",
 			new Dictionary<string, object?>
 			{
 				[GatewayToolCatalog.InstanceIdArgumentName] = "ce-404-00000000000000000000000000000000"
@@ -319,7 +319,7 @@ public sealed class GatewayServerTests
 			ActivationId = Guid.NewGuid()
 		};
 
-		CallToolResult result = await client.CallToolAsync("get_plugin_version", backend.RoutedArguments(),
+		CallToolResult result = await client.CallToolAsync("runtime_get_info", backend.RoutedArguments(),
 			cancellationToken: TestContext.Current.CancellationToken);
 
 		AssertEnvelope(result, ToolErrorKind.InstanceUnavailable, ToolHostEffect.NotStarted);
@@ -333,10 +333,10 @@ public sealed class GatewayServerTests
 		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync();
 		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "stopped");
 		await using McpClient client = await gateway.ConnectAsync();
-		await CallJsonAsync(client, "get_plugin_version", backend.RoutedArguments());
+		await CallJsonAsync(client, "runtime_get_info", backend.RoutedArguments());
 		await backend.StopListeningAsync();
 
-		CallToolResult result = await client.CallToolAsync("get_plugin_version", backend.RoutedArguments(),
+		CallToolResult result = await client.CallToolAsync("runtime_get_info", backend.RoutedArguments(),
 			cancellationToken: TestContext.Current.CancellationToken);
 
 		AssertEnvelope(result, ToolErrorKind.InstanceUnavailable, ToolHostEffect.NotStarted);
@@ -352,7 +352,7 @@ public sealed class GatewayServerTests
 		await using McpClient client = await gateway.ConnectAsync();
 		backend.AbortConnection = true;
 
-		CallToolResult result = await client.CallToolAsync("get_plugin_version", backend.RoutedArguments(),
+		CallToolResult result = await client.CallToolAsync("runtime_get_info", backend.RoutedArguments(),
 			cancellationToken: TestContext.Current.CancellationToken);
 
 		ToolError error = AssertEnvelope(result, ToolErrorKind.InstanceUnavailable, ToolHostEffect.Unknown);
@@ -385,7 +385,7 @@ public sealed class GatewayServerTests
 			"Attach a process with process_attach."));
 		backend.Respond = () => backendError;
 
-		CallToolResult result = await client.CallToolAsync("get_plugin_version", backend.RoutedArguments(),
+		CallToolResult result = await client.CallToolAsync("runtime_get_info", backend.RoutedArguments(),
 			cancellationToken: TestContext.Current.CancellationToken);
 
 		Assert.True(result.IsError);
@@ -406,7 +406,7 @@ public sealed class GatewayServerTests
 			McpErrorCode.InvalidParams);
 
 		McpProtocolException failure = await Assert.ThrowsAsync<McpProtocolException>(async () =>
-			await client.CallToolAsync("get_plugin_version", backend.RoutedArguments(),
+			await client.CallToolAsync("runtime_get_info", backend.RoutedArguments(),
 				cancellationToken: TestContext.Current.CancellationToken));
 
 		Assert.Equal(McpErrorCode.InvalidParams, failure.ErrorCode);

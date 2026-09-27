@@ -98,7 +98,7 @@ public sealed class MonoAutoAttachProbeTests
 				EnableTargetCodeExecution = false,
 				EnableKernelAccess = false
 			})), execution, new DispatchStatistics(execution), TimeProvider.System,
-			NullLogger<ToolDispatch>.Instance);
+			NullLogger<ToolDispatch>.Instance, new PluginFixedLuaExecutor(client));
 
 		MonoAutoAttachState own = MonoAutoAttachProbe.Read(dispatch, "process_attach",
 			TestContext.Current.CancellationToken);

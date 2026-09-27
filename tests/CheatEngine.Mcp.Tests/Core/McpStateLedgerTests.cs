@@ -41,8 +41,9 @@ public sealed class McpStateLedgerTests
 			(listed[0].Category, listed[0].Orphaned, listed[0].Detail));
 		Assert.Equal((TargetResourceCategory.Job, true, TargetResourceState.Active),
 			(listed[1].Category, listed[1].Orphaned, listed[1].State));
-		Assert.Equal((false, TargetResourceState.CleanupFailed, true, "unpause refused"),
+		Assert.Equal((false, TargetResourceState.CleanupFailed, true, McpStateLedger.CleanupFailedMessage),
 			(listed[2].Orphaned, listed[2].State, listed[2].RequiresManualRecovery, listed[2].CleanupError));
+		Assert.DoesNotContain("unpause refused", listed[2].CleanupError!, StringComparison.Ordinal);
 		Assert.Equal((TargetResourceCategory.LuaState, true), (listed[3].Category, listed[3].Orphaned));
 		Assert.Equal(42, listed[3].ProcessId);
 		Assert.Equal("mcp_state_snapshot", Assert.Single(harness.LuaCalls).Operation);
@@ -130,9 +131,10 @@ public sealed class McpStateLedgerTests
 		ReleaseAllResult result = harness.Resources.ReleaseAll(Token);
 
 		Assert.NotNull(result.Failed);
-		Assert.Equal((ResourceReleaseKind.CleanupFailed, true, "unpause refused"),
+		Assert.Equal((ResourceReleaseKind.CleanupFailed, true, McpStateLedger.CleanupFailedMessage),
 			(result.Failed.Release.Kind, result.Failed.Release.RequiresManualRecovery,
 				result.Failed.Resource.CleanupError));
+		Assert.DoesNotContain("unpause refused", result.Failed.Resource.CleanupError!, StringComparison.Ordinal);
 		Assert.True(removed);
 		Assert.Empty(harness.Resources.List());
 

@@ -89,7 +89,7 @@ public sealed class PointerReferenceToolTests
 		await using TestMcpPipeline pipeline = await fixture.StartPipelineAsync();
 
 		ToolError error = TestMcpPipeline.AssertError(await pipeline.CallAsync(
-			CheatEngineToolNames.PointerFindReferences, """{"target":"20040","maxOffset":64}"""),
+				CheatEngineToolNames.PointerFindReferences, """{"target":"20040","maxOffset":64}"""),
 			ToolErrorKind.PartialEffect);
 
 		string id = error.Details!.Value.GetProperty("resourceId").GetString()!;

@@ -5,6 +5,7 @@ using CheatEngine.Client;
 using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Results;
 using CheatEngine.Mcp.Core.Contract;
+using CheatEngine.Mcp.Core.Features;
 using CheatEngine.Mcp.Core.Files;
 using CheatEngine.Mcp.Core.Values;
 using CheatEngine.SDK.Engine.Inspection;
@@ -222,7 +223,8 @@ public sealed class SymbolTools
 	public SymbolModuleLoad AddModule(
 		[Description("The absolute path of the symbol file on a local fixed drive, such as C:\\Games\\Game\\game.pdb.")]
 		string path,
-		[Description("The base address the symbols apply to, as an address expression such as game.exe or 7FF6A1B20000.")]
+		[Description(
+			"The base address the symbols apply to, as an address expression such as game.exe or 7FF6A1B20000.")]
 		string baseAddress,
 		[Description("Also enumerate PDB structures, which structure_get_pdb_layout reads; slower.")]
 		bool enumStructures = false,
@@ -241,6 +243,33 @@ public sealed class SymbolTools
 			return target.ToUInt64();
 		}, cancellationToken);
 		return new SymbolModuleLoad(fullPath, HexFormat.Address(loadedAt), enumStructures);
+	}
+
+	/// <summary>Enables Windows and/or kernel symbol loading in Cheat Engine.</summary>
+	[McpServerTool(Name = CheatEngineToolNames.SymbolEnableSources, Title = "Enable system symbol sources",
+		ReadOnly = false, Destructive = false, Idempotent = true, OpenWorld = true, UseStructuredContent = true)]
+	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.BlockingNative)]
+	[Description(
+		"Enable Windows PDB symbols and/or kernel export symbols in Cheat Engine. Windows symbols can download PDBs from an external symbol service and block for a long time on first use. Kernel symbols require Mcp:EnableKernelAccess. Returns which sources were requested and whether external network access may have occurred.")]
+	public SymbolSourcesEnabled EnableSources(
+		[Description("Enable Windows PDB symbols; may download files from an external service.")]
+		bool windows,
+		[Description("Enable kernel symbols; requires the kernel access switch.")]
+		bool kernel,
+		CancellationToken cancellationToken = default)
+	{
+		if (!windows && !kernel)
+		{
+			throw CheatEngineToolException.InvalidArgument("windows", "enable at least one symbol source.");
+		}
+
+		if (kernel)
+		{
+			_dispatch.Features.Require(McpFeature.KernelAccess, CheatEngineToolNames.SymbolEnableSources);
+		}
+
+		return _dispatch.RunLua(CheatEngineToolNames.SymbolEnableSources, SymbolScripts.EnableSources,
+			SymbolJsonContext.Default.SymbolSourcesEnabled, cancellationToken, windows, kernel);
 	}
 
 	/// <summary>Checks an address expression argument before any dispatch.</summary>

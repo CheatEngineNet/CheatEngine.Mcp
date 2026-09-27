@@ -6,7 +6,7 @@ namespace CheatEngine.Mcp.Core.Lua;
 ///     contract's exception type replaces this record when the v2 error envelope lands.
 /// </remarks>
 /// <param name="Kind">The declared snake_case error kind, such as <c>not_found</c>.</param>
-/// <param name="Message">The declared message, bounded to <see cref="LuaJsonWriter.MaximumErrorFieldBytes" />.</param>
+/// <param name="Message">The declared message, bounded to <see cref="LuaToolRuntime.MaximumErrorFieldBytes" />.</param>
 /// <param name="HostEffect">The declared snake_case host effect, or <see langword="null" /> when none was stated.</param>
 /// <param name="Hint">An optional recovery hint, bounded like the message.</param>
 internal sealed record LuaScriptError(string Kind, string Message, string? HostEffect, string? Hint);

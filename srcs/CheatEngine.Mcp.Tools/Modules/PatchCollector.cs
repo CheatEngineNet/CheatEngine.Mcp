@@ -101,7 +101,8 @@ internal sealed class PatchCollector
 			return;
 		}
 
-		_patches.Add(new CollectedPatch(_open.Start, _open.Section, _open.Length, [.. _open.FileBytes], [.. _open.MemoryBytes]));
+		_patches.Add(new CollectedPatch(_open.Start, _open.Section, _open.Length, [.. _open.FileBytes],
+			[.. _open.MemoryBytes]));
 		_open = null;
 	}
 

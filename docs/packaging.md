@@ -5,7 +5,7 @@ To install the result, follow [Getting started](getting-started.md); for the run
 
 > **Status.** This page describes the 2.0.0 (v2) packaging.
 > Anything marked **(v2, in progress)** is an adopted design that the code does not implement yet.
-> Today the gateway is a self-contained single-file executable; the Native AOT gateway is (v2, in progress).
+> The gateway is a self-contained Native AOT executable for Windows x64.
 
 ## The distribution
 
@@ -16,9 +16,9 @@ The result is `artifacts/dist/<release|debug>/`:
 artifacts/dist/release/
   CheatEngine.Mcp/              the plugin folder, copied as a whole into Cheat Engine's plugin location
   CheatEngine.Mcp.Gateway.exe   the stdio gateway that AI clients launch
-  LICENSE                       the notices of the gateway, which carries the .NET runtime
-  THIRD-PARTY-NOTICES.md
-  licenses/
+  LICENSE                       the product license
+  THIRD-PARTY-NOTICES.md        redistributed-component notices, including the .NET runtime
+  licenses/                     redistributed-component license texts
   skills/cheatengine-mcp/       the operator skill, installed separately into the AI client
 ```
 
@@ -47,8 +47,8 @@ That gives 26 files, the list reviewed in the [`plugin-files.txt`](../tests/Chea
 | CheatEngine.SDK | `CheatEngine.SDK.dll`, `CheatEngine.SDK.Abi.dll`, `CheatEngine.SDK.Annotations.dll`, `CheatEngine.SDK.Engine.dll`, `CheatEngine.SDK.Hosting.dll`, `CheatEngine.SDK.Lua.dll`, `CheatEngine.SDK.Lua.Interop.dll`, and the native `cheatengine-sdk-lua-bridge.dll` |
 | MCP SDK | `ModelContextProtocol.dll`, `ModelContextProtocol.Core.dll`, `ModelContextProtocol.AspNetCore.dll`, `Microsoft.Extensions.AI.Abstractions.dll` |
 
-The script then adds `README.md`, `LICENSE`, `THIRD-PARTY-NOTICES.md` and the `licenses/` folder.
-Today `README.md` is the repository README; a README written for the plugin folder, `srcs/CheatEngine.Mcp.Plugin/Distribution/README.md`, is (v2, in progress).
+The script then adds the plugin-specific [`README.md`](../srcs/CheatEngine.Mcp.Plugin/Distribution/README.md), `LICENSE`, `THIRD-PARTY-NOTICES.md` and the `licenses/` folder.
+That README travels with the plugin folder and gives the operator the requirements and update procedure without relying on repository files.
 
 Before it finishes, the script checks that:
 
@@ -91,27 +91,19 @@ The repository guards live in [`Directory.Build.targets`](../Directory.Build.tar
 | CEMCP004 | The plugin | A dependency asset would land in a subfolder, such as `runtimes/<rid>/` or a culture folder, which the Client deployment does not copy. |
 | CEMCP005 | Every project under `libs/` and `srcs/` | `IsAotCompatible` is off, or reference AOT and trim verification is off in a project without a `FrameworkReference` to `Microsoft.AspNetCore.App`. |
 | CEMCP006 | The plugin | The plugin is made Native AOT, self-contained, single-file, trimmed or ReadyToRun, or loses `DebugType=embedded`. |
-| CEMCP007 | The gateway | The gateway is published any way other than Native AOT (v2, in progress). |
-| CEMCP008 | The gateway publish | The .NET runtime notices required beside the Native AOT executable are missing (v2, in progress). |
 
 The CheatEngine.Client package adds its own plugin profile checks (CECLIENT001 to CECLIENT017), and CECLIENT010 to CECLIENT016 for a staged deployment through `CheatEnginePluginOutputPath`.
 
 ## The gateway
 
-Today:
-
-- `eng/Publish.ps1` publishes `srcs/CheatEngine.Mcp.Gateway` with the `Standalone` profile: `win-x64`, self-contained, single-file with native libraries extracted at startup, not trimmed.
-- The profile writes to `artifacts/publish/CheatEngine.Mcp.Gateway/<configuration>-standalone/`, and the script copies the executable into the distribution.
-- The executable is about 108 MB because it bundles the .NET and ASP.NET Core runtimes; it needs no .NET installation on the AI client's machine.
-- Its `LICENSE`, `THIRD-PARTY-NOTICES.md` and `licenses/`, including the .NET runtime notices, sit beside it.
-
-Native AOT gateway (v2, in progress):
-
-- The gateway project sets `PublishAot` and `InvariantGlobalization` in its project file, so the tests run with the same switches, and a `NativeAot` publish profile (`OptimizationPreference=Size`, `TrimmerSingleWarn=false`) replaces `Standalone`.
-- Every product project is already analyzed for AOT and trimming (CEMCP005). Trial ILC compilations of the gateway produced executables of about 14 to 19 MB, which still crash at startup until the pre-2.0.0 tools and their reflection-based JSON are gone.
-- `eng/Publish.ps1` will check the MSVC toolchain (`vswhere.exe` on `PATH`, `vcvarsall`, the Windows SDK), verify that the executable is native code without .NET metadata, and keep the native `.pdb` in `artifacts/symbols`, outside the distribution.
-- CI will run the `GatewayExecutableTests` smoke test, with `CHEATENGINE_MCP_GATEWAY_EXECUTABLE` pointing at the published executable, against a size budget of 64 MiB, later tightened to the measured size plus 20 percent.
-- The plugin is never published this way: CEMCP006 forbids it.
+`eng/Publish.ps1` publishes `srcs/CheatEngine.Mcp.Gateway` with the `Standalone` profile, whose historical name is retained for compatibility with the build command.
+That profile sets `RuntimeIdentifier=win-x64`, `PublishAot=true`, `StripSymbols=true`, and the separate `packages.aot.lock.json` lock file.
+It writes to `artifacts/publish/CheatEngine.Mcp.Gateway/<configuration>-nativeaot/`, and the script copies `CheatEngine.Mcp.Gateway.exe` into the distribution.
+Native AOT produces one self-contained Windows x64 executable that does not require the .NET runtime installed on the AI client's machine.
+Native AOT may leave a separate debug symbol file in the ignored publish output; the distribution copies only the executable.
+The script starts the published executable against an empty private instance directory, completes the MCP initialize handshake, checks `instance_list`, and lists tools, resources, resource templates, and prompts before confirming a clean exit.
+Its `LICENSE`, `THIRD-PARTY-NOTICES.md`, and `licenses/` directory ship beside it.
+The plugin is never published this way because CEMCP006 forbids it.
 
 ## Third-party notices
 

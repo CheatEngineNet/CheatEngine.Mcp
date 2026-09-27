@@ -16,7 +16,7 @@ To install a supported combination, follow [Getting started](getting-started.md)
 | C3 | Manual | A person exercised the component by hand, in a real CE session or AI client, and recorded what worked. | A compatibility report. |
 | C4 | Untested | There is no evidence either way. It may work. | Nothing. |
 
-The C2 scenario checks the gateway's tool list and instance list, the loaded plugin paths and runtime evidence, attaching to the target, typed memory reads and writes, address-list add, update and delete, real freeze and unfreeze, speedhack set and readback, the disassembly column order on a known instruction, and the main and independent value scanners.
+The C2 scenario checks the gateway's tool list and instance list, the loaded plugin file names and runtime evidence, attaching to the target, typed memory reads and writes, address-list add, update and delete, real freeze and unfreeze, speedhack set and readback, the disassembly column order on a known instruction, and the main and independent value scanners.
 It also checks that a change in instance A leaves instance B's target and table untouched, and that A keeps working after B stops while B's calls fail.
 
 How to read a level:
@@ -49,7 +49,7 @@ Remove-Item Env:CHEATENGINE_MCP_LIVE_QUALIFICATION
 | Cheat Engine 7.6 and earlier, 32-bit Cheat Engine | Not supported | None | See [Not supported](#not-supported). |
 | 32-bit target processes attached from 64-bit CE | Not qualified | C4 | The live target is x64. |
 | .NET runtimes inside CE | `Microsoft.NETCore.App`, `Microsoft.AspNetCore.App` and `Microsoft.WindowsDesktop.App` 10.0.x, x64 | C2 | CE starts one runtime from its `ce.runtimeconfig.json`, which must be edited locally to select .NET 10 (`net10.0`, `LatestMinor`) and all three frameworks; the plugin's own `runtimeconfig.json` requests `Microsoft.NETCore.App` and `Microsoft.AspNetCore.App` 10.0.0, which that runtime must already include. |
-| Gateway runtime | None needed | C0; C2 for the published executable | A self-contained single-file executable today; a Native AOT executable in v2 (v2, in progress). It never uses CE's runtime configuration. |
+| Gateway runtime | None needed | C0; C2 for the published executable | A self-contained Windows x64 Native AOT executable. It never uses CE's runtime configuration. |
 | .NET SDK, to build | 10.0.401 exactly | C0 | `global.json` sets `rollForward: disable` and `allowPrerelease: false`; the Client's Lua generator needs the Roslyn 5.9.0 compiler of SDK 10.0.401 or later. |
 | CheatEngine.Client | 1.0.0 | C2 | Source revision `f88de3d843252c9139f08c71531a02f03c0516bb`, MIT. The tools opt into its experimental typed APIs (CECLIENT5001 to CECLIENT5004). |
 | CheatEngine.SDK | 2.0.0 | C2 | Referenced directly by the plugin only, for the generated entry point and the native Lua bridge; the Client accepts 2.0.0 up to, but excluding, 3.0.0, and the lock files pin 2.0.0. MIT. |
@@ -64,7 +64,7 @@ Package versions are pinned centrally in [`Directory.Packages.props`](../Directo
 | Connection | Protocol version | Level | Notes |
 |---|---|---|---|
 | AI client to gateway, over stdio | Negotiated by ModelContextProtocol 2.2.0, which supports 2024-11-05, 2025-03-26, 2025-06-18, 2025-11-25 and 2026-07-28 | 2025-06-18: C0 and C2; the others: C4 | The gateway accepts the version its client negotiates; the contract tests and the live client use 2025-06-18. |
-| Gateway to backend, over loopback streamable HTTP | Pinned to 2025-06-18 | C0 and C2 | The gateway requests exactly this version, which uses the initialize handshake and skips the SDK's version-discovery probe. A parity guard between the 2025 and 2026 protocol revisions is (v2, in progress). |
+| Gateway to backend, over loopback streamable HTTP | Pinned to 2025-06-18 | C0 and C2 | The gateway requests exactly this version, which uses the initialize handshake and skips the SDK's version-discovery probe. `ContractSnapshotTests` compares backend tool listings negotiated with 2025-06-18 and 2026-07-28. |
 | Any other client to a backend | Not supported | None | A backend requires its per-activation bearer token and is meant to be reached only through the gateway. |
 
 ## Not supported

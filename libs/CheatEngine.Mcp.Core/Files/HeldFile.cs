@@ -58,4 +58,11 @@ public sealed class HeldFile : IDisposable
 	{
 		_handle.Dispose();
 	}
+
+	/// <summary>Reads a block from the pinned file without reopening its path.</summary>
+	public int ReadAt(Span<byte> destination, long offset)
+	{
+		ArgumentOutOfRangeException.ThrowIfNegative(offset);
+		return RandomAccess.Read(_handle, destination, offset);
+	}
 }

@@ -18,13 +18,53 @@ public sealed class StructureToolsTests
 
 	private static CancellationToken Token => TestContext.Current.CancellationToken;
 
+	public static TheoryData<StructureElementSpec, ToolErrorKind, string> InvalidSpecs => new()
+	{
+		{
+			new StructureElementSpec("0", "name", McpValueType.String), ToolErrorKind.InvalidArgument,
+			"elements[0].byteSize"
+		},
+		{
+			new StructureElementSpec("0", "hp", McpValueType.Int32, ByteSize: 4), ToolErrorKind.InvalidArgument,
+			"elements[0].byteSize"
+		},
+		{
+			new StructureElementSpec("0", "raw", McpValueType.Bytes, ByteSize: 65537), ToolErrorKind.LimitExceeded,
+			"elements[0].byteSize"
+		},
+		{
+			new StructureElementSpec("0", "hp", McpValueType.Int32, ChildStructure: "Other"),
+			ToolErrorKind.InvalidArgument, "elements[0].childStructure"
+		},
+		{
+			new StructureElementSpec("0", "p", McpValueType.Pointer, ChildStructureStart: "8"),
+			ToolErrorKind.InvalidArgument, "elements[0].childStructureStart"
+		},
+		{
+			new StructureElementSpec("0", "hp", McpValueType.UInt32, StructureDisplay.Signed),
+			ToolErrorKind.InvalidArgument, "elements[0].display"
+		},
+		{
+			new StructureElementSpec("G", "hp", McpValueType.Int32), ToolErrorKind.InvalidArgument, "elements[0].offset"
+		},
+		{
+			new StructureElementSpec("100000000", "hp", McpValueType.Int32), ToolErrorKind.InvalidArgument,
+			"elements[0].offset"
+		},
+		{
+			new StructureElementSpec("0", new string('n', 257), McpValueType.Int32), ToolErrorKind.LimitExceeded,
+			"elements[0].name"
+		}
+	};
+
 	[Fact]
 	public void List_LimitAboveMaximum_IsLimitExceededWithoutDispatch()
 	{
 		StructureToolHarness harness = new();
 
 		CheatEngineToolException exception =
-			Assert.Throws<CheatEngineToolException>(() => harness.Structures.List(limit: 1001, cancellationToken: Token));
+			Assert.Throws<CheatEngineToolException>(() =>
+				harness.Structures.List(limit: 1001, cancellationToken: Token));
 
 		Assert.Equal(ToolErrorKind.LimitExceeded, exception.Error.Kind);
 		Assert.Equal(0, harness.Dispatcher.Calls);
@@ -40,7 +80,7 @@ public sealed class StructureToolsTests
 				: null
 		};
 
-		StructurePage page = harness.Structures.List("Play", 0, 1, cancellationToken: Token);
+		StructurePage page = harness.Structures.List("Play", 0, 1, Token);
 
 		StructureLuaCall call = Assert.Single(harness.LuaCalls);
 		Assert.Contains("[1] = \"Play\", [2] = 0, [3] = 1, [4] = 65536", call.Arguments, StringComparison.Ordinal);
@@ -61,7 +101,8 @@ public sealed class StructureToolsTests
 				StructureToolHarness.Element(4, -8, "header", 13, "dtUnsignedInteger", 4))
 		};
 
-		StructureDefinition definition = harness.Structures.Get("Player", format: ResultFormat.Detailed, cancellationToken: Token);
+		StructureDefinition definition =
+			harness.Structures.Get("Player", format: ResultFormat.Detailed, cancellationToken: Token);
 
 		Assert.Contains("[6] = true", Assert.Single(harness.LuaCalls).Arguments, StringComparison.Ordinal);
 		Assert.Equal(5, definition.Total);
@@ -92,19 +133,6 @@ public sealed class StructureToolsTests
 		Assert.Equal(parameter, exception.Error.Details!.Value.GetProperty("parameter").GetString());
 		Assert.Equal(0, harness.Dispatcher.Calls);
 	}
-
-	public static TheoryData<StructureElementSpec, ToolErrorKind, string> InvalidSpecs => new()
-	{
-		{ new StructureElementSpec("0", "name", McpValueType.String), ToolErrorKind.InvalidArgument, "elements[0].byteSize" },
-		{ new StructureElementSpec("0", "hp", McpValueType.Int32, ByteSize: 4), ToolErrorKind.InvalidArgument, "elements[0].byteSize" },
-		{ new StructureElementSpec("0", "raw", McpValueType.Bytes, ByteSize: 65537), ToolErrorKind.LimitExceeded, "elements[0].byteSize" },
-		{ new StructureElementSpec("0", "hp", McpValueType.Int32, ChildStructure: "Other"), ToolErrorKind.InvalidArgument, "elements[0].childStructure" },
-		{ new StructureElementSpec("0", "p", McpValueType.Pointer, ChildStructureStart: "8"), ToolErrorKind.InvalidArgument, "elements[0].childStructureStart" },
-		{ new StructureElementSpec("0", "hp", McpValueType.UInt32, StructureDisplay.Signed), ToolErrorKind.InvalidArgument, "elements[0].display" },
-		{ new StructureElementSpec("G", "hp", McpValueType.Int32), ToolErrorKind.InvalidArgument, "elements[0].offset" },
-		{ new StructureElementSpec("100000000", "hp", McpValueType.Int32), ToolErrorKind.InvalidArgument, "elements[0].offset" },
-		{ new StructureElementSpec("0", new string('n', 257), McpValueType.Int32), ToolErrorKind.LimitExceeded, "elements[0].name" }
-	};
 
 	[Fact]
 	public void Create_TwoSources_IsInvalidArgumentWithoutDispatch()
@@ -155,7 +183,8 @@ public sealed class StructureToolsTests
 		};
 
 		CheatEngineToolException exception =
-			Assert.Throws<CheatEngineToolException>(() => harness.Structures.Create("Player", cloneFrom: "Enemy", cancellationToken: Token));
+			Assert.Throws<CheatEngineToolException>(() =>
+				harness.Structures.Create("Player", cloneFrom: "Enemy", cancellationToken: Token));
 
 		Assert.Equal((kind, ToolHostEffect.NotStarted), (exception.Error.Kind, exception.Error.HostEffect));
 		Assert.True(Assert.Single(harness.LuaCalls).Runs(StructureLuaScripts.CreateClone));
@@ -167,7 +196,7 @@ public sealed class StructureToolsTests
 		StructureToolHarness harness = new();
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			harness.Elements.UpdateElements("Player", [new StructureElementUpdate(0)], cancellationToken: Token));
+			harness.Elements.UpdateElements("Player", [new StructureElementUpdate(0)], Token));
 
 		Assert.Equal(ToolErrorKind.InvalidArgument, exception.Error.Kind);
 		Assert.Equal(0, harness.Dispatcher.Calls);
@@ -182,7 +211,7 @@ public sealed class StructureToolsTests
 		};
 
 		StructureChange change = harness.Elements.UpdateElements("Player",
-			[new StructureElementUpdate(1, Name: "flags", Display: StructureDisplay.Hex)], cancellationToken: Token);
+			[new StructureElementUpdate(1, Name: "flags", Display: StructureDisplay.Hex)], Token);
 
 		Assert.Contains("{1,nil,\"flags\",nil,\"dtHexadecimal\",nil,}", Assert.Single(harness.LuaCalls).Arguments,
 			StringComparison.Ordinal);
@@ -200,7 +229,7 @@ public sealed class StructureToolsTests
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
 			harness.Elements.UpdateElements("Player",
-				[new StructureElementUpdate(0, Name: "a"), new StructureElementUpdate(1, Name: "b")], cancellationToken: Token));
+				[new StructureElementUpdate(0, Name: "a"), new StructureElementUpdate(1, Name: "b")], Token));
 
 		Assert.Equal((ToolErrorKind.PartialEffect, ToolHostEffect.Started, false),
 			(exception.Error.Kind, exception.Error.HostEffect, exception.Error.Retryable));
@@ -215,7 +244,7 @@ public sealed class StructureToolsTests
 		StructureToolHarness harness = new();
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			harness.Elements.RemoveElements("Player", [2, 2], cancellationToken: Token));
+			harness.Elements.RemoveElements("Player", [2, 2], Token));
 
 		Assert.Equal("indices[1]", exception.Error.Details!.Value.GetProperty("parameter").GetString());
 		Assert.Equal(0, harness.Dispatcher.Calls);
@@ -231,7 +260,7 @@ public sealed class StructureToolsTests
 		};
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			harness.Elements.RemoveElements("Player", [1, 5, 3], cancellationToken: Token));
+			harness.Elements.RemoveElements("Player", [1, 5, 3], Token));
 
 		Assert.Contains("[2] = {5,3,1,}", Assert.Single(harness.LuaCalls).Arguments, StringComparison.Ordinal);
 		Assert.Equal(ToolErrorKind.PartialEffect, exception.Error.Kind);
@@ -264,7 +293,7 @@ public sealed class StructureToolsTests
 		};
 		harness.Symbols["game.exe+10"] = Base;
 
-		StructureSummary summary = harness.Structures.Autoguess("Player", "game.exe+10", "10", 1024, false, cancellationToken: Token);
+		StructureSummary summary = harness.Structures.Autoguess("Player", "game.exe+10", "10", 1024, false, Token);
 
 		Assert.Equal(["game.exe+10"], harness.Resolutions);
 		Assert.Contains("[2] = \"0x7FF6A1B2C000\", [3] = 16, [4] = 1024, [5] = false",
@@ -312,7 +341,7 @@ public sealed class StructureToolsTests
 				"""{"found":true,"elements":[{"offset":16,"name":"Peb","vartype":12},{"offset":24,"name":"Flags"}],"truncated":true}"""
 		};
 
-		PdbLayout layout = harness.Structures.GetPdbLayout("_EPROCESS", 2, cancellationToken: Token);
+		PdbLayout layout = harness.Structures.GetPdbLayout("_EPROCESS", 2, Token);
 
 		Assert.Equal("_EPROCESS", layout.TypeName);
 		Assert.True(layout.Found && layout.Truncated);
@@ -330,7 +359,8 @@ public sealed class StructureToolsTests
 		StructureToolHarness harness = new();
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			harness.Values.Read("Player", [.. Enumerable.Repeat("1000", addresses)], from, to, cancellationToken: Token));
+			harness.Values.Read("Player", [.. Enumerable.Repeat("1000", addresses)], from, to,
+				cancellationToken: Token));
 
 		Assert.Equal(kind, exception.Error.Kind);
 		Assert.Equal(parameter, exception.Error.Details!.Value.GetProperty("parameter").GetString());
@@ -348,12 +378,13 @@ public sealed class StructureToolsTests
 				StructureToolHarness.Element(2, 8, "owner", 12, "dtUnsignedInteger", 8),
 				StructureToolHarness.Element(3, 16, "name", 6, "dtUnsignedInteger", 8))
 		};
-		harness.Map(0x1000, [0x9C, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xC0, 0x3F]);
+		harness.Map(0x1000, 0x9C, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xC0, 0x3F);
 		harness.Map(0x1008, BitConverter.GetBytes(Base));
 		harness.Map(0x1010, "Hero\0zzz"u8.ToArray());
-		harness.Map(0x2000, [0x01, 0x00, 0x00, 0x00, 0x00, 0x00]);
+		harness.Map(0x2000, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00);
 
-		StructureReadResult result = harness.Values.Read("Player", ["1000", "2000"], format: ResultFormat.Detailed, cancellationToken: Token);
+		StructureReadResult result = harness.Values.Read("Player", ["1000", "2000"], format: ResultFormat.Detailed,
+			cancellationToken: Token);
 
 		Assert.Equal([new StructureReadColumn("1000", 24), new StructureReadColumn("2000", 6)], result.Columns);
 		Assert.Equal([(0x1000UL, 24), (0x2000UL, 24)], harness.Reads);
@@ -362,7 +393,7 @@ public sealed class StructureToolsTests
 		Assert.Equal(["7FF6A1B2C000", null], result.Elements[2].Values);
 		Assert.Equal(["Hero", null], result.Elements[3].Values);
 		Assert.Equal(["9C FF FF FF", "01 00 00 00"], result.Elements[0].Raw!);
-		Assert.Equal((StructureDisplay?) StructureDisplay.Signed, result.Elements[0].Display);
+		Assert.Equal(StructureDisplay.Signed, result.Elements[0].Display);
 		Assert.Single(harness.LuaCalls);
 	}
 
@@ -397,7 +428,8 @@ public sealed class StructureToolsTests
 		};
 
 		CheatEngineToolException exception =
-			Assert.Throws<CheatEngineToolException>(() => harness.Values.Read("Player", ["1000"], cancellationToken: Token));
+			Assert.Throws<CheatEngineToolException>(() =>
+				harness.Values.Read("Player", ["1000"], cancellationToken: Token));
 
 		Assert.Equal((ToolErrorKind.LimitExceeded, ToolHostEffect.NotStarted),
 			(exception.Error.Kind, exception.Error.HostEffect));
@@ -413,7 +445,7 @@ public sealed class StructureToolsTests
 				$$"""{"name":"Player","element":{{StructureToolHarness.Element(1, 16, "health", 2, "dtSignedInteger", 4)}}}"""
 		};
 
-		StructureWriteResult result = harness.Values.WriteElement("Player", "1000", 1, "-100", cancellationToken: Token);
+		StructureWriteResult result = harness.Values.WriteElement("Player", "1000", 1, "-100", Token);
 
 		(ulong address, byte[] bytes) = Assert.Single(harness.Writes);
 		Assert.Equal((0x1010UL, "9C FF FF FF"), (address, HexFormat.Bytes(bytes)));
@@ -432,7 +464,7 @@ public sealed class StructureToolsTests
 		};
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			harness.Values.WriteElement("Player", "1000", 1, "300", cancellationToken: Token));
+			harness.Values.WriteElement("Player", "1000", 1, "300", Token));
 
 		Assert.Equal((ToolErrorKind.InvalidArgument, ToolHostEffect.NotStarted),
 			(exception.Error.Kind, exception.Error.HostEffect));
@@ -449,7 +481,7 @@ public sealed class StructureToolsTests
 				: $$"""{"name":"Player","element":{{StructureToolHarness.Element(2, 8, "kind", 13, null, 4)}}}"""
 		};
 
-		StructureWriteResult result = harness.Values.WriteElement("Player", "1000", 2, "7", cancellationToken: Token);
+		StructureWriteResult result = harness.Values.WriteElement("Player", "1000", 2, "7", Token);
 
 		Assert.Equal(new StructureWriteResult("1008", 4, "7"), result);
 		Assert.Contains("[3] = 0x1000, [4] = \"7\"", harness.LuaCalls[1].Arguments, StringComparison.Ordinal);
@@ -480,11 +512,12 @@ public sealed class StructureToolsTests
 	public void Compare_RawCells_FindTheFieldThatSeparatesTheGroups()
 	{
 		StructureToolHarness harness = new();
-		harness.Map(0x1000, [9, 0, 0, 0, 1, 0, 0, 0, 5, 0, 0, 0]);
-		harness.Map(0x2000, [9, 0, 0, 0, 1, 0, 0, 0, 6, 0, 0, 0]);
-		harness.Map(0x3000, [9, 0, 0, 0, 2, 0, 0, 0, 5, 0, 0, 0]);
+		harness.Map(0x1000, 9, 0, 0, 0, 1, 0, 0, 0, 5, 0, 0, 0);
+		harness.Map(0x2000, 9, 0, 0, 0, 1, 0, 0, 0, 6, 0, 0, 0);
+		harness.Map(0x3000, 9, 0, 0, 0, 2, 0, 0, 0, 5, 0, 0, 0);
 
-		StructureComparison discriminators = harness.Comparisons.Compare(["1000", "2000"], ["3000"], 12, cancellationToken: Token);
+		StructureComparison discriminators =
+			harness.Comparisons.Compare(["1000", "2000"], ["3000"], 12, cancellationToken: Token);
 		StructureComparison all = harness.Comparisons.Compare(["1000", "2000"], ["3000"], 12,
 			mode: StructureCompareMode.All, cancellationToken: Token);
 
@@ -494,8 +527,10 @@ public sealed class StructureToolsTests
 		Assert.Equal(["2"], row.ValuesB);
 		Assert.Equal(["1000", "2000"], discriminators.GroupA);
 		Assert.Equal(
-			[StructureFieldClassification.Constant, StructureFieldClassification.Discriminator,
-				StructureFieldClassification.VariesA],
+			[
+				StructureFieldClassification.Constant, StructureFieldClassification.Discriminator,
+				StructureFieldClassification.VariesA
+			],
 			all.Rows.Select(static compared => compared.Classification));
 		Assert.Empty(harness.LuaCalls);
 	}
@@ -509,8 +544,8 @@ public sealed class StructureToolsTests
 				StructureToolHarness.Element(0, 4, "team", 0, "dtUnsignedInteger", 1),
 				StructureToolHarness.Element(1, 8, "health", 4, null, 4))
 		};
-		harness.Map(0x1004, [1, 0, 0, 0, 0, 0, 0xC8, 0x42]);
-		harness.Map(0x2004, [2, 0, 0, 0, 0, 0, 0xC8, 0x42]);
+		harness.Map(0x1004, 1, 0, 0, 0, 0, 0, 0xC8, 0x42);
+		harness.Map(0x2004, 2, 0, 0, 0, 0, 0, 0xC8, 0x42);
 
 		StructureComparison comparison = harness.Comparisons.Compare(["1000"], ["2000"], structureName: "Player",
 			mode: StructureCompareMode.All, cancellationToken: Token);
@@ -590,7 +625,7 @@ public sealed class StructureToolsTests
 			Lua = static _ => StructureToolHarness.Definition("Player", 1,
 				StructureToolHarness.Element(0, 0, "health", 2, "dtSignedInteger", 4))
 		};
-		harness.Map(0x1000, [5, 0, 0, 0]);
+		harness.Map(0x1000, 5, 0, 0, 0);
 		(ServiceProvider root, AsyncServiceScope scope, TestMcpPipeline pipeline) = await harness.ServeAsync();
 		try
 		{

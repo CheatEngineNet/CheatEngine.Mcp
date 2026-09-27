@@ -17,7 +17,7 @@ The gates are defined in the Gates section of CONTRIBUTING.md. Tick what you ran
 - [ ] V: `dotnet restore CheatEngine.Mcp.slnx --locked-mode`, `dotnet build CheatEngine.Mcp.slnx --no-restore` and the portable tests
 - [ ] V+: V, `dotnet format style` and `dotnet format whitespace` with `--verify-no-changes`, the Release build and `pwsh -NoProfile -File eng/Publish.ps1`
 - [ ] VN: the NativeLua suite with `CHEATENGINE_MCP_LUA53_PATH` (required when a fixed Lua script, the Lua runtime, the job kernel or the status indicator changes)
-- [ ] AOT: Native AOT gateway publication and its smoke test (v2, in progress)
+- [ ] AOT: Native AOT gateway publication and its executable MCP smoke check
 - [ ] VL: live qualification, only at a maintainer's request, announced before the run, with Cheat Engine closed and the disposable target
 - [ ] Not run: VL (the default)
 

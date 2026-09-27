@@ -87,7 +87,9 @@ public sealed partial class NativeLuaToolRuntimeTests
 		module.OnDisabling(client);
 		Assert.Equal("MCP: Start failed", ReadStatusCaption());
 		InstallStubs("statusItem.OnClick()");
-		Assert.Contains(activation.Log.LogFilePath, Assert.IsType<string>(ReadGlobal("shownMessage")));
+		string shown = Assert.IsType<string>(ReadGlobal("shownMessage"));
+		Assert.Contains(Path.GetFileName(activation.Log.LogFilePath), shown, StringComparison.Ordinal);
+		Assert.DoesNotContain(activation.Log.LogFilePath, shown, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -121,7 +123,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 
 	private static string ReadStatusCaption()
 	{
-		LuaToolRuntime.LuaToolOperation operation = new("status_caption", "return statusItem.Caption");
+		PluginLuaToolRuntime.LuaToolOperation operation = new("status_caption", "return statusItem.Caption");
 		Assert.True(operation.TryExecute(ActiveContext.Instance, out object? result, out CheatEngineFailure failure),
 			failure.Message);
 		return Assert.IsType<string>(result);

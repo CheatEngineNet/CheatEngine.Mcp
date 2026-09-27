@@ -203,7 +203,7 @@ public sealed class CheatEngineDocResources
 	[McpServerResource(UriTemplate = Docs + "connection-troubleshooting", Name = "doc_connection_troubleshooting",
 		Title = "Connection setup and troubleshooting", MimeType = Markdown)]
 	[Description("Plugin, gateway and client setup, and what to check when " + CheatEngineToolNames.InstanceList
-				 + " is empty or an instance is unavailable.")]
+																			 + " is empty or an instance is unavailable.")]
 	public static ReadResourceResult ConnectionTroubleshooting()
 	{
 		return Document("connection-troubleshooting");

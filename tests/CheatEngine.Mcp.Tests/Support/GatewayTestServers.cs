@@ -5,6 +5,7 @@ using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization.Metadata;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -80,6 +81,12 @@ internal sealed class GatewayTestHost : IAsyncDisposable
 				manifest.Add(primitive);
 			}
 
+			// The production composition couples primitive types with their source-generated JSON metadata. The test host
+			// reconstructs that manifest so its strict catalog exercises the same metadata contract as the gateway.
+			foreach (IJsonTypeInfoResolver resolver in TestComposition.GatewayManifest.JsonResolvers)
+			{
+				manifest.AddJsonResolver(resolver);
+			}
 		});
 		WebApplication application = builder.Build();
 		application.Urls.Add(LoopbackEndpoints.NewEndpoint());
@@ -335,9 +342,7 @@ internal sealed class FakeBackend : IAsyncDisposable
 				},
 				new TextResourceContents
 				{
-					Uri = "cheatengine://instance/probes/nested",
-					MimeType = "application/json",
-					Text = "{}"
+					Uri = "cheatengine://instance/probes/nested", MimeType = "application/json", Text = "{}"
 				}
 			]
 		};

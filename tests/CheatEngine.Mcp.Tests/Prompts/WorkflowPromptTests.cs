@@ -48,12 +48,16 @@ public sealed partial class WorkflowPromptTests
 		"speedhack_wantedspeed"
 	};
 
+	private static readonly Lazy<McpPrimitiveCatalog> PromptCatalog =
+		new(static () => McpPrimitiveCatalog.Create(KnowledgeResourceTests.KnowledgeManifest));
+
 	[Fact]
 	public void Prompts_Names_AreTheTwentyTwoPlannedWorkflows()
 	{
 		McpPrimitiveCatalog catalog = McpPrimitiveCatalog.Create(KnowledgeResourceTests.KnowledgeManifest);
 
-		Assert.Equal(PlannedPrompts.Order(StringComparer.Ordinal), catalog.Prompts.Select(static prompt => prompt.Name));
+		Assert.Equal(PlannedPrompts.Order(StringComparer.Ordinal),
+			catalog.Prompts.Select(static prompt => prompt.Name));
 		Assert.Equal(PlannedPrompts, CheatEngineWorkflows.All.Select(static workflow => workflow.Prompt));
 	}
 
@@ -62,9 +66,11 @@ public sealed partial class WorkflowPromptTests
 	{
 		Assert.All(CheatEngineWorkflows.All, static workflow =>
 			Assert.Equal(workflow.Prompt.Replace('_', '-'), workflow.Workflow));
-		Assert.Equal(CheatEngineWorkflows.All.Select(static workflow => workflow.Workflow).Order(StringComparer.Ordinal),
+		Assert.Equal(
+			CheatEngineWorkflows.All.Select(static workflow => workflow.Workflow).Order(StringComparer.Ordinal),
 			WorkflowPrompt.EmbeddedWorkflows.Order(StringComparer.Ordinal));
-		Assert.Equal(CheatEngineKnowledge.WorkflowNames, WorkflowPrompt.EmbeddedWorkflows.Order(StringComparer.Ordinal));
+		Assert.Equal(CheatEngineKnowledge.WorkflowNames,
+			WorkflowPrompt.EmbeddedWorkflows.Order(StringComparer.Ordinal));
 		Assert.All(CheatEngineWorkflows.All, static workflow =>
 			Assert.Equal(CheatEngineKnowledge.TryReadWorkflow(workflow.Workflow, out string? served) ? served : null,
 				WorkflowPrompt.Body(workflow.Workflow)));
@@ -131,8 +137,8 @@ public sealed partial class WorkflowPromptTests
 	{
 		// Only v2 tools the composition serves can be checked; the rest are verified as their batches land.
 		Dictionary<string, HashSet<string>> schemas = McpPrimitiveCatalog.Create(TestComposition.BackendManifest).Tools
-			.Where(static tool => !McpContractRules.IsLegacy(tool))
-			.ToDictionary(static tool => tool.Name, static tool => Properties(tool.InputSchema), StringComparer.Ordinal);
+			.ToDictionary(static tool => tool.Name, static tool => Properties(tool.InputSchema),
+				StringComparer.Ordinal);
 		foreach (WorkflowDefinition workflow in CheatEngineWorkflows.All)
 		{
 			foreach (Match call in ToolCall().Matches(WorkflowPrompt.Body(workflow.Workflow)))
@@ -205,7 +211,8 @@ public sealed partial class WorkflowPromptTests
 		int checkedArguments = 0;
 		foreach (Prompt prompt in PromptCatalog.Value.Prompts)
 		{
-			foreach (PromptArgument argument in (prompt.Arguments ?? []).Where(static argument => argument.Required == true))
+			foreach (PromptArgument argument in (prompt.Arguments ?? []).Where(static argument =>
+						 argument.Required == true))
 			{
 				Dictionary<string, object?> arguments = new(StringComparer.Ordinal)
 				{
@@ -315,7 +322,8 @@ public sealed partial class WorkflowPromptTests
 	public async Task Prompts_WithoutTheResources_LinkByUriAndNameOnly()
 	{
 		CheatEngineMcpPrimitiveOptions manifest =
-			CheatEngineMcpComposition.CreateManifest(CheatEngineMcpMode.Catalog, static builder => builder.AddPrompts());
+			CheatEngineMcpComposition.CreateManifest(CheatEngineMcpMode.Catalog,
+				static builder => builder.AddPrompts());
 		await using TestMcpPipeline pipeline = await TestMcpPipeline.StartAsync(manifest, McpPrimitiveBinding.Catalog);
 
 		GetPromptResult result = await GetAsync(pipeline, "speedhack", new Dictionary<string, object?>());
@@ -331,7 +339,8 @@ public sealed partial class WorkflowPromptTests
 		Dictionary<string, object?> arguments)
 	{
 		McpPrimitiveCatalog catalog = PromptCatalog.Value;
-		foreach (PromptArgument argument in catalog.Prompts.Single(candidate => candidate.Name == prompt).Arguments ?? [])
+		foreach (PromptArgument argument in catalog.Prompts.Single(candidate => candidate.Name == prompt).Arguments ??
+											[])
 		{
 			if (argument.Required == true && !arguments.ContainsKey(argument.Name))
 			{
@@ -342,9 +351,6 @@ public sealed partial class WorkflowPromptTests
 		return await pipeline.Client.GetPromptAsync(prompt, arguments,
 			cancellationToken: TestContext.Current.CancellationToken);
 	}
-
-	private static readonly Lazy<McpPrimitiveCatalog> PromptCatalog =
-		new(static () => McpPrimitiveCatalog.Create(KnowledgeResourceTests.KnowledgeManifest));
 
 	private static int RenderedLength(GetPromptResult result)
 	{

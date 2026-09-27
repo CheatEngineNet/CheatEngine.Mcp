@@ -2,7 +2,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace CheatEngine.Mcp.Tools.Memory;
 
-/// <summary>The composition entry point of the <c>memory</c> tool domain (13 tools in the v2 catalog).</summary>
+/// <summary>The composition entry point of the <c>memory</c> tool domain (14 tools in the v2 catalog).</summary>
 public static class MemoryToolsBuilderExtensions
 {
 	extension(ICheatEngineMcpBuilder builder)

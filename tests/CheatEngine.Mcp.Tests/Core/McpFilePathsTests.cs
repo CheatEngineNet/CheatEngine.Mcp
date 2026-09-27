@@ -269,7 +269,7 @@ public sealed class McpFilePathsTests : IDisposable
 		string path = Path.Combine(parent, "dump.bin");
 		McpFilePaths paths = Create(root);
 
-		using (McpFileWrite write = paths.BeginWrite(path, Tool, overwrite: false))
+		using (McpFileWrite write = paths.BeginWrite(path, Tool, false))
 		{
 			Assert.Throws<IOException>(() => Directory.Move(ancestor, ancestor + "-moved"));
 			write.Stream.Write([1, 2, 3]);
@@ -286,7 +286,7 @@ public sealed class McpFilePathsTests : IDisposable
 		string path = Path.Combine(root, "new.bin");
 		McpFilePaths paths = Create(root);
 
-		using (McpFileWrite write = paths.BeginWrite(path, Tool, overwrite: false))
+		using (McpFileWrite write = paths.BeginWrite(path, Tool, false))
 		{
 			Assert.False(File.Exists(path));
 			write.Stream.Write([1, 2, 3]);
@@ -294,6 +294,59 @@ public sealed class McpFilePathsTests : IDisposable
 		}
 
 		Assert.Equal([1, 2, 3], File.ReadAllBytes(path));
+	}
+
+	[Fact]
+	public void BeginWrite_ExternalWriterAbort_ReportsConfirmedTemporaryCleanup()
+	{
+		string root = _scratch.CreateFolder("external-abort-root");
+		string path = Path.Combine(root, "saved.bin");
+		McpFilePaths paths = Create(root);
+
+		using (McpFileWrite write = paths.BeginWrite(path, Tool, false))
+		{
+			string temporary = write.PrepareForExternalWrite();
+			File.WriteAllBytes(temporary, [1, 2, 3]);
+
+			Assert.True(write.TryAbort());
+			Assert.False(File.Exists(temporary));
+		}
+
+		Assert.False(File.Exists(path));
+	}
+
+	[Fact]
+	public void BeginWrite_ExternalWriter_PublishesOnlyTheReservedNewDestination()
+	{
+		string root = _scratch.CreateFolder("external-write-root");
+		string path = Path.Combine(root, "saved.bin");
+		McpFilePaths paths = Create(root);
+
+		using (McpFileWrite write = paths.BeginWrite(path, Tool, false))
+		{
+			string temporary = write.PrepareForExternalWrite();
+			Assert.False(File.Exists(path));
+			Assert.StartsWith(".", Path.GetFileName(temporary));
+			Assert.EndsWith(".partial", Path.GetFileName(temporary));
+			File.WriteAllBytes(temporary, [1, 2, 3]);
+			write.Commit();
+		}
+
+		Assert.Equal([1, 2, 3], File.ReadAllBytes(path));
+	}
+
+	[Fact]
+	public void BeginWrite_ExistingDestinationWithoutOverwrite_RefusesWithoutChangingIt()
+	{
+		string root = _scratch.CreateFolder("existing-write-root");
+		string path = Path.Combine(root, "saved.bin");
+		File.WriteAllBytes(path, [4, 5, 6]);
+		McpFilePaths paths = Create(root);
+
+		ToolError error = Refused(() => paths.BeginWrite(path, Tool, false));
+
+		Assert.Contains("already exists", error.Message, StringComparison.Ordinal);
+		Assert.Equal([4, 5, 6], File.ReadAllBytes(path));
 	}
 
 	[Fact]

@@ -50,7 +50,7 @@ public sealed class OutputSchemaContractTests
 					 .Select(static primitive => primitive.Type))
 		{
 			foreach (MethodInfo method in type.GetMethods(BindingFlags.Public | BindingFlags.Instance |
-														 BindingFlags.Static | BindingFlags.DeclaredOnly))
+														  BindingFlags.Static | BindingFlags.DeclaredOnly))
 			{
 				if (method.GetCustomAttribute<McpServerToolAttribute>() is { Name: { } name })
 				{

@@ -147,6 +147,8 @@ public sealed partial class NativeLuaToolRuntimeTests
 	public void LuaUnsafeScript_StrictGlobalsAndReplacedBuiltins_DoNotBreakTheResultChannel()
 	{
 		using RuntimeScope scope = CreateScope();
+		object? environmentField = EvaluateLua("rawget(_G, '_ENV') ~= nil");
+		object? tickCountType = EvaluateLua("type(rawget(_G, 'getTickCount'))");
 
 		Assert.Equal(["strict"], ReturnedStrings(ExecuteCallerLua("""
 		                                                          setmetatable(_G, {
@@ -154,12 +156,20 @@ public sealed partial class NativeLuaToolRuntimeTests
 		                                                          	__index = function(_, k) error('undeclared global ' .. k, 2) end})
 		                                                          return 'strict'
 		                                                          """)));
-		// Stage A captured load, pcall and table.pack before the caller's code replaced them.
+		// Stage A captured the Stage-B primitives before the caller's code replaced them.
 		Assert.Equal(["replaced"], ReturnedStrings(ExecuteCallerLua("""
-		                                                            rawset(_G, 'load', nil); rawset(_G, 'pcall', nil); rawset(_G, 'table', nil)
+		                                                            local put = rawset
+		                                                            put(_G, 'load', nil); put(_G, 'pcall', nil); put(_G, 'table', nil)
+		                                                            put(_G, 'rawget', function() error('replaced rawget') end)
+		                                                            put(_G, 'rawset', function() error('replaced rawset') end)
+		                                                            put(_G, 'type', function() error('replaced type') end)
+		                                                            put(_G, 'getTickCount', function() error('replaced getTickCount') end)
+		                                                            put(_G, '_ENV', {})
 		                                                            return 'replaced'
 		                                                            """)));
 		Assert.Equal(true, EvaluateLua("rawget(_G, '__cheatengine_mcp_lua_result') == nil"));
+		Assert.Equal(environmentField, EvaluateLua("rawget(_G, '_ENV') ~= nil"));
+		Assert.Equal(tickCountType, EvaluateLua("type(rawget(_G, 'getTickCount'))"));
 	}
 
 	private static LuaJsonResult<LuaExecuteOutcome> ExecuteCallerLua(string source, string? chunkName = null)
@@ -204,7 +214,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 
 	private static object? EvaluateLua(string expression)
 	{
-		LuaToolRuntime.LuaToolOperation operation = new("evaluate", "return " + expression);
+		PluginLuaToolRuntime.LuaToolOperation operation = new("evaluate", "return " + expression);
 		Assert.True(operation.TryExecute(ActiveContext.Instance, out object? result, out CheatEngineFailure failure),
 			failure.Message);
 		return result;

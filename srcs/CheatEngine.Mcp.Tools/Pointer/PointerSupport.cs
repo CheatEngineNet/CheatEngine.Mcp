@@ -8,7 +8,6 @@ using CheatEngine.Client.Processes;
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Values;
 using CheatEngine.SDK.Engine.Inspection;
-using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Mcp.Tools.Pointer;
 
@@ -21,7 +20,8 @@ internal static class PointerSupport
 	/// <summary>The most modules one capture or listing copies.</summary>
 	internal const int ModuleLimit = 4_096;
 
-	internal const string TargetChangedHint = "Re-attach the process, then start again; never reuse a discarded result.";
+	internal const string TargetChangedHint =
+		"Re-attach the process, then start again; never reuse a discarded result.";
 
 	/// <summary>Checks a map or scan name before any Cheat Engine call.</summary>
 	/// <param name="name">The name.</param>

@@ -57,7 +57,9 @@ internal static class WorkflowPrompt
 	{
 		string body = Body(definition.Workflow);
 		int split = body.IndexOf('\n', StringComparison.Ordinal);
-		string heading = body.StartsWith("# ", StringComparison.Ordinal) && split > 0 ? body[..split].TrimEnd() : string.Empty;
+		string heading = body.StartsWith("# ", StringComparison.Ordinal) && split > 0
+			? body[..split].TrimEnd()
+			: string.Empty;
 		string rest = heading.Length > 0 ? body[(split + 1)..].TrimStart('\r', '\n') : body;
 
 		StringBuilder text = new();

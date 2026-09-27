@@ -31,8 +31,7 @@ public static class CheatEngineToolsBuilderExtensions
 	extension(ICheatEngineMcpBuilder builder)
 	{
 		/// <summary>
-		///     Declares every Cheat Engine tool container and the services they share: the v2 domains in catalog order,
-		///     then the legacy containers that no domain has replaced yet.
+		///     Declares every v2 Cheat Engine tool container and the services they share in catalog order.
 		/// </summary>
 		/// <returns>The same builder.</returns>
 		public ICheatEngineMcpBuilder AddTools()
@@ -40,16 +39,11 @@ public static class CheatEngineToolsBuilderExtensions
 			ArgumentNullException.ThrowIfNull(builder);
 			if (builder.Mode is CheatEngineMcpMode.Backend)
 			{
-				// Core registers TargetResources, its guard and TargetTransitionGuards; these are the tools' own guards.
-				builder.Services.TryAddScoped<LuaDebuggerCaptureGuard>();
-				builder.Services.TryAddEnumerable(
-					ServiceDescriptor.Scoped<ITargetTransitionGuard, LuaDebuggerCaptureGuard>(static services =>
-						services.GetRequiredService<LuaDebuggerCaptureGuard>()));
+				// Core registers TargetResources and its guard; the visible scanner has no lease of its own.
 				builder.Services.TryAddEnumerable(ServiceDescriptor
 					.Scoped<ITargetTransitionGuard, MainScannerTransitionGuard>());
 			}
 
-			// Each domain batch fills its own Add<Domain>Tools() and deletes the legacy lines below that it replaces.
 			return builder
 				.AddRuntimeTools()
 				.AddProcessTools()
@@ -71,26 +65,7 @@ public static class CheatEngineToolsBuilderExtensions
 				.AddDotNetTools()
 				.AddMonoTools()
 				.AddKernelTools()
-				.AddLuaTools()
-				// Legacy containers, removed by 2.0.0.
-				.AddToolType<RuntimeTool>()
-				.AddToolType<TargetResourceTool>()
-				.AddToolType<ProcessTool>()
-				.AddToolType<ScanTool>()
-				.AddToolType<AddressListTool>()
-				.AddToolType<CheatTableTool>()
-				.AddToolType<LuaExecutionTool>()
-				.AddToolType<AssemblyTool>()
-				.AddToolType<AutoAssemblyTool>()
-				.AddToolType<ConversionTool>()
-				.AddToolType<LuaProcessTool>()
-				.AddToolType<LuaCodeTool>()
-				.AddToolType<LuaTableTool>()
-				.AddToolType<LuaDebuggerTool>()
-				.AddToolType<LuaDebuggerCaptureTool>()
-				.AddToolType<LuaDebuggerTraceTool>()
-				.AddToolType<LuaInjectionTool>()
-				.AddToolType<LuaDbvmTool>();
+				.AddLuaTools();
 		}
 	}
 }

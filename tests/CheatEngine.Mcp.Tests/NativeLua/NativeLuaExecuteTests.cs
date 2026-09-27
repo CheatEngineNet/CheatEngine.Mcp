@@ -25,7 +25,7 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 		                    	finite = mcp.num(0.5), integer = mcp.num(7), budget = k.budgetMs, expired = mcp.expired()}
 		                    """;
 
-		LuaPreludeProbe probe = LuaToolRuntime.Execute(CreateJsonLuaClient(), "prelude_probe", body,
+		LuaPreludeProbe probe = PluginLuaToolRuntime.Execute(CreateJsonLuaClient(), "prelude_probe", body,
 			TestJsonContext.Default.LuaPreludeProbe, CancellationToken.None, 0xFFFF800000001000UL);
 
 		Assert.Equal(new LuaPreludeProbe("FFFF800000001000", "FFFFFFFFFFFFFFFF", true, "48 8B 05", "01 02", "41 00",
@@ -48,7 +48,7 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 		                    return seen
 		                    """;
 
-		bool[] seen = LuaToolRuntime.Execute(CreateJsonLuaClient(), "expiry_probe", body,
+		bool[] seen = PluginLuaToolRuntime.Execute(CreateJsonLuaClient(), "expiry_probe", body,
 			TestJsonContext.Default.BooleanArray, CancellationToken.None);
 
 		Assert.Equal([false, false, false, true], seen);
@@ -63,7 +63,7 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 		                    return {count = a.n, text = a[1], address = a[2], flag = a[3], items = a[4]}
 		                    """;
 
-		LuaArgumentProbe probe = LuaToolRuntime.Execute(CreateJsonLuaClient(), "argument_probe", body,
+		LuaArgumentProbe probe = PluginLuaToolRuntime.Execute(CreateJsonLuaClient(), "argument_probe", body,
 			TestJsonContext.Default.LuaArgumentProbe, CancellationToken.None, "\"]] ) error('x') --☃",
 			ulong.MaxValue, true, new[] { "x", "y" });
 
@@ -88,7 +88,7 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 		using RuntimeScope scope = CreateScope();
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			LuaToolRuntime.Execute(CreateJsonLuaClient(), "declared_probe", body, TestJsonContext.Default.StringArray,
+			PluginLuaToolRuntime.Execute(CreateJsonLuaClient(), "declared_probe", body, TestJsonContext.Default.StringArray,
 				CancellationToken.None));
 
 		Assert.Equal(kind, exception.Error.Kind);
@@ -111,7 +111,7 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 		int top = LuaApi.lua_gettop(s_state);
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			LuaToolRuntime.Execute(CreateJsonLuaClient(), "copy_probe", body, TestJsonContext.Default.StringArray,
+			PluginLuaToolRuntime.Execute(CreateJsonLuaClient(), "copy_probe", body, TestJsonContext.Default.StringArray,
 				CancellationToken.None));
 
 		Assert.Equal(kind, exception.Error.Kind);
@@ -128,7 +128,7 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 		using RuntimeScope scope = CreateScope();
 
 		CheatEngineClientException exception = Assert.ThrowsAny<CheatEngineClientException>(() =>
-			LuaToolRuntime.Execute(CreateJsonLuaClient(), "failure_probe", body, TestJsonContext.Default.StringArray,
+			PluginLuaToolRuntime.Execute(CreateJsonLuaClient(), "failure_probe", body, TestJsonContext.Default.StringArray,
 				CancellationToken.None));
 
 		Assert.Equal(CheatEngineFailureKind.LuaError, exception.Failure.Kind);
@@ -171,8 +171,10 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 	private static ToolDispatch CreateNativeDispatch(McpFeatureOptions features)
 	{
 		IOptions<McpExecutionOptions> options = Options.Create(new McpExecutionOptions());
-		return new ToolDispatch(CreateJsonLuaClient(), new McpFeatureGate(Options.Create(features)), options,
-			new DispatchStatistics(options), TimeProvider.System, new RecordingLogger<ToolDispatch>());
+		ICheatEngineClient client = CreateJsonLuaClient();
+		return new ToolDispatch(client, new McpFeatureGate(Options.Create(features)), options,
+			new DispatchStatistics(options), TimeProvider.System, new RecordingLogger<ToolDispatch>(),
+			new PluginFixedLuaExecutor(client));
 	}
 
 	/// <summary>A Client double whose inline dispatcher and Lua facade run any typed operation on the test state.</summary>

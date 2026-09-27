@@ -1,5 +1,75 @@
 param([ValidateSet('Debug', 'Release')][string] $Configuration = 'Release')
 $ErrorActionPreference = 'Stop'
+
+function Invoke-GatewayNativeAotSmoke([string] $gateway) {
+    $registry = Join-Path ([IO.Path]::GetTempPath()) "CheatEngine.Mcp.Gateway-smoke-$([guid]::NewGuid().ToString('N'))"
+    [IO.Directory]::CreateDirectory($registry) | Out-Null
+    $process = [Diagnostics.Process]::new()
+    $started = $false
+    try {
+        $startInfo = [Diagnostics.ProcessStartInfo]::new($gateway)
+        $startInfo.WorkingDirectory = Split-Path -Parent $gateway
+        $startInfo.UseShellExecute = $false
+        $startInfo.RedirectStandardInput = $true
+        $startInfo.RedirectStandardOutput = $true
+        $startInfo.RedirectStandardError = $true
+        $startInfo.ArgumentList.Add('--instance-directory')
+        $startInfo.ArgumentList.Add($registry)
+        $process.StartInfo = $startInfo
+        if (-not $process.Start()) { throw 'Gateway process did not start.' }
+        $started = $true
+
+        function Read-McpResponse([int] $id) {
+            $read = $process.StandardOutput.ReadLineAsync()
+            if (-not $read.Wait(15000)) { throw "Timed out waiting for MCP response $id." }
+            $line = $read.GetAwaiter().GetResult()
+            if ($null -eq $line) { throw "Gateway closed stdout before MCP response $id." }
+            try { $message = $line | ConvertFrom-Json -ErrorAction Stop }
+            catch { throw "Gateway stdout was not JSON-RPC: $line" }
+            if ($message.id -ne $id) { throw "Expected MCP response $id, got: $line" }
+            if ($null -ne $message.error) { throw "MCP response $id was an error: $line" }
+            return $message
+        }
+
+        $process.StandardInput.WriteLine('{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"CheatEngine.Mcp.Publish","version":"2.0.0"}}}')
+        $process.StandardInput.Flush()
+        $initialize = Read-McpResponse 1
+        if ($initialize.result.serverInfo.name -ne 'CheatEngine.Mcp.Gateway') {
+            throw "Unexpected MCP server '$($initialize.result.serverInfo.name)'."
+        }
+
+        $process.StandardInput.WriteLine('{"jsonrpc":"2.0","method":"notifications/initialized"}')
+        $process.StandardInput.WriteLine('{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}')
+        $process.StandardInput.Flush()
+        $tools = Read-McpResponse 2
+        if (@($tools.result.tools.name) -notcontains 'instance_list') {
+            throw 'Gateway did not publish its local instance_list tool.'
+        }
+
+        foreach ($request in @(
+                @{ Id = 3; Method = 'resources/list' },
+                @{ Id = 4; Method = 'resources/templates/list' },
+                @{ Id = 5; Method = 'prompts/list' })) {
+            $process.StandardInput.WriteLine("{`"jsonrpc`":`"2.0`",`"id`":$($request.Id),`"method`":`"$($request.Method)`",`"params`":{}}")
+            $process.StandardInput.Flush()
+            $null = Read-McpResponse $request.Id
+        }
+
+        $process.StandardInput.Close()
+        if (-not $process.WaitForExit(10000)) { throw 'Gateway did not stop within 10 seconds.' }
+        $stderr = $process.StandardError.ReadToEnd()
+        if ($process.ExitCode -ne 0) { throw "Gateway exited with code $($process.ExitCode): $stderr" }
+    }
+    finally {
+        if ($started -and -not $process.HasExited) {
+            $process.Kill($true)
+            $process.WaitForExit()
+        }
+        $process.Dispose()
+        if ([IO.Directory]::Exists($registry)) { [IO.Directory]::Delete($registry, $true) }
+    }
+}
+
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 Push-Location $repoRoot
 try {
@@ -36,14 +106,16 @@ try {
     $pluginDestination = Remove-Contained (Join-Path $dist 'CheatEngine.Mcp') $distRoot
     dotnet build srcs/CheatEngine.Mcp.Plugin -c $Configuration -p:RestoreLockedMode=true -p:ContinuousIntegrationBuild=true "-p:CheatEnginePluginOutputPath=$pluginDestination"
     if ($LASTEXITCODE -ne 0) { throw 'Plugin deployment build failed.' }
-    Copy-Item -LiteralPath (Join-Path $repoRoot 'README.md'), (Join-Path $repoRoot 'LICENSE'), (Join-Path $repoRoot 'THIRD-PARTY-NOTICES.md') -Destination $pluginDestination
+    Copy-Item -LiteralPath (Join-Path $repoRoot 'srcs/CheatEngine.Mcp.Plugin/Distribution/README.md') -Destination (Join-Path $pluginDestination 'README.md')
+    Copy-Item -LiteralPath (Join-Path $repoRoot 'LICENSE'), (Join-Path $repoRoot 'THIRD-PARTY-NOTICES.md') -Destination $pluginDestination
     Copy-Item -LiteralPath (Join-Path $repoRoot 'licenses') -Destination (Join-Path $pluginDestination 'licenses') -Recurse
 
     dotnet publish srcs/CheatEngine.Mcp.Gateway -c $Configuration -p:PublishProfile=Standalone -p:RestoreLockedMode=true -p:ContinuousIntegrationBuild=true
-    if ($LASTEXITCODE -ne 0) { throw 'Standalone gateway publish failed.' }
+    if ($LASTEXITCODE -ne 0) { throw 'Native AOT gateway publish failed.' }
     $gateway = Join-Path $dist 'CheatEngine.Mcp.Gateway.exe'
-    Copy-Item -LiteralPath (Join-Path $repoRoot "artifacts/publish/CheatEngine.Mcp.Gateway/$variant-standalone/CheatEngine.Mcp.Gateway.exe") -Destination $gateway -Force
-    # The self-contained gateway carries the .NET runtime and the same packages as the plugin: its notices sit beside it.
+    Copy-Item -LiteralPath (Join-Path $repoRoot "artifacts/publish/CheatEngine.Mcp.Gateway/$variant-nativeaot/CheatEngine.Mcp.Gateway.exe") -Destination $gateway -Force
+    Invoke-GatewayNativeAotSmoke $gateway
+    # The native gateway has no managed runtime beside it and shares the packages' notices with the plugin.
     Copy-Item -LiteralPath (Join-Path $repoRoot 'LICENSE'), (Join-Path $repoRoot 'THIRD-PARTY-NOTICES.md') -Destination $dist -Force
     $gatewayLicenses = Remove-Contained (Join-Path $dist 'licenses') $distRoot
     Copy-Item -LiteralPath (Join-Path $repoRoot 'licenses') -Destination $gatewayLicenses -Recurse

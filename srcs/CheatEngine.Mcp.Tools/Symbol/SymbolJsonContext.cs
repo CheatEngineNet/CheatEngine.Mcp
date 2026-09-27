@@ -12,6 +12,7 @@ namespace CheatEngine.Mcp.Tools.Symbol;
 [JsonSerializable(typeof(ModulePreference))]
 [JsonSerializable(typeof(SymbolLoadState))]
 [JsonSerializable(typeof(SymbolModuleLoad))]
+[JsonSerializable(typeof(SymbolSourcesEnabled))]
 [JsonSerializable(typeof(SymbolReloadScope))]
 [JsonSerializable(typeof(string[]))]
 public sealed partial class SymbolJsonContext : JsonSerializerContext;

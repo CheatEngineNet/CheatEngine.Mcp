@@ -21,7 +21,6 @@ internal sealed class ModuleMemoryImage : IPeImage
 	private readonly Dictionary<ulong, Page> _pages = [];
 	private readonly ulong _size;
 	private readonly CancellationToken _token;
-	private long _read;
 
 	/// <summary>Creates the view; construct it inside the dispatch that reads through it.</summary>
 	/// <param name="client">The activation's Client.</param>
@@ -42,7 +41,11 @@ internal sealed class ModuleMemoryImage : IPeImage
 	}
 
 	/// <summary>How many bytes this view read from the target.</summary>
-	internal long BytesRead => _read;
+	internal long BytesRead
+	{
+		get;
+		private set;
+	}
 
 	/// <inheritdoc />
 	/// <exception cref="CheatEngineToolException">
@@ -50,7 +53,7 @@ internal sealed class ModuleMemoryImage : IPeImage
 	/// </exception>
 	public void Read(uint rva, Span<byte> destination)
 	{
-		if ((ulong) rva + (ulong) destination.Length > _size)
+		if (rva + (ulong) destination.Length > _size)
 		{
 			throw new InvalidDataException(
 				$"A table at RVA {rva:X} with {destination.Length} bytes lies outside the module's {_size} bytes.");
@@ -84,13 +87,13 @@ internal sealed class ModuleMemoryImage : IPeImage
 
 		ulong start = index * PageSize;
 		int length = (int) Math.Min(PageSize, _size - start);
-		if (_read + length > _budget)
+		if (BytesRead + length > _budget)
 		{
 			throw CheatEngineToolException.LimitExceeded("module",
 				$"{_module} would need more than {_budget / (1024 * 1024)} MiB of reads for this request.");
 		}
 
-		_read += length;
+		BytesRead += length;
 		MemoryBytesReadOutcome outcome = _client.Memory.ReadBytesDetailed(
 			new MemoryBytesReadRequest(new Address(_base + start), length), _token);
 		if (outcome.Failure is { } failure && failure.Kind is not CheatEngineFailureKind.MemoryReadFailed)

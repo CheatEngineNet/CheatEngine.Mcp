@@ -20,15 +20,32 @@ internal sealed class McpServerModule(
 	public void OnEnabled(ICheatEngineClient client)
 	{
 		status.Report(client, "Starting");
+		IMcpBackendHost? server = null;
 		try
 		{
-			IMcpBackendHost server = backends.Create(targets, client.Stopping);
+			server = backends.Create(targets, client.Stopping);
 			server.StartAsync().GetAwaiter().GetResult();
+			string endpoint = server.Endpoint
+				?? throw new InvalidOperationException("The MCP server started without an endpoint.");
 			_server = server;
-			status.Report(client, "Enabled", server.Endpoint);
+			server = null;
+			status.Report(client, "Enabled", endpoint);
 		}
 		catch (Exception exception)
 		{
+			if (server is not null)
+			{
+				try
+				{
+					server.StopAccepting();
+					server.StopAsync().GetAwaiter().GetResult();
+				}
+				catch
+				{
+					// Preserve the startup failure, which is the lifecycle error the caller can act on.
+				}
+			}
+
 			status.Report(client, "Start failed");
 			throw new InvalidOperationException($"Could not start the MCP server at {backends.BaseUrl}.", exception);
 		}

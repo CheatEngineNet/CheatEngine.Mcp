@@ -89,8 +89,12 @@ public sealed class StructureValueTools
 			}
 
 			string?[][]? formatted = null;
-			int[] formattedElements = [.. page.Elements.Where(static element => !StructureValueCodec.IsManaged(
-				StructureValueCodec.ElementType(element.Vartype, element.Display))).Select(static element => element.Index)];
+			int[] formattedElements =
+			[
+				.. page.Elements.Where(static element => !StructureValueCodec.IsManaged(
+						StructureValueCodec.ElementType(element.Vartype, element.Display)))
+					.Select(static element => element.Index)
+			];
 			if (formattedElements.Length > 0)
 			{
 				formatted = _dispatch.ExecuteLua(CheatEngineToolNames.StructureRead,
@@ -113,7 +117,9 @@ public sealed class StructureValueTools
 					bool readable = TryElement(columns[column], element, start, out ReadOnlySpan<byte> bytes);
 					values[column] = managed
 						? readable ? StructureValueCodec.Decode(type, bytes) : null
-						: column < lua!.Length ? lua[column] : null;
+						: column < lua!.Length
+							? lua[column]
+							: null;
 					if (raw is not null && readable)
 					{
 						raw[column] = HexFormat.Bytes(bytes);

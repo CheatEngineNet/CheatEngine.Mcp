@@ -1,12 +1,7 @@
-using System.ComponentModel;
-
 using CheatEngine.Client;
-using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Results;
 using CheatEngine.Mcp.Core.Composition;
 using CheatEngine.Mcp.Core.Contract;
-using CheatEngine.SDK.Engine.Inspection;
-using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Mcp.Core.Execution;
 
@@ -47,74 +42,6 @@ public static class ToolExecution
 		CancellationToken cancellationToken)
 	{
 		return Run(client, body, new DispatchProbe(null), cancellationToken);
-	}
-
-	/// <summary>Transition only: dispatches a legacy tool body and shapes <c>{ success, ... }</c> results in band.</summary>
-	/// <remarks>
-	///     Kept for the legacy tools until they migrate to <see cref="ToolDispatch" />; new tools
-	///     never use it.
-	/// </remarks>
-	/// <param name="client">The activation's Client.</param>
-	/// <param name="body">The complete operation, including target inspection and use.</param>
-	/// <returns>The body's result, or a failure result with kind, operation and host effect.</returns>
-	[EditorBrowsable(EditorBrowsableState.Never)]
-	public static object Run(ICheatEngineClient client, Func<object> body)
-	{
-		try
-		{
-			return client.Dispatcher.Invoke(body, client.Stopping);
-		}
-		catch (CheatEngineClientException exception)
-		{
-			return Failure(exception.Failure);
-		}
-		catch (CheatEngineOperationCanceledException exception)
-		{
-			return Failure(exception.Failure);
-		}
-		catch (Exception exception)
-		{
-			return Error(exception.Message);
-		}
-	}
-
-	/// <summary>Transition only: creates a legacy unsuccessful result with a caller-facing error message.</summary>
-	/// <param name="error">The error message.</param>
-	/// <returns>An object with <c>success = false</c> and <c>error</c>.</returns>
-	[EditorBrowsable(EditorBrowsableState.Never)]
-	public static object Error(string error)
-	{
-		return new
-		{
-			success = false,
-			error
-		};
-	}
-
-	/// <summary>Transition only: creates a legacy unsuccessful result that keeps the Client failure classification.</summary>
-	/// <param name="failure">The Client failure.</param>
-	/// <returns>An object with <c>success = false</c>, <c>error</c>, <c>kind</c>, <c>operation</c> and <c>hostEffect</c>.</returns>
-	[EditorBrowsable(EditorBrowsableState.Never)]
-	public static object Failure(CheatEngineFailure failure)
-	{
-		return new
-		{
-			success = false,
-			error = failure.Message,
-			kind = failure.Kind.ToString(),
-			operation = failure.Operation,
-			hostEffect = failure.HostEffect.ToString()
-		};
-	}
-
-	/// <summary>Resolves a Cheat Engine address expression inside the current dispatch.</summary>
-	/// <param name="client">The activation's Client.</param>
-	/// <param name="expression">An address, symbol or Cheat Engine expression.</param>
-	/// <returns>The resolved address.</returns>
-	public static Address Address(ICheatEngineClient client, string expression)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(expression);
-		return client.Inspection.ResolveAddress(new SymbolExpression(expression), AddressResolutionMode.Default);
 	}
 
 	/// <summary>

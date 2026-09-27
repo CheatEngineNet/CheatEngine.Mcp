@@ -65,6 +65,18 @@ internal sealed class PointerMapSlot
 		}
 	}
 
+	/// <summary>Whether a deletion arrived before this map's job could start.</summary>
+	internal bool IsDeleting
+	{
+		get
+		{
+			lock (_lock)
+			{
+				return _deleting;
+			}
+		}
+	}
+
 	/// <summary>Records what the capture will read, before its job starts.</summary>
 	/// <param name="processId">The captured process.</param>
 	/// <param name="width">The pointer width.</param>
@@ -107,18 +119,6 @@ internal sealed class PointerMapSlot
 		{
 			_deleting = true;
 			return _job;
-		}
-	}
-
-	/// <summary>Whether a deletion arrived before this map's job could start.</summary>
-	internal bool IsDeleting
-	{
-		get
-		{
-			lock (_lock)
-			{
-				return _deleting;
-			}
 		}
 	}
 

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Reflection;
 
 using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Results;
@@ -17,10 +18,10 @@ namespace CheatEngine.Mcp.Tests.Tools.Aob;
 /// <summary>AOB scans and signatures: counts derived from the scan metrics, and the module guard of getUniqueAOB.</summary>
 public sealed class AobToolsTests
 {
-	private static CancellationToken Token => TestContext.Current.CancellationToken;
-
 	private static readonly ModuleInfo Game =
 		new("game.exe", new Address(0x400000), new MemorySize(0x10000), true, @"C:\game\game.exe");
+
+	private static CancellationToken Token => TestContext.Current.CancellationToken;
 
 	[Theory]
 	[InlineData(1, 1UL, 0UL, false, true, true)]
@@ -77,7 +78,8 @@ public sealed class AobToolsTests
 				"AOBScan returned nil.", hostEffect: CheatEngineHostEffect.Completed), null,
 			PatternScanHostOutcomeKind.NoResult, PatternScanRouteReason.UnscopedRequest, false);
 
-		AobPatternResult result = Assert.Single(new AobTools(target.Dispatch).Find(["CC CC CC"], cancellationToken: Token).Results);
+		AobPatternResult result =
+			Assert.Single(new AobTools(target.Dispatch).Find(["CC CC CC"], cancellationToken: Token).Results);
 
 		Assert.Equal((0, false, false, AobScanScope.GlobalScan), (result.Count, result.Exact, result.Unique,
 			result.Scope));
@@ -189,7 +191,7 @@ public sealed class AobToolsTests
 		target.Patterns = (_, arguments) =>
 		{
 			verification = (AobScanRequest) arguments[0]!;
-			return Outcome(1, 1, 0, false, 0x401000);
+			return Outcome(1, 1, 0, false);
 		};
 
 		AobSignature signature = new AobTools(target.Dispatch).GenerateSignature("401002", cancellationToken: Token);
@@ -197,7 +199,8 @@ public sealed class AobToolsTests
 		Assert.Equal(new AobSignature("401002", "game.exe", true, true, "48 8B ?? 05", "401000", 2, 4, 1),
 			signature);
 		Assert.Contains("[1] = 0x401002", source, StringComparison.Ordinal);
-		Assert.Equal(("game.exe", 2, "48 8B ?? 05"), (verification!.Value.Module!.Value.Value, verification.Value.MaximumResults,
+		Assert.Equal(("game.exe", 2, "48 8B ?? 05"), (verification!.Value.Module!.Value.Value,
+			verification.Value.MaximumResults,
 			verification.Value.Pattern.Value));
 		Assert.Equal(1, target.Dispatcher.Calls);
 	}
@@ -210,7 +213,7 @@ public sealed class AobToolsTests
 			Inspection = Modules(Game)
 		};
 		target.LuaResult = _ => new UniqueAobProbe(true, "48 8B 05", 0);
-		target.Patterns = (_, _) => Outcome(2, 3, 0, true, 0x401000);
+		target.Patterns = (_, _) => Outcome(2, 3, 0, true);
 
 		AobSignature signature = new AobTools(target.Dispatch).GenerateSignature("401000", cancellationToken: Token);
 
@@ -300,13 +303,14 @@ public sealed class AobToolsTests
 		};
 		target.LuaResult = _ => new UniqueAobProbe(true, "48 8B 05", 0);
 
-		AobSignature signature = new AobTools(target.Dispatch).GenerateSignature("401000", verify: false, cancellationToken: Token);
+		AobSignature signature =
+			new AobTools(target.Dispatch).GenerateSignature("401000", verify: false, cancellationToken: Token);
 
 		Assert.Equal((true, false, null), (signature.Unique, signature.Verified, signature.MatchCount));
 		Assert.Empty(target.CallsTo("Patterns"));
 	}
 
-	private static Func<System.Reflection.MethodInfo, object?[], object?> Modules(params ModuleInfo[] modules)
+	private static Func<MethodInfo, object?[], object?> Modules(params ModuleInfo[] modules)
 	{
 		return (method, _) => method.Name == nameof(IInspectionClient.GetModules)
 			? modules.ToImmutableArray()

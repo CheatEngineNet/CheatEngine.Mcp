@@ -13,7 +13,9 @@ namespace CheatEngine.Mcp.Core.Lua;
 ///         escaped
 ///         string literal. Stage A loads that string in text mode, runs it under <c>pcall</c> and stores the packed
 ///         outcome,
-///         tagged with a per-call token, in the private global <see cref="ResultGlobal" />.
+///         tagged with a per-call token, in the private global <see cref="ResultGlobal" />. Before publishing that
+///         outcome it restores the primitive Lua globals that the fixed second stage needs, using local references it
+///         captured before the caller's source ran.
 ///     </para>
 ///     <para>
 ///         Stage B is the fixed protected body <see cref="ReadResult" />, run in the same dispatch with the token as its
@@ -35,7 +37,8 @@ internal static class LuaUnsafeScriptWrapper
 	/// <summary>
 	///     The fixed stage-B body. Argument: <c>a[1]</c>, the token of the stage-A script. It returns
 	///     <c>{ok=true, returnValues=table.pack(...)}</c>, <c>{ok=false, phase='compile'|'runtime', error}</c>, or an
-	///     <c>mcp_error</c> when no result of this call exists. Only raw access touches caller values.
+	///     <c>mcp_error</c> when no result of this call exists. Stage A restored the raw primitives and environment field
+	///     before this body starts, so only raw access touches caller values.
 	/// </summary>
 	internal const string ReadResult = """
 	                                   local result = rawget(_ENV, '__cheatengine_mcp_lua_result')
@@ -91,20 +94,23 @@ internal static class LuaUnsafeScriptWrapper
 		// repeats the source's first character when that is '\r': Lua reads "\n\r" (not "\r\r") as one break.
 		char opening = source.StartsWith('\r') ? '\r' : '\n';
 		StringBuilder script = new(sourceBytes + 1024);
-		script.Append("local __rawset, __pack, __pcall, __load, __env = rawset, table.pack, pcall, load, _ENV\n")
+		script.Append("local __rawget, __rawset, __type, __pack, __pcall, __load, __env = rawget, rawset, type, table.pack, pcall, load, _ENV\n")
+			.Append("local __savedEnv = __rawget(__env, '_ENV'); local __savedTicks = __rawget(__env, 'getTickCount')\n")
 			.Append("__rawset(__env, '").Append(ResultGlobal).Append("', nil)\n")
 			.Append("local __chunk, __error = __load([").Append(level).Append('[').Append(opening)
 			.Append(source)
 			.Append(']').Append(level).Append("], ");
 		AppendStringLiteral(script, name);
 		script.Append(", 't')\n")
+			.Append("local __result\n")
 			.Append("if __chunk == nil then\n")
-			.Append("\t__rawset(__env, '").Append(ResultGlobal).Append("', {token = '").Append(token)
-			.Append("', phase = 'compile', error = __error})\n")
+			.Append("\t__result = {token = '").Append(token).Append("', phase = 'compile', error = __error}\n")
 			.Append("else\n")
-			.Append("\t__rawset(__env, '").Append(ResultGlobal).Append("', {token = '").Append(token)
-			.Append("', phase = 'runtime', outcome = __pack(__pcall(__chunk))})\n")
-			.Append("end\n");
+			.Append("\t__result = {token = '").Append(token).Append("', phase = 'runtime', outcome = __pack(__pcall(__chunk))}\n")
+			.Append("end\n")
+			.Append("__rawset(__env, 'rawget', __rawget); __rawset(__env, 'rawset', __rawset); __rawset(__env, 'type', __type)\n")
+			.Append("__rawset(__env, '_ENV', __savedEnv); __rawset(__env, 'getTickCount', __savedTicks)\n")
+			.Append("__rawset(__env, '").Append(ResultGlobal).Append("', __result)\n");
 		return new WrappedScript(script.ToString(), token);
 	}
 

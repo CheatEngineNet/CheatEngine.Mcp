@@ -22,6 +22,8 @@ internal sealed class GatewayToolCatalog(GatewayPrimitiveCatalog primitives)
 	/// <summary>The routing argument's description, repeated in every routed tool, so it stays short.</summary>
 	internal const string InstanceIdDescription = $"Instance id from {CheatEngineToolNames.InstanceList}.";
 
+	private static readonly JsonSerializerOptions ProtocolJson = CreateProtocolJson();
+
 	private readonly Lazy<Listing> _listing = new(() => new Listing(Create(primitives.Catalog)));
 
 	/// <summary>Every tool, <c>instance_list</c> first.</summary>
@@ -61,7 +63,7 @@ internal sealed class GatewayToolCatalog(GatewayPrimitiveCatalog primitives)
 	/// <returns>The routed tool.</returns>
 	internal static Tool AddRoutingArgument(Tool tool)
 	{
-		JsonTypeInfo<Tool> typeInfo = (JsonTypeInfo<Tool>) McpJsonUtilities.DefaultOptions.GetTypeInfo(typeof(Tool));
+		JsonTypeInfo<Tool> typeInfo = ProtocolJson.GetTypeInfo<Tool>();
 		JsonObject node = JsonSerializer.SerializeToNode(tool, typeInfo)!.AsObject();
 		JsonObject schema = node["inputSchema"] as JsonObject ?? new JsonObject { ["type"] = "object" };
 		JsonObject properties = new()
@@ -101,6 +103,11 @@ internal sealed class GatewayToolCatalog(GatewayPrimitiveCatalog primitives)
 		}
 
 		return node.Deserialize(typeInfo)!;
+	}
+
+	private static JsonSerializerOptions CreateProtocolJson()
+	{
+		return CheatEngineMcpJson.CreateOptions(new CheatEngineMcpPrimitiveOptions());
 	}
 
 	private sealed class Listing(IReadOnlyList<Tool> tools)

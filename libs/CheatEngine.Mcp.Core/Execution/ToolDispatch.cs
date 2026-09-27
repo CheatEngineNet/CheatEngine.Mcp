@@ -1,7 +1,10 @@
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using System.Text.Json.Serialization.Metadata;
 
 using CheatEngine.Client;
+using CheatEngine.Client.Lua;
+using CheatEngine.Client.Results;
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Features;
 using CheatEngine.Mcp.Core.Lua;
@@ -41,6 +44,7 @@ public sealed partial class ToolDispatch
 	private readonly ConditionalWeakTable<string, McpFeature[]> _luaRequirements = new();
 	private readonly int _maximumConcurrency;
 	private readonly DispatchStatistics _statistics;
+	private readonly IFixedLuaExecutor _fixedLua;
 	private readonly TimeProvider _time;
 	private int _active;
 
@@ -53,6 +57,12 @@ public sealed partial class ToolDispatch
 	/// <param name="logger">The dispatch log.</param>
 	public ToolDispatch(ICheatEngineClient client, McpFeatureGate features, IOptions<McpExecutionOptions> options,
 		DispatchStatistics statistics, TimeProvider time, ILogger<ToolDispatch> logger)
+		: this(client, features, options, statistics, time, logger, UnavailableFixedLuaExecutor.Instance)
+	{
+	}
+
+	internal ToolDispatch(ICheatEngineClient client, McpFeatureGate features, IOptions<McpExecutionOptions> options,
+		DispatchStatistics statistics, TimeProvider time, ILogger<ToolDispatch> logger, IFixedLuaExecutor fixedLua)
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		ArgumentNullException.ThrowIfNull(features);
@@ -60,12 +70,14 @@ public sealed partial class ToolDispatch
 		ArgumentNullException.ThrowIfNull(statistics);
 		ArgumentNullException.ThrowIfNull(time);
 		ArgumentNullException.ThrowIfNull(logger);
+		ArgumentNullException.ThrowIfNull(fixedLua);
 		Client = client;
 		Features = features;
 		_budgetMilliseconds = options.Value.DispatchBudgetMilliseconds;
 		_budget = TimeSpan.FromMilliseconds(_budgetMilliseconds);
 		_maximumConcurrency = options.Value.MaxConcurrentDispatches;
 		_statistics = statistics;
+		_fixedLua = fixedLua;
 		_time = time;
 		_logger = logger;
 	}
@@ -117,9 +129,9 @@ public sealed partial class ToolDispatch
 			return ToolExecution.Run(Client, body, probe, cancellationToken);
 		}
 		catch (CheatEngineToolException exception) when (exception.Error.Kind is ToolErrorKind.Internal &&
-														 exception.InnerException is { } fault)
+														 exception.InnerException is not null)
 		{
-			LogUnexpectedFault(_logger, operation, fault);
+			LogUnexpectedFault(_logger, operation);
 			throw;
 		}
 		finally
@@ -161,7 +173,7 @@ public sealed partial class ToolDispatch
 	{
 		string source = PrepareLua(operation, body, resultType, arguments);
 		return Run(operation,
-			token => LuaToolRuntime.ExecuteSource(Client, operation, source, resultType, _buffers, token),
+			token => LuaToolRuntime.ExecuteSource(_fixedLua, operation, source, resultType, _buffers, token),
 			cancellationToken);
 	}
 
@@ -185,7 +197,49 @@ public sealed partial class ToolDispatch
 		CancellationToken cancellationToken, params ReadOnlySpan<object?> arguments)
 	{
 		string source = PrepareLua(operation, body, resultType, arguments);
-		return LuaToolRuntime.ExecuteSource(Client, operation, source, resultType, _buffers, cancellationToken);
+		return LuaToolRuntime.ExecuteSource(_fixedLua, operation, source, resultType, _buffers, cancellationToken);
+	}
+
+	/// <summary>
+	///     Executes an explicitly enabled caller-authored Lua chunk and reads its packed result through a fixed, typed
+	///     second stage.  The source is never treated as a fixed script: it is passed to Lua's text-only loader by the
+	///     first stage, which records a per-call result token.  The second stage always runs after the first stage was
+	///     admitted, including when the first stage fails, so it clears a stale result global before this method reports
+	///     the original failure.
+	/// </summary>
+	/// <typeparam name="T">The source-generated shape returned by the fixed result reader.</typeparam>
+	/// <param name="operation">The public operation name used in errors and dispatch statistics.</param>
+	/// <param name="unsafeLua">The Client's opt-in arbitrary-Lua capability.</param>
+	/// <param name="source">The caller-authored Lua source, limited and quoted by the stage-A wrapper.</param>
+	/// <param name="chunkName">The optional caller-facing Lua chunk name for diagnostics.</param>
+	/// <param name="resultType">Source-generated metadata for the stage-B result.</param>
+	/// <param name="cancellationToken">The MCP request token.</param>
+	/// <returns>The copied stage-B result and the number of opaque values dropped while it was copied.</returns>
+	/// <exception cref="CheatEngineToolException">
+	///     Unsafe Lua is disabled, an input is invalid before dispatch, the Client rejects a stage, or the copied result
+	///     violates its bounded contract.
+	/// </exception>
+	public LuaUnsafeExecution<T> RunUnsafeLua<T>(string operation, IUnsafeLuaClient unsafeLua, string source,
+		string? chunkName, JsonTypeInfo<T> resultType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(operation);
+		ArgumentNullException.ThrowIfNull(unsafeLua);
+		ArgumentNullException.ThrowIfNull(resultType);
+		Features.Require(McpFeature.UnsafeLua, operation);
+		LuaUnsafeScriptWrapper.WrappedScript wrapped;
+		try
+		{
+			wrapped = LuaUnsafeScriptWrapper.Build(source, chunkName);
+		}
+		catch (ArgumentException exception)
+		{
+			throw new CheatEngineToolException(new ToolError(ToolErrorKind.InvalidArgument, exception.Message,
+				operation,
+				ToolHostEffect.NotStarted, false), exception);
+		}
+
+		return Run(operation, token => ExecuteUnsafeLua(operation, unsafeLua, wrapped, resultType, token),
+			cancellationToken);
 	}
 
 	private string PrepareLua<T>(string operation, string body, JsonTypeInfo<T> resultType,
@@ -210,6 +264,58 @@ public sealed partial class ToolDispatch
 		}
 	}
 
+	private LuaUnsafeExecution<T> ExecuteUnsafeLua<T>(string operation, IUnsafeLuaClient unsafeLua,
+		LuaUnsafeScriptWrapper.WrappedScript wrapped, JsonTypeInfo<T> resultType, CancellationToken cancellationToken)
+	{
+		CheatEngineFailure? firstFailure = null;
+		Exception? firstException = null;
+		try
+		{
+			if (!unsafeLua.TryExecute(new LuaScript(wrapped.Source, "=CheatEngine.Mcp/lua_execute"),
+					out CheatEngineFailure stageAError,
+					cancellationToken))
+			{
+				firstFailure = stageAError;
+			}
+		}
+		catch (Exception exception)
+		{
+			firstException = exception;
+		}
+
+		LuaUnsafeExecution<T>? copied = null;
+		Exception? secondException = null;
+		try
+		{
+			LuaCopiedResult<T> result = LuaToolRuntime.ExecuteSourceWithCopy(_fixedLua, operation,
+				LuaToolRuntime.BuildSource(LuaUnsafeScriptWrapper.ReadResult, _budgetMilliseconds, [wrapped.Token]),
+				resultType,
+				_buffers, LuaOpaqueValueHandling.Drop, cancellationToken);
+			copied = new LuaUnsafeExecution<T>(result.Value, result.DroppedOpaqueCount);
+		}
+		catch (Exception exception)
+		{
+			secondException = exception;
+		}
+
+		if (firstException is not null)
+		{
+			ExceptionDispatchInfo.Capture(firstException).Throw();
+		}
+
+		if (firstFailure is { } stageAFailure)
+		{
+			throw stageAFailure.ToException(cancellationToken);
+		}
+
+		if (secondException is not null)
+		{
+			ExceptionDispatchInfo.Capture(secondException).Throw();
+		}
+
+		return copied!.Value;
+	}
+
 	private void Measure(string operation, long invoked, DispatchProbe probe)
 	{
 		TimeSpan queued = _time.GetElapsedTime(invoked, probe.Started);
@@ -232,5 +338,5 @@ public sealed partial class ToolDispatch
 
 	[LoggerMessage(EventId = 3004, Level = LogLevel.Error,
 		Message = "Dispatch {Operation} failed with an unexpected exception; reported as internal.")]
-	private static partial void LogUnexpectedFault(ILogger logger, string operation, Exception exception);
+	private static partial void LogUnexpectedFault(ILogger logger, string operation);
 }

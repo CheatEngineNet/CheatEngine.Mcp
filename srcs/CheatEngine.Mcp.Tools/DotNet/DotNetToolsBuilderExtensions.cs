@@ -6,15 +6,16 @@ public static class DotNetToolsBuilderExtensions
 	extension(ICheatEngineMcpBuilder builder)
 	{
 		/// <summary>
-		///     Declares the <c>dotnet_*</c> tool containers and their JSON metadata. None is declared yet; the domain is
-		///     new in v2 and replaces no legacy tool.
+		///     Declares the <c>dotnet_*</c> tool container and its source-generated JSON metadata. The collector itself is
+		///     a Cheat Engine runtime service, reached only through fixed Lua routed by <see cref="ToolDispatch" />.
 		/// </summary>
 		/// <returns>The same builder.</returns>
 		public ICheatEngineMcpBuilder AddDotNetTools()
 		{
 			ArgumentNullException.ThrowIfNull(builder);
-			// B12 adds AddJsonTypeInfoResolver(DotNetJsonContext.Default) and one AddToolType<...>() per container here.
-			return builder;
+			return builder
+				.AddJsonTypeInfoResolver(DotNetJsonContext.Default)
+				.AddToolType<DotNetTools>();
 		}
 	}
 }

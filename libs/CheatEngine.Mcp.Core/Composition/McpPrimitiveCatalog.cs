@@ -71,18 +71,14 @@ public sealed class McpPrimitiveCatalog
 
 	/// <summary>Builds the catalog in a validated, disposable container that never registers primitive types.</summary>
 	/// <param name="manifest">The primitives a composition declared.</param>
-	/// <param name="strictJson">
-	///     Whether the serializer options keep only source-generated metadata, as the backend's must for the schemas to
-	///     match; see <see cref="CheatEngineMcpJson.CreateOptions" />.
-	/// </param>
 	/// <returns>Detached copies of the protocol metadata.</returns>
-	public static McpPrimitiveCatalog Create(CheatEngineMcpPrimitiveOptions manifest,
-		bool strictJson = CheatEngineMcpJson.StrictByDefault)
+	public static McpPrimitiveCatalog Create(CheatEngineMcpPrimitiveOptions manifest)
 	{
 		ArgumentNullException.ThrowIfNull(manifest);
+		JsonSerializerOptions json = CheatEngineMcpJson.CreateOptions(manifest);
 		ServiceCollection services = new();
 		services.AddLogging();
-		services.AddMcpServer().WithCheatEnginePrimitives(manifest, McpPrimitiveBinding.Catalog, strictJson);
+		services.AddMcpServer().WithCheatEnginePrimitives(manifest, McpPrimitiveBinding.Catalog);
 		using ServiceProvider provider =
 			services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
 		// Materializing the options runs the duplicate-identifier and contract validation.
@@ -90,21 +86,21 @@ public sealed class McpPrimitiveCatalog
 		// The resources are kept only as URI matchers: a schema-only instance method refuses invocation, and a static
 		// one needs no service, so they stay valid after the container is gone.
 		return new McpPrimitiveCatalog(
-			provider.GetServices<McpServerTool>().Select(static tool => Detach(tool.ProtocolTool))
+			provider.GetServices<McpServerTool>().Select(tool => Detach(tool.ProtocolTool, json))
 				.OrderBy(static tool => tool.Name, StringComparer.Ordinal).ToArray(),
-			provider.GetServices<McpServerPrompt>().Select(static prompt => Detach(prompt.ProtocolPrompt))
+			provider.GetServices<McpServerPrompt>().Select(prompt => Detach(prompt.ProtocolPrompt, json))
 				.OrderBy(static prompt => prompt.Name, StringComparer.Ordinal).ToArray(),
-			provider.GetServices<McpServerResource>().Select(static resource => new McpCatalogResource(resource,
-					Detach(resource.ProtocolResourceTemplate),
-					resource.ProtocolResource is { } concrete ? Detach(concrete) : null,
+			provider.GetServices<McpServerResource>().Select(resource => new McpCatalogResource(resource,
+					Detach(resource.ProtocolResourceTemplate, json),
+					resource.ProtocolResource is { } concrete ? Detach(concrete, json) : null,
 					McpPrimitiveOrigin.Of(resource)?.Routing ?? McpPrimitiveRouting.Instance))
 				.OrderBy(static entry => entry.Template.UriTemplate, StringComparer.Ordinal).ToArray());
 	}
 
-	// The protocol types are in the SDK's source-generated context, so no reflection-based overload is needed.
-	private static T Detach<T>(T value)
+	// The protocol types are resolved through the strict composition options, so missing metadata fails at catalog build.
+	private static T Detach<T>(T value, JsonSerializerOptions json)
 	{
-		JsonTypeInfo<T> typeInfo = McpJsonUtilities.DefaultOptions.GetTypeInfo<T>();
+		JsonTypeInfo<T> typeInfo = json.GetTypeInfo<T>();
 		return JsonSerializer.SerializeToElement(value, typeInfo).Deserialize(typeInfo)!;
 	}
 }

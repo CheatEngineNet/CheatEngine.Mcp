@@ -17,7 +17,7 @@ namespace CheatEngine.Mcp.Tests.Core;
 public sealed class ContractJsonTests
 {
 	private static readonly JsonSerializerOptions Composed =
-		CheatEngineMcpJson.CreateOptions(TestComposition.BackendManifest, false);
+		CheatEngineMcpJson.CreateOptions(TestComposition.BackendManifest);
 
 	[Fact]
 	public void ToolErrorKind_EveryMember_IsSnakeCaseOnTheWire()

@@ -18,15 +18,18 @@ namespace CheatEngine.Mcp.Core.Targets;
 ///         <see cref="TargetResources" /> and <see cref="JobRegistry" />.
 ///     </para>
 ///     <para>
-///         No Client call runs during a disable: jobs end by their TTL through the root's Lua timer, and the next
-///         activation
-///         releases or acknowledges what remains.
+///         During disable, <see cref="JobRegistry" /> runs each retained Lua job's fixed, bounded stop hook through the
+///         Client dispatcher. A failed cleanup remains in this root, so the next activation can release or acknowledge
+///         it.
 ///     </para>
 /// </remarks>
 public sealed class McpStateLedger
 {
 	/// <summary>How many ids one acknowledgement accepts.</summary>
 	public const int MaximumAcknowledgedIds = 64;
+
+	/// <summary>The caller-safe description of a Lua cleanup failure.</summary>
+	internal const string CleanupFailedMessage = "The recorded cleanup did not complete.";
 
 	private long _sequence;
 
@@ -91,7 +94,15 @@ public sealed class McpStateLedger
 			entry.IsJob ? TargetResourceCategory.Job : TargetResourceCategory.LuaState, state,
 			Time.GetUtcNow() - TimeSpan.FromMilliseconds(entry.AgeMs), entry.Name, entry.Address, entry.Size,
 			entry.Detail, entry.ProcessId, !string.Equals(entry.Namespace, Namespace, StringComparison.Ordinal),
-			entry.CleanupError, entry.CleanupError is not null);
+			PublicCleanupError(entry.CleanupError), entry.CleanupError is not null);
+	}
+
+	/// <summary>Maps untrusted Lua failure text to the bounded public contract.</summary>
+	/// <param name="cleanupError">The internal Lua failure text.</param>
+	/// <returns>A caller-safe cleanup status.</returns>
+	internal static string? PublicCleanupError(string? cleanupError)
+	{
+		return cleanupError is null ? null : CleanupFailedMessage;
 	}
 
 	/// <summary>Reads every entry of the root, holders first, then newest first. Inside a dispatch.</summary>

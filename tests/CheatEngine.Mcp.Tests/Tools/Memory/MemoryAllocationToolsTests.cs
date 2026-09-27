@@ -8,9 +8,8 @@ namespace CheatEngine.Mcp.Tests.Tools.Memory;
 /// <summary>Named allocations: tracked leases, activation caps checked before dispatch, and honest releases.</summary>
 public sealed class MemoryAllocationToolsTests
 {
-	private static CancellationToken Token => TestContext.Current.CancellationToken;
-
 	private const long MiB = 1024 * 1024;
+	private static CancellationToken Token => TestContext.Current.CancellationToken;
 
 	[Fact]
 	public void Allocate_Executable_RequestsExecuteReadWriteAndTracksTheLease()
@@ -23,7 +22,7 @@ public sealed class MemoryAllocationToolsTests
 			return harness.Target.Lease(0x7FF000010000, request.Value.Size);
 		};
 
-		AllocationInfo info = harness.Tools.Allocate("cave", 64, true, "401000", cancellationToken: Token);
+		AllocationInfo info = harness.Tools.Allocate("cave", 64, true, "401000", Token);
 
 		Assert.Equal(AllocationProtection.ExecuteReadWrite, request!.Value.Protection);
 		Assert.Equal(0x401000UL, request.Value.PreferredAddress!.Value.ToUInt64());
@@ -46,7 +45,8 @@ public sealed class MemoryAllocationToolsTests
 
 		int dispatches = harness.Target.Dispatcher.Calls;
 		CheatEngineToolException exception =
-			Assert.Throws<CheatEngineToolException>(() => harness.Tools.Allocate("block4", 1, cancellationToken: Token));
+			Assert.Throws<CheatEngineToolException>(() =>
+				harness.Tools.Allocate("block4", 1, cancellationToken: Token));
 
 		Assert.Equal(ToolErrorKind.LimitExceeded, exception.Error.Kind);
 		Assert.Equal(dispatches, harness.Target.Dispatcher.Calls);
@@ -64,7 +64,8 @@ public sealed class MemoryAllocationToolsTests
 		}
 
 		CheatEngineToolException exception =
-			Assert.Throws<CheatEngineToolException>(() => harness.Tools.Allocate("one-more", 16, cancellationToken: Token));
+			Assert.Throws<CheatEngineToolException>(() =>
+				harness.Tools.Allocate("one-more", 16, cancellationToken: Token));
 
 		Assert.Equal(ToolErrorKind.LimitExceeded, exception.Error.Kind);
 		Assert.Equal(AllocationRegistry.MaximumAllocations, harness.Target.Mutations);
@@ -81,7 +82,8 @@ public sealed class MemoryAllocationToolsTests
 			: harness.Target.Lease(0x20000, 32);
 
 		Assert.Equal(ToolErrorKind.HostRefused,
-			Assert.Throws<CheatEngineToolException>(() => harness.Tools.Allocate("data", 32, cancellationToken: Token)).Error.Kind);
+			Assert.Throws<CheatEngineToolException>(() => harness.Tools.Allocate("data", 32, cancellationToken: Token))
+				.Error.Kind);
 		fail = false;
 		harness.Tools.Allocate("data", 32, cancellationToken: Token);
 		CheatEngineToolException duplicate =
@@ -101,13 +103,13 @@ public sealed class MemoryAllocationToolsTests
 		harness.Tools.Allocate("keep", 64, cancellationToken: Token);
 
 		CheatEngineToolException incomplete =
-			Assert.Throws<CheatEngineToolException>(() => harness.Tools.Free("keep", cancellationToken: Token));
+			Assert.Throws<CheatEngineToolException>(() => harness.Tools.Free("keep", Token));
 		Assert.Equal(ToolErrorKind.PartialEffect, incomplete.Error.Kind);
 		Assert.True(incomplete.Error.Retryable);
 		Assert.Single(harness.Resources.List());
 		Assert.Equal(1, harness.Registry.Count);
 
-		ReleaseResult released = harness.Tools.Free("keep", cancellationToken: Token);
+		ReleaseResult released = harness.Tools.Free("keep", Token);
 
 		Assert.Equal(ResourceReleaseKind.Released, released.Release.Kind);
 		Assert.Empty(harness.Resources.List());
@@ -123,13 +125,14 @@ public sealed class MemoryAllocationToolsTests
 			new LeaseReleaseOutcome(LeaseReleaseKind.RefusedTargetChanged, CheatEngineHostEffect.NotStarted));
 		harness.Tools.Allocate("gone", 8, cancellationToken: Token);
 
-		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() => harness.Tools.Free("gone", cancellationToken: Token));
+		CheatEngineToolException exception =
+			Assert.Throws<CheatEngineToolException>(() => harness.Tools.Free("gone", Token));
 
 		Assert.Equal(ToolErrorKind.PartialEffect, exception.Error.Kind);
 		Assert.False(exception.Error.Retryable);
 		Assert.Empty(harness.Resources.List());
 		Assert.Equal(ToolErrorKind.NotFound,
-			Assert.Throws<CheatEngineToolException>(() => harness.Tools.Free("gone", cancellationToken: Token)).Error.Kind);
+			Assert.Throws<CheatEngineToolException>(() => harness.Tools.Free("gone", Token)).Error.Kind);
 	}
 
 	[Fact]
@@ -138,7 +141,7 @@ public sealed class MemoryAllocationToolsTests
 		Harness harness = new();
 
 		CheatEngineToolException exception =
-			Assert.Throws<CheatEngineToolException>(() => harness.Tools.Free("never", cancellationToken: Token));
+			Assert.Throws<CheatEngineToolException>(() => harness.Tools.Free("never", Token));
 
 		Assert.Equal(ToolErrorKind.NotFound, exception.Error.Kind);
 		Assert.Equal(0, harness.Target.Dispatcher.Calls);
@@ -156,7 +159,7 @@ public sealed class MemoryAllocationToolsTests
 		Assert.Single(result.Released);
 		Assert.Equal(0, harness.Registry.Count);
 		Assert.Equal(ToolErrorKind.NotFound,
-			Assert.Throws<CheatEngineToolException>(() => harness.Tools.Free("scratch", cancellationToken: Token)).Error.Kind);
+			Assert.Throws<CheatEngineToolException>(() => harness.Tools.Free("scratch", Token)).Error.Kind);
 	}
 
 	private sealed class Harness

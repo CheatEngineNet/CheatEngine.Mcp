@@ -15,13 +15,11 @@ namespace CheatEngine.Mcp.Tests.NativeLua;
 ///     The fixed scripts of the memory and AOB tools on a real Lua 5.3 state: each compiles, loads no code, needs no
 ///     exposure switch, and runs against stubbed Cheat Engine functions into its result record or declared failure.
 /// </summary>
-public sealed unsafe partial class NativeLuaToolRuntimeTests
+public sealed partial class NativeLuaToolRuntimeTests
 {
 	public static TheoryData<string> MemoryAobScripts => new()
 	{
-		nameof(MemoryScripts.AddressExtras),
-		nameof(MemoryScripts.Protection),
-		nameof(AobScripts.UniqueAob)
+		nameof(MemoryScripts.AddressExtras), nameof(MemoryScripts.Protection), nameof(AobScripts.UniqueAob)
 	};
 
 	[Theory]
@@ -82,7 +80,8 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 		Assert.Equal("set", ReadGlobal("lastCall"));
 		ProtectionProbe full = RunProtection(true, true, true);
 
-		Assert.Equal(new ProtectionProbe(new ProtectionFlags(true, false, true), new ProtectionFlags(true, true, false)),
+		Assert.Equal(
+			new ProtectionProbe(new ProtectionFlags(true, false, true), new ProtectionFlags(true, true, false)),
 			set);
 		Assert.Equal(new ProtectionFlags(true, true, true), full.Current);
 		Assert.Equal("full", ReadGlobal("lastCall"));
@@ -181,21 +180,21 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 
 	private static AddressExtras RunExtras(bool rtti)
 	{
-		return LuaToolRuntime.Execute(CreateJsonLuaClient(), CheatEngineToolNames.MemoryGetAddressInfo,
+		return PluginLuaToolRuntime.Execute(CreateJsonLuaClient(), CheatEngineToolNames.MemoryGetAddressInfo,
 			MemoryScripts.AddressExtras, MemoryJsonContext.Default.AddressExtras, Token,
 			new ulong[] { 0x401000, 0x7FF800001000 }, rtti);
 	}
 
 	private static ProtectionProbe RunProtection(bool read, bool write, bool execute)
 	{
-		return LuaToolRuntime.Execute(CreateJsonLuaClient(), CheatEngineToolNames.MemorySetProtection,
+		return PluginLuaToolRuntime.Execute(CreateJsonLuaClient(), CheatEngineToolNames.MemorySetProtection,
 			MemoryScripts.Protection, MemoryJsonContext.Default.ProtectionProbe, Token, 0x401000UL, 4096L, read, write,
 			execute);
 	}
 
 	private static UniqueAobProbe RunUniqueAob()
 	{
-		return LuaToolRuntime.Execute(CreateJsonLuaClient(), CheatEngineToolNames.AobGenerateSignature,
+		return PluginLuaToolRuntime.Execute(CreateJsonLuaClient(), CheatEngineToolNames.AobGenerateSignature,
 			AobScripts.UniqueAob, AobJsonContext.Default.UniqueAobProbe, Token, 0x401002UL);
 	}
 }

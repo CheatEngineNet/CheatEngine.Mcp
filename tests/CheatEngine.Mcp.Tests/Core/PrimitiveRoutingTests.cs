@@ -1,11 +1,11 @@
 using System.ComponentModel;
+using System.Globalization;
 using System.Reflection;
 using System.Text;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
 namespace CheatEngine.Mcp.Tests.Core;
@@ -364,7 +364,7 @@ public sealed class PrimitiveRoutingTests
 		[Description("A numeric variable.")]
 		public static string Read(int count)
 		{
-			return count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+			return count.ToString(CultureInfo.InvariantCulture);
 		}
 	}
 
@@ -474,7 +474,7 @@ public sealed class PrimitiveRoutingTests
 		[Description("A numeric argument.")]
 		public static string Prompt([Description("A count.")] int count)
 		{
-			return count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+			return count.ToString(CultureInfo.InvariantCulture);
 		}
 	}
 }

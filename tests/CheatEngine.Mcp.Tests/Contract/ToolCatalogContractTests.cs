@@ -11,7 +11,7 @@ using ModelContextProtocol.Protocol;
 namespace CheatEngine.Mcp.Tests.Contract;
 
 /// <summary>
-///     The frozen v2 catalog: the 170 names, their fit with the naming rules, the map from every pre-v2 name, the reviewed
+///     The frozen v2 catalog: the 173 names, their fit with the naming rules, the map from every pre-v2 name, the reviewed
 ///     open-world list and the per-tool summary that the reference documentation is generated from.
 /// </summary>
 public sealed class ToolCatalogContractTests
@@ -25,17 +25,17 @@ public sealed class ToolCatalogContractTests
 		{ "instance", 1 },
 		{ "runtime", 6 },
 		{ "process", 9 },
-		{ "memory", 13 },
+		{ "memory", 14 },
 		{ "scan", 8 },
 		{ "aob", 2 },
 		{ "pointer", 10 },
 		{ "module", 4 },
-		{ "symbol", 8 },
+		{ "symbol", 9 },
 		{ "speedhack", 2 },
 		{ "util", 2 },
 		{ "code", 13 },
 		{ "asm", 8 },
-		{ "record", 12 },
+		{ "record", 13 },
 		{ "table", 3 },
 		{ "structure", 13 },
 		{ "debugger", 18 },
@@ -47,16 +47,16 @@ public sealed class ToolCatalogContractTests
 	};
 
 	[Fact]
-	public void ToolNames_Constants_Are170UniqueNamesSplitBetweenBackendAndGateway()
+	public void ToolNames_Constants_Are173UniqueNamesSplitBetweenBackendAndGateway()
 	{
 		string[] constants = typeof(CheatEngineToolNames).GetFields(BindingFlags.Public | BindingFlags.Static)
 			.Where(static field => field.IsLiteral)
 			.Select(static field => (string) field.GetRawConstantValue()!)
 			.ToArray();
 
-		Assert.Equal(170, constants.Length);
+		Assert.Equal(173, constants.Length);
 		Assert.Equal(constants.Order(StringComparer.Ordinal), CheatEngineToolNames.All.Order(StringComparer.Ordinal));
-		Assert.Equal(169, CheatEngineToolNames.Backend.Count);
+		Assert.Equal(172, CheatEngineToolNames.Backend.Count);
 		Assert.Equal([CheatEngineToolNames.InstanceList],
 			CheatEngineToolNames.All.Except(CheatEngineToolNames.Backend));
 	}
@@ -99,14 +99,12 @@ public sealed class ToolCatalogContractTests
 	}
 
 	[Fact]
-	public void LegacyToolNames_Fixture_ListsEveryRegisteredLegacyTool()
+	public void HistoricToolNames_Fixture_ListsEveryMigrationSource()
 	{
 		string[] legacy = ReadLines("legacy-tool-names.txt");
 
-		Assert.Equal(142, legacy.Length);
+		Assert.Equal(191, legacy.Length);
 		Assert.Equal(legacy.Order(StringComparer.Ordinal).Distinct(StringComparer.Ordinal), legacy);
-		// No new legacy tool can appear: whatever is still served without an output schema predates the freeze.
-		Assert.Empty(BackendCatalog().Where(McpContractRules.IsLegacy).Select(static tool => tool.Name).Except(legacy));
 	}
 
 	[Fact]
@@ -172,7 +170,7 @@ public sealed class ToolCatalogContractTests
 	{
 		HashSet<string> openWorld = ReadLines("open-world-tools.txt").ToHashSet(StringComparer.Ordinal);
 
-		Assert.All(BackendCatalog().Where(static tool => !McpContractRules.IsLegacy(tool)), tool =>
+		Assert.All(BackendCatalog(), tool =>
 			Assert.True(tool.Annotations?.OpenWorldHint == openWorld.Contains(tool.Name),
 				$"{tool.Name} sets OpenWorld={tool.Annotations?.OpenWorldHint}, but open-world-tools.txt says " +
 				$"{openWorld.Contains(tool.Name)}."));
@@ -190,7 +188,7 @@ public sealed class ToolCatalogContractTests
 		string[] summary =
 		[
 			"# name | title | readOnly,destructive,idempotent,openWorld | dispatchClass | requires",
-			"# Generated from the backend tools/list and the gateway's instance_list; legacy marks a pre-v2 tool.",
+			"# Generated from the backend tools/list and the gateway's instance_list.",
 			.. lines
 		];
 		GoldenFile.AssertMatches("tool-summary.txt", string.Join('\n', summary));
@@ -202,11 +200,6 @@ public sealed class ToolCatalogContractTests
 		string required = requires is { Count: > 0 }
 			? string.Join('+', requires.Select(static feature => feature!.GetValue<string>()))
 			: "-";
-		if (McpContractRules.IsLegacy(tool))
-		{
-			return $"{tool.Name} | legacy | legacy | legacy | {required}";
-		}
-
 		ToolAnnotations? annotations = tool.Annotations;
 		string hints = string.Join(',', Hint(annotations?.ReadOnlyHint), Hint(annotations?.DestructiveHint),
 			Hint(annotations?.IdempotentHint), Hint(annotations?.OpenWorldHint));

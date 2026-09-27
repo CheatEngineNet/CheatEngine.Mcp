@@ -27,7 +27,7 @@ public static class McpLocalPrimitives
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(manifest);
 		ArgumentNullException.ThrowIfNull(services);
-		JsonSerializerOptions json = CheatEngineMcpJson.CreateOptions(manifest, CheatEngineMcpJson.StrictByDefault);
+		JsonSerializerOptions json = CheatEngineMcpJson.CreateOptions(manifest);
 		foreach (CheatEngineMcpPrimitive primitive in manifest.Primitives)
 		{
 			foreach (MethodInfo method in primitive.Type.GetMethods(StaticMethods))

@@ -7,6 +7,17 @@ namespace CheatEngine.Mcp.Tests.Tools.Modules;
 /// <summary>The managed PE reader: headers, exports, CodeView, relocations and its refusal of malformed images.</summary>
 public sealed class PeImageReaderTests
 {
+	public static TheoryData<string> MalformedHeaders => new()
+	{
+		"short",
+		"signature",
+		"offset",
+		"pe",
+		"magic",
+		"sections",
+		"table"
+	};
+
 	[Fact]
 	public void ParseHeaders_Pe32Plus_ReadsTheReportedFieldsAndEverySection()
 	{
@@ -49,17 +60,6 @@ public sealed class PeImageReaderTests
 		Assert.Equal(SampleModule.ExportRva, headers.Directories[PeHeaders.ExportDirectory].Rva);
 	}
 
-	public static TheoryData<string> MalformedHeaders => new()
-	{
-		"short",
-		"signature",
-		"offset",
-		"pe",
-		"magic",
-		"sections",
-		"table"
-	};
-
 	[Theory]
 	[MemberData(nameof(MalformedHeaders))]
 	public void ParseHeaders_MalformedImage_IsRefusedWithoutReadingPastTheBuffer(string defect)
@@ -93,9 +93,9 @@ public sealed class PeImageReaderTests
 
 		PeExport[] expected =
 		[
-			new PeExport("Alpha", 1, SampleModule.TextRva + 0x10, null),
-			new PeExport(null, 2, SampleModule.TextRva + 0x20, null),
-			new PeExport("Beta", 3, SampleModule.TextRva + 0x30, null),
+			new("Alpha", 1, SampleModule.TextRva + 0x10, null),
+			new(null, 2, SampleModule.TextRva + 0x20, null),
+			new("Beta", 3, SampleModule.TextRva + 0x30, null),
 			exports[3]
 		];
 		Assert.Equal(expected, exports);
@@ -239,7 +239,8 @@ public sealed class PeImageReaderTests
 		BinaryPrimitives.WriteUInt32LittleEndian(data, 0x1000);
 		BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4), (uint) data.Length);
 
-		InvalidDataException exception = Assert.Throws<InvalidDataException>(() => PeImageReader.ParseRelocations(data));
+		InvalidDataException exception =
+			Assert.Throws<InvalidDataException>(() => PeImageReader.ParseRelocations(data));
 
 		Assert.Contains($"more than {PeImageReader.MaximumRelocationEntries}", exception.Message,
 			StringComparison.Ordinal);

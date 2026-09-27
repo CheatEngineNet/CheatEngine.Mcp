@@ -9,6 +9,7 @@ using CheatEngine.Client.Dispatching;
 using CheatEngine.Mcp.Plugin;
 using CheatEngine.Mcp.Tests.Support;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -216,6 +217,25 @@ public sealed class McpModuleLifecycleTests
 		Assert.Empty(accessed);
 	}
 
+	[Fact]
+	public void Enable_PartiallyStartedBackendStopsBeforeItRethrowsTheStartupFailure()
+	{
+		List<string> accessed = [];
+		ICheatEngineClient client = StrictClient(accessed);
+		using TestActivation activation = new(client);
+		PartiallyStartedBackend backend = new();
+		McpServerModule module = new(new FailingBackendFactory(backend), activation.Targets,
+			activation.Services.GetRequiredService<McpStatusIndicator>());
+
+		InvalidOperationException failure = Assert.Throws<InvalidOperationException>(() =>
+			module.OnEnabled(client));
+
+		Assert.Contains("Could not start the MCP server", failure.Message, StringComparison.Ordinal);
+		Assert.IsType<InvalidOperationException>(failure.InnerException);
+		Assert.Equal((1, 1), (backend.StopAcceptingCalls, backend.StopCalls));
+		Assert.All(accessed, member => Assert.Contains(member, AllowedClientMembers));
+	}
+
 	private static ICheatEngineClient StrictClient(List<string> accessed, CancellationTokenSource? stopping = null)
 	{
 		ICheatEngineDispatcher dispatcher = ClientTestDouble.Create<ICheatEngineDispatcher>((method, _) =>
@@ -264,5 +284,48 @@ public sealed class McpModuleLifecycleTests
 		}
 
 		throw new TimeoutException("The disposed module left its MCP listener running.");
+	}
+
+	private sealed class FailingBackendFactory(PartiallyStartedBackend backend) : IMcpBackendHostFactory
+	{
+		public string BaseUrl => "http://127.0.0.1:45678/";
+
+		public IMcpBackendHost Create(McpPrimitiveTargets _, CancellationToken __)
+		{
+			return backend;
+		}
+	}
+
+	private sealed class PartiallyStartedBackend : IMcpBackendHost
+	{
+		public string? Endpoint => null;
+
+		public int StopAcceptingCalls
+		{
+			get;
+			private set;
+		}
+
+		public int StopCalls
+		{
+			get;
+			private set;
+		}
+
+		public Task StartAsync()
+		{
+			return Task.FromException(new InvalidOperationException("listener startup failed after binding"));
+		}
+
+		public void StopAccepting()
+		{
+			StopAcceptingCalls++;
+		}
+
+		public Task StopAsync()
+		{
+			StopCalls++;
+			return Task.CompletedTask;
+		}
 	}
 }

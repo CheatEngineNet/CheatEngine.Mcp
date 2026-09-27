@@ -1,10 +1,13 @@
 using CheatEngine.Client.Hosting;
 using CheatEngine.Mcp.Core.Execution;
 using CheatEngine.Mcp.Core.Features;
+using CheatEngine.Mcp.Core.Lua;
 using CheatEngine.Mcp.Plugin.Logging;
+using CheatEngine.Mcp.Plugin.Lua;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -67,6 +70,7 @@ internal static class CheatEngineMcpPluginBuilderExtensions
 			mcp.Services.AddSingleton(Options.Create(features));
 			mcp.Services.AddOptions<McpExecutionOptions>()
 				.Bind(configuration.GetSection(McpExecutionOptions.SectionName));
+			mcp.Services.TryAddScoped<IFixedLuaExecutor, PluginFixedLuaExecutor>();
 			return mcp.AddExecutionServices();
 		}
 	}

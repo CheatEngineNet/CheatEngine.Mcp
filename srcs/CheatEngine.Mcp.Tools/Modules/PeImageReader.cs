@@ -27,7 +27,7 @@ internal readonly record struct PeDataDirectory(uint Rva, uint Size)
 	/// <returns><see langword="true" /> when the table contains the address.</returns>
 	internal bool Contains(uint rva)
 	{
-		return IsPresent && rva >= Rva && (ulong) rva < (ulong) Rva + Size;
+		return IsPresent && rva >= Rva && rva < (ulong) Rva + Size;
 	}
 }
 
@@ -105,7 +105,7 @@ internal sealed record PeHeaders(
 		foreach (PeSection section in Sections)
 		{
 			uint size = Math.Max(section.VirtualSize, section.SizeOfRawData);
-			if (rva >= section.VirtualAddress && (ulong) rva < (ulong) section.VirtualAddress + size)
+			if (rva >= section.VirtualAddress && rva < (ulong) section.VirtualAddress + size)
 			{
 				return section;
 			}
@@ -305,7 +305,7 @@ internal static class PeImageReader
 		}
 
 		int sectionsOffset = optionalOffset + optionalSize;
-		if ((long) sectionsOffset + ((long) sectionCount * SectionHeaderSize) > image.Length)
+		if (sectionsOffset + ((long) sectionCount * SectionHeaderSize) > image.Length)
 		{
 			throw new InvalidDataException("The section table lies outside the header bytes.");
 		}
@@ -315,8 +315,10 @@ internal static class PeImageReader
 		{
 			ReadOnlySpan<byte> header = image.Slice(sectionsOffset + (index * SectionHeaderSize), SectionHeaderSize);
 			sections.Add(new PeSection(SectionName(header[..8]), BinaryPrimitives.ReadUInt32LittleEndian(header[12..]),
-				BinaryPrimitives.ReadUInt32LittleEndian(header[8..]), BinaryPrimitives.ReadUInt32LittleEndian(header[20..]),
-				BinaryPrimitives.ReadUInt32LittleEndian(header[16..]), BinaryPrimitives.ReadUInt32LittleEndian(header[36..])));
+				BinaryPrimitives.ReadUInt32LittleEndian(header[8..]),
+				BinaryPrimitives.ReadUInt32LittleEndian(header[20..]),
+				BinaryPrimitives.ReadUInt32LittleEndian(header[16..]),
+				BinaryPrimitives.ReadUInt32LittleEndian(header[36..])));
 		}
 
 		return new PeHeaders(machine, timeDateStamp, characteristics, plus, entryPoint, imageBase, sizeOfImage,

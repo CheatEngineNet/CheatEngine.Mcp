@@ -28,7 +28,7 @@ namespace CheatEngine.Mcp.Core.Jobs;
 /// <typeparam name="TItem">The item type.</typeparam>
 [SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",
 	Justification =
-		"The source has no timer and no wait handle, so it holds no unmanaged resource; it is only ever cancelled, never disposed, because a stop may race the end of the work.")]
+		"The expiry timer is disposed by the job's work completion; a stop may race that completion, so the job itself is never disposed separately.")]
 public sealed class ManagedJob<TItem> : McpJob
 {
 	internal const string ActivationEndedMessage = "The plugin activation ended.";
@@ -40,6 +40,7 @@ public sealed class ManagedJob<TItem> : McpJob
 	private const int ActivationEnd = 3;
 
 	private readonly CancellationTokenSource _cancellation = new();
+	private ITimer? _expiryTimer;
 	private readonly TimeProvider _time;
 	private readonly JobWriter<TItem> _writer;
 	private Task _completion = Task.CompletedTask;
@@ -158,8 +159,20 @@ public sealed class ManagedJob<TItem> : McpJob
 	{
 		ArgumentNullException.ThrowIfNull(work);
 		ArgumentNullException.ThrowIfNull(ended);
-		Volatile.Write(ref _completion,
-			Task.Run(() => RunAsync(work, ended, stopping), CancellationToken.None));
+		TimeSpan due = ExpiresUtc - _time.GetUtcNow();
+		ITimer timer = _time.CreateTimer(static state => ((ManagedJob<TItem>) state!).Expire(), this,
+			due > TimeSpan.Zero ? due : TimeSpan.Zero, Timeout.InfiniteTimeSpan);
+		Volatile.Write(ref _expiryTimer, timer);
+		try
+		{
+			Volatile.Write(ref _completion,
+				Task.Run(() => RunAsync(work, ended, stopping), CancellationToken.None));
+		}
+		catch
+		{
+			Interlocked.Exchange(ref _expiryTimer, null)?.Dispose();
+			throw;
+		}
 	}
 
 	/// <inheritdoc />
@@ -179,7 +192,7 @@ public sealed class ManagedJob<TItem> : McpJob
 			try
 			{
 				await work(_writer, token).ConfigureAwait(false);
-				final = JobState.Completed;
+				final = InterruptedAfterWork() ?? JobState.Completed;
 			}
 			catch (OperationCanceledException) when (token.IsCancellationRequested)
 			{
@@ -211,7 +224,7 @@ public sealed class ManagedJob<TItem> : McpJob
 				error = exception.Error.Message;
 			}
 			catch (CheatEngineClientException exception) when (exception.Failure.Kind is
-																   CheatEngineFailureKind.ActivationExpired)
+															   CheatEngineFailureKind.ActivationExpired)
 			{
 				final = JobState.Cancelled;
 				error = ActivationEndedMessage;
@@ -223,11 +236,17 @@ public sealed class ManagedJob<TItem> : McpJob
 				error = UnexpectedMessage;
 			}
 		}
-
 		Volatile.Write(ref _error, error);
 		_writer.Close();
-		Volatile.Write(ref _state, (int) final);
-		ended(this);
+		final = Finalize(final);
+		try
+		{
+			ended(this);
+		}
+		finally
+		{
+			Interlocked.Exchange(ref _expiryTimer, null)?.Dispose();
+		}
 	}
 
 	private JobState Interrupted()
@@ -238,6 +257,25 @@ public sealed class ManagedJob<TItem> : McpJob
 			Expiry => JobState.Expired,
 			_ => JobState.Cancelled
 		};
+	}
+
+	private JobState? InterruptedAfterWork()
+	{
+		return State is JobState.Stopping ? Interrupted() : null;
+	}
+
+	/// <summary>Publishes a final state without overwriting a stop that won the race with work completion.</summary>
+	private JobState Finalize(JobState proposed)
+	{
+		int previous = Interlocked.CompareExchange(ref _state, (int) proposed, (int) JobState.Running);
+		if (previous == (int) JobState.Running)
+		{
+			return proposed;
+		}
+
+		JobState terminal = previous == (int) JobState.Stopping ? Interrupted() : (JobState) previous;
+		Volatile.Write(ref _state, (int) terminal);
+		return terminal;
 	}
 
 	/// <summary>Asks a running job to stop; the first reason wins. Cancellation callbacks run on the thread pool.</summary>

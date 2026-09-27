@@ -7,7 +7,8 @@ MCP prompts, declared through `AddPrompts()` with `AddPromptType<T>()`, and the 
   inputs and the workflow body) and one resource link per related `cheatengine://docs/...` document, enriched from the
   serving host's own resource listing. Enumerated arguments use `[AllowedValues]`, which drive completion; invalid
   arguments are JSON-RPC `-32602` errors with the contract data.
-- `Workflows/`: the definitions (prompt, body, linked documents) and the renderer. The bodies are embedded by MSBuild link
+- `Workflows/`: the definitions (prompt, body, linked documents) and the renderer. The bodies are embedded by MSBuild
+  link
   from `skills/cheatengine-mcp/references/workflows/*.md`, the same files the Resources project serves.
 - `McpServerInstructions`: the gateway and backend variants, built from `CheatEngineToolNames`; `AddPrompts()` records
   them in the Core manifest.

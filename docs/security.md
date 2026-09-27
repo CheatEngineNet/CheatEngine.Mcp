@@ -5,8 +5,7 @@ This page states what the project protects, what it deliberately does not, and h
 For the moving parts, see [Architecture](architecture.md); for the settings named here, see [Configuration](configuration.md).
 
 > **Status.** This page describes the 2.0.0 (v2) security model.
-> Anything marked **(v2, in progress)** is an adopted design that the code does not implement yet, and the page says what applies today.
-> The tool catalog is still the pre-2.0.0 one, so today's tool names, such as `execute_lua` and `list_instances`, appear where they matter.
+> Consult the running `tools/list` schema before relying on a name, a gate annotation, or an output shape.
 
 ## Threat model
 
@@ -50,7 +49,7 @@ Treat that content as data, and keep your AI client's approval prompts for tools
 | Bounded requests | Request bodies are limited to 8 MiB. |
 | Identity verification | Before listing an instance and before every routed call, the gateway checks the backend's instance ID, activation, CE process ID, process start time and plugin version against the record. |
 | No redirects or proxies | Gateway connections disable automatic redirects and proxies, so a token only ever reaches the recorded loopback endpoint. |
-| Tokens stay out of results | `list_instances` returns only the instance ID, display name, CE process ID and plugin version; routed errors contain no token or endpoint. |
+| Tokens stay out of results | `instance_list` returns only the instance ID, display name, CE process ID and plugin version; routed errors contain no token or endpoint. |
 | Tokens stay out of logs | The plugin log keeps the `Microsoft.AspNetCore`, `System.Net.Http` and `ModelContextProtocol` categories at `Information` or above whatever `Mcp:Logging:MinimumLevel` says. The gateway applies the same floor to its own log. `GatewayTokenLeakTests` runs an authenticated backend, the gateway and a client at `Trace` through list, call, forged-token and stopped-instance paths and asserts that no token appears in any log line, result or error; an instance record's `ToString()` redacts its token. |
 
 ### The discovery registry
@@ -74,19 +73,19 @@ Treat that content as data, and keep your AI client's approval prompts for tools
 Four `Mcp` settings switch groups of capabilities on or off.
 All four are **enabled by default**.
 
-| Setting | Default | Covers in v2 | Today |
-|---|---|---|---|
-| `Mcp:EnableUnsafeLua` | `true` | `lua_execute`; Lua inside Auto Assembler (`{$lua}`, `{$luacode}`, `luacall`); tables that carry Lua; the `loadTable` Lua API. | Only `execute_lua`, through the Client's unsafe Lua capability. The other fixed-script tools ignore it. |
-| `Mcp:EnableAutoAssembler` | `true` | `asm_check`, `asm_apply`, `asm_apply_code_patch` and activating script records. | Auto Assembler checks and patches (`auto_assemble`, `auto_assemble_check`), through the Client's Auto Assembler capability. |
-| `Mcp:EnableTargetCodeExecution` | `true` | `exec_*`, `process_create`, `speedhack_set_speed`, `mono_attach`, `mono_compile_method`, `mono_invoke_method`, the VEH debugger, C code, `loadlibrary` or `createthread` in Auto Assembler, and any attach or table load that would start CE's Mono collector. | Not implemented (v2, in progress): the corresponding tools, such as `inject_library` or `execute_remote_code`, cannot be switched off. |
-| `Mcp:EnableKernelAccess` | `true` | `kernel_*` and the kernel debugger interface. | Not implemented (v2, in progress): the `dbk_*` and `dbvm_*` tools cannot be switched off. |
+| Setting | Default | Covers |
+|---|---|---|
+| `Mcp:EnableUnsafeLua` | `true` | `lua_execute`; Lua inside Auto Assembler (`{$lua}`, `{$luacode}`, `luacall`); tables that carry Lua; the `loadTable` Lua API. |
+| `Mcp:EnableAutoAssembler` | `true` | `asm_check`, `asm_apply`, `asm_apply_code_patch` and activating script records. |
+| `Mcp:EnableTargetCodeExecution` | `true` | `exec_*`, `process_create`, `speedhack_set_speed`, `mono_attach`, `mono_compile_method`, `mono_invoke_method`, the VEH debugger, C code, `loadlibrary` or `createthread` in Auto Assembler, and any attach or table load that would start CE's Mono collector. |
+| `Mcp:EnableKernelAccess` | `true` | `kernel_*` and the kernel debugger interface. |
 
 - Set a gate to `false` in the user `appsettings.json`; settings are read once per enable, so disable and re-enable the plugin afterwards.
 - An existing settings file with `false` keeps its value; the default only applies when the key is absent.
-- A refused call fails with the `capability_disabled` error kind, `hostEffect: not_started`, `retryable: false` and a `hint` naming the setting; the error type is in Core, while today's tools still report a refusal in-band.
+- A refused call fails with the `capability_disabled` error kind, `hostEffect: not_started`, `retryable: false` and a `hint` naming the setting.
 - The catalog is static: a disabled tool is still listed, and only its calls are refused.
 
-In v2 the gates are enforced in layers (v2, in progress):
+The gates are enforced in layers:
 
 - `[RequiresFeature]` on a tool method is copied into the tool's `_meta`, so the gateway's catalog shows which gate a tool needs.
 - The `EnforceFeatures` call filter refuses a gated tool before argument binding and before any dispatch.
@@ -106,13 +105,13 @@ In v2 the gates are enforced in layers (v2, in progress):
 
 ## File policies
 
-| Operation | Today | v2 |
-|---|---|---|
-| Load or save a cheat table | The path must be absolute and under a root in `CheatEngineClient:AllowedTableRoots`, a CheatEngine.Client policy. The list is empty by default, which denies all table access, and relative, blank or duplicate roots fail the enable. | The same roots, plus the table inspector described below (v2, in progress). |
-| Write a file, such as a memory dump or the saved image of a file opened as a process | No root policy: the tool writes any path the CE process can write. | Only under `Mcp:Files:AllowedRoots`, which is empty by default, so writes are refused until a root is configured (v2, in progress). |
-| Read a file, such as a file opened as a process, a symbol module or a module file for patch detection | CE opens the path as given. | The same path rules as writes, without a root requirement (v2, in progress). |
+| Operation | Effective policy |
+|---|---|
+| Load or save a cheat table | The path must be absolute and under a root in `CheatEngineClient:AllowedTableRoots`, a CheatEngine.Client policy. The list is empty by default, which denies all table access. `table_load` also inspects the held file before loading it. |
+| Write a file, such as a memory dump or the saved image of a file opened as a process | The path must be under `Mcp:Files:AllowedRoots`, which is empty by default, so writes are refused until a root is configured. |
+| Read a file, such as a file opened as a process, a symbol module or a module file for patch detection | The same path validation applies, without requiring an allowed root. |
 
-The v2 path rules (`McpFilePaths.RequireAllowed`, v2, in progress):
+`McpFilePaths` applies these rules before a host file is opened:
 
 - The path is absolute, local and on a fixed drive.
 - UNC paths (`\\server\share`), `\\?\` and `\\.\` device paths, device names and alternate data streams (`file:stream`) are refused.
@@ -135,8 +134,7 @@ Loading a table therefore means running code with CE's rights.
 Load only tables you trust, from roots you control.
 Loading can also raise a CE dialog that a person must answer.
 
-Today, table loading is limited by the allowed roots and by CE's own prompts.
-The v2 table inspector adds these checks (v2, in progress):
+`table_load` is limited by the allowed roots, the held-file inspection, and CE's own prompts. The inspector:
 
 - It reads the file once and loads the inspected bytes, so the file cannot change between inspection and loading.
 - `.CETRAINER` files and compressed or unreadable tables are refused unless both unsafe Lua and target code execution are enabled.
@@ -144,9 +142,8 @@ The v2 table inspector adds these checks (v2, in progress):
 
 ## Risk classes
 
-Each v2 tool sets all four MCP annotation hints, and the [tool reference](reference/tools.md) derives a risk class from them (v2, in progress).
+Each tool sets all four MCP annotation hints, and the [tool reference](reference/tools.md) explains how to read them with the live schema.
 Annotations are hints that let an AI client decide what to confirm; they are not controls.
-Today's tools publish no annotations, so clients treat every one of them as potentially destructive and open-world.
 
 | Class | Derived from | Meaning | Typical verbs | Advice |
 |---|---|---|---|---|
@@ -169,7 +166,7 @@ Today's tools publish no annotations, so clients treat every one of them as pote
 - After the kernel debugger interface has been used, CE's kernel module unloader or a reboot is needed before another debugger interface works.
 - The VEH debugger injects CE's DLL into the target, and a target that has used it must be restarted before any new attach; MCP refuses an unsafe reattachment.
 - Kernel, hypervisor and code-execution tools are never exercised by the live qualification, so treat them as untested; see [Compatibility](compatibility.md#qualification-levels).
-- Until `Mcp:EnableKernelAccess` lands, today's kernel and DBVM tools cannot be switched off by configuration.
+- `Mcp:EnableKernelAccess` controls the exposed kernel and DBVM operations; it does not unload a driver or reverse a kernel action already initiated in Cheat Engine.
 
 The operator skill's [kernel guide](../skills/cheatengine-mcp/references/kernel.md) gives the AI client the detailed rules.
 

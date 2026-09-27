@@ -1,5 +1,6 @@
+using System.Text.Json.Serialization.Metadata;
+
 using CheatEngine.Client;
-using CheatEngine.Client.Lua;
 using CheatEngine.Client.Results;
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Features;
@@ -46,7 +47,7 @@ public sealed class ToolDispatchTests
 		Assert.DoesNotContain(fault.Message, exception.Error.Message, StringComparison.Ordinal);
 		(LogLevel level, EventId eventId, _, Exception? logged) = Assert.Single(harness.Logger.Entries);
 		Assert.Equal((LogLevel.Error, 3004), (level, eventId.Id));
-		Assert.Same(fault, logged);
+		Assert.Null(logged);
 	}
 
 	[Fact]
@@ -289,16 +290,14 @@ public sealed class ToolDispatchTests
 		harness.Dispatch.RunLua("probe_operation", "return {}", TestJsonContext.Default.StringArray,
 			CancellationToken.None, "text", 7, ulong.MaxValue);
 
-		LuaToolRuntime.LuaJsonOperation<string[]> operation =
-			Assert.IsType<LuaToolRuntime.LuaJsonOperation<string[]>>(harness.LuaOperation);
-		string[] lines = operation.Source.Split('\n');
+		string[] lines = harness.LuaSource!.Split('\n');
 		Assert.Equal(2, lines.Length);
 		Assert.StartsWith(
 			"local k = { budgetMs = 250 }; local a = { n = 3, [1] = \"text\", [2] = 7, [3] = 0xFFFFFFFFFFFFFFFF }; local mcp = {} ",
 			lines[0], StringComparison.Ordinal);
 		Assert.EndsWith(LuaPrelude.Source, lines[0], StringComparison.Ordinal);
 		Assert.Equal("return {}", lines[1]);
-		Assert.Equal("probe_operation", operation.Operation);
+		Assert.Equal("probe_operation", harness.LuaOperationName);
 	}
 
 	[Fact]
@@ -430,18 +429,11 @@ public sealed class ToolDispatchTests
 		internal Harness(McpExecutionOptions? options = null, McpFeatureOptions? features = null,
 			CancellationToken stopping = default)
 		{
-			ILuaClient lua = ClientTestDouble.Create<ILuaClient>((method, arguments) =>
-			{
-				Assert.Equal(nameof(ILuaClient.Execute), method.Name);
-				Interlocked.Increment(ref _luaCalls);
-				LuaOperation = arguments![0];
-				return LuaFault is null ? LuaResult : throw LuaFault;
-			});
-			Client = ClientTestDouble.Client(Dispatcher.Dispatcher, stopping, (nameof(ICheatEngineClient.Lua), lua));
+			Client = ClientTestDouble.Client(Dispatcher.Dispatcher, stopping);
 			IOptions<McpExecutionOptions> execution = Options.Create(options ?? new McpExecutionOptions());
 			Statistics = new DispatchStatistics(execution);
 			Dispatch = new ToolDispatch(Client, new McpFeatureGate(Options.Create(features ?? new McpFeatureOptions())),
-				execution, Statistics, Time, Logger);
+				execution, Statistics, Time, Logger, new FixedLuaExecutor(this));
 		}
 
 		internal RecordingDispatcher Dispatcher
@@ -486,10 +478,30 @@ public sealed class ToolDispatchTests
 			set;
 		}
 
-		internal object? LuaOperation
+		internal string? LuaOperationName
 		{
 			get;
 			private set;
+		}
+
+		internal string? LuaSource
+		{
+			get;
+			private set;
+		}
+
+		private sealed class FixedLuaExecutor(Harness harness) : IFixedLuaExecutor
+		{
+			public LuaJsonResult<T> Execute<T>(string operation, string source, JsonTypeInfo<T> resultType,
+				LuaJsonBufferPool buffers, LuaOpaqueValueHandling opaque, CancellationToken cancellationToken)
+			{
+				Interlocked.Increment(ref harness._luaCalls);
+				harness.LuaOperationName = operation;
+				harness.LuaSource = source;
+				return harness.LuaFault is null
+					? Assert.IsType<LuaJsonResult<T>>(harness.LuaResult)
+					: throw harness.LuaFault;
+			}
 		}
 
 		internal int LuaCalls => Volatile.Read(ref _luaCalls);

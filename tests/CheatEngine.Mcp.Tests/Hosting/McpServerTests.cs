@@ -59,7 +59,8 @@ public sealed class McpServerTests
 		{
 			Port = FreePort()
 		};
-		using TestActivation activation = new(ClientTestDouble.Client());
+		using TestActivation activation = new(ClientTestDouble.Client(),
+			new Dictionary<string, string?> { ["Mcp:EnableUnsafeLua"] = "false" });
 		McpBackendHost server = CreateHost(activation, options, log);
 		try
 		{
@@ -70,10 +71,10 @@ public sealed class McpServerTests
 			string[] actual = (await client.ListToolsAsync()).Select(tool => tool.Name).Order(StringComparer.Ordinal)
 				.ToArray();
 			Assert.Equal(ToolContractTests.GetToolNames().ToArray(), actual);
-			JsonNode? result = await client.CallToolAsync("execute_lua",
-				new Dictionary<string, object?> { ["script"] = "error('must not run')" });
-			Assert.False(result!["success"]!.GetValue<bool>());
-			Assert.Contains("disabled", result["error"]!.GetValue<string>());
+			InvalidOperationException disabled = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+				await client.CallToolAsync("lua_execute",
+					new Dictionary<string, object?> { ["source"] = "error('must not run')" }));
+			Assert.Contains("capability_disabled", disabled.Message, StringComparison.Ordinal);
 			server.StopAccepting();
 			using HttpClient http = new();
 			using HttpResponseMessage response =
@@ -253,16 +254,15 @@ public sealed class McpServerTests
 			await using (LiveMcpClient firstClient =
 						 await LiveMcpClient.ConnectAsync(options.BaseUrl, TestContext.Current.CancellationToken))
 			{
-				await AssertSuccessfulCallAsync(firstClient, "memory_scan",
+				await AssertSuccessfulCallAsync(firstClient, "scan_first",
 					new Dictionary<string, object?>
 					{
 						["scannerName"] = "reset-me",
 						["valueType"] = "int32",
 						["value"] = "10"
 					});
-				JsonNode? results = await firstClient.CallToolAsync("get_memory_scan_results",
-					new Dictionary<string, object?> { ["scannerName"] = "reset-me" });
-				Assert.True(results!["success"]!.GetValue<bool>());
+				JsonObject results = Assert.IsType<JsonObject>(await firstClient.CallToolAsync("scan_list_results",
+					new Dictionary<string, object?> { ["scannerName"] = "reset-me" }));
 				Assert.Equal("initial", results["results"]![0]!["value"]!.GetValue<string>());
 			}
 
@@ -270,16 +270,16 @@ public sealed class McpServerTests
 			await using (LiveMcpClient reconnectingClient =
 						 await LiveMcpClient.ConnectAsync(options.BaseUrl, TestContext.Current.CancellationToken))
 			{
-				await AssertSuccessfulCallAsync(reconnectingClient, "next_memory_scan",
+				await AssertSuccessfulCallAsync(reconnectingClient, "scan_next",
 					new Dictionary<string, object?> { ["scannerName"] = "reset-me", ["value"] = "11" });
 				Assert.Equal(1, resetSession.NextCalls);
 				Assert.Equal(0, resetSession.ReleaseCalls);
 
-				await AssertSuccessfulCallAsync(reconnectingClient, "reset_memory_scan",
+				await AssertSuccessfulCallAsync(reconnectingClient, "scan_reset",
 					new Dictionary<string, object?> { ["scannerName"] = "reset-me" });
 				Assert.Equal(1, resetSession.ReleaseCalls);
 
-				await AssertSuccessfulCallAsync(reconnectingClient, "memory_scan",
+				await AssertSuccessfulCallAsync(reconnectingClient, "scan_first",
 					new Dictionary<string, object?>
 					{
 						["scannerName"] = "release-on-shutdown",
@@ -367,7 +367,7 @@ public sealed class McpServerTests
 		IReadOnlyDictionary<string, object?> arguments)
 	{
 		JsonNode? result = await client.CallToolAsync(name, arguments);
-		Assert.True(result?["success"]?.GetValue<bool>() ?? false, result?.ToJsonString());
+		Assert.NotNull(result);
 	}
 
 	private sealed class HttpScanSessionProbe

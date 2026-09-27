@@ -22,8 +22,8 @@ public sealed record ContractProbeResult(string Text, string[] Values, bool Flag
 public sealed record ContractProbeDetails(int Completed, int FailedIndex);
 
 /// <summary>
-///     Static probe tools that drive the Core filters through a real MCP server: one v2 tool, one that raises the failure
-///     its argument names, and one legacy tool.
+///     Static probe tools that drive the Core filters through a real MCP server: one v2 tool and one that raises the
+///     failure its argument names.
 /// </summary>
 [McpServerToolType]
 public sealed class ContractProbeTool
@@ -31,7 +31,6 @@ public sealed class ContractProbeTool
 	// v2 probes carry frozen catalog names: the startup validator admits no other v2 tool name.
 	internal const string ConvertName = CheatEngineToolNames.UtilConvertValue;
 	internal const string FailName = CheatEngineToolNames.UtilCalculate;
-	internal const string LegacyName = "legacy_probe";
 	internal const string SecretMessage = @"C:\Users\secret\token-1234";
 
 	[McpServerTool(Name = ConvertName, Title = "Convert a probe value", ReadOnly = true, Destructive = false,
@@ -68,17 +67,6 @@ public sealed class ContractProbeTool
 			"argument" => new ArgumentException("The probe argument is malformed.", nameof(failure)),
 			"protocol" => new McpProtocolException("The probe request is invalid.", McpErrorCode.InvalidRequest),
 			_ => new InvalidOperationException(SecretMessage)
-		};
-	}
-
-	[McpServerTool(Name = LegacyName)]
-	[Description("A legacy tool that reports its result in band.")]
-	public static object Legacy([Description("A value echoed back.")] int value)
-	{
-		return new
-		{
-			success = true,
-			value
 		};
 	}
 }

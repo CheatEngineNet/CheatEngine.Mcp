@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Jobs;
 using CheatEngine.Mcp.Tests.Support;
@@ -132,7 +134,7 @@ public sealed class PointerJobToolTests
 		};
 
 		ToolError error = TestMcpPipeline.AssertError(await pipeline.CallAsync(
-			CheatEngineToolNames.PointerRescanPaths, """{"scanName":"hp","target":"23020"}"""),
+				CheatEngineToolNames.PointerRescanPaths, """{"scanName":"hp","target":"23020"}"""),
 			ToolErrorKind.TargetChanged);
 
 		Assert.Equal(ToolHostEffect.NotStarted, error.HostEffect);
@@ -162,7 +164,7 @@ public sealed class PointerJobToolTests
 		const int PointerWidth = 8;
 		int maximumBytes = 0x11000 + PointerCaptureJob.MaximumReadLength + PointerWidth;
 		ulong boundary = PointerFixture.LargeBase +
-			(ulong) (PointerCaptureJob.MaximumReadLength - PointerWidth + 1);
+						 (PointerCaptureJob.MaximumReadLength - PointerWidth + 1);
 		await using PointerFixture fixture = new(largeRegionSize: (ulong) PointerCaptureJob.MaximumReadLength + 1);
 		fixture.PutPointer(boundary, PointerFixture.ObjectA);
 
@@ -442,7 +444,7 @@ public sealed class PointerJobToolTests
 			"""{"scanName":"none","sortBy":"offset_sum"}""");
 
 		Assert.NotEqual(true, maps.IsError);
-		System.Text.Json.JsonElement map = Assert.IsType<System.Text.Json.JsonElement>(maps.StructuredContent)
+		JsonElement map = Assert.IsType<JsonElement>(maps.StructuredContent)
 			.GetProperty("maps")[0];
 		Assert.Equal(("map", "ready"), (map.GetProperty("mapName").GetString(), map.GetProperty("state").GetString()));
 		Assert.False(map.TryGetProperty("error", out _));

@@ -166,7 +166,9 @@ public sealed record AddressInfo(
 	bool IsSystemModule = false,
 	[property: Description("The memory region that contains the address, when Cheat Engine reports one.")]
 	MemoryRegionDetail? Region = null,
-	[property: Description("The pointer-sized value stored at the address, when includePointerValue was set and it is readable.")]
+	[property:
+		Description(
+			"The pointer-sized value stored at the address, when includePointerValue was set and it is readable.")]
 	string? PointerValue = null,
 	[property: Description(
 		"The RTTI class name of the object at the address, when includeRtti was set and Cheat Engine finds one.")]
@@ -353,7 +355,8 @@ public sealed record ProtectionChange(
 	string Address,
 	[property: Description("The size of the changed range in bytes.")]
 	long Size,
-	[property: Description("The access of every page before the change; restore the whole range with this tool using it.")]
+	[property:
+		Description("The access of every page before the change; restore the whole range with this tool using it.")]
 	ProtectionFlags Previous,
 	[property: Description(
 		"The access of the first page after the change; compare it with the request, as some systems refuse write and execute together.")]
@@ -434,7 +437,8 @@ public sealed record MemoryCompareResult(
 	bool Equal,
 	[property: Description("Whether more differences exist than maxDifferences listed; comparing stopped there.")]
 	bool Truncated,
-	[property: Description("The differing runs, in offset order; a run longer than 64 bytes continues in the next entry.")]
+	[property:
+		Description("The differing runs, in offset order; a run longer than 64 bytes continues in the next entry.")]
 	MemoryDifference[] Differences);
 
 /// <summary>One run of differing bytes.</summary>
@@ -481,7 +485,10 @@ public enum MemoryHashAlgorithm
 	[JsonStringEnumMemberName("sha256")] Sha256
 }
 
-/// <summary>What <c>memory_dump_to_file</c> does with unreadable memory; the wire value is the <c>snake_case</c> member name.</summary>
+/// <summary>
+///     What <c>memory_dump_to_file</c> does with unreadable memory; the wire value is the <c>snake_case</c> member
+///     name.
+/// </summary>
 [JsonConverter(typeof(ContractEnumConverter<UnreadableMemory>))]
 public enum UnreadableMemory
 {
@@ -512,6 +519,12 @@ public sealed record FileDumpResult(
 	ZeroFilledRange[] ZeroFilled,
 	[property: Description("Whether more zero-filled ranges exist than listed.")]
 	bool Truncated);
+
+/// <summary>A host file copied into the selected target by bounded writes.</summary>
+public sealed record FileLoadResult(string Path, string Address, long BytesWritten);
+
+/// <summary>Progress retained when loading a file into target memory stops partway.</summary>
+public sealed record FileLoadFailure(string Path, string Address, long BytesWritten, long TotalBytes);
 
 /// <summary>A range of the dump written as zeros because the target memory was unreadable.</summary>
 /// <param name="Offset">The range's offset in the file.</param>

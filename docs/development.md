@@ -7,7 +7,8 @@ For the build commands and the pull request process, start with [CONTRIBUTING.md
 > **Status.** This page describes the 2.0.0 (v2) development model.
 > The Core building blocks it names are in the code: the composition builders, the contract rules, the error contract, `ToolDispatch`, the capability gates, the job registry, the value helpers and the fixed-Lua runtime.
 > Anything marked **(v2, in progress)** is an adopted design that the code does not implement yet.
-> In particular, today's tools are still the pre-2.0.0 catalog, in flat files under `srcs/CheatEngine.Mcp.Tools`, and they still use `ToolExecution.Run` and `LuaToolRuntime.Invoke`.
+> `CheatEngineToolNames` defines 173 names: the gateway-local `instance_list` and 172 backend tools. `AddTools()` registers every backend v2 name and no historic alias.
+> Use the running `tools/list` schema for the installed build's argument shapes, output schemas, annotations, and descriptions.
 
 ## Repository layout
 
@@ -15,7 +16,7 @@ For the build commands and the pull request process, start with [CONTRIBUTING.md
 |---|---|
 | `libs/CheatEngine.Mcp.Core/` | The shared domain library, and the only project that references the `CheatEngine.Client` package: `Composition/`, `Contract/`, `Execution/`, `Features/`, `Files/`, `Jobs/`, `Lua/`, `Runtime/`, `Tables/`, `Targets/` and `Values/`. |
 | `srcs/CheatEngine.Mcp.Tools/` | The tool classes, their helpers and `AddTools()`. |
-| `srcs/CheatEngine.Mcp.Resources/`, `srcs/CheatEngine.Mcp.Prompts/` | `AddResources()` and `AddPrompts()`; both are empty today. |
+| `srcs/CheatEngine.Mcp.Resources/`, `srcs/CheatEngine.Mcp.Prompts/` | `AddResources()` serves static knowledge documents, workflow bodies, and live runtime, process, modules, memory-regions, records, and structures projections; `AddPrompts()` serves the 22 workflow prompts. |
 | `srcs/CheatEngine.Mcp.Hosting/` | `Backend/` (the per-activation web host), `Configuration/` (options, generated validators, the `MCP_*` source), `Discovery/` (the instance registry) and `Gateway/` (stdio routing). |
 | `srcs/CheatEngine.Mcp.Plugin/` | The Cheat Engine plugin: composition root, `McpServerModule`, `McpStatusIndicator`, the plugin logger under `Logging/`, the per-activation settings and the shipped `appsettings.json`. |
 | `srcs/CheatEngine.Mcp.Gateway/` | The gateway executable's composition root, `GatewayProgram`, and its publish profile. |
@@ -36,7 +37,8 @@ Each project has a short README with its scope and allowed dependencies: [Core](
 |---|---|---|
 | Core | `CheatEngine.Client` (which brings the `CheatEngine.SDK` compile assets), `ModelContextProtocol` | ASP.NET Core, a logging library, configuration loading, discovery, a concrete tool |
 | Tools | Core, and the Client API through it | Hosting, configuration, ASP.NET Core, raw SDK Lua state |
-| Resources, Prompts | Core | ASP.NET Core, the Client directly. Resources will also reference Tools to project read-only tool results (v2, in progress). |
+| Resources | Core, Tools | ASP.NET Core, the Client directly. Live resources call the read-only tools they project. |
+| Prompts | Core | ASP.NET Core, the Client directly. |
 | Hosting | Core, ASP.NET Core, `ModelContextProtocol.AspNetCore` | Tools, Resources, Prompts, the Client, a logging library, Cheat Engine UI |
 | Gateway | Core, Hosting, Tools, Resources, Prompts | The Plugin, or anything that creates a Client activation |
 | Plugin | Every product project, `CheatEngine.Client` and a direct `CheatEngine.SDK` reference | A logging library: the plugin writes its own log file |
@@ -79,7 +81,7 @@ A tool constructor must therefore be cheap and must never dispatch Client work.
 
 ## Execution rules
 
-- Cheat Engine's main thread runs every Client call. Run each compound operation, including the inspection and the use of a target, as one dispatch: `ToolDispatch.Run(operation, body, cancellationToken)` in v2, `ToolExecution.Run` in today's tools.
+- Cheat Engine's main thread runs every Client call. Run each compound operation, including the inspection and the use of a target, as one `ToolDispatch.Run(operation, body, cancellationToken)` dispatch.
 - Prefer the typed Client APIs. When a documented `celua.txt` feature has no typed API, use a fixed, implementation-owned Lua body through `ToolDispatch.RunLua<T>(operation, body, jsonTypeInfo, cancellationToken, arguments)`, or `ToolDispatch.ExecuteLua<T>` inside a `Run` body that also makes Client calls.
 - Never block the main thread: no waits, sleeps or joins, and never synchronously join HTTP work from Cheat Engine's thread. Work that can take more than about a second is a job.
 - `ToolDispatch` admits at most `Mcp:Execution:MaxConcurrentDispatches` dispatches (4 by default) and refuses the next one as `busy`; a body that holds the main thread longer than `Mcp:Execution:DispatchBudgetMilliseconds` (100 ms by default) is logged as event 3001.
@@ -95,12 +97,12 @@ Follow these steps for every new tool; [Architecture](architecture.md#tool-contr
 
 - The name has the form `<domain>_<verb>[_<object>]`, matches `^[a-z][a-z0-9]*(_[a-z0-9]+)+$` and has at most 40 characters.
 - The domain and the verb come from the reviewed lists in `McpContractRules` (`libs/CheatEngine.Mcp.Core/Composition/McpContractRules.cs`); adding a domain or a verb is a contract change that needs a review.
-- Add the name as a public constant in `srcs/CheatEngine.Mcp.Tools/CheatEngineToolNames.cs` and use the constant everywhere, so a rename breaks the build instead of a prompt (v2, in progress).
+- Add the name as a public constant in `libs/CheatEngine.Mcp.Core/Contract/CheatEngineToolNames.cs` and use the constant everywhere, so a rename breaks the build instead of a prompt.
 
 ### 2. Place it
 
-- Put the tool class in its domain folder, `srcs/CheatEngine.Mcp.Tools/<Domain>/`, for example `Memory/` (v2, in progress; today's tools are flat files).
-- Declare it with `AddToolType<T>()` in that domain's `Add<Domain>Tools()` method, which `AddTools()` calls in catalog order (v2, in progress; today `AddTools()` declares every type itself).
+- Put the tool class in its domain folder, `srcs/CheatEngine.Mcp.Tools/<Domain>/`, for example `Memory/`.
+- Declare it with `AddToolType<T>()` in that domain's `Add<Domain>Tools()` method, which `AddTools()` calls in catalog order.
 
 ### 3. Shape the class
 
@@ -127,7 +129,7 @@ public MemoryReadResult Read(
 The example shows the attributes; the tool, its result and its limits are illustrative.
 
 - `Title` is unique, in sentence case, and at most 60 characters.
-- Set all four annotations explicitly. A tool is never both read-only and destructive; a poll is read-only and idempotent; a stop or release is idempotent; `OpenWorld = true` is reserved for the reviewed list of tools that reach beyond the target and Cheat Engine, such as the host file system (the `open-world-tools.txt` golden file is (v2, in progress)).
+- Set all four annotations explicitly. A tool is never both read-only and destructive; a poll is read-only and idempotent; a stop or release is idempotent; `OpenWorld = true` is reserved for the reviewed list of tools that reach beyond the target and Cheat Engine, such as the host file system. `open-world-tools.txt` is the reviewed snapshot of that list.
 - `UseStructuredContent = true` publishes an output schema derived from the return type; the validator requires it to be an object.
 - `[McpMeta(McpDispatchClass.MetaKey, ...)]` declares how long the tool may hold the main thread: `McpDispatchClass.Short`, `HostScan`, `BlockingNative` or `MayPrompt`. A `BlockingNative` or `MayPrompt` tool states its worst case, or its possible dialog, in the description.
 - Describe the method (at most 1,024 characters) and every parameter; the validator rejects a parameter without a description, and no tool may declare `instanceId`, which only the gateway adds.
@@ -143,7 +145,7 @@ The example shows the attributes; the tool, its result and its limits are illust
 
 ### 6. Register the JSON metadata
 
-- Each tool domain owns a public `JsonSerializerContext` in its folder, for example `Memory/MemoryJsonContext.cs`, listing its argument and result types with `[JsonSerializable]` (v2, in progress).
+- Each tool domain owns a public `JsonSerializerContext` in its folder, for example `Memory/MemoryJsonContext.cs`, listing its argument and result types with `[JsonSerializable]`.
 - Use `[JsonSourceGenerationOptions(JsonSerializerDefaults.Web, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]`, as `CoreJsonContext` does.
 - Register it with `builder.AddJsonTypeInfoResolver(MemoryJsonContext.Default)` in `Add<Domain>Tools()`, so the backend and the gateway catalog serialize and describe the types identically without reflection.
 
@@ -165,14 +167,14 @@ The example shows the attributes; the tool, its result and its limits are illust
 
 ### 9. Long work is a job
 
-- A tool that can exceed about one second starts a job instead: `*_start_*` returns a `jobId`, `*_poll_*` takes `jobId`, `afterSequence` and `limit`, and `runtime_list_jobs` and `runtime_stop_job` manage every job (the job tools are (v2, in progress); `JobRegistry` and the Lua job kernel are in Core).
+- A tool that can exceed about one second starts a job instead: `*_start_*` returns a `jobId`, `*_poll_*` takes `jobId`, `afterSequence` and `limit`, and `runtime_list_jobs` and `runtime_stop_job` manage every job through `JobRegistry` and the Lua job kernel in Core.
 - Job lifetimes are bounded by `Mcp:Execution:JobDefaultTtlSeconds` and `Mcp:Execution:JobMaxTtlSeconds`, and a poll never consumes results.
 
 ### 10. Test and document it
 
 - Add a portable test through the Client double or `TestMcpPipeline`, a test that a disabled gate causes zero mutating Client calls, and a NativeLua test for each fixed script; see [Testing](testing.md).
 - Regenerate and review the golden files, which now include your tool.
-- Update `skills/cheatengine-mcp/references/tool-catalog.md` and the operator skill, and the [tool reference](reference/tools.md) (generated from the golden files, v2, in progress).
+- Update `skills/cheatengine-mcp/references/tool-catalog.md`, the operator skill, and the [tool reference](reference/tools.md); the reference directs operators to the live schema while the frozen inventory and golden files record the reviewed contract.
 
 ## Documentation
 

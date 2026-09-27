@@ -15,6 +15,13 @@ namespace CheatEngine.Mcp.Hosting.Gateway;
 /// </summary>
 internal sealed class GatewayResourceCatalog(GatewayPrimitiveCatalog primitives)
 {
+	private static readonly JsonSerializerOptions ProtocolJson = CreateProtocolJson();
+
+	private readonly Lazy<Routing> _routing = new(() => new Routing(primitives.Catalog.InstanceResources));
+
+	/// <summary>The gateway form of every backend live resource and template, ordered by URI template.</summary>
+	internal IReadOnlyList<ResourceTemplate> RoutedTemplates => _routing.Value.Templates;
+
 	/// <summary>The gateway's instance list: the same data as <c>instance_list</c>, never tokens or endpoints.</summary>
 	/// <returns>A new listing entry.</returns>
 	internal static Resource CreateInstancesResource()
@@ -30,11 +37,6 @@ internal sealed class GatewayResourceCatalog(GatewayPrimitiveCatalog primitives)
 			MimeType = McpResourceUris.JsonMimeType
 		};
 	}
-
-	private readonly Lazy<Routing> _routing = new(() => new Routing(primitives.Catalog.InstanceResources));
-
-	/// <summary>The gateway form of every backend live resource and template, ordered by URI template.</summary>
-	internal IReadOnlyList<ResourceTemplate> RoutedTemplates => _routing.Value.Templates;
 
 	/// <summary>Whether a backend live URI names one of the composed live resources.</summary>
 	/// <param name="backendUri">A <c>cheatengine://instance/…</c> URI.</param>
@@ -57,11 +59,16 @@ internal sealed class GatewayResourceCatalog(GatewayPrimitiveCatalog primitives)
 	/// <returns>The gateway template.</returns>
 	internal static ResourceTemplate ToGateway(ResourceTemplate backend)
 	{
-		JsonTypeInfo<ResourceTemplate> typeInfo = McpJsonUtilities.DefaultOptions.GetTypeInfo<ResourceTemplate>();
+		JsonTypeInfo<ResourceTemplate> typeInfo = ProtocolJson.GetTypeInfo<ResourceTemplate>();
 		ResourceTemplate routed = JsonSerializer.SerializeToElement(backend, typeInfo).Deserialize(typeInfo)!;
 		routed.UriTemplate =
 			McpResourceUris.ToGateway(backend.UriTemplate, "{" + McpResourceUris.InstanceIdVariable + "}");
 		return routed;
+	}
+
+	private static JsonSerializerOptions CreateProtocolJson()
+	{
+		return CheatEngineMcpJson.CreateOptions(new CheatEngineMcpPrimitiveOptions());
 	}
 
 	private sealed class Routing(IReadOnlyList<McpCatalogResource> resources)

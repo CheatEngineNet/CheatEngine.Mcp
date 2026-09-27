@@ -10,9 +10,20 @@ namespace CheatEngine.Mcp.Tests.Tools.Modules;
 /// <summary><c>module_find_patches</c>: the comparison itself and the host-file rules on the module's path.</summary>
 public sealed class ModulePatchToolTests : IDisposable
 {
+	private readonly McpFilePathsTests.Scratch _scratch = new();
 	private static CancellationToken Token => TestContext.Current.CancellationToken;
 
-	private readonly McpFilePathsTests.Scratch _scratch = new();
+	public static TheoryData<string> RefusedModulePaths => new()
+	{
+		"\\\\attacker\\share\\sample.dll",
+		"//attacker/share/sample.dll",
+		"\\\\?\\C:\\Games\\sample.dll",
+		"\\\\.\\C:\\Games\\sample.dll",
+		"C:\\Games\\sample.dll:payload",
+		"C:\\Games\\CON",
+		"relative\\sample.dll",
+		""
+	};
 
 	public void Dispose()
 	{
@@ -91,6 +102,25 @@ public sealed class ModulePatchToolTests : IDisposable
 	}
 
 	[Fact]
+	public void FindPatches_LargeUnreadableSection_StopsAtTheAttemptedByteLimit()
+	{
+		int textSize = checked((int) ModulePatchTools.MaximumComparedBytes + ModulePatchTools.ChunkBytes);
+		TestPe pe = SampleModule.Build(textSize);
+		ModuleSymbolTarget target = ModuleToolTests.LoadedSample(pe, WriteModule(pe));
+		ulong firstUnreadable = SampleModule.LoadedBase + SampleModule.TextRva;
+		for (int offset = 0; offset < textSize; offset += 4096)
+		{
+			target.UnreadablePages.Add(firstUnreadable + (uint) offset);
+		}
+
+		PatchScanResult result = Tool(target).FindPatches("sample.dll", cancellationToken: Token);
+
+		Assert.True(result.Truncated);
+		Assert.Equal(0L, result.ComparedBytes);
+		Assert.Equal(ModulePatchTools.MaximumComparedBytes, result.UnreadableBytes);
+	}
+
+	[Fact]
 	public void FindPatches_LimitReachedInsideChunk_CountsOnlyInspectedBytes()
 	{
 		TestPe pe = SampleModule.Build();
@@ -121,7 +151,7 @@ public sealed class ModulePatchToolTests : IDisposable
 	[Fact]
 	public void FindPatches_RelocationSpanningChunks_IsNotReportedAsPatch()
 	{
-		uint relocation = SampleModule.TextRva + (uint) ModulePatchTools.ChunkBytes - 4;
+		uint relocation = SampleModule.TextRva + ModulePatchTools.ChunkBytes - 4;
 		int textSize = ModulePatchTools.ChunkBytes + 0x100;
 		TestPe pe = SampleModule.Build(textSize, additionalRelocationRva: relocation);
 		ModuleSymbolTarget target = ModuleToolTests.LoadedSample(pe, WriteModule(pe));
@@ -176,18 +206,6 @@ public sealed class ModulePatchToolTests : IDisposable
 		Assert.Contains("not the build that was loaded", exception.Error.Message, StringComparison.Ordinal);
 		Assert.Equal(1, target.Calls("ReadBytesDetailed"));
 	}
-
-	public static TheoryData<string> RefusedModulePaths => new()
-	{
-		"\\\\attacker\\share\\sample.dll",
-		"//attacker/share/sample.dll",
-		"\\\\?\\C:\\Games\\sample.dll",
-		"\\\\.\\C:\\Games\\sample.dll",
-		"C:\\Games\\sample.dll:payload",
-		"C:\\Games\\CON",
-		"relative\\sample.dll",
-		""
-	};
 
 	[Theory]
 	[MemberData(nameof(RefusedModulePaths))]

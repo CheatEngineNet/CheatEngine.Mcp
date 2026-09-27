@@ -4,7 +4,7 @@ Thank you for helping.
 This page covers what you need to build, test and submit a change.
 The binding rules for code and agents are in [AGENTS.md](AGENTS.md); the background is in [Development](docs/development.md), [Testing](docs/testing.md) and [Packaging](docs/packaging.md).
 
-> **Status.** The repository is moving to the 2.0.0 (v2) contract.
+> **Status.** The repository exposes the 2.0.0 (v2) contract.
 > Anything marked **(v2, in progress)** is an adopted design that the code does not implement yet.
 
 ## Ground rules
@@ -23,7 +23,7 @@ The binding rules for code and agents are in [AGENTS.md](AGENTS.md); the backgro
 | Windows x64 | The plugin, the native Lua bridge and the live target are x64-only. |
 | .NET SDK 10.0.401, exactly | [`global.json`](global.json) pins it with `rollForward: disable` and `allowPrerelease: false`; `dotnet --version` in the repository root must print `10.0.401`. |
 | PowerShell 7 (`pwsh`) | Runs [`eng/Publish.ps1`](eng/Publish.ps1). |
-| Visual Studio or the Visual Studio Build Tools with the C++ desktop workload, and `vswhere.exe` on `PATH` | Only for publishing the Native AOT gateway, which needs the MSVC linker and the Windows SDK (v2, in progress). Today's gateway is a self-contained single-file executable and needs no C++ toolchain. `vswhere.exe` normally lives in `%ProgramFiles(x86)%\Microsoft Visual Studio\Installer`. |
+| Visual Studio or the Visual Studio Build Tools with the C++ desktop workload and the Windows SDK | Required to publish the Windows x64 Native AOT gateway with the MSVC linker. |
 | A Lua 5.3 x64 DLL, such as Cheat Engine's `lua53-64.dll` | Only for the NativeLua tests. |
 | Cheat Engine 7.7.0.10621 x64 with the .NET 10 runtimes it needs | Only for live qualification; see [Compatibility](docs/compatibility.md). |
 
@@ -95,7 +95,7 @@ Maintainers name the checks a change must pass with these gates:
 | V | Locked restore, Debug build, portable tests. |
 | V+ | V, both `dotnet format` checks, Release build, `eng/Publish.ps1`, and a reviewed diff of the golden files. |
 | VN | The NativeLua suite. |
-| AOT | Native AOT publication of the gateway and its executable smoke test (v2, in progress). |
+| AOT | Native AOT publication of the gateway and its executable MCP smoke check. |
 | VL | Live two-instance qualification, announced, with Cheat Engine closed. |
 
 A pull request needs V+ at least, and VN when it touches Lua.

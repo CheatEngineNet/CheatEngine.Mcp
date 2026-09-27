@@ -1,3 +1,5 @@
+using System.Reflection;
+
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Features;
 using CheatEngine.Mcp.Core.Values;
@@ -132,9 +134,9 @@ public sealed class StructureValueCodecTests
 	[Fact]
 	public void Scripts_NameNoGatedApiAndLoadNoCode()
 	{
-		System.Reflection.FieldInfo[] fields = [.. StructureToolHarness.ScriptFields()];
+		FieldInfo[] fields = [.. StructureToolHarness.ScriptFields()];
 		Assert.Equal(16, fields.Length);
-		foreach (System.Reflection.FieldInfo field in fields)
+		foreach (FieldInfo field in fields)
 		{
 			string script = (string) field.GetRawConstantValue()!;
 			Assert.True(LuaFeatureScan.Scan(script).Length == 0, $"{field.Name} names a gated Cheat Engine API.");

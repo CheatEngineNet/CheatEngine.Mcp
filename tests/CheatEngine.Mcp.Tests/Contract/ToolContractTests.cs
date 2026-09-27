@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Reflection;
 
+using CheatEngine.Mcp.Tests.Support;
 using CheatEngine.Mcp.Tools;
 
 using ModelContextProtocol.Server;
@@ -14,9 +15,8 @@ public sealed class ToolContractTests
 	[Fact]
 	public void ToolNamesAreUniqueAndExplicit()
 	{
-		IReadOnlyList<ToolMethod> methods = GetToolMethods();
-		List<string> duplicateNames = methods
-			.GroupBy(method => method.Name, StringComparer.Ordinal)
+		List<string> duplicateNames = McpPrimitiveCatalog.Create(TestComposition.BackendManifest).Tools
+			.GroupBy(tool => tool.Name, StringComparer.Ordinal)
 			.Where(group => group.Count() > 1)
 			.Select(group => group.Key)
 			.ToList();
@@ -58,7 +58,8 @@ public sealed class ToolContractTests
 
 	internal static IReadOnlyList<string> GetToolNames()
 	{
-		return GetToolMethods().Select(method => method.Name).Order(StringComparer.Ordinal).ToArray();
+		return McpPrimitiveCatalog.Create(TestComposition.BackendManifest).Tools.Select(static tool => tool.Name)
+			.Order(StringComparer.Ordinal).ToArray();
 	}
 
 	private static ToolMethod[] GetToolMethods()

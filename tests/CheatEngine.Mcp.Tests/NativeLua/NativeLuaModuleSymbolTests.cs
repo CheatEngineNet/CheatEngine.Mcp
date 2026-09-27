@@ -23,22 +23,22 @@ namespace CheatEngine.Mcp.Tests.NativeLua;
 public sealed partial class NativeLuaToolRuntimeTests
 {
 	private const string ModulePreferenceStubs = """
-		preference = {'game', 'engine', 'kernel32'}
-		setCalls = 0
-		getModulePreference = function() return preference end
-		setModulePreference = function(value)
-			setCalls = setCalls + 1
-			if type(value) == 'table' then preference = value else table.insert(preference, 1, value) end
-		end
-		""";
+	                                             preference = {'game', 'engine', 'kernel32'}
+	                                             setCalls = 0
+	                                             getModulePreference = function() return preference end
+	                                             setModulePreference = function(value)
+	                                                 setCalls = setCalls + 1
+	                                                 if type(value) == 'table' then preference = value else table.insert(preference, 1, value) end
+	                                             end
+	                                             """;
 
 	private const string ReloadStubs = """
-		loads = 0; reinitialize = nil; dotnet = nil; done = false
-		loadNewSymbols = function() loads = loads + 1 end
-		reinitializeSymbolhandler = function(...) reinitialize = table.pack(...) end
-		reinitializeDotNetSymbolhandler = function(...) dotnet = table.pack(...) end
-		symbolsDoneLoading = function() return done end
-		""";
+	                                   loads = 0; reinitialize = nil; dotnet = nil; done = false
+	                                   loadNewSymbols = function() loads = loads + 1 end
+	                                   reinitializeSymbolhandler = function(...) reinitialize = table.pack(...) end
+	                                   reinitializeDotNetSymbolhandler = function(...) dotnet = table.pack(...) end
+	                                   symbolsDoneLoading = function() return done end
+	                                   """;
 
 	public static TheoryData<string, string> ModuleSymbolScripts => new()
 	{
@@ -46,7 +46,8 @@ public sealed partial class NativeLuaToolRuntimeTests
 		{ nameof(SymbolScripts.GetModulePreference), SymbolScripts.GetModulePreference },
 		{ nameof(SymbolScripts.SetModulePreference), SymbolScripts.SetModulePreference },
 		{ nameof(SymbolScripts.Reload), SymbolScripts.Reload },
-		{ nameof(SymbolScripts.AddModule), SymbolScripts.AddModule }
+		{ nameof(SymbolScripts.AddModule), SymbolScripts.AddModule },
+		{ nameof(SymbolScripts.EnableSources), SymbolScripts.EnableSources }
 	};
 
 	[Theory]
@@ -60,6 +61,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 			nameof(SymbolScripts.SetModulePreference) => [new[] { "game", "engine" }, false],
 			nameof(SymbolScripts.Reload) => ["dotnet", "Assembly-CSharp.dll"],
 			nameof(SymbolScripts.AddModule) => ["C:\\Games\\game.pdb", 0x140000000UL, true],
+			nameof(SymbolScripts.EnableSources) => [true, false],
 			_ => []
 		};
 
@@ -73,13 +75,13 @@ public sealed partial class NativeLuaToolRuntimeTests
 	{
 		using RuntimeScope scope = CreateScope();
 		InstallStubs("""
-			enumRegisteredSymbols = function()
-				return {
-					{symbolname = 'playerBase', address = 0x140000010},
-					{symbolname = 'alloc1', address = -4096, allocsize = 4096, processid = 42, donotsave = true}
-				}
-			end
-			""");
+		             enumRegisteredSymbols = function()
+		                 return {
+		                     {symbolname = 'playerBase', address = 0x140000010},
+		                     {symbolname = 'alloc1', address = -4096, allocsize = 4096, processid = 42, donotsave = true}
+		                 }
+		             end
+		             """);
 		SymbolRegistrationTools tools = new(CreateNativeDispatch(new McpFeatureOptions()), new TargetResources(),
 			new SymbolRegistrations());
 
@@ -98,10 +100,10 @@ public sealed partial class NativeLuaToolRuntimeTests
 		using RuntimeScope scope = CreateScope();
 		ToolDispatch dispatch = CreateNativeDispatch(new McpFeatureOptions());
 		InstallStubs("""
-			enumRegisteredSymbols = function()
-				return {{symbolname = 'a', address = 1}, {symbolname = 'b', address = 2}, {symbolname = 'c', address = 3}}
-			end
-			""");
+		             enumRegisteredSymbols = function()
+		                 return {{symbolname = 'a', address = 1}, {symbolname = 'b', address = 2}, {symbolname = 'c', address = 3}}
+		             end
+		             """);
 
 		LuaRegisteredSymbols copied = dispatch.RunLua("symbol_list_registered", SymbolScripts.ListRegistered,
 			SymbolLuaJsonContext.Default.LuaRegisteredSymbols, CancellationToken.None, 2);
@@ -123,11 +125,11 @@ public sealed partial class NativeLuaToolRuntimeTests
 		InstallStubs(ModulePreferenceStubs);
 		SymbolTools tools = ModuleSymbolTools(CreateNativeDispatch(new McpFeatureOptions()));
 
-		ModulePreference current = tools.GetModulePreference(cancellationToken: Token);
+		ModulePreference current = tools.GetModulePreference(Token);
 		InstallStubs("preference = nil");
-		ModulePreference missing = tools.GetModulePreference(cancellationToken: Token);
+		ModulePreference missing = tools.GetModulePreference(Token);
 		InstallStubs("preference = {}; for i = 1, 1500 do preference[i] = 'm' .. i end");
-		ModulePreference large = tools.GetModulePreference(cancellationToken: Token);
+		ModulePreference large = tools.GetModulePreference(Token);
 
 		Assert.Equal(["game", "engine", "kernel32"], current.Modules);
 		Assert.Empty(missing.Modules);
@@ -143,7 +145,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 
 		ModulePreference moved = tools.SetModulePreference(["ENGINE", "fresh"], cancellationToken: Token);
 		ModulePreference single = tools.SetModulePreference(["game"], cancellationToken: Token);
-		ModulePreference replaced = tools.SetModulePreference(["solo"], true, cancellationToken: Token);
+		ModulePreference replaced = tools.SetModulePreference(["solo"], true, Token);
 
 		Assert.Equal(["ENGINE", "fresh", "game", "kernel32"], moved.Modules);
 		Assert.Equal(["game", "ENGINE", "fresh", "kernel32"], single.Modules);
@@ -184,7 +186,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 		SymbolLoadState dotnet = tools.Reload(SymbolReloadScope.Dotnet, cancellationToken: Token);
 		object? dotnetArguments = ModuleSymbolRead("dotnet.n");
 		InstallStubs("done = true");
-		SymbolLoadState module = tools.Reload(SymbolReloadScope.Dotnet, "Assembly-CSharp.dll", cancellationToken: Token);
+		SymbolLoadState module = tools.Reload(SymbolReloadScope.Dotnet, "Assembly-CSharp.dll", Token);
 
 		Assert.Equal(new SymbolLoadState(false, SymbolReloadScope.NewModules), newModules);
 		Assert.Equal(1L, ReadGlobal("loads"));
@@ -220,12 +222,12 @@ public sealed partial class NativeLuaToolRuntimeTests
 		string pdb = Path.Combine(folder, "game.pdb");
 		File.WriteAllBytes(pdb, [1]);
 		InstallStubs("""
-			result = nil
-			symbolHandlerAddModule = function(path, base, structures)
-				added = {path = path, base = base, structures = structures}
-				return result
-			end
-			""");
+		             result = nil
+		             symbolHandlerAddModule = function(path, base, structures)
+		                 added = {path = path, base = base, structures = structures}
+		                 return result
+		             end
+		             """);
 		IInspectionClient inspection = ClientTestDouble.Create<IInspectionClient>((method, arguments) =>
 		{
 			Assert.Equal(nameof(IInspectionClient.TryResolveAddress), method.Name);
@@ -237,7 +239,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 		SymbolTools tools = new(ModuleSymbolTarget.CreateDispatch(client), new McpFilePaths(new McpFileOptions(),
 			Path.Combine(scratch.Root, "registry"), Path.Combine(scratch.Root, "data")));
 
-		SymbolModuleLoad load = tools.AddModule(pdb, "game.exe", true, cancellationToken: Token);
+		SymbolModuleLoad load = tools.AddModule(pdb, "game.exe", true, Token);
 		InstallStubs("result = false");
 		CheatEngineToolException refused = Assert.Throws<CheatEngineToolException>(() =>
 			tools.AddModule(pdb, "game.exe", cancellationToken: Token));
@@ -275,7 +277,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 	/// <summary>Reads a Lua expression over the stubs' globals, such as <c>added.path</c>.</summary>
 	private static object? ModuleSymbolRead(string expression)
 	{
-		LuaToolRuntime.LuaToolOperation operation = new("read_expression", "return " + expression);
+		PluginLuaToolRuntime.LuaToolOperation operation = new("read_expression", "return " + expression);
 		Assert.True(operation.TryExecute(ActiveContext.Instance, out object? result, out CheatEngineFailure failure),
 			failure.Message);
 		return result;

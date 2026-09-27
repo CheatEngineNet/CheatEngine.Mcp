@@ -20,7 +20,7 @@ public sealed class McpContractRulesTests
 	private const string InputSchema =
 		"""{"type":"object","properties":{"address":{"description":"Address expression.","type":"string"}},"required":["address"]}""";
 
-	/// <summary>The 169 backend tool names of the reviewed v2 catalog (plan section 2).</summary>
+	/// <summary>The 172 backend tool names of the reviewed v2 catalog (plan section 2).</summary>
 	public static TheoryData<string> PlanCatalogNames => new(
 		"runtime_get_info", "runtime_get_overview", "runtime_list_resources", "runtime_release_resources",
 		"runtime_list_jobs", "runtime_stop_job",
@@ -28,7 +28,7 @@ public sealed class McpContractRulesTests
 		"process_save_file", "process_set_paused", "process_list_threads", "process_set_pointer_size",
 		"memory_read", "memory_read_batch", "memory_write", "memory_write_batch", "memory_get_address_info",
 		"memory_list_regions", "memory_set_protection", "memory_allocate", "memory_free", "memory_copy",
-		"memory_compare", "memory_hash", "memory_dump_to_file",
+		"memory_compare", "memory_hash", "memory_dump_to_file", "memory_load_from_file",
 		"scan_first", "scan_next", "scan_get_status", "scan_list_results", "scan_list_scanners", "scan_reset",
 		"scan_delete", "scan_stop",
 		"aob_find", "aob_generate_signature",
@@ -38,6 +38,7 @@ public sealed class McpContractRulesTests
 		"module_list", "module_get", "module_list_exports", "module_find_patches",
 		"symbol_resolve", "symbol_register", "symbol_unregister", "symbol_list_registered",
 		"symbol_get_module_preference", "symbol_set_module_preference", "symbol_reload", "symbol_add_module",
+		"symbol_enable_sources",
 		"speedhack_get_state", "speedhack_set_speed",
 		"util_convert_value", "util_calculate",
 		"code_disassemble", "code_decode", "code_disassemble_bytes", "code_get_function", "code_start_dissect",
@@ -47,6 +48,7 @@ public sealed class McpContractRulesTests
 		"asm_generate_injection", "asm_generate_api_hook",
 		"record_list", "record_get", "record_find", "record_get_selected", "record_select", "record_create",
 		"record_update", "record_set_active", "record_delete", "record_move", "record_group", "record_set_script",
+		"record_clear",
 		"table_load", "table_save", "table_list_files",
 		"structure_list", "structure_get", "structure_create", "structure_delete", "structure_add_elements",
 		"structure_update_elements", "structure_remove_elements", "structure_autoguess", "structure_fill_from_dotnet",
@@ -69,10 +71,10 @@ public sealed class McpContractRulesTests
 		"lua_execute", "lua_find_api");
 
 	[Fact]
-	public void PlanCatalogNames_Count_Is169()
+	public void PlanCatalogNames_Count_Is172()
 	{
-		Assert.Equal(169, PlanCatalogNames.Count);
-		Assert.Equal(169, PlanCatalogNames.Select(static row => row.Data).Distinct(StringComparer.Ordinal).Count());
+		Assert.Equal(172, PlanCatalogNames.Count);
+		Assert.Equal(172, PlanCatalogNames.Select(static row => row.Data).Distinct(StringComparer.Ordinal).Count());
 	}
 
 	[Fact]
@@ -254,25 +256,17 @@ public sealed class McpContractRulesTests
 	}
 
 	[Fact]
-	public void ValidateTool_LegacyTool_OnlyChecksTheRoutingArgument()
+	public void ValidateTool_MissingOutputSchema_Fails()
 	{
-		Tool legacy = new()
-		{
-			Name = "LegacyName",
-			InputSchema = Parse("""{"type":"object","properties":{"x":{"type":"integer"}}}""")
-		};
-		Tool routed = new()
-		{
-			Name = "legacy_routed",
-			InputSchema = Parse("""{"type":"object","properties":{"InstanceID":{"type":"string"}}}""")
-		};
+		Tool tool = Sample("memory_read");
+		tool.OutputSchema = null;
 
-		Assert.Empty(McpContractRules.ValidateTool(legacy, false));
-		Assert.Single(McpContractRules.ValidateTool(routed, false));
+		Assert.Contains(McpContractRules.ValidateTool(tool, false),
+			static failure => failure.Contains("output schema", StringComparison.Ordinal));
 	}
 
 	[Fact]
-	public void BackendCatalog_LegacyTools_PassTheValidator()
+	public void BackendCatalog_ContainsOnlyValidatedV2Tools()
 	{
 		Assert.NotEmpty(McpPrimitiveCatalog.Create(TestComposition.BackendManifest).Tools);
 		Assert.Empty(McpContractRules.ValidateTools(McpPrimitiveCatalog.Create(TestComposition.BackendManifest).Tools,
@@ -299,6 +293,19 @@ public sealed class McpContractRulesTests
 
 		Assert.Contains("memory_peek", exception.Message, StringComparison.Ordinal);
 		Assert.Contains("explicitly", exception.Message, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Catalog_ToolWithoutOutputSchema_FailsStartup()
+	{
+		CheatEngineMcpPrimitiveOptions manifest = CheatEngineMcpComposition.CreateManifest(CheatEngineMcpMode.Catalog,
+			static builder => builder.AddToolType<MissingOutputSchemaTool>());
+
+		OptionsValidationException exception =
+			Assert.Throws<OptionsValidationException>(() => McpPrimitiveCatalog.Create(manifest));
+
+		Assert.Contains(CheatEngineToolNames.RuntimeGetInfo, exception.Message, StringComparison.Ordinal);
+		Assert.Contains("output schema", exception.Message, StringComparison.Ordinal);
 	}
 
 	private static Tool Sample(string name, string title = "Read memory", bool readOnly = true,
@@ -335,9 +342,22 @@ public sealed class McpContractRulesTests
 	{
 		[McpServerTool(Name = "memory_peek", Title = "Peek Memory", UseStructuredContent = true)]
 		[Description("Breaks the verb, title and annotation rules.")]
-		public static ContractProbeResult Peek([Description("A value.")] string value)
+		public static string Peek([Description("A value.")] string value)
 		{
-			return new ContractProbeResult(value, [], false, 0, null);
+			return value;
+		}
+	}
+
+	[McpServerToolType]
+	public sealed class MissingOutputSchemaTool
+	{
+		[McpServerTool(Name = CheatEngineToolNames.RuntimeGetInfo, Title = "Get missing schema", ReadOnly = true,
+			Destructive = false, Idempotent = true, OpenWorld = false)]
+		[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+		[Description("Returns text without structured content.")]
+		public static string Get()
+		{
+			return "missing";
 		}
 	}
 }

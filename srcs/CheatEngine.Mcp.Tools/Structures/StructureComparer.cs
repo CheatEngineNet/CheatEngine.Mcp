@@ -29,7 +29,11 @@ internal sealed record StructureSample(ulong Address, byte[] Bytes)
 /// <param name="Size">The field's size in bytes.</param>
 /// <param name="Name">The element's name when comparing along a structure.</param>
 /// <param name="Type">The element's type when comparing along a structure.</param>
-internal readonly record struct StructureField(long Offset, int Start, int Size, string? Name,
+internal readonly record struct StructureField(
+	long Offset,
+	int Start,
+	int Size,
+	string? Name,
 	StructureElementType? Type);
 
 /// <summary>

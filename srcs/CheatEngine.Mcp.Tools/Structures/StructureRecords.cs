@@ -58,7 +58,8 @@ public sealed record StructureElement(
 	int ByteSize,
 	[property: Description("The structure a pointer element points to; omitted when none.")]
 	string? ChildStructure = null,
-	[property: Description("Where the pointer lands inside the child structure, as signed hexadecimal; detailed format only.")]
+	[property:
+		Description("Where the pointer lands inside the child structure, as signed hexadecimal; detailed format only.")]
 	string? ChildStructureStart = null,
 	[property: Description("The name of a custom element's custom type; detailed format only.")]
 	string? CustomType = null,
@@ -277,7 +278,9 @@ public sealed record StructureElementSpec(
 	[property: Description(
 		"How to display an integer element: signed for intN, unsigned or hex for uintN; defaults to the type's signedness.")]
 	StructureDisplay? Display = null,
-	[property: Description("The byte size of a string, wstring or bytes element (1-65536); required for them, refused otherwise.")]
+	[property:
+		Description(
+			"The byte size of a string, wstring or bytes element (1-65536); required for them, refused otherwise.")]
 	int? ByteSize = null,
 	[property: Description("The name of the structure a pointer element points to; pointer elements only.")]
 	string? ChildStructure = null,

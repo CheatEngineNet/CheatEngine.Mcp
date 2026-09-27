@@ -1,6 +1,6 @@
 # CheatEngine.Mcp.Gateway
 
-The self-contained stdio gateway executable. `GatewayProgram` only composes: `AddCheatEngineMcpGateway(args, version)`
+The self-contained Windows x64 Native AOT stdio gateway executable. `GatewayProgram` only composes: `AddCheatEngineMcpGateway(args, version)`
 followed by the same `AddTools().AddResources().AddPrompts()` as the plugin, in catalog mode, so no tool is ever
 constructed here.
 

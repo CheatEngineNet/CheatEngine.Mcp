@@ -1,12 +1,8 @@
 aob_generate_signature
 asm_apply_code_patch
-asm_generate_injection
 asm_list_patches
 code_decode
 code_poll_job
-code_start_search
-debugger_get_stack_trace
-debugger_run_to
 dotnet_get_object
 dotnet_get_status
 dotnet_get_type
@@ -17,7 +13,6 @@ dotnet_list_types
 dotnet_poll_instance_search
 dotnet_start_instance_search
 exec_call_method
-exec_compile_c
 lua_find_api
 memory_read_batch
 memory_write_batch
@@ -37,7 +32,6 @@ mono_list_fields
 mono_list_methods
 mono_poll_instance_search
 mono_start_instance_search
-pointer_find_references
 pointer_list_scans
 record_group
 record_move
@@ -45,7 +39,6 @@ runtime_get_overview
 runtime_list_jobs
 runtime_list_resources
 scan_stop
-structure_compare
 symbol_add_module
 table_list_files
 util_calculate

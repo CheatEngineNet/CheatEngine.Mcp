@@ -1,10 +1,12 @@
 using System.Collections.Concurrent;
+using System.Text.Json.Serialization.Metadata;
 
 using CheatEngine.Client;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Lua;
 using CheatEngine.Mcp.Core.Features;
 using CheatEngine.Mcp.Core.Jobs;
+using CheatEngine.Mcp.Core.Lua;
 
 using Microsoft.Extensions.Options;
 
@@ -33,6 +35,11 @@ internal sealed class StateTestHarness
 
 			if (method.Name.StartsWith("Invoke", StringComparison.Ordinal) && arguments?[0] is Delegate callback)
 			{
+				if (arguments.Length > 1 && arguments[1] is CancellationToken cancellationToken)
+				{
+					cancellationToken.ThrowIfCancellationRequested();
+				}
+
 				Interlocked.Increment(ref _dispatches);
 				return callback.DynamicInvoke();
 			}
@@ -47,7 +54,7 @@ internal sealed class StateTestHarness
 		Client = ClientTestDouble.Client(dispatcher, Stopping.Token, (nameof(ICheatEngineClient.Lua), lua));
 		IOptions<McpExecutionOptions> execution = Options.Create(options ?? new McpExecutionOptions());
 		Dispatch = new ToolDispatch(Client, new McpFeatureGate(Options.Create(new McpFeatureOptions())), execution,
-			new DispatchStatistics(execution), Time, new RecordingLogger<ToolDispatch>());
+			new DispatchStatistics(execution), Time, new RecordingLogger<ToolDispatch>(), new FixedLuaExecutor(this));
 		Ledger = withLedger ? new McpStateLedger(Dispatch, Time) : null;
 		Resources = new TargetResources(Ledger, Time);
 		Jobs = new JobRegistry(Dispatch, Resources, execution, Time);
@@ -134,12 +141,32 @@ internal sealed class StateTestHarness
 			? answer(source)
 			: throw new XunitException($"No Lua answer was configured for {name} ({result.Name}).");
 	}
+
+	private LuaJsonResult<T> Respond<T>(string operation, string source)
+	{
+		LuaCalls.Enqueue((operation, source));
+		return _answers.TryGetValue(typeof(T), out Func<string, object>? answer)
+			? Assert.IsType<LuaJsonResult<T>>(answer(source))
+			: throw new XunitException($"No Lua answer was configured for {operation} ({typeof(T).Name}).");
+	}
+
+	private sealed class FixedLuaExecutor(StateTestHarness harness) : IFixedLuaExecutor
+	{
+		public LuaJsonResult<T> Execute<T>(string operation, string source, JsonTypeInfo<T> resultType,
+			LuaJsonBufferPool buffers, LuaOpaqueValueHandling opaque, CancellationToken cancellationToken)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			return harness.Respond<T>(operation, source);
+		}
+	}
 }
 
 /// <summary>A clock whose timestamp and UTC time only move when a test advances it.</summary>
 internal sealed class ManualClock : TimeProvider
 {
 	private long _ticks = new DateTimeOffset(2026, 9, 27, 12, 0, 0, TimeSpan.Zero).UtcTicks;
+	private readonly Lock _timersLock = new();
+	private readonly List<ManualTimer> _timers = [];
 
 	public override long TimestampFrequency => TimeSpan.TicksPerSecond;
 
@@ -153,8 +180,130 @@ internal sealed class ManualClock : TimeProvider
 		return new DateTimeOffset(Volatile.Read(ref _ticks), TimeSpan.Zero);
 	}
 
+	public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+	{
+		ArgumentNullException.ThrowIfNull(callback);
+		ManualTimer timer = new(this, callback, state, dueTime, period);
+		lock (_timersLock)
+		{
+			_timers.Add(timer);
+		}
+
+		return timer;
+	}
+
 	internal void Advance(TimeSpan elapsed)
 	{
-		Interlocked.Add(ref _ticks, elapsed.Ticks);
+		long now = Interlocked.Add(ref _ticks, elapsed.Ticks);
+		ManualTimer[] due;
+		lock (_timersLock)
+		{
+			due = [.. _timers.Where(timer => timer.TakeDue(now))];
+		}
+
+		foreach (ManualTimer timer in due)
+		{
+			timer.Fire();
+		}
+	}
+
+	private void Remove(ManualTimer timer)
+	{
+		lock (_timersLock)
+		{
+			_timers.Remove(timer);
+		}
+	}
+
+	private sealed class ManualTimer : ITimer
+	{
+		private readonly TimerCallback _callback;
+		private readonly ManualClock _clock;
+		private readonly object? _state;
+		private int _disposed;
+		private long _next;
+		private long _period;
+
+		internal ManualTimer(ManualClock clock, TimerCallback callback, object? state, TimeSpan dueTime,
+			TimeSpan period)
+		{
+			_clock = clock;
+			_callback = callback;
+			_state = state;
+			Schedule(Volatile.Read(ref clock._ticks), dueTime, period);
+		}
+
+		public bool Change(TimeSpan dueTime, TimeSpan period)
+		{
+			lock (_clock._timersLock)
+			{
+				if (Volatile.Read(ref _disposed) != 0)
+				{
+					return false;
+				}
+
+				Schedule(Volatile.Read(ref _clock._ticks), dueTime, period);
+				return true;
+			}
+		}
+
+		public void Dispose()
+		{
+			if (Interlocked.Exchange(ref _disposed, 1) == 0)
+			{
+				_clock.Remove(this);
+			}
+		}
+
+		public ValueTask DisposeAsync()
+		{
+			Dispose();
+			return ValueTask.CompletedTask;
+		}
+
+		internal bool TakeDue(long now)
+		{
+			if (Volatile.Read(ref _disposed) != 0 || _next > now)
+			{
+				return false;
+			}
+
+			if (_period == Timeout.InfiniteTimeSpan.Ticks)
+			{
+				_next = long.MaxValue;
+			}
+			else
+			{
+				_next = _next > long.MaxValue - _period ? long.MaxValue : _next + _period;
+			}
+
+			return true;
+		}
+
+		internal void Fire()
+		{
+			if (Volatile.Read(ref _disposed) == 0)
+			{
+				_callback(_state);
+			}
+		}
+
+		private void Schedule(long now, TimeSpan dueTime, TimeSpan period)
+		{
+			if (dueTime < TimeSpan.Zero && dueTime != Timeout.InfiniteTimeSpan)
+			{
+				throw new ArgumentOutOfRangeException(nameof(dueTime));
+			}
+
+			if (period < TimeSpan.Zero && period != Timeout.InfiniteTimeSpan)
+			{
+				throw new ArgumentOutOfRangeException(nameof(period));
+			}
+
+			_next = dueTime == Timeout.InfiniteTimeSpan || dueTime > TimeSpan.FromTicks(long.MaxValue - now)
+				? long.MaxValue
+				: now + dueTime.Ticks;
+			_period = period.Ticks;
+		}
 	}
 }

@@ -42,7 +42,8 @@ public sealed class MemoryReadToolsTests
 			return value;
 		};
 
-		MemoryReadResult result = new MemoryReadTools(target.Dispatch).Read("game.exe+10", type, cancellationToken: Token);
+		MemoryReadResult result =
+			new MemoryReadTools(target.Dispatch).Read("game.exe+10", type, cancellationToken: Token);
 
 		Assert.Equal(new MemoryReadResult("401010", type, expected), result);
 		Assert.Equal(1, target.Dispatcher.Calls);
@@ -60,7 +61,8 @@ public sealed class MemoryReadToolsTests
 			return ImmutableArray.Create<byte>(0x01, 0x00, 0xFF, 0xFF, 0x2A, 0x00);
 		};
 
-		MemoryReadResult result = new MemoryReadTools(target.Dispatch).Read("1000", McpValueType.Int16, 3, cancellationToken: Token);
+		MemoryReadResult result =
+			new MemoryReadTools(target.Dispatch).Read("1000", McpValueType.Int16, 3, cancellationToken: Token);
 
 		Assert.Equal(6, request!.Value.Length);
 		Assert.Equal(["1", "-1", "42"], result.Values!);
@@ -80,7 +82,8 @@ public sealed class MemoryReadToolsTests
 			return ImmutableArray.Create<byte>(0x10, 0x20, 0x40, 0x00, 0xFF, 0xFF, 0xFF, 0xFF);
 		};
 
-		MemoryReadResult result = new MemoryReadTools(target.Dispatch).Read("1000", McpValueType.Pointer, 2, cancellationToken: Token);
+		MemoryReadResult result =
+			new MemoryReadTools(target.Dispatch).Read("1000", McpValueType.Pointer, 2, cancellationToken: Token);
 
 		Assert.Equal(["402010", "FFFFFFFF"], result.Values!);
 	}
@@ -98,7 +101,7 @@ public sealed class MemoryReadToolsTests
 		TargetDouble target = new();
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			new MemoryReadTools(target.Dispatch).Read("1000", type, count, size, length, cancellationToken: Token));
+			new MemoryReadTools(target.Dispatch).Read("1000", type, count, size, length, Token));
 
 		Assert.Equal(kind, exception.Error.Kind);
 		Assert.Equal(ToolHostEffect.NotStarted, exception.Error.HostEffect);
@@ -139,7 +142,7 @@ public sealed class MemoryReadToolsTests
 		[
 			new MemoryReadItem("1000", McpValueType.Int32), new MemoryReadItem("2000", McpValueType.Int32),
 			new MemoryReadItem("3000", McpValueType.Int32)
-		], cancellationToken: Token);
+		], Token);
 
 		Assert.Equal(1, result.Failed);
 		Assert.Equal(new MemoryReadBatchEntry("1000", "7"), result.Items[0]);
@@ -170,13 +173,15 @@ public sealed class MemoryReadToolsTests
 			new MemoryReadItem("10", McpValueType.Int32), new MemoryReadItem("20", McpValueType.Float),
 			new MemoryReadItem("30", McpValueType.Bytes, 2), new MemoryReadItem("40", McpValueType.Int32),
 			new MemoryReadItem("nowhere", McpValueType.Int32)
-		], cancellationToken: Token);
+		], Token);
 
 		Assert.Equal(["1", "0.5", "90 C3", "2", null], result.Items.Select(static item => item.Value));
 		Assert.Equal(ToolErrorKind.NotFound, result.Items[4].Error!.Kind);
 		Assert.Equal("nowhere", result.Items[4].Address);
-		Assert.Equal(["Memory.ReadPrimitiveBatchDetailed<Int32>", "Memory.ReadPrimitiveBatchDetailed<Single>",
-			"Memory.ReadBytesDetailed"], target.CallsTo("Memory"));
+		Assert.Equal([
+			"Memory.ReadPrimitiveBatchDetailed<Int32>", "Memory.ReadPrimitiveBatchDetailed<Single>",
+			"Memory.ReadBytesDetailed"
+		], target.CallsTo("Memory"));
 	}
 
 	[Fact]
@@ -187,7 +192,7 @@ public sealed class MemoryReadToolsTests
 			[.. Enumerable.Range(0, 17).Select(static index => new MemoryReadItem("1000", McpValueType.Bytes, 16384))];
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			new MemoryReadTools(target.Dispatch).ReadBatch(items, cancellationToken: Token));
+			new MemoryReadTools(target.Dispatch).ReadBatch(items, Token));
 
 		Assert.Equal(ToolErrorKind.LimitExceeded, exception.Error.Kind);
 		Assert.Equal(0, target.Dispatcher.Calls);
@@ -205,8 +210,9 @@ public sealed class MemoryReadToolsTests
 			return request.Address == new Address(0x100) ? a.ToImmutableArray() : b.ToImmutableArray();
 		};
 
-		MemoryCompareResult all = new MemoryReadTools(target.Dispatch).Compare("100", "200", 8, cancellationToken: Token);
-		MemoryCompareResult first = new MemoryReadTools(target.Dispatch).Compare("100", "200", 8, 1, cancellationToken: Token);
+		MemoryCompareResult all =
+			new MemoryReadTools(target.Dispatch).Compare("100", "200", 8, cancellationToken: Token);
+		MemoryCompareResult first = new MemoryReadTools(target.Dispatch).Compare("100", "200", 8, 1, Token);
 
 		Assert.False(all.Equal);
 		Assert.False(all.Truncated);
@@ -226,7 +232,8 @@ public sealed class MemoryReadToolsTests
 			ImmutableArray.Create(new byte[((MemoryBytesReadRequest) arguments[0]!).Length]);
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			new MemoryReadTools(target.Dispatch).Compare("100", "200", MemoryTargets.ChunkBytes + 1, cancellationToken: Token));
+			new MemoryReadTools(target.Dispatch).Compare("100", "200", MemoryTargets.ChunkBytes + 1,
+				cancellationToken: Token));
 
 		Assert.Equal(ToolErrorKind.TargetChanged, exception.Error.Kind);
 		Assert.Equal(2, target.Dispatcher.Calls);
@@ -246,9 +253,10 @@ public sealed class MemoryReadToolsTests
 			return memory.AsSpan(offset, request.Length).ToImmutableArray();
 		};
 
-		MemoryHashResult sha256 = new MemoryReadTools(target.Dispatch).Hash("10000", memory.Length, cancellationToken: Token);
+		MemoryHashResult sha256 =
+			new MemoryReadTools(target.Dispatch).Hash("10000", memory.Length, cancellationToken: Token);
 		MemoryHashResult md5 =
-			new MemoryReadTools(target.Dispatch).Hash("10000", memory.Length, MemoryHashAlgorithm.Md5, cancellationToken: Token);
+			new MemoryReadTools(target.Dispatch).Hash("10000", memory.Length, MemoryHashAlgorithm.Md5, Token);
 
 		Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(memory)), sha256.Hash);
 		using IncrementalHash expected = IncrementalHash.CreateHash(HashAlgorithmName.MD5);

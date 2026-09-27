@@ -32,19 +32,15 @@ public static class CheatEngineMcpServerBuilderExtensions
 		/// </summary>
 		/// <param name="manifest">The primitives a composition declared.</param>
 		/// <param name="binding">Where instance targets come from.</param>
-		/// <param name="strictJson">
-		///     Whether the serializer options keep only source-generated metadata; see
-		///     <see cref="CheatEngineMcpJson.CreateOptions" />. Off while legacy tools remain.
-		/// </param>
 		/// <returns>The same builder.</returns>
 		public IMcpServerBuilder WithCheatEnginePrimitives(CheatEngineMcpPrimitiveOptions manifest,
-			McpPrimitiveBinding binding, bool strictJson = CheatEngineMcpJson.StrictByDefault)
+			McpPrimitiveBinding binding)
 		{
 			ArgumentNullException.ThrowIfNull(server);
 			ArgumentNullException.ThrowIfNull(manifest);
 			ArgumentNullException.ThrowIfNull(binding);
 			// Built once per server: schemas, argument binding and results all use the same options.
-			JsonSerializerOptions json = CheatEngineMcpJson.CreateOptions(manifest, strictJson);
+			JsonSerializerOptions json = CheatEngineMcpJson.CreateOptions(manifest);
 			foreach (CheatEngineMcpPrimitive primitive in manifest.Primitives)
 			{
 				foreach (MethodInfo method in primitive.Type.GetMethods(PrimitiveMethods))
@@ -182,7 +178,7 @@ public static class CheatEngineMcpServerBuilderExtensions
 			ReadResourceResult result => result.Contents.Sum(static contents => contents switch
 			{
 				TextResourceContents text => Encoding.UTF8.GetByteCount(text.Text),
-				BlobResourceContents blob => (long) blob.DecodedData.Length,
+				BlobResourceContents blob => blob.DecodedData.Length,
 				_ => 0L
 			}),
 			_ => null

@@ -19,7 +19,7 @@ It covers one Cheat Engine (CE) instance; [multi-instance.md](multi-instance.md)
 | CE runtime configuration | CE's `ce.runtimeconfig.json` must select .NET 10 and list `Microsoft.AspNetCore.App` (step 3). |
 | AI client | Any MCP client that can launch a local stdio server on the same machine, under the same Windows user as CE. See [clients.md](clients.md). |
 
-The gateway executable is self-contained and needs no .NET runtime.
+The Windows x64 Native AOT gateway executable is self-contained and needs no .NET runtime.
 The .NET SDK is needed only to build from source.
 
 ## 1. Get the files
@@ -166,7 +166,7 @@ The agent should call these tools in order, passing the returned `instanceId` to
 
 1. `instance_list`: lists the enabled CE instances with their `instanceId`, display name and CE process ID.
    An empty list means no enabled backend was found; see [troubleshooting.md](troubleshooting.md#instance_list-is-empty).
-2. `runtime_get_info`: reports the CE and plugin versions, the loaded plugin path and the state of the four capability gates.
+2. `runtime_get_info`: reports the CE and plugin versions, non-sensitive loaded file names and the state of the four capability gates.
 3. `process_list`: finds the target, for example with `nameContains`.
 4. `process_attach`: attaches CE to the chosen target by `processId`.
 

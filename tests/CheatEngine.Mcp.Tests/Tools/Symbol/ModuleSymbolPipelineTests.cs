@@ -1,6 +1,5 @@
 using System.Text.Json;
 
-using CheatEngine.Client;
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Files;
 using CheatEngine.Mcp.Tests.Core;
@@ -33,7 +32,7 @@ public sealed class ModuleSymbolPipelineTests : IDisposable
 		target.AddModule("game.exe", 0x140000000, 0x5000);
 		await using Activation activation = await Activation.StartAsync(target, _scratch);
 
-		CallToolResult result = await activation.Pipeline.CallAsync(CheatEngineToolNames.ModuleList, "{}");
+		CallToolResult result = await activation.Pipeline.CallAsync(CheatEngineToolNames.ModuleList);
 
 		Assert.NotEqual(true, result.IsError);
 		JsonElement content = Assert.IsType<JsonElement>(result.StructuredContent);
@@ -118,8 +117,9 @@ public sealed class ModuleSymbolPipelineTests : IDisposable
 			McpFilePathsTests.Scratch scratch)
 		{
 			ServiceCollection services = new();
-			services.AddSingleton<ICheatEngineClient>(target.Client);
+			services.AddSingleton(target.Client);
 			services.AddLogging();
+			services.AddScoped<IFixedLuaExecutor, PluginFixedLuaExecutor>();
 			services.AddSingleton(new McpFilePaths(new McpFileOptions(), Path.Combine(scratch.Root, "registry"),
 				Path.Combine(scratch.Root, "data")));
 			new CheatEngineMcpBuilder(services, CheatEngineMcpMode.Backend).AddExecutionServices().AddModuleTools()

@@ -126,8 +126,7 @@ public sealed class CheatEngineWorkflowPrompts
 		[Description("write (default) captures writers; access also captures readers.")]
 		[AllowedValues("write", "access")]
 		string? trigger = null,
-		[Description("The value size in bytes: 1, 2, 4 (default) or 8.")]
-		[AllowedValues("1", "2", "4", "8")]
+		[Description("The value size in bytes: 1, 2, 4 (default) or 8.")] [AllowedValues("1", "2", "4", "8")]
 		string? size = null,
 		McpServer? server = null)
 	{
@@ -191,8 +190,7 @@ public sealed class CheatEngineWorkflowPrompts
 		string instructionAddress,
 		[Description("What the injected code must achieve, such as double the damage dealt.")]
 		string goal,
-		[Description("The script template: aob (default), full or code.")]
-		[AllowedValues("aob", "full", "code")]
+		[Description("The script template: aob (default), full or code.")] [AllowedValues("aob", "full", "code")]
 		string? template = null,
 		[Description("The symbol name of the injection point, such as damageHook.")]
 		string? symbolName = null,

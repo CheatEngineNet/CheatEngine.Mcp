@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Reflection;
 
 using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Memory;
@@ -17,13 +18,13 @@ namespace CheatEngine.Mcp.Tests.Tools.Memory;
 /// <summary>Address descriptions and the region map: one dispatch, in-band item errors, filters and paging.</summary>
 public sealed class MemoryInfoToolsTests
 {
-	private static CancellationToken Token => TestContext.Current.CancellationToken;
-
 	private static readonly ImmutableArray<ModuleInfo> Modules =
 	[
 		new("game.exe", new Address(0x400000), new MemorySize(0x10000), true, @"C:\game\game.exe"),
 		new("ntdll.dll", new Address(0x7FF800000000), new MemorySize(0x200000), true, @"C:\Windows\ntdll.dll")
 	];
+
+	private static CancellationToken Token => TestContext.Current.CancellationToken;
 
 	[Fact]
 	public void GetAddressInfo_ResolvedAndUnresolved_DescribesEachInOneDispatch()
@@ -46,7 +47,7 @@ public sealed class MemoryInfoToolsTests
 		};
 
 		AddressInfoResult result = new MemoryInfoTools(target.Dispatch).GetAddressInfo(["player", "missing"], true,
-			true, cancellationToken: Token);
+			true, Token);
 
 		AddressInfo player = result.Items[0];
 		Assert.Equal(("401010", "game.exe+1010", "game.exe", ".text", false), (player.Address, player.Symbol,
@@ -68,7 +69,8 @@ public sealed class MemoryInfoToolsTests
 			Inspection = Inspection
 		};
 
-		AddressInfoResult result = new MemoryInfoTools(target.Dispatch).GetAddressInfo(["missing"], cancellationToken: Token);
+		AddressInfoResult result =
+			new MemoryInfoTools(target.Dispatch).GetAddressInfo(["missing"], cancellationToken: Token);
 
 		Assert.Equal(ToolErrorKind.NotFound, Assert.Single(result.Items).Error!.Kind);
 		Assert.Equal(0, target.LuaCalls);
@@ -80,7 +82,8 @@ public sealed class MemoryInfoToolsTests
 		TargetDouble target = new();
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			new MemoryInfoTools(target.Dispatch).GetAddressInfo([.. Enumerable.Repeat("1000", 257)], cancellationToken: Token));
+			new MemoryInfoTools(target.Dispatch).GetAddressInfo([.. Enumerable.Repeat("1000", 257)],
+				cancellationToken: Token));
 
 		Assert.Equal(ToolErrorKind.LimitExceeded, exception.Error.Kind);
 		Assert.Equal(0, target.Dispatcher.Calls);
@@ -94,7 +97,8 @@ public sealed class MemoryInfoToolsTests
 			Inspection = Inspection
 		};
 
-		RegionList all = new MemoryInfoTools(target.Dispatch).ListRegions(state: RegionStateFilter.Any, cancellationToken: Token);
+		RegionList all =
+			new MemoryInfoTools(target.Dispatch).ListRegions(state: RegionStateFilter.Any, cancellationToken: Token);
 		RegionList code = new MemoryInfoTools(target.Dispatch).ListRegions(executable: ProtectionRequirement.Required,
 			format: ResultFormat.Detailed, cancellationToken: Token);
 		RegionList page = new MemoryInfoTools(target.Dispatch).ListRegions(limit: 1, cancellationToken: Token);
@@ -122,7 +126,7 @@ public sealed class MemoryInfoToolsTests
 		Assert.Equal(0, target.Dispatcher.Calls);
 	}
 
-	private static object? Inspection(System.Reflection.MethodInfo method, object?[] arguments)
+	private static object? Inspection(MethodInfo method, object?[] arguments)
 	{
 		switch (method.Name)
 		{

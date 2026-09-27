@@ -14,3 +14,9 @@ internal readonly record struct LuaJsonResult<T>(T? Value, LuaScriptError? Error
 	[MemberNotNullWhen(false, nameof(Value))]
 	public bool IsError => Error is not null;
 }
+
+/// <summary>A successfully copied fixed Lua value with its opaque-value accounting.</summary>
+/// <typeparam name="T">The copied result type.</typeparam>
+/// <param name="Value">The non-null copied result.</param>
+/// <param name="DroppedOpaqueCount">Opaque values omitted while the caller explicitly requested dropping.</param>
+internal readonly record struct LuaCopiedResult<T>(T Value, int DroppedOpaqueCount);

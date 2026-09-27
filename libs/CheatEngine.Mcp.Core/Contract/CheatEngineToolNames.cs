@@ -3,7 +3,8 @@ using System.Collections.Frozen;
 namespace CheatEngine.Mcp.Core.Contract;
 
 /// <summary>
-///     The frozen names of the v2 tool contract: 169 backend tools in 21 domains, in catalog order, and the gateway's own
+///     The reviewed names of the v2 tool contract: 172 backend tools in 21 domains, in catalog order, and the gateway's
+///     own
 ///     <see cref="InstanceList" />. Tools, prompts, server instructions and error hints cite these constants, so a rename
 ///     breaks the build instead of the contract, and the startup validator refuses a v2 tool whose name is not listed.
 /// </summary>
@@ -67,7 +68,7 @@ public static class CheatEngineToolNames
 	/// <summary>The <c>process_set_pointer_size</c> tool.</summary>
 	public const string ProcessSetPointerSize = "process_set_pointer_size";
 
-	// memory (13)
+	// memory (14)
 
 	/// <summary>The <c>memory_read</c> tool.</summary>
 	public const string MemoryRead = "memory_read";
@@ -107,6 +108,9 @@ public static class CheatEngineToolNames
 
 	/// <summary>The <c>memory_dump_to_file</c> tool.</summary>
 	public const string MemoryDumpToFile = "memory_dump_to_file";
+
+	/// <summary>The <c>memory_load_from_file</c> tool.</summary>
+	public const string MemoryLoadFromFile = "memory_load_from_file";
 
 	// scan (8)
 
@@ -188,7 +192,7 @@ public static class CheatEngineToolNames
 	/// <summary>The <c>module_find_patches</c> tool.</summary>
 	public const string ModuleFindPatches = "module_find_patches";
 
-	// symbol (8)
+	// symbol (9)
 
 	/// <summary>The <c>symbol_resolve</c> tool.</summary>
 	public const string SymbolResolve = "symbol_resolve";
@@ -213,6 +217,9 @@ public static class CheatEngineToolNames
 
 	/// <summary>The <c>symbol_add_module</c> tool.</summary>
 	public const string SymbolAddModule = "symbol_add_module";
+
+	/// <summary>The <c>symbol_enable_sources</c> tool.</summary>
+	public const string SymbolEnableSources = "symbol_enable_sources";
 
 	// speedhack (2)
 
@@ -297,7 +304,7 @@ public static class CheatEngineToolNames
 	/// <summary>The <c>asm_generate_api_hook</c> tool.</summary>
 	public const string AsmGenerateApiHook = "asm_generate_api_hook";
 
-	// record (12)
+	// record (13)
 
 	/// <summary>The <c>record_list</c> tool.</summary>
 	public const string RecordList = "record_list";
@@ -334,6 +341,9 @@ public static class CheatEngineToolNames
 
 	/// <summary>The <c>record_set_script</c> tool.</summary>
 	public const string RecordSetScript = "record_set_script";
+
+	/// <summary>The <c>record_clear</c> tool.</summary>
+	public const string RecordClear = "record_clear";
 
 	// table (3)
 
@@ -567,7 +577,7 @@ public static class CheatEngineToolNames
 	/// <summary>The <c>lua_find_api</c> tool.</summary>
 	public const string LuaFindApi = "lua_find_api";
 
-	/// <summary>The 169 backend tool names; every tool a Cheat Engine instance serves.</summary>
+	/// <summary>The 172 backend tool names; every tool a Cheat Engine instance serves.</summary>
 	public static FrozenSet<string> Backend
 	{
 		get;
@@ -600,6 +610,7 @@ public static class CheatEngineToolNames
 		MemoryCompare,
 		MemoryHash,
 		MemoryDumpToFile,
+		MemoryLoadFromFile,
 		ScanFirst,
 		ScanNext,
 		ScanGetStatus,
@@ -632,6 +643,7 @@ public static class CheatEngineToolNames
 		SymbolSetModulePreference,
 		SymbolReload,
 		SymbolAddModule,
+		SymbolEnableSources,
 		SpeedhackGetState,
 		SpeedhackSetSpeed,
 		UtilConvertValue,
@@ -669,6 +681,7 @@ public static class CheatEngineToolNames
 		RecordMove,
 		RecordGroup,
 		RecordSetScript,
+		RecordClear,
 		TableLoad,
 		TableSave,
 		TableListFiles,

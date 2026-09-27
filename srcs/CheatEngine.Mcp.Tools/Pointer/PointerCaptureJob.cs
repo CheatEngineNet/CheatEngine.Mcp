@@ -173,7 +173,7 @@ internal static class PointerCaptureJob
 			}
 
 			bool incomplete = limited || cursor.Limited || unreadableBytes != 0 || plan.RegionsTruncated ||
-				plan.ModulesTruncated;
+							  plan.ModulesTruncated;
 			map.Complete(new PointerMap(plan.Process.Id.Value, plan.Width, entries.ToArray(), plan.Modules,
 				incomplete, bytesRead, unreadableBytes));
 		}
@@ -187,7 +187,8 @@ internal static class PointerCaptureJob
 				long read = bytesRead;
 				long unreadable = unreadableBytes;
 				map.Interrupt(state, message,
-					() => new PointerMap(processId, plan.Width, entries.ToArray(), plan.Modules, true, read, unreadable),
+					() => new PointerMap(processId, plan.Width, entries.ToArray(), plan.Modules, true, read,
+						unreadable),
 					entries.Count);
 			}
 			else
@@ -260,7 +261,7 @@ internal static class PointerCaptureJob
 			while (address <= range.Last && range.Last - address >= (ulong) (width - 1))
 			{
 				long remaining = maximumBytes - attempted;
-				ulong span = Math.Min(range.Last - address, (ulong) (MaximumReadLength - 1)) + 1;
+				ulong span = Math.Min(range.Last - address, MaximumReadLength - 1) + 1;
 				int length = (int) Math.Min(span, (ulong) Math.Max(remaining, 0));
 				if (length < width)
 				{
@@ -328,7 +329,7 @@ internal sealed class PointerCaptureCursor
 			}
 
 			long remaining = _plan.MaximumBytes - Attempted;
-			ulong span = Math.Min(range.Last - _address, (ulong) (PointerCaptureJob.MaximumReadLength - 1)) + 1;
+			ulong span = Math.Min(range.Last - _address, PointerCaptureJob.MaximumReadLength - 1) + 1;
 			length = (int) Math.Min(span, (ulong) Math.Max(remaining, 0));
 			if (length < width)
 			{

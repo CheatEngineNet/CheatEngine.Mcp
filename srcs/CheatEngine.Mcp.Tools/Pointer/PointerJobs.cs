@@ -60,7 +60,7 @@ internal static class PointerJobs
 				return dispatch.Run(operation, body, cancellationToken);
 			}
 			catch (CheatEngineToolException exception) when (exception.Error.Kind is ToolErrorKind.Busy &&
-														 exception.Error.HostEffect is ToolHostEffect.NotStarted)
+															 exception.Error.HostEffect is ToolHostEffect.NotStarted)
 			{
 				await Task.Delay(BusyRetryDelay, cancellationToken).ConfigureAwait(false);
 			}

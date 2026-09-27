@@ -173,7 +173,7 @@ A timeout reported by the client instead of the gateway also means an unknown ou
 
 | Client | Problem | Fix |
 | --- | --- | --- |
-| VS Code | "Cannot have more than 128 tools per request" | The catalog has about 170 tools. Deselect tools in the tools picker or enable `github.copilot.chat.virtualTools.threshold` ([clients.md](clients.md#vs-code-github-copilot)). |
+| VS Code | "Cannot have more than 128 tools per request" | CheatEngine.Mcp exposes 173 tools, which exceeds the limit. Deselect tools in the tools picker or enable `github.copilot.chat.virtualTools.threshold` ([clients.md](clients.md#vs-code-github-copilot)). |
 | Claude Desktop | The server never appears (Microsoft Store build) | The app may read `%LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\claude_desktop_config.json` instead of the file **Edit Config** opens ([clients.md](clients.md#claude-desktop)). |
 | Claude Desktop, Claude Code | A tool name is rejected as longer than 64 characters | Use a short server key such as `cheatengine` ([clients.md](clients.md#use-the-server-key-cheatengine)). |
 | Any | Tools work, but prompts or resources are missing | Some clients expose only tools. Everything stays reachable through tools, and the guides also ship in the skill's `references/` folder. |

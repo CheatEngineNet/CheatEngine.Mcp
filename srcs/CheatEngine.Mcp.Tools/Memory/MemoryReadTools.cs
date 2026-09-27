@@ -62,15 +62,18 @@ public sealed class MemoryReadTools
 	[Description(
 		"Read target memory at one address: one typed value, up to 1024 consecutive values of a fixed-size type (count), a string (length) or raw bytes (size). Values are text: decimal integers, round-trippable floats, hexadecimal pointers, spaced hexadecimal bytes. An unreadable address fails with memory_read_failed.")]
 	public MemoryReadResult Read(
-		[Description("An address or Cheat Engine address expression, such as game.exe+1C, [game.exe+10]+8 or 7FF6A1B2C3D0.")]
+		[Description(
+			"An address or Cheat Engine address expression, such as game.exe+1C, [game.exe+10]+8 or 7FF6A1B2C3D0.")]
 		string address,
 		[Description("The value type to read.")]
 		McpValueType valueType,
-		[Description("How many consecutive values of a fixed-size type to read, 1 to 1024; only 1 for string, wstring and bytes.")]
+		[Description(
+			"How many consecutive values of a fixed-size type to read, 1 to 1024; only 1 for string, wstring and bytes.")]
 		int count = 1,
 		[Description("The byte count for valueType bytes, 1 to 16384; refused for other types.")]
 		int? size = null,
-		[Description("The maximum string length for string and wstring, 1 to 4096 (default 256); refused for other types.")]
+		[Description(
+			"The maximum string length for string and wstring, 1 to 4096 (default 256); refused for other types.")]
 		int? length = null,
 		CancellationToken cancellationToken = default)
 	{
@@ -118,7 +121,8 @@ public sealed class MemoryReadTools
 	[Description(
 		"Read up to 1024 addresses, each with its own value type, in one call (256 KiB in total). Fixed-size types are read in typed batches; an address that does not resolve or cannot be read reports its own error in band while the others are still read, so check every item.")]
 	public MemoryReadBatchResult ReadBatch(
-		[Description("The addresses to read, 1 to 1024, each with its value type and, for bytes or strings, its size or length.")]
+		[Description(
+			"The addresses to read, 1 to 1024, each with its value type and, for bytes or strings, its size or length.")]
 		MemoryReadItem[] items,
 		CancellationToken cancellationToken = default)
 	{
@@ -350,7 +354,8 @@ public sealed class MemoryReadTools
 		}
 
 		foreach (IGrouping<McpValueType, int> run in Enumerable.Range(0, reads.Length)
-					 .Where(index => entries[index] is null && McpValueCodec.FixedSize(reads[index].Type, 8) is not null)
+					 .Where(index =>
+						 entries[index] is null && McpValueCodec.FixedSize(reads[index].Type, 8) is not null)
 					 .GroupBy(index => reads[index].Type))
 		{
 			int[] indices = [.. run];

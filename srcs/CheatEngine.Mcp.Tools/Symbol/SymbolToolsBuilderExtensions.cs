@@ -2,7 +2,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace CheatEngine.Mcp.Tools.Symbol;
 
-/// <summary>The composition entry point of the <c>symbol</c> tool domain (8 tools in the v2 catalog).</summary>
+/// <summary>The composition entry point of the <c>symbol</c> tool domain (9 tools in the v2 catalog).</summary>
 public static class SymbolToolsBuilderExtensions
 {
 	extension(ICheatEngineMcpBuilder builder)

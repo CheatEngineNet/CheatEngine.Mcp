@@ -85,7 +85,10 @@ public sealed class StructureComparerTests
 
 	private static StructureSample[] Samples(byte[] firstBytes)
 	{
-		return [.. firstBytes.Select(static (value, index) => new StructureSample((ulong) (0x1000 * (index + 1)),
-			[value, 0, 0, 0]))];
+		return
+		[
+			.. firstBytes.Select(static (value, index) => new StructureSample((ulong) (0x1000 * (index + 1)),
+				[value, 0, 0, 0]))
+		];
 	}
 }

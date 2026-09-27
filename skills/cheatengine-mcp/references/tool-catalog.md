@@ -1,9 +1,8 @@
 # Tool catalog
 
-The v2 contract (2.0.0) freezes **170 tool names**: `instance_list` on the gateway and **169 Cheat Engine tools** in 21
-domains. The names below are final; each domain's tools land as its implementation is completed. Until then the
-gateway still lists the legacy tools at the end of this page, and the running MCP schema stays the authority for what an
-instance serves and for every parameter, bound and default.
+The v2 contract (2.0.0) reviews **173 tool names**: `instance_list` on the gateway and **172 Cheat Engine tools** in 21
+domains. The names below are final and registered. The running MCP schema remains the authority for every parameter,
+bound, default, and result shape.
 
 Every Cheat Engine tool takes the string `instanceId` returned by `instance_list`; there is no default instance. A v2
 tool returns one JSON object (`structuredContent`, repeated as text). A failure sets `isError` and carries
@@ -41,14 +40,14 @@ a cheat table that would load Lua or attach Mono.
 | `process_list` |  | Page local processes, optionally with window titles. |
 | `process_attach` | →TCE | Attach Cheat Engine to a process by ID or exact name. |
 | `process_get_current` |  | Describe the attached process: identity, architecture, pointer size and pause state. |
-| `process_create` | TCE | Launch an executable and attach to it. |
-| `process_open_file` | →TCE | Open a file through Cheat Engine's file-as-process interface. |
-| `process_save_file` |  | Save the opened file-as-process target under the allowed write roots. |
+| `process_create` | TCE | Launch a policy-validated executable and attach to it; the file stays pinned through the Cheat Engine launch call. |
+| `process_open_file` | →TCE | Open a policy-validated file through Cheat Engine's file-as-process interface while it stays pinned against replacement. |
+| `process_save_file` |  | Save the opened file-as-process target to a new path under an allowed write root: CE writes a protected `.partial` file, then MCP publishes it atomically. Existing files and in-place saves are refused. |
 | `process_set_paused` |  | Pause or resume the attached process. |
 | `process_list_threads` |  | Page the target's thread IDs. |
 | `process_set_pointer_size` |  | Set Cheat Engine's target pointer size to 4 or 8 bytes. |
 
-## memory (13)
+## memory (14)
 
 | Tool | Gate | Purpose |
 | --- | --- | --- |
@@ -65,6 +64,7 @@ a cheat table that would load Lua or attach Mono.
 | `memory_compare` |  | Compare two target ranges and list the differences. |
 | `memory_hash` |  | Hash a target range with MD5, SHA-1 or SHA-256. |
 | `memory_dump_to_file` |  | Dump a target range to a file under the allowed write roots. |
+| `memory_load_from_file` |  | Copy a pinned local file into target memory in bounded blocks, reporting partial effects. |
 
 ## scan (8)
 
@@ -110,7 +110,7 @@ a cheat table that would load Lua or attach Mono.
 | `module_list_exports` |  | Page a module's exports. |
 | `module_find_patches` |  | Compare a module's code in memory with its file on disk. |
 
-## symbol (8)
+## symbol (9)
 
 | Tool | Gate | Purpose |
 | --- | --- | --- |
@@ -122,6 +122,7 @@ a cheat table that would load Lua or attach Mono.
 | `symbol_set_module_preference` |  | Set the module precedence of symbol lookup. |
 | `symbol_reload` |  | Reload symbols for new modules, all modules or .NET; never waits. |
 | `symbol_add_module` |  | Load symbols for a module from a file. |
+| `symbol_enable_sources` | ->KA | Enable Windows PDB downloads or kernel exports; Windows may contact an external service and kernel exports require KA. |
 
 ## speedhack (2)
 
@@ -168,7 +169,7 @@ a cheat table that would load Lua or attach Mono.
 | `asm_generate_injection` |  | Generate a code, AOB or full injection template. |
 | `asm_generate_api_hook` |  | Generate an API hook template with enable and disable sections. |
 
-## record (12)
+## record (13)
 
 | Tool | Gate | Purpose |
 | --- | --- | --- |
@@ -184,6 +185,7 @@ a cheat table that would load Lua or attach Mono.
 | `record_move` |  | Move records under another parent or to the root. |
 | `record_group` |  | Group records under a new header. |
 | `record_set_script` | →AA | Replace an Auto Assembler record's script. |
+| `record_clear` | →AA | Clear every record, including children, and report the count; active scripts require AA. |
 
 ## table (3)
 
@@ -240,10 +242,14 @@ a cheat table that would load Lua or attach Mono.
 | --- | --- | --- |
 | `exec_inject_library` | TCE | Inject a native DLL into the target. |
 | `exec_inject_dotnet` | TCE | Inject a .NET assembly and call a static method, waiting at most 30 s. |
-| `exec_call_remote` | TCE | Call a target function with typed arguments, waiting at most 10 s. |
-| `exec_call_method` | TCE | Call a target instance method, waiting at most 10 s. |
+| `exec_call_remote` | TCE | Call a target function with up to 16 numeric arguments, waiting at most 10 s. |
+| `exec_call_method` | TCE | Call a target instance method with up to 16 numeric arguments, waiting at most 10 s. |
 | `exec_call_local` | TCE | Call a function inside Cheat Engine's own process. |
 | `exec_compile_c` | TCE | Compile C source into target memory. |
+
+`exec_call_remote` and `exec_call_method` accept only integer, float and double arguments.
+For text or another caller-owned buffer, allocate named target memory with `memory_allocate`, write it with `memory_write`, and pass the allocation address as an integer.
+Keep that allocation until the call completed or the target is known to have stopped using it, especially after a timeout whose host effect is unknown.
 
 ## dotnet (9)
 
@@ -264,7 +270,7 @@ a cheat table that would load Lua or attach Mono.
 | Tool | Gate | Purpose |
 | --- | --- | --- |
 | `mono_attach` | TCE | Inject Cheat Engine's Mono data collector into the target. |
-| `mono_detach` |  | Detach the Mono data collector. |
+| `mono_detach` |  | Release the Mono collector attachment owned by this activation. |
 | `mono_get_status` |  | Read the Mono data collector's state. |
 | `mono_list_assemblies` |  | Page Mono assemblies. |
 | `mono_list_classes` |  | Page an image's Mono classes. |
@@ -297,22 +303,67 @@ a cheat table that would load Lua or attach Mono.
 | `lua_execute` | UL | Execute Lua source and return bounded values. |
 | `lua_find_api` |  | Search the local celua.txt Lua API reference. |
 
-## Legacy tools (removed by 2.0.0)
+## Historic name migration
 
-These pre-v2 tools are still served while their domain is migrated; each disappears when its replacement lands.
-They keep the old contract: a `success` field in band, no output schema and no annotations.
+This table tracks the 191 pre-v2 names and their v2 disposition.
+It translates older scripts, prompts, and documentation to the v2 contract; names with no replacement are marked removed.
 
-| Tool | Replaced by |
+| Historic tool | v2 replacement or disposition |
 | --- | --- |
 | `add_code_reference` | removed |
 | `add_memory_record` | `record_create` |
+| `add_structure_element` | `structure_add_elements` |
+| `allocate_memory` | `memory_allocate` |
+| `allocate_shared_memory` | removed |
 | `analyze_code_range` | `code_start_dissect` |
+| `aob_scan` | `aob_find` |
+| `aob_scan_module_unique` | `aob_find` |
+| `aob_scan_unique` | `aob_find` |
 | `assemble` | `asm_assemble` |
 | `auto_assemble` | `asm_apply`, `asm_release_patch` |
 | `auto_assemble_check` | `asm_check` |
+| `autoguess_structure` | `structure_autoguess` |
+| `clear_address_list` | `record_clear` |
 | `clear_code_analysis` | `code_clear_dissect` |
+| `compare_memory` | `memory_compare` |
+| `compare_structures` | `structure_compare` |
+| `compile_c` | `exec_compile_c` |
 | `convert_string` | removed |
+| `copy_memory` | `memory_copy` |
 | `create_process` | `process_create` |
+| `create_structure` | `structure_create` |
+| `dbg_add_bp` | `debugger_set_breakpoint`, `debugger_start_capture`, `debugger_poll_capture` |
+| `dbg_add_thread_bp` | `debugger_set_breakpoint` |
+| `dbg_bps` | `debugger_list_breakpoints` |
+| `dbg_break_thread` | `debugger_break_thread` |
+| `dbg_clear_bp_hits` | `runtime_stop_job` |
+| `dbg_context_table` | `debugger_get_context` |
+| `dbg_continue` | `debugger_continue`, `debugger_step` |
+| `dbg_delete_bp` | `debugger_delete_breakpoint` |
+| `dbg_exclude_thread` | `debugger_set_thread_ignored` |
+| `dbg_exit` | `debugger_detach` |
+| `dbg_get_bp_hits` | `debugger_poll_capture` |
+| `dbg_gpregs` | `debugger_get_context` |
+| `dbg_gpregs_remote` | `debugger_get_context` |
+| `dbg_include_thread` | `debugger_set_thread_ignored` |
+| `dbg_is_broken` | `debugger_get_status` |
+| `dbg_is_debugging` | `debugger_get_status` |
+| `dbg_lbr_enable` | removed |
+| `dbg_lbr_records` | removed |
+| `dbg_read` | `memory_read` |
+| `dbg_read_xmm` | `debugger_get_context` |
+| `dbg_regs` | `debugger_get_context` |
+| `dbg_regs_all` | `debugger_get_context` |
+| `dbg_regs_named` | `debugger_get_context` |
+| `dbg_regs_named_remote` | `debugger_get_context` |
+| `dbg_regs_remote` | `debugger_get_context` |
+| `dbg_run_to` | `debugger_run_to` |
+| `dbg_stacktrace` | `debugger_get_stack_trace` |
+| `dbg_start` | `debugger_attach` |
+| `dbg_step_into` | `debugger_step` |
+| `dbg_step_over` | `debugger_step` |
+| `dbg_toggle_bp` | `debugger_list_breakpoints`, `debugger_set_breakpoint`, `debugger_delete_breakpoint` |
+| `dbg_write` | `memory_write` |
 | `dbk_control_registers` | `kernel_get_status` |
 | `dbk_physical_address` | `kernel_translate_address` |
 | `dbk_status` | `kernel_get_status` |
@@ -343,54 +394,110 @@ They keep the old contract: a `success` field in band, no output schema and no a
 | `debugger_stop_step_trace` | `runtime_stop_job` |
 | `delete_code_reference` | removed |
 | `delete_memory_record` | `record_delete` |
+| `delete_pointer_map` | `pointer_delete_map` |
+| `delete_structure` | `structure_delete` |
 | `disassemble` | `code_disassemble` |
 | `disassemble_bytes` | `code_disassemble_bytes` |
 | `disassemble_range` | `code_disassemble` |
+| `dump_memory` | `memory_dump_to_file` |
+| `enable_symbols` | `symbol_enable_sources` |
+| `enum_memory_regions` | `memory_list_regions` |
+| `enum_module_sections` | `module_get` |
+| `enum_modules` | `module_list` |
+| `enum_registered_symbols` | `symbol_list_registered` |
 | `execute_local_code` | `exec_call_local` |
 | `execute_lua` | `lua_execute` |
 | `execute_remote_code` | `exec_call_remote` |
+| `execute_remote_function` | `exec_call_remote` |
+| `execute_remote_function_ex` | `exec_call_remote` |
+| `fill_structure_from_dotnet` | `structure_fill_from_dotnet` |
 | `find_memory_records_by_description` | `record_find` |
+| `find_pointer_references` | `pointer_find_references` |
+| `free_memory` | `memory_free` |
+| `full_access_memory` | `memory_set_protection` |
 | `generate_api_hook_script` | `asm_generate_api_hook` |
+| `generate_code_injection_script` | `asm_generate_injection` |
+| `generate_pointer_map` | `pointer_create_map` |
 | `get_address_list` | `record_list` |
 | `get_code_references` | `code_find_references` |
 | `get_comment` | `code_get_comments` |
 | `get_current_process` | `process_get_current` |
 | `get_function_range` | `code_get_function` |
+| `get_memory_protection` | `memory_get_address_info` |
 | `get_memory_record_details` | `record_get` |
+| `get_memory_region` | `memory_get_address_info` |
 | `get_memory_scan_results` | `scan_list_results` |
 | `get_memory_scan_status` | `scan_get_status` |
+| `get_module_preference` | `symbol_get_module_preference` |
+| `get_module_size` | `module_get` |
+| `get_name_from_address` | `symbol_resolve` |
 | `get_opened_file_size` | `process_get_current` |
 | `get_plugin_version` | `runtime_get_info` |
+| `get_pointer_scan_results` | `pointer_list_paths` |
 | `get_pointer_size` | `process_get_current` |
 | `get_previous_opcodes` | `code_disassemble` |
 | `get_process_list` | `process_list` |
 | `get_process_state` | `process_get_current` |
 | `get_referenced_functions` | `code_list_functions` |
 | `get_referenced_strings` | `code_find_strings` |
+| `get_rtti_class_name` | `memory_get_address_info` |
 | `get_runtime_info` | `runtime_get_info` |
 | `get_selected_memory_record` | `record_get_selected` |
 | `get_speedhack_speed` | `speedhack_get_state` |
+| `get_structure` | `structure_get` |
+| `get_structure_element_value` | `structure_read` |
+| `get_structure_elements` | `structure_get_pdb_layout` |
+| `get_symbol_info` | `symbol_resolve` |
+| `get_symbols_loading_state` | removed |
 | `get_thread_list` | `process_list_threads` |
+| `hash_memory` | `memory_hash` |
+| `inject_dotnet_assembly` | `exec_inject_dotnet` |
 | `inject_dotnet_library` | `exec_inject_dotnet` |
 | `inject_library` | `exec_inject_library` |
 | `is_jump_destination` | `code_get_function` |
+| `list_instances` | `instance_list` |
 | `list_memory_scanners` | `scan_list_scanners` |
+| `list_pointer_maps` | `pointer_list_maps` |
+| `list_structures` | `structure_list` |
 | `load_cheat_table` | `table_load` |
+| `load_memory` | `memory_load_from_file` |
+| `load_new_symbols` | `symbol_reload` |
+| `lookup_rtti_class_name` | `memory_get_address_info` |
 | `memory_scan` | `scan_first` |
 | `next_memory_scan` | `scan_next` |
 | `open_file_as_process` | `process_open_file` |
+| `open_foreground_process` | removed |
 | `open_process` | `process_attach` |
 | `pause_process` | `process_set_paused` |
+| `pointer_scan` | `pointer_find_paths` |
+| `read_memory` | `memory_read` |
+| `read_pointer_chain` | `pointer_read_chain` |
+| `register_symbol` | `symbol_register` |
+| `reinitialize_dotnet_symbols` | `symbol_reload` |
+| `reinitialize_symbols` | `symbol_reload` |
 | `release_target_resources` | `runtime_release_resources` |
+| `remove_structure_element` | `structure_remove_elements` |
+| `rescan_pointer_scan` | `pointer_rescan_paths` |
 | `reset_memory_scan` | `scan_reset`, `scan_delete` |
+| `reset_pointer_scan` | `pointer_delete_scan` |
+| `resolve_address` | `symbol_resolve` |
 | `resume_process` | `process_set_paused` |
 | `save_cheat_table` | `table_save` |
 | `save_opened_file` | `process_save_file` |
+| `search_disassembly` | `code_start_search` |
 | `select_memory_record` | `record_select` |
 | `set_comment` | `code_set_comment` |
+| `set_memory_protection` | `memory_set_protection` |
 | `set_memory_record_active` | `record_set_active` |
 | `set_memory_record_offsets` | `record_update` |
 | `set_memory_record_script` | `record_set_script` |
+| `set_module_preference` | `symbol_set_module_preference` |
 | `set_pointer_size` | `process_set_pointer_size` |
 | `set_speedhack_speed` | `speedhack_set_speed` |
+| `set_structure_element_value` | `structure_write_element` |
+| `string_scan` | `scan_first` |
+| `unregister_symbol` | `symbol_unregister` |
 | `update_memory_record` | `record_update` |
+| `update_structure_element` | `structure_update_elements` |
+| `wait_for_symbols` | removed |
+| `write_memory` | `memory_write` |

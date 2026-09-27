@@ -4,7 +4,6 @@ using System.Text.Json.Nodes;
 using CheatEngine.Mcp.Plugin;
 using CheatEngine.Mcp.Tests.LiveQualification;
 using CheatEngine.Mcp.Tests.Support;
-using CheatEngine.Mcp.Tools;
 
 using ModelContextProtocol;
 using ModelContextProtocol.Client;
@@ -167,20 +166,6 @@ public sealed class ContractSnapshotTests
 		GoldenFile.AssertMatches("plugin-files.txt", string.Join('\n', files));
 	}
 
-	[Fact]
-	public void GetPluginVersion_Result_KeepsDocumentedShape()
-	{
-		JsonObject result =
-			JsonSerializer.SerializeToNode(
-				new ProcessTool(ClientTestDouble.Client(), TestRuntime.Info).GetPluginVersion())!.AsObject();
-		Assert.Equal(["location", "runtimeLocation", "success", "version"],
-			result.Select(static property => property.Key).Order(StringComparer.Ordinal));
-		Assert.True(result["success"]!.GetValue<bool>());
-		Assert.Equal("CheatEngine.Mcp.Plugin.dll", Path.GetFileName(result["runtimeLocation"]!.GetValue<string>()));
-		Assert.False(string.IsNullOrWhiteSpace(result["version"]!.GetValue<string>()));
-		Assert.False(string.IsNullOrWhiteSpace(result["location"]!.GetValue<string>()));
-	}
-
 	private static async Task<string> ListBackendToolsAsync(string endpoint, string protocolVersion)
 	{
 		await using McpClient client = await McpClient.CreateAsync(
@@ -236,7 +221,8 @@ public sealed class ContractSnapshotTests
 					.OrderBy(static resource => resource.Uri, StringComparer.Ordinal).ToArray(), SnapshotOptions),
 			["resourceTemplates"] = JsonSerializer.SerializeToNode(
 				templates.Select(static template => template.ProtocolResourceTemplate)
-					.OrderBy(static template => template.UriTemplate, StringComparer.Ordinal).ToArray(), SnapshotOptions)
+					.OrderBy(static template => template.UriTemplate, StringComparer.Ordinal).ToArray(),
+				SnapshotOptions)
 		}, SnapshotOptions);
 	}
 

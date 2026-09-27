@@ -87,7 +87,8 @@ public sealed record AobSignature(
 	int? Offset = null,
 	[property: Description("The signature's length in bytes.")]
 	int? Length = null,
-	[property: Description("How many matches the verification scan found; 2 means at least 2. Omitted when not verified.")]
+	[property:
+		Description("How many matches the verification scan found; 2 means at least 2. Omitted when not verified.")]
 	int? MatchCount = null,
 	[property: Description("Cheat Engine's last attempt when it found no unique signature, when it reported one.")]
 	string? TriedPattern = null);

@@ -26,6 +26,8 @@ namespace CheatEngine.Mcp.Tools.Memory;
 [JsonSerializable(typeof(MemoryCompareResult))]
 [JsonSerializable(typeof(MemoryHashResult))]
 [JsonSerializable(typeof(FileDumpResult))]
+[JsonSerializable(typeof(FileLoadResult))]
+[JsonSerializable(typeof(FileLoadFailure))]
 [JsonSerializable(typeof(McpValueType))]
 [JsonSerializable(typeof(RegionStateFilter))]
 [JsonSerializable(typeof(RegionTypeFilter))]

@@ -19,6 +19,7 @@ namespace CheatEngine.Mcp.Tools.Structures;
 [JsonSerializable(typeof(StructureElementUpdate[]))]
 [JsonSerializable(typeof(StructureCompareMode))]
 [JsonSerializable(typeof(StructureCompareFormat))]
+[JsonSerializable(typeof(StructureElementType))]
 [JsonSerializable(typeof(string[]))]
 [JsonSerializable(typeof(int[]))]
 [JsonSerializable(typeof(int?))]

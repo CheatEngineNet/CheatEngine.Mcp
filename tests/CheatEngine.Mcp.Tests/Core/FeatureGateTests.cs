@@ -71,7 +71,8 @@ public sealed class FeatureGateTests
 	public void Catalog_GatedTool_ListsItsRequirementsInMetaWithoutConstruction()
 	{
 		CheatEngineMcpPrimitiveOptions manifest = CheatEngineMcpComposition.CreateManifest(CheatEngineMcpMode.Catalog,
-			static builder => builder.AddToolType<GatedProbeTool>().AddToolType<ContractProbeTool>());
+			static builder => builder.AddToolType<GatedProbeTool>().AddToolType<ContractProbeTool>()
+				.AddJsonTypeInfoResolver(TestJsonContext.Default));
 
 		McpPrimitiveCatalog catalog = McpPrimitiveCatalog.Create(manifest);
 
@@ -227,7 +228,7 @@ public sealed class FeatureGateTests
 			activation.AddLogging();
 			activation.AddSingleton(Options.Create(features));
 			new CheatEngineMcpBuilder(activation, CheatEngineMcpMode.Backend).AddExecutionServices()
-				.AddToolType<GatedProbeTool>();
+				.AddToolType<GatedProbeTool>().AddJsonTypeInfoResolver(TestJsonContext.Default);
 			activation.AddOptions<CheatEngineMcpPrimitiveOptions>();
 			ServiceProvider root = activation.BuildServiceProvider(new ServiceProviderOptions
 			{

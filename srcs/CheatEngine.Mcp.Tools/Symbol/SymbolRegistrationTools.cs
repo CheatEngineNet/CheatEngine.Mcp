@@ -192,7 +192,11 @@ public sealed class SymbolRegistrationTools
 		Dictionary<string, OwnedSymbol> owned = _registrations.Snapshot();
 		LuaRegisteredSymbol[] matching = string.IsNullOrEmpty(nameContains)
 			? copied.Symbols
-			: [.. copied.Symbols.Where(symbol => symbol.Name.Contains(nameContains, StringComparison.OrdinalIgnoreCase))];
+			:
+			[
+				.. copied.Symbols.Where(symbol =>
+					symbol.Name.Contains(nameContains, StringComparison.OrdinalIgnoreCase))
+			];
 		PageSlice<LuaRegisteredSymbol> page = Paging.Slice(matching, offset, limit, MaximumLimit, copied.Truncated);
 		RegisteredSymbolEntry[] entries =
 		[

@@ -189,7 +189,7 @@ public sealed class LuaJob<TItem> : McpJob, ILuaStateBacked
 		Volatile.Write(ref _state, (int) state);
 		if (cleanupError is not null)
 		{
-			Volatile.Write(ref _cleanupError, cleanupError);
+			Volatile.Write(ref _cleanupError, McpStateLedger.PublicCleanupError(cleanupError));
 		}
 	}
 

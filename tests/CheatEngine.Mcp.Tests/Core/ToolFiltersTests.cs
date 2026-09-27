@@ -37,7 +37,6 @@ public sealed class ToolFiltersTests
 
 		Tool probe = tools.Single(static tool => tool.Name == ContractProbeTool.ConvertName).ProtocolTool;
 		Assert.Equal("object", probe.OutputSchema!.Value.GetProperty("type").GetString());
-		Assert.Null(tools.Single(static tool => tool.Name == ContractProbeTool.LegacyName).ProtocolTool.OutputSchema);
 	}
 
 	[Fact]
@@ -135,19 +134,6 @@ public sealed class ToolFiltersTests
 	}
 
 	[Fact]
-	public async Task CallTool_LegacyObjectResult_IsUnchangedByTheFilters()
-	{
-		await using TestMcpPipeline pipeline = await TestMcpPipeline.StartAsync();
-
-		CallToolResult result = await pipeline.CallAsync(ContractProbeTool.LegacyName, """{"value":7}""");
-
-		Assert.Null(result.IsError);
-		Assert.Null(result.StructuredContent);
-		Assert.Equal("""{"success":true,"value":7}""",
-			Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text);
-	}
-
-	[Fact]
 	public async Task CallTool_StringifiedArrayNullAndBooleanText_AreRepairedBeforeBinding()
 	{
 		await using TestMcpPipeline pipeline = await TestMcpPipeline.StartAsync();
@@ -161,9 +147,9 @@ public sealed class ToolFiltersTests
 	}
 
 	[Fact]
-	public async Task CallTool_StrictJsonPipeline_ServesRegisteredRecords()
+	public async Task CallTool_SourceGeneratedJsonPipeline_ServesRegisteredRecords()
 	{
-		await using TestMcpPipeline pipeline = await TestMcpPipeline.StartAsync(strictJson: true);
+		await using TestMcpPipeline pipeline = await TestMcpPipeline.StartAsync();
 
 		CallToolResult result = await pipeline.CallAsync(ContractProbeTool.ConvertName, """{"text":"strict"}""");
 

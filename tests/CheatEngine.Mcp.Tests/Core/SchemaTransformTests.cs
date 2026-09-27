@@ -68,8 +68,10 @@ public sealed class SchemaTransformTests
 
 	private static JsonNode CreateTypeSchema(Type type)
 	{
-		JsonElement schema = AIJsonUtilities.CreateJsonSchema(type, inferenceOptions: SchemaTransform.SchemaCreateOptions);
-		return JsonNode.Parse(schema.GetRawText()) ?? throw new InvalidOperationException("Generated schema was empty.");
+		JsonElement schema =
+			AIJsonUtilities.CreateJsonSchema(type, inferenceOptions: SchemaTransform.SchemaCreateOptions);
+		return JsonNode.Parse(schema.GetRawText()) ??
+			   throw new InvalidOperationException("Generated schema was empty.");
 	}
 
 	private static MethodInfo GetSampleMethod(string name)

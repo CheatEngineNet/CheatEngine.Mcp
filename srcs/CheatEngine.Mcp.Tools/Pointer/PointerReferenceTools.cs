@@ -185,8 +185,10 @@ public sealed class PointerReferenceTools
 
 		ulong low = address >= (ulong) maxOffset ? address - (ulong) maxOffset : 0;
 		ValueScanFirstRequest request = width == 8
-			? ValueScanFirstRequest.Between(ValueScanValue.FromInt64((long) low), ValueScanValue.FromInt64((long) address))
-			: ValueScanFirstRequest.Between(ValueScanValue.FromInt32((int) low), ValueScanValue.FromInt32((int) address));
+			? ValueScanFirstRequest.Between(ValueScanValue.FromInt64((long) low),
+				ValueScanValue.FromInt64((long) address))
+			: ValueScanFirstRequest.Between(ValueScanValue.FromInt32((int) low),
+				ValueScanValue.FromInt32((int) address));
 		ulong start = scope?.BaseAddress ?? 0;
 		ulong stop = scope is null
 			? width == 8 ? UserLast64 + 1 : 0x1_0000_0000UL

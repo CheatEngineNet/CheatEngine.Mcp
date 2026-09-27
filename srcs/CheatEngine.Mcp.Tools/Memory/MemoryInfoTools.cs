@@ -48,7 +48,8 @@ public sealed class MemoryInfoTools
 	public AddressInfoResult GetAddressInfo(
 		[Description("The addresses or Cheat Engine address expressions to describe, 1 to 256.")]
 		string[] addresses,
-		[Description("Whether to look up the RTTI class name of the object at each address (MSVC C++ objects with a vtable).")]
+		[Description(
+			"Whether to look up the RTTI class name of the object at each address (MSVC C++ objects with a vtable).")]
 		bool includeRtti = false,
 		[Description("Whether to read the pointer-sized value stored at each address.")]
 		bool includePointerValue = false,
@@ -86,7 +87,8 @@ public sealed class MemoryInfoTools
 		int offset = 0,
 		[Description("The most regions to return, 1 to 2000.")]
 		int limit = 500,
-		[Description("concise (default) or detailed, which adds allocation base, allocation protection and mapped file.")]
+		[Description(
+			"concise (default) or detailed, which adds allocation base, allocation protection and mapped file.")]
 		ResultFormat format = ResultFormat.Concise,
 		CancellationToken cancellationToken = default)
 	{
@@ -234,8 +236,10 @@ public sealed class MemoryInfoTools
 		bool detailed, CancellationToken cancellationToken)
 	{
 		ICheatEngineClient client = _dispatch.Client;
-		ulong low = start is null ? 0 : MemoryTargets.Resolve(client, start, "startAddress", cancellationToken)
-			.ToUInt64();
+		ulong low = start is null
+			? 0
+			: MemoryTargets.Resolve(client, start, "startAddress", cancellationToken)
+				.ToUInt64();
 		ulong high = end is null
 			? ulong.MaxValue
 			: MemoryTargets.Resolve(client, end, "endAddress", cancellationToken).ToUInt64();

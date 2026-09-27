@@ -245,11 +245,11 @@ public sealed class StructureTools
 			StructureLuaScripts.PdbLayout, StructureLuaJsonContext.Default.StructureLuaPdbLayout, cancellationToken,
 			type, limit);
 		return new PdbLayout(type, layout.Found,
-			[
-				.. layout.Elements.Select(static field => new PdbLayoutElement(HexFormat.Offset(field.Offset),
-					field.Name ?? string.Empty,
-					field.Vartype is { } vartype ? StructureValueCodec.ElementType(vartype, null) : null))
-			], layout.Truncated);
+		[
+			.. layout.Elements.Select(static field => new PdbLayoutElement(HexFormat.Offset(field.Offset),
+				field.Name ?? string.Empty,
+				field.Vartype is { } vartype ? StructureValueCodec.ElementType(vartype, null) : null))
+		], layout.Truncated);
 	}
 
 	/// <summary>Maps a copied element to the contract.</summary>

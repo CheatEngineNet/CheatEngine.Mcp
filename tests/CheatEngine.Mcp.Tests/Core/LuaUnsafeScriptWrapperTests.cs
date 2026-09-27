@@ -56,6 +56,23 @@ public sealed class LuaUnsafeScriptWrapperTests
 	}
 
 	[Fact]
+	public void Build_StageARestoresTheResultReaderPrimitivesBeforeItPublishesTheOutcome()
+	{
+		LuaUnsafeScriptWrapper.WrappedScript script = LuaUnsafeScriptWrapper.Build("return 1", null);
+
+		Assert.Contains("local __rawget, __rawset, __type, __pack, __pcall, __load, __env =", script.Source,
+			StringComparison.Ordinal);
+		Assert.Contains("__rawset(__env, 'rawget', __rawget)", script.Source, StringComparison.Ordinal);
+		Assert.Contains("__rawset(__env, 'rawset', __rawset)", script.Source, StringComparison.Ordinal);
+		Assert.Contains("__rawset(__env, 'type', __type)", script.Source, StringComparison.Ordinal);
+		Assert.Contains("__rawset(__env, '_ENV', __savedEnv)", script.Source, StringComparison.Ordinal);
+		Assert.Contains("__rawset(__env, 'getTickCount', __savedTicks)", script.Source, StringComparison.Ordinal);
+		Assert.True(script.Source.LastIndexOf("__rawset(__env, 'rawget', __rawget)", StringComparison.Ordinal) <
+						script.Source.LastIndexOf("__rawset(__env, '" + LuaUnsafeScriptWrapper.ResultGlobal + "', __result)",
+							StringComparison.Ordinal));
+	}
+
+	[Fact]
 	public void ReadResult_FixedBody_ClearsTheGlobalFirstAndNeverLoadsCode()
 	{
 		string[] lines = LuaUnsafeScriptWrapper.ReadResult.Split('\n');

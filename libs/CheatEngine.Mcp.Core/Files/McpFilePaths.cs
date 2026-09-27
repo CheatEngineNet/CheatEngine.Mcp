@@ -159,12 +159,13 @@ public sealed class McpFilePaths
 		{
 			if (!overwrite && WindowsAnchoredFiles.EntryExists(directories[^1], name))
 			{
-				throw CheatEngineToolException.InvalidArgument(parameter, "already exists; set overwrite to replace it.");
+				throw Refuse(operation, parameter, "already exists; set overwrite to replace it.", null);
 			}
 
 			return new McpFileWrite(full, directories, name, overwrite);
 		}
-		catch (WindowsFileException exception) when (exception.Status == WindowsAnchoredFiles.StatusReparsePointEncountered)
+		catch (WindowsFileException exception) when (exception.Status ==
+													 WindowsAnchoredFiles.StatusReparsePointEncountered)
 		{
 			DisposeDirectories(directories);
 			throw Refuse(operation, parameter, "could not be verified without following a reparse point.",
@@ -307,13 +308,15 @@ public sealed class McpFilePaths
 
 			return directories;
 		}
-		catch (WindowsFileException exception) when (exception.Status is WindowsAnchoredFiles.StatusObjectNameNotFound or
-			WindowsAnchoredFiles.StatusObjectPathNotFound)
+		catch (WindowsFileException exception) when (exception.Status is WindowsAnchoredFiles.StatusObjectNameNotFound
+														 or
+														 WindowsAnchoredFiles.StatusObjectPathNotFound)
 		{
 			DisposeDirectories(directories);
 			throw Refuse(operation, parameter, "names a folder that does not exist.", null);
 		}
-		catch (WindowsFileException exception) when (exception.Status == WindowsAnchoredFiles.StatusReparsePointEncountered)
+		catch (WindowsFileException exception) when (exception.Status ==
+													 WindowsAnchoredFiles.StatusReparsePointEncountered)
 		{
 			DisposeDirectories(directories);
 			throw Refuse(operation, parameter, "could not be verified without following a reparse point.",

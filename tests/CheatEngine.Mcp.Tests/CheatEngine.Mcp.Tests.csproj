@@ -20,6 +20,7 @@
     <Using Include="CheatEngine.Mcp.Core.Lua"/>
     <Using Include="CheatEngine.Mcp.Core.Runtime"/>
     <Using Include="CheatEngine.Mcp.Core.Targets"/>
+    <Using Include="CheatEngine.Mcp.Plugin.Lua"/>
     <Using Include="CheatEngine.Mcp.Hosting.Backend"/>
     <Using Include="CheatEngine.Mcp.Hosting.Configuration"/>
     <Using Include="CheatEngine.Mcp.Hosting.Discovery"/>

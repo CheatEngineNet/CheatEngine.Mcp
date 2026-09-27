@@ -48,13 +48,15 @@ public sealed class PointerChainTools
 		"reads [[game.exe+1A2B30]+10]+4C8. An unreadable hop fails with memory_read_failed and details " +
 		"{hopIndex, readAt}.")]
 	public PointerChainResult ReadChain(
-		[Description("The address that holds the first pointer: an address, symbol or expression such as game.exe+1A2B30.")]
+		[Description(
+			"The address that holds the first pointer: an address, symbol or expression such as game.exe+1A2B30.")]
 		string @base,
 		[Description("One to 64 signed hexadecimal offsets in dereference order, such as [\"10\", \"-8\"].")]
 		string[] offsets,
 		[Description("The type of the final value to read; omit it to follow the chain only.")]
 		McpValueType? valueType = null,
-		[Description("For valueType bytes the byte count (required), for string and wstring the maximum length; 1 to 65536.")]
+		[Description(
+			"For valueType bytes the byte count (required), for string and wstring the maximum length; 1 to 65536.")]
 		int? length = null,
 		CancellationToken cancellationToken = default)
 	{
@@ -88,7 +90,8 @@ public sealed class PointerChainTools
 						out CheatEngineFailure failure, token))
 				{
 					throw failure.Kind is CheatEngineFailureKind.MemoryReadFailed
-						? Unreadable(index, current, $"Hop {index}: the pointer at {HexFormat.Address(current)} could not be read.",
+						? Unreadable(index, current,
+							$"Hop {index}: the pointer at {HexFormat.Address(current)} could not be read.",
 							failure.Operation, ToolFailureMapping.MapHostEffect(failure.HostEffect))
 						: CheatEngineToolException.FromFailure(failure, client.Stopping.IsCancellationRequested);
 				}
@@ -105,7 +108,9 @@ public sealed class PointerChainTools
 				current = next;
 			}
 
-			string? value = valueType is { } type ? ReadValue(client, current, type, length, parsed.Length, token) : null;
+			string? value = valueType is { } type
+				? ReadValue(client, current, type, length, parsed.Length, token)
+				: null;
 			return new PointerChainResult(PointerSupport.ChainExpression(root, parsed),
 				HexFormat.Address(baseAddress), hops, HexFormat.Address(current), value);
 		}, cancellationToken);

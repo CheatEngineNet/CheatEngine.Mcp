@@ -376,7 +376,8 @@ internal static class MemoryTargets
 	internal static MemoryRegionDetail Detail(MemoryRegionInfo region)
 	{
 		return new MemoryRegionDetail(HexFormat.Address(region.BaseAddress), Size(region.Size),
-			State(region.State), Access(region.Protection), Type(region.Type), HexFormat.Address(region.AllocationBase));
+			State(region.State), Access(region.Protection), Type(region.Type),
+			HexFormat.Address(region.AllocationBase));
 	}
 
 	/// <summary>A region size as the contract's signed byte count.</summary>

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text.Json;
 
 using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Memory;
@@ -15,8 +16,6 @@ namespace CheatEngine.Mcp.Tests.Tools.Memory;
 /// <summary>Memory dumps: the host-file policy runs before any read, and only a complete dump replaces the file.</summary>
 public sealed class MemoryFileToolsTests : IDisposable
 {
-	private static CancellationToken Token => TestContext.Current.CancellationToken;
-
 	private readonly string _root = Path.Combine(Path.GetTempPath(), $"CheatEngine.Mcp.Tests-{Guid.NewGuid():N}");
 
 	public MemoryFileToolsTests()
@@ -25,6 +24,8 @@ public sealed class MemoryFileToolsTests : IDisposable
 		Directory.CreateDirectory(Path.Combine(_root, "data"));
 		Directory.CreateDirectory(Path.Combine(_root, "registry"));
 	}
+
+	private static CancellationToken Token => TestContext.Current.CancellationToken;
 
 	public void Dispose()
 	{
@@ -42,7 +43,8 @@ public sealed class MemoryFileToolsTests : IDisposable
 		TargetDouble target = new();
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			Tools(target, true).DumpToFile("1000", 16, path.Replace("{root}", _root, StringComparison.Ordinal), cancellationToken: Token));
+			Tools(target, true).DumpToFile("1000", 16, path.Replace("{root}", _root, StringComparison.Ordinal),
+				cancellationToken: Token));
 
 		Assert.Equal(ToolErrorKind.InvalidArgument, exception.Error.Kind);
 		Assert.Equal(ToolHostEffect.NotStarted, exception.Error.HostEffect);
@@ -55,7 +57,8 @@ public sealed class MemoryFileToolsTests : IDisposable
 		TargetDouble target = new();
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			Tools(target, false).DumpToFile("1000", 16, Path.Combine(_root, "dumps", "dump.bin"), cancellationToken: Token));
+			Tools(target, false).DumpToFile("1000", 16, Path.Combine(_root, "dumps", "dump.bin"),
+				cancellationToken: Token));
 
 		Assert.Equal(ToolErrorKind.InvalidArgument, exception.Error.Kind);
 		Assert.Contains("no write root", exception.Error.Message, StringComparison.Ordinal);
@@ -113,7 +116,8 @@ public sealed class MemoryFileToolsTests : IDisposable
 		string path = Path.Combine(_root, "dumps", "sparse.bin");
 
 		FileDumpResult result =
-			Tools(target, true).DumpToFile("10000", 0x4000, path, unreadable: UnreadableMemory.Zero, cancellationToken: Token);
+			Tools(target, true).DumpToFile("10000", 0x4000, path, unreadable: UnreadableMemory.Zero,
+				cancellationToken: Token);
 
 		Assert.Equal(0x2000, result.ZeroFilledBytes);
 		Assert.Equal([new ZeroFilledRange("1000", 0x2000)], result.ZeroFilled);
@@ -155,6 +159,133 @@ public sealed class MemoryFileToolsTests : IDisposable
 		Assert.Equal(ToolErrorKind.InvalidArgument, exception.Error.Kind);
 		Assert.Equal([1, 2, 3], File.ReadAllBytes(path));
 		Assert.Equal(0, target.Dispatcher.Calls);
+	}
+
+	[Theory]
+	[InlineData(@"\\server\share\input.bin")]
+	[InlineData(@"dumps\relative.bin")]
+	[InlineData(@"{root}\data\input.bin")]
+	[InlineData(@"{root}\registry\input.bin")]
+	public void LoadFromFile_RefusedPath_NeverResolvesOrWrites(string path)
+	{
+		TargetDouble target = new();
+		string candidate = path.Replace("{root}", _root, StringComparison.Ordinal);
+		if (Path.IsPathFullyQualified(candidate) && !candidate.StartsWith(@"\\", StringComparison.Ordinal))
+		{
+			File.WriteAllBytes(candidate, [0x90]);
+		}
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			Tools(target, true).LoadFromFile("1000", candidate, Token));
+
+		Assert.Equal((ToolErrorKind.InvalidArgument, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Equal(0, target.Dispatcher.Calls);
+		Assert.Empty(target.Calls);
+	}
+
+	[Fact]
+	public void LoadFromFile_FileLargerThanOneChunk_WritesContiguousBoundedBlocks()
+	{
+		TargetDouble target = new();
+		byte[] input = new byte[MemoryTargets.ChunkBytes + 3];
+		input[0] = 0x10;
+		input[MemoryTargets.ChunkBytes - 1] = 0x20;
+		input[MemoryTargets.ChunkBytes] = 0x30;
+		input[^1] = 0x40;
+		string path = Path.Combine(_root, "dumps", "input.bin");
+		File.WriteAllBytes(path, input);
+		List<MemoryBytesWriteRequest> writes = [];
+		target.Memory = (method, arguments) =>
+		{
+			Assert.Equal(nameof(IMemoryClient.WriteBytes), method.Name);
+			writes.Add(Assert.IsType<MemoryBytesWriteRequest>(arguments[0]));
+			return null;
+		};
+
+		FileLoadResult result = Tools(target, true).LoadFromFile("1000", path, Token);
+
+		Assert.Equal(new FileLoadResult(path, "1000", input.Length), result);
+		Assert.Collection(writes,
+			first =>
+			{
+				Assert.Equal((ulong) 0x1000, first.Address.ToUInt64());
+				Assert.Equal(MemoryTargets.ChunkBytes, first.Bytes.Length);
+				Assert.Equal(input[..MemoryTargets.ChunkBytes], first.Bytes);
+			},
+			second =>
+			{
+				Assert.Equal(0x1000 + (ulong) MemoryTargets.ChunkBytes, second.Address.ToUInt64());
+				Assert.Equal(3, second.Bytes.Length);
+				Assert.Equal(input[MemoryTargets.ChunkBytes..], second.Bytes);
+			});
+		Assert.Equal(["Memory.WriteBytes", "Memory.WriteBytes"], target.CallsTo("Memory"));
+	}
+
+	[Fact]
+	public void LoadFromFile_SecondBlockHasUnknownEffect_ReportsTheConfirmedPrefix()
+	{
+		TargetDouble target = new();
+		byte[] input = new byte[MemoryTargets.ChunkBytes + 1];
+		string path = Path.Combine(_root, "dumps", "partial.bin");
+		File.WriteAllBytes(path, input);
+		int writes = 0;
+		target.Memory = (method, _) =>
+		{
+			Assert.Equal(nameof(IMemoryClient.WriteBytes), method.Name);
+			writes++;
+			if (writes == 2)
+			{
+				throw new CheatEngineFailure(CheatEngineFailureKind.MemoryWriteFailed, "Memory.WriteBytes",
+						"The second block may have changed memory.", hostEffect: CheatEngineHostEffect.Unknown)
+					.ToException();
+			}
+
+			return null;
+		};
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			Tools(target, true).LoadFromFile("1000", path, Token));
+
+		Assert.Equal((ToolErrorKind.PartialEffect, ToolHostEffect.Started),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		FileLoadFailure failure =
+			exception.Error.Details!.Value.Deserialize(MemoryJsonContext.Default.FileLoadFailure)!;
+		Assert.Equal(new FileLoadFailure(path, "1000", MemoryTargets.ChunkBytes, input.Length), failure);
+		Assert.Equal(2, writes);
+	}
+
+	[Fact]
+	public void LoadFromFile_FirstBlockNotApplied_PreservesTheClientFailure()
+	{
+		TargetDouble target = new();
+		string path = Path.Combine(_root, "dumps", "unwritten.bin");
+		File.WriteAllBytes(path, [0x90]);
+		target.Memory = (method, _) =>
+		{
+			Assert.Equal(nameof(IMemoryClient.WriteBytes), method.Name);
+			throw new CheatEngineFailure(CheatEngineFailureKind.MemoryWriteFailed, "Memory.WriteBytes",
+				"The page is read-only.", hostEffect: CheatEngineHostEffect.NotStarted).ToException();
+		};
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			Tools(target, true).LoadFromFile("1000", path, Token));
+
+		Assert.Equal((ToolErrorKind.MemoryWriteFailed, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Single(target.CallsTo("Memory"));
+	}
+
+	[Fact]
+	public void LoadFromFile_ResultsAndPartialDetails_UseTheGeneratedJsonSchema()
+	{
+		string result = JsonSerializer.Serialize(new FileLoadResult("C:/input.bin", "1000", 4),
+			MemoryJsonContext.Default.FileLoadResult);
+		string failure = JsonSerializer.Serialize(new FileLoadFailure("C:/input.bin", "1000", 2, 4),
+			MemoryJsonContext.Default.FileLoadFailure);
+
+		Assert.Equal("{\"path\":\"C:/input.bin\",\"address\":\"1000\",\"bytesWritten\":4}", result);
+		Assert.Equal("{\"path\":\"C:/input.bin\",\"address\":\"1000\",\"bytesWritten\":2,\"totalBytes\":4}", failure);
 	}
 
 	private static ImmutableArray<byte> Filled(int length)

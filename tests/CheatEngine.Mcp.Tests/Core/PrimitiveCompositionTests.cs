@@ -1,5 +1,8 @@
 using System.ComponentModel;
 
+using CheatEngine.Mcp.Core.Contract;
+using CheatEngine.Mcp.Tests.Support;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -14,11 +17,11 @@ public sealed class PrimitiveCompositionTests
 	{
 		CheatEngineMcpPrimitiveOptions manifest = CheatEngineMcpComposition.CreateManifest(CheatEngineMcpMode.Catalog,
 			static builder => builder.AddToolType<ThrowingTool>().AddResourceType<ThrowingResource>()
-				.AddPromptType<ThrowingPrompt>());
+				.AddPromptType<ThrowingPrompt>().AddJsonTypeInfoResolver(TestJsonContext.Default));
 
 		McpPrimitiveCatalog catalog = McpPrimitiveCatalog.Create(manifest);
 
-		Assert.Equal("composition_probe", Assert.Single(catalog.Tools).Name);
+		Assert.Equal(CheatEngineToolNames.RuntimeGetInfo, Assert.Single(catalog.Tools).Name);
 		Assert.Equal("cheatengine://instance/probe", Assert.Single(catalog.Resources).Uri);
 		Assert.Equal(McpPrimitiveRouting.Instance, Assert.Single(catalog.InstanceResources).Routing);
 		Assert.Empty(catalog.ResourceTemplates);
@@ -40,11 +43,12 @@ public sealed class PrimitiveCompositionTests
 	public void Catalog_DuplicateToolNames_FailsInsteadOfDroppingOne()
 	{
 		CheatEngineMcpPrimitiveOptions manifest = CheatEngineMcpComposition.CreateManifest(CheatEngineMcpMode.Catalog,
-			static builder => builder.AddToolType<ThrowingTool>().AddToolType<DuplicateTool>());
+			static builder => builder.AddToolType<ThrowingTool>().AddToolType<DuplicateTool>()
+				.AddJsonTypeInfoResolver(TestJsonContext.Default));
 
 		OptionsValidationException exception =
 			Assert.Throws<OptionsValidationException>(() => McpPrimitiveCatalog.Create(manifest));
-		Assert.Contains("composition_probe", exception.Message, StringComparison.Ordinal);
+		Assert.Contains(CheatEngineToolNames.RuntimeGetInfo, exception.Message, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -52,7 +56,8 @@ public sealed class PrimitiveCompositionTests
 	{
 		CountingTool.Reset();
 		ServiceCollection activation = new();
-		new CheatEngineMcpBuilder(activation, CheatEngineMcpMode.Backend).AddToolType<CountingTool>();
+		new CheatEngineMcpBuilder(activation, CheatEngineMcpMode.Backend).AddToolType<CountingTool>()
+			.AddJsonTypeInfoResolver(TestJsonContext.Default);
 		activation.AddOptions<CheatEngineMcpPrimitiveOptions>();
 		using (ServiceProvider root =
 			   activation.BuildServiceProvider(new ServiceProviderOptions
@@ -99,22 +104,26 @@ public sealed class PrimitiveCompositionTests
 			throw new InvalidOperationException("Catalog composition must not construct primitive types.");
 		}
 
-		[McpServerTool(Name = "composition_probe")]
-		[Description("Probe tool.")]
-		public string Probe([Description("A value.")] string value)
+		[McpServerTool(Name = CheatEngineToolNames.RuntimeGetInfo, Title = "Get composition probe", ReadOnly = true,
+			Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+		[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+		[Description("Returns a probe result without constructing the catalog primitive.")]
+		public ContractProbeResult Probe([Description("A value.")] string value)
 		{
-			return _marker + value;
+			return new ContractProbeResult(_marker + value, [], false, 1, null);
 		}
 	}
 
 	[McpServerToolType]
 	public sealed class DuplicateTool
 	{
-		[McpServerTool(Name = "composition_probe")]
-		[Description("Duplicate probe tool.")]
-		public static string Probe()
+		[McpServerTool(Name = CheatEngineToolNames.RuntimeGetInfo, Title = "Get duplicate probe", ReadOnly = true,
+			Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+		[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+		[Description("Returns a duplicate v2 probe result.")]
+		public static ContractProbeResult Probe()
 		{
-			return "duplicate";
+			return new ContractProbeResult("duplicate", [], false, 1, null);
 		}
 	}
 
@@ -187,18 +196,23 @@ public sealed class PrimitiveCompositionTests
 			Volatile.Write(ref disposed, 0);
 		}
 
-		[McpServerTool(Name = "counting_first")]
-		[Description("First counting tool.")]
-		public string First()
+		[McpServerTool(Name = CheatEngineToolNames.RuntimeGetInfo, Title = "Get first counting probe", ReadOnly = true,
+			Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+		[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+		[Description("Returns the first counting probe result.")]
+		public ContractProbeResult First()
 		{
-			return _marker + "first";
+			return new ContractProbeResult(_marker + "first", [], false, 1, null);
 		}
 
-		[McpServerTool(Name = "counting_second")]
-		[Description("Second counting tool.")]
-		public string Second()
+		[McpServerTool(Name = CheatEngineToolNames.RuntimeGetOverview, Title = "Get second counting probe",
+			ReadOnly = true,
+			Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+		[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+		[Description("Returns the second counting probe result.")]
+		public ContractProbeResult Second()
 		{
-			return _marker + "second";
+			return new ContractProbeResult(_marker + "second", [], false, 1, null);
 		}
 	}
 }

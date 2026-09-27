@@ -25,13 +25,13 @@ namespace CheatEngine.Mcp.Tests.Tools.Structures;
 /// <param name="Source">The complete script, whose first line holds the encoded <c>a</c> table.</param>
 internal sealed record StructureLuaCall(string Operation, string Source)
 {
+	/// <summary>The first line: runtime values, the encoded arguments and the prelude.</summary>
+	internal string Arguments => Source[..Source.IndexOf('\n', StringComparison.Ordinal)];
+
 	internal bool Runs(string body)
 	{
 		return Source.EndsWith(body, StringComparison.Ordinal);
 	}
-
-	/// <summary>The first line: runtime values, the encoded arguments and the prelude.</summary>
-	internal string Arguments => Source[..Source.IndexOf('\n', StringComparison.Ordinal)];
 }
 
 /// <summary>
@@ -107,7 +107,8 @@ internal sealed class StructureToolHarness
 			(nameof(ICheatEngineClient.Inspection), inspection));
 		IOptions<McpExecutionOptions> execution = Options.Create(new McpExecutionOptions());
 		Dispatch = new ToolDispatch(Client, new McpFeatureGate(Options.Create(new McpFeatureOptions())), execution,
-			new DispatchStatistics(execution), TimeProvider.System, new RecordingLogger<ToolDispatch>());
+			new DispatchStatistics(execution), TimeProvider.System, new RecordingLogger<ToolDispatch>(),
+			new PluginFixedLuaExecutor(Client));
 	}
 
 	internal RecordingDispatcher Dispatcher
@@ -193,6 +194,7 @@ internal sealed class StructureToolHarness
 		ServiceCollection activation = new();
 		activation.AddSingleton(Client);
 		activation.AddLogging();
+		activation.AddScoped<IFixedLuaExecutor, PluginFixedLuaExecutor>();
 		new CheatEngineMcpBuilder(activation, CheatEngineMcpMode.Backend).AddExecutionServices().AddStructureTools();
 		activation.AddOptions<CheatEngineMcpPrimitiveOptions>();
 		ServiceProvider root = activation.BuildServiceProvider(new ServiceProviderOptions

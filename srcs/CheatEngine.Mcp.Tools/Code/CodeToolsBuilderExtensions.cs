@@ -6,16 +6,15 @@ public static class CodeToolsBuilderExtensions
 	extension(ICheatEngineMcpBuilder builder)
 	{
 		/// <summary>
-		///     Declares the <c>code_*</c> tool containers and their JSON metadata. None is declared yet; the legacy tools
-		///     this domain replaces are still declared by <c>AddTools()</c>.
+		///     Declares the <c>code_*</c> tool container and its source-generated JSON metadata.
 		/// </summary>
 		/// <returns>The same builder.</returns>
 		public ICheatEngineMcpBuilder AddCodeTools()
 		{
 			ArgumentNullException.ThrowIfNull(builder);
-			// B6 adds AddJsonTypeInfoResolver(CodeJsonContext.Default) and one AddToolType<...>() per container
-			// here, then removes the legacy lines it replaces from AddTools().
-			return builder;
+			return builder
+				.AddJsonTypeInfoResolver(CodeJsonContext.Default)
+				.AddToolType<CodeTools>();
 		}
 	}
 }

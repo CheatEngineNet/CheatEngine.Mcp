@@ -10,7 +10,6 @@ using CheatEngine.Client.Processes;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Scanning;
 using CheatEngine.Mcp.Core.Features;
-using CheatEngine.Mcp.Core.Lua;
 using CheatEngine.Mcp.Core.Values;
 using CheatEngine.Mcp.Tests.Support;
 using CheatEngine.SDK.Engine.Inspection;
@@ -46,7 +45,8 @@ internal sealed class TargetDouble
 			(nameof(ICheatEngineClient.Lua), Recorded<ILuaClient>("Lua", static () => null)));
 		IOptions<McpExecutionOptions> execution = Options.Create(new McpExecutionOptions());
 		Dispatch = new ToolDispatch(Client, new McpFeatureGate(Options.Create(new McpFeatureOptions())), execution,
-			new DispatchStatistics(execution), TimeProvider.System, new RecordingLogger<ToolDispatch>());
+			new DispatchStatistics(execution), TimeProvider.System, new RecordingLogger<ToolDispatch>(),
+			new PluginFixedLuaExecutor(Client));
 	}
 
 	/// <summary>The dispatcher, which counts every dispatch.</summary>
@@ -172,7 +172,8 @@ internal sealed class TargetDouble
 
 		long epoch = Epochs.Count > 1 ? Epochs.Dequeue() : Epochs.Count == 1 ? Epochs.Peek() : 1;
 		return new ProcessSnapshot(new TargetProcessId(42), null, null, TargetBackend.LocalProcess,
-			Bitness.Bytes == 4 ? CheatEngineArchitecture.X86 : CheatEngineArchitecture.X64, Bitness, Bitness.Bytes, null,
+			Bitness.Bytes == 4 ? CheatEngineArchitecture.X86 : CheatEngineArchitecture.X64, Bitness, Bitness.Bytes,
+			null,
 			epoch);
 	}
 

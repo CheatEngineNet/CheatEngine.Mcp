@@ -197,7 +197,9 @@ internal static class StructureArguments
 			else
 			{
 				// Without a new type, the script checks the display and byte size against the element's current type.
-				display = update.Display is { } shown ? StructureValueCodec.DisplayMethod(Defined(shown, item + ".display")) : null;
+				display = update.Display is { } shown
+					? StructureValueCodec.DisplayMethod(Defined(shown, item + ".display"))
+					: null;
 				byteSize = update.ByteSize is { } size ? SizeInRange(size, item + ".byteSize") : null;
 			}
 

@@ -45,14 +45,14 @@ internal sealed class PointerFixture : IAsyncDisposable
 	internal const ulong ObjectB = 0x21000;
 	internal const ulong Target = 0x21020;
 	internal const int TargetValue = 1234;
+	private readonly CheatEngineArchitecture _architecture;
 
 	private readonly ConcurrentQueue<string> _calls = [];
+	private readonly PointerSize _pointerSize;
+	private readonly int _pointerWidth;
 	private readonly SortedDictionary<ulong, Region> _regions = [];
 	private readonly ServiceProvider _root;
 	private readonly AsyncServiceScope _scope;
-	private readonly CheatEngineArchitecture _architecture;
-	private readonly PointerSize _pointerSize;
-	private readonly int _pointerWidth;
 	private int _dispatches;
 	private long _epoch = 1;
 
@@ -262,7 +262,7 @@ internal sealed class PointerFixture : IAsyncDisposable
 	/// <summary>Serves the pointer tools through a real MCP server with strict source-generated JSON.</summary>
 	internal Task<TestMcpPipeline> StartPipelineAsync()
 	{
-		return TestMcpPipeline.StartAsync(Manifest, McpPrimitiveBinding.FromTargets(Targets), strictJson: true);
+		return TestMcpPipeline.StartAsync(Manifest, McpPrimitiveBinding.FromTargets(Targets));
 	}
 
 	/// <summary>Waits until a map's capture ended.</summary>
@@ -270,8 +270,8 @@ internal sealed class PointerFixture : IAsyncDisposable
 	{
 		PointerMapInfo? info = null;
 		Assert.True(SpinWait.SpinUntil(() =>
-			(info = Maps.ListMaps().Maps.Single(map => map.MapName == name)).State != PointerJobState.Running,
-			TimeSpan.FromSeconds(30)), $"The capture of {name} did not end.");
+					(info = Maps.ListMaps().Maps.Single(map => map.MapName == name)).State != PointerJobState.Running,
+				TimeSpan.FromSeconds(30)), $"The capture of {name} did not end.");
 		SpinWait.SpinUntil(() => Store.GetMap(name).Job?.Completion.IsCompleted == true, TimeSpan.FromSeconds(30));
 		return info!;
 	}
@@ -281,8 +281,9 @@ internal sealed class PointerFixture : IAsyncDisposable
 	{
 		PointerScanInfo? info = null;
 		Assert.True(SpinWait.SpinUntil(() =>
-			(info = Scans.ListScans().Scans.Single(scan => scan.ScanName == name)).State != PointerJobState.Running,
-			TimeSpan.FromSeconds(30)), $"The search {name} did not end.");
+					(info = Scans.ListScans().Scans.Single(scan => scan.ScanName == name)).State !=
+					PointerJobState.Running,
+				TimeSpan.FromSeconds(30)), $"The search {name} did not end.");
 		SpinWait.SpinUntil(() => Store.GetScan(name).Job?.Completion.IsCompleted == true, TimeSpan.FromSeconds(30));
 		return info!;
 	}
@@ -405,9 +406,11 @@ internal sealed class PointerFixture : IAsyncDisposable
 					arguments[2] = default(CheatEngineFailure);
 					return true;
 				}
-			case nameof(IMemoryClient.ReadPrimitiveBatchDetailed) when method.GetGenericArguments()[0] == typeof(Address):
+			case nameof(IMemoryClient.ReadPrimitiveBatchDetailed)
+				when method.GetGenericArguments()[0] == typeof(Address):
 				{
-					MemoryPrimitiveBatchReadRequest<Address> request = (MemoryPrimitiveBatchReadRequest<Address>) arguments![0]!;
+					MemoryPrimitiveBatchReadRequest<Address> request =
+						(MemoryPrimitiveBatchReadRequest<Address>) arguments![0]!;
 					int completed = Math.Min(PrimitiveBatchReadFailureIndex ?? request.Addresses.Length,
 						request.Addresses.Length);
 					Address[] values =
@@ -437,7 +440,11 @@ internal sealed class PointerFixture : IAsyncDisposable
 
 		AobScanRequest request = (AobScanRequest) arguments![0]!;
 		LastAobScan = request;
-		byte[] pattern = [.. request.Pattern.Value.Split(' ').Select(static token => byte.Parse(token, NumberStyles.HexNumber, CultureInfo.InvariantCulture))];
+		byte[] pattern =
+		[
+			.. request.Pattern.Value.Split(' ').Select(static token =>
+				byte.Parse(token, NumberStyles.HexNumber, CultureInfo.InvariantCulture))
+		];
 		ulong first = request.Range?.Start.ToUInt64() ?? ModuleBase;
 		ulong last = request.Range?.End.ToUInt64() ?? (ModuleBase + ModuleSize - 1);
 		Address[] matches =
@@ -489,7 +496,10 @@ internal sealed class PointerFixture : IAsyncDisposable
 						})
 						];
 						return new ValueScanPage(0, (ulong) holders.Length,
-							[.. holders.Take(read.MaximumCount).Select(static holder => new ValueScanMatch(new Address(holder), "0"))]);
+						[
+							.. holders.Take(read.MaximumCount)
+							.Select(static holder => new ValueScanMatch(new Address(holder), "0"))
+						]);
 					}
 				case nameof(ICheatEngineLease.Release):
 					ValueScanReleases++;

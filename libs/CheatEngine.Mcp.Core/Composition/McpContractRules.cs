@@ -11,15 +11,11 @@ namespace CheatEngine.Mcp.Core.Composition;
 
 /// <summary>
 ///     The reviewed naming and metadata rules of the v2 tool, resource and prompt contract. They are pure, so the startup
-///     validator and the contract tests share them.
+///     validator and the contract tests share them. Every tool has an object output schema, a frozen v2 name and, for a
+///     backend tool, its <see cref="McpDispatchClass" /> in <c>_meta</c>. Resources and prompts follow
+///     <see cref="McpResourceUris" /> and the routing rule of <see cref="McpPrimitiveRouting" />; see
+///     <c>McpContractRules.Primitives.cs</c>.
 /// </summary>
-/// <remarks>
-///     A tool without an output schema is a legacy tool: it only has to leave the routing argument to the gateway. The
-///     rest applies to every tool that publishes an output schema, which every v2 tool does: its name is one of the frozen
-///     <see cref="CheatEngineToolNames" />, and a backend tool publishes its <see cref="McpDispatchClass" /> in
-///     <c>_meta</c>. Resources and prompts follow <see cref="McpResourceUris" /> and the routing rule of
-///     <see cref="McpPrimitiveRouting" />; see <c>McpContractRules.Primitives.cs</c>.
-/// </remarks>
 internal static partial class McpContractRules
 {
 	internal const int MaxToolNameLength = 40;
@@ -39,14 +35,15 @@ internal static partial class McpContractRules
 	internal static readonly FrozenSet<string> Verbs = FrozenSet.Create(StringComparer.Ordinal,
 		"add", "allocate", "apply", "assemble", "attach", "autoguess", "break", "calculate", "call", "check", "clear",
 		"compare", "compile", "continue", "convert", "copy", "create", "decode", "delete", "detach", "disassemble",
-		"dump", "execute", "fill", "find", "first", "free", "generate", "get", "group", "hash", "initialize", "inject",
+		"dump", "enable", "execute", "fill", "find", "first", "free", "generate", "get", "group", "hash", "initialize",
+		"inject",
 		"invoke", "list", "load", "move", "next", "open", "poll", "read", "register", "release", "reload", "remove",
 		"rescan", "reset", "resolve", "run", "save", "select", "set", "start", "step", "stop", "translate",
 		"unregister", "update", "write");
 
 	/// <summary>Capitalized words a sentence-case title may contain after its first word.</summary>
-	internal static readonly FrozenSet<string> ProperNouns = FrozenSet.Create(StringComparer.Ordinal,
-		"Assembler", "Auto", "Cheat", "Engine", "Lua", "Mono", "Unity", "Windows");
+	internal static readonly FrozenSet<string> ProperNouns = FrozenSet.Create(
+		StringComparer.Ordinal, "Assembler", "Auto", "C", "Cheat", "Engine", "Lua", "Mono", "Unity", "Windows");
 
 	/// <summary>Validates every tool of one listing, including rules across tools such as unique titles.</summary>
 	/// <param name="tools">The listing's tools.</param>
@@ -63,8 +60,7 @@ internal static partial class McpContractRules
 				yield return failure;
 			}
 
-			if (!IsLegacy(tool) && !string.IsNullOrWhiteSpace(tool.Title) &&
-				!titles.TryAdd(tool.Title, tool.Name))
+			if (!string.IsNullOrWhiteSpace(tool.Title) && !titles.TryAdd(tool.Title, tool.Name))
 			{
 				yield return $"Tool '{tool.Name}' repeats the title '{tool.Title}' of '{titles[tool.Title]}'.";
 			}
@@ -84,11 +80,6 @@ internal static partial class McpContractRules
 		{
 			failures.Add(
 				$"Tool '{name}' declares '{RoutingArgument}', which only the gateway adds for routing.");
-		}
-
-		if (IsLegacy(tool))
-		{
-			return failures;
 		}
 
 		ValidateName(failures, name, gatewayLocal);
@@ -116,14 +107,6 @@ internal static partial class McpContractRules
 
 		ValidateInputSchema(failures, name, tool.InputSchema);
 		return failures;
-	}
-
-	/// <summary>Whether a tool predates the v2 contract, which every v2 tool marks by publishing an output schema.</summary>
-	/// <param name="tool">The tool's protocol metadata.</param>
-	/// <returns><see langword="true" /> for a legacy tool.</returns>
-	internal static bool IsLegacy(Tool tool)
-	{
-		return tool.OutputSchema is null;
 	}
 
 	private static void ValidateName(List<string> failures, string name, bool gatewayLocal)

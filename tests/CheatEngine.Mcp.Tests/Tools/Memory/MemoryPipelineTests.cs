@@ -61,8 +61,8 @@ public sealed class MemoryPipelineTests
 		await using Served served = await Served.StartAsync(target);
 
 		ToolError error = TestMcpPipeline.AssertError(await served.Pipeline.CallAsync(
-			CheatEngineToolNames.MemoryWriteBatch,
-			"""{"items":[{"address":"1000","valueType":"int32","value":"1"},{"address":"2000","valueType":"int32","value":"2"}]}"""),
+				CheatEngineToolNames.MemoryWriteBatch,
+				"""{"items":[{"address":"1000","valueType":"int32","value":"1"},{"address":"2000","valueType":"int32","value":"2"}]}"""),
 			ToolErrorKind.PartialEffect);
 
 		Assert.Equal((ToolHostEffect.Started, false), (error.HostEffect, error.Retryable));
@@ -79,8 +79,8 @@ public sealed class MemoryPipelineTests
 		string path = Path.Combine(served.Activation.DataDirectory, "..", "dump.bin");
 
 		ToolError error = TestMcpPipeline.AssertError(await served.Pipeline.CallAsync(
-			CheatEngineToolNames.MemoryDumpToFile,
-			$$"""{"address":"1000","size":16,"path":{{JsonSerializer.Serialize(path)}}}"""),
+				CheatEngineToolNames.MemoryDumpToFile,
+				$$"""{"address":"1000","size":16,"path":{{JsonSerializer.Serialize(path)}}}"""),
 			ToolErrorKind.InvalidArgument);
 
 		Assert.Equal("path", error.Details!.Value.GetProperty("parameter").GetString());

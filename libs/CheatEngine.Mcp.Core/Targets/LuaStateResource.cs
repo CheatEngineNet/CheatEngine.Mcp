@@ -28,7 +28,7 @@ internal sealed class LuaStateResource(McpStateLedger ledger, TargetResourceDesc
 		}
 		else if (entry.CleanupError is not null)
 		{
-			_cleanupError = entry.CleanupError;
+			_cleanupError = McpStateLedger.PublicCleanupError(entry.CleanupError);
 			Volatile.Write(ref _state, Failed);
 		}
 	}
@@ -76,7 +76,7 @@ internal sealed class LuaStateResource(McpStateLedger ledger, TargetResourceDesc
 			return ResourceReleaseOutcome.Released();
 		}
 
-		_cleanupError = result.CleanupError;
+		_cleanupError = McpStateLedger.PublicCleanupError(result.CleanupError);
 		Volatile.Write(ref _state, Failed);
 		return ResourceReleaseOutcome.CleanupFailed();
 	}

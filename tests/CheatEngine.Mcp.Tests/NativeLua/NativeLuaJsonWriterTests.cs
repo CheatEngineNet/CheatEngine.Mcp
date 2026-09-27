@@ -156,18 +156,18 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 		const string strings = "return {string.rep('x', a[1]), string.rep('y', a[2])}";
 
 		// The table itself is one of the 65,536 values.
-		string largest = CopyJson(LuaToolRuntime.BuildSource(sequence, [LuaJsonWriter.MaximumItems - 1])).Json;
+		string largest = CopyJson(LuaToolRuntime.BuildSource(sequence, [PluginLuaJsonWriter.MaximumItems - 1])).Json;
 		using JsonDocument document = JsonDocument.Parse(largest);
-		Assert.Equal(LuaJsonWriter.MaximumItems - 1, document.RootElement.GetArrayLength());
-		AssertLimit(LuaToolRuntime.BuildSource(sequence, [LuaJsonWriter.MaximumItems]), "values");
-		Assert.Equal("[" + string.Join(',', Enumerable.Repeat("null", LuaJsonWriter.MaximumItems - 1)) + "]",
+		Assert.Equal(PluginLuaJsonWriter.MaximumItems - 1, document.RootElement.GetArrayLength());
+		AssertLimit(LuaToolRuntime.BuildSource(sequence, [PluginLuaJsonWriter.MaximumItems]), "values");
+		Assert.Equal("[" + string.Join(',', Enumerable.Repeat("null", PluginLuaJsonWriter.MaximumItems - 1)) + "]",
 			CopyJson("return {n = 65535}").Json);
 		AssertLimit("return {n = 65536}", "values");
-		Assert.Equal(LuaJsonWriter.MaximumDepth,
-			CopyJson(LuaToolRuntime.BuildSource(nested, [LuaJsonWriter.MaximumDepth])).Json.Count(c => c == '{'));
-		AssertLimit(LuaToolRuntime.BuildSource(nested, [LuaJsonWriter.MaximumDepth + 1]), "nests");
-		const int half = LuaJsonWriter.MaximumStringBytes / 2;
-		Assert.Equal(LuaJsonWriter.MaximumStringBytes + 7,
+		Assert.Equal(PluginLuaJsonWriter.MaximumDepth,
+			CopyJson(LuaToolRuntime.BuildSource(nested, [PluginLuaJsonWriter.MaximumDepth])).Json.Count(c => c == '{'));
+		AssertLimit(LuaToolRuntime.BuildSource(nested, [PluginLuaJsonWriter.MaximumDepth + 1]), "nests");
+		const int half = PluginLuaJsonWriter.MaximumStringBytes / 2;
+		Assert.Equal(PluginLuaJsonWriter.MaximumStringBytes + 7,
 			CopyJson(LuaToolRuntime.BuildSource(strings, [half, half])).Json.Length);
 		AssertLimit(LuaToolRuntime.BuildSource(strings, [half, half + 1]), "strings");
 		AssertLimit("return {[string.rep('k', 4 * 1024 * 1024)] = 1, x = 2}", "strings");
@@ -239,7 +239,7 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 		LuaScriptError truncated =
 			CopyJson("return {mcp_error = {kind = 'internal', message = string.rep('\\xC3\\xA9', 5000)}}")
 				.Error!;
-		Assert.Equal(new string('\u00E9', LuaJsonWriter.MaximumErrorFieldBytes / 2), truncated.Message);
+		Assert.Equal(new string('\u00E9', PluginLuaJsonWriter.MaximumErrorFieldBytes / 2), truncated.Message);
 		AssertJson("""{"data":{"mcp_error":{"kind":"nested"}}}""",
 			CopyJson("return {data = {mcp_error = {kind = 'nested'}}}").Json);
 
@@ -302,7 +302,7 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 		using LuaFrame frame = new(state);
 		ExecuteForResult(state, source);
 		ArrayBufferWriter<byte> buffer = new();
-		LuaScriptError? error = LuaJsonWriter.Write(state, -1, buffer, opaque, out int dropped);
+		LuaScriptError? error = PluginLuaJsonWriter.Write(state, -1, buffer, opaque, out int dropped);
 		return new JsonCopy(Encoding.UTF8.GetString(buffer.WrittenSpan), error, dropped);
 	}
 
@@ -313,7 +313,7 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 		LuaState state = operation.State;
 		using LuaFrame frame = new(state);
 		ExecuteForResult(state, source);
-		return LuaJsonWriter.Read(state, -1, typeInfo, new LuaJsonBufferPool(), opaque);
+		return PluginLuaJsonWriter.Read(state, -1, typeInfo, new LuaJsonBufferPool(), opaque);
 	}
 
 	private static LuaRuntimeOperation AcquireOperation()

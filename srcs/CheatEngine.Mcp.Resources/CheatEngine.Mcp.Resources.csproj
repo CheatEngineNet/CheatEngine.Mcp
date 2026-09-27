@@ -10,6 +10,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../libs/CheatEngine.Mcp.Core/CheatEngine.Mcp.Core.csproj"/>
+    <ProjectReference Include="../CheatEngine.Mcp.Tools/CheatEngine.Mcp.Tools.csproj"/>
   </ItemGroup>
   <ItemGroup>
     <Using Include="CheatEngine.Mcp.Core.Composition"/>

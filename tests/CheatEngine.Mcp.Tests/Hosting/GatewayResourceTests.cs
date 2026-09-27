@@ -14,8 +14,7 @@ namespace CheatEngine.Mcp.Tests.Hosting;
 
 /// <summary>
 ///     The gateway's resources, prompts and completions: Local documents and prompts served without any backend, the
-///     instance list, and routed live resources proved with a probe template, since the real live templates arrive with
-///     their tools.
+///     instance list, and routed live resources proved with both a probe template and the composed module projection.
 /// </summary>
 public sealed class GatewayResourceTests
 {
@@ -42,8 +41,16 @@ public sealed class GatewayResourceTests
 		Assert.Equal(CheatEngineKnowledge.DocumentSlugs.Select(McpResourceUris.Doc).Order(StringComparer.Ordinal),
 			resources.Resources.Skip(1).Select(static resource => resource.Uri).Order(StringComparer.Ordinal));
 		Assert.All(resources.Resources.Skip(1), static resource => Assert.True(resource.Size > 0));
-		Assert.Equal(["cheatengine://docs/workflows/{workflow}"],
-			templates.ResourceTemplates.Select(static template => template.UriTemplate));
+		Assert.Equal(
+		[
+			"cheatengine://docs/workflows/{workflow}",
+			"cheatengine://instances/{instanceId}/memory/regions",
+			"cheatengine://instances/{instanceId}/modules",
+			"cheatengine://instances/{instanceId}/process",
+			"cheatengine://instances/{instanceId}/records",
+			"cheatengine://instances/{instanceId}/runtime",
+			"cheatengine://instances/{instanceId}/structures"
+		], templates.ResourceTemplates.Select(static template => template.UriTemplate).Order(StringComparer.Ordinal));
 		Assert.Equal(TimeSpan.FromHours(1), resources.TimeToLive);
 	}
 
@@ -106,6 +113,24 @@ public sealed class GatewayResourceTests
 		Assert.Equal(uri, contents[0].Uri);
 		Assert.Equal(second.Descriptor.InstanceId, JsonNode.Parse(contents[0].Text)!["backend"]!.GetValue<string>());
 		Assert.Equal($"cheatengine://instances/{second.Descriptor.InstanceId}/probes/nested", contents[1].Uri);
+	}
+
+	[Fact]
+	public async Task ReadResource_LiveModule_UsesTheComposedPrefixAndVerifiesTheNamedInstance()
+	{
+		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync();
+		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "modules");
+		await using McpClient client = await gateway.ConnectAsync();
+		string uri = $"cheatengine://instances/{backend.Descriptor.InstanceId}/modules";
+
+		ReadResourceResult result = await client.ReadResourceAsync(uri,
+			cancellationToken: TestContext.Current.CancellationToken);
+
+		Assert.Equal(["cheatengine://instance/modules"], backend.ReadUris);
+		Assert.Equal(1, backend.IdentityProbeCount);
+		TextResourceContents contents = Assert.IsType<TextResourceContents>(result.Contents[0]);
+		Assert.Equal(uri, contents.Uri);
+		Assert.Equal(backend.Descriptor.InstanceId, JsonNode.Parse(contents.Text)!["backend"]!.GetValue<string>());
 	}
 
 	[Fact]
@@ -248,7 +273,8 @@ public sealed class GatewayResourceTests
 
 		await client.CallToolAsync(CheatEngineToolNames.InstanceList, new Dictionary<string, object?>(),
 			cancellationToken: TestContext.Current.CancellationToken);
-		File.Delete(Path.Combine(gateway.Registry.DirectoryPath, backend.Descriptor.ActivationId.ToString("N") + ".json"));
+		File.Delete(Path.Combine(gateway.Registry.DirectoryPath,
+			backend.Descriptor.ActivationId.ToString("N") + ".json"));
 
 		CompleteResult completion = await client.CompleteAsync(reference, "instanceId", "ce-",
 			cancellationToken: TestContext.Current.CancellationToken);
@@ -283,8 +309,18 @@ public sealed class GatewayResourceTests
 		{
 			Content =
 			[
-				new ResourceLinkBlock { Uri = "cheatengine://instance/modules/game.exe", Name = "instance_module" },
-				new ResourceLinkBlock { Uri = McpResourceUris.Doc("pointers"), Name = "doc_pointers" },
+				new ResourceLinkBlock
+				{
+					Uri = "cheatengine://instance/modules/game.exe",
+					Name = "instance_module",
+					MimeType = McpResourceUris.JsonMimeType
+				},
+				new ResourceLinkBlock
+				{
+					Uri = McpResourceUris.Doc("pointers"),
+					Name = "doc_pointers",
+					MimeType = McpResourceUris.MarkdownMimeType
+				},
 				new EmbeddedResourceBlock
 				{
 					Resource = new TextResourceContents { Uri = "cheatengine://instance/runtime", Text = "{}" }
@@ -292,7 +328,7 @@ public sealed class GatewayResourceTests
 			]
 		};
 
-		CallToolResult result = await client.CallToolAsync("get_plugin_version", backend.RoutedArguments(),
+		CallToolResult result = await client.CallToolAsync("runtime_get_info", backend.RoutedArguments(),
 			cancellationToken: TestContext.Current.CancellationToken);
 
 		string prefix = $"cheatengine://instances/{backend.Descriptor.InstanceId}/";

@@ -1,5 +1,6 @@
 using CheatEngine.Client;
 using CheatEngine.Mcp.Hosting.Configuration;
+using CheatEngine.Mcp.Plugin.Lua;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -26,18 +27,18 @@ internal sealed partial class McpStatusIndicator(
 		}
 		catch (Exception exception)
 		{
-			LogStatusFailed(logger, exception, state);
+			LogStatusFailed(logger, exception.GetType().Name, state);
 		}
 	}
 
 	internal static bool Show(ICheatEngineClient client, string state, string details)
 	{
-		return LuaToolRuntime.ShowPluginStatus(client, state, details, false);
+		return PluginLuaToolRuntime.ShowPluginStatus(client, state, details, false);
 	}
 
 	internal static bool ShowDisabled(ICheatEngineClient client, string details)
 	{
-		return LuaToolRuntime.ShowPluginStatus(client, "Disabled", details, true);
+		return PluginLuaToolRuntime.ShowPluginStatus(client, "Disabled", details, true);
 	}
 
 	internal static string Describe(string state, string instanceName, PluginLog log, string? endpoint = null)
@@ -50,12 +51,13 @@ internal sealed partial class McpStatusIndicator(
 				   "Disabled" => "This CE instance is no longer accepting MCP requests. Enable the plugin in Edit > Settings > Plugins to start it again.",
 				   "Start failed" => "The MCP server could not start. Check the log for the startup error, then enable the plugin again.",
 				   _ => "The MCP server is starting."
-			   }}\n\nLog: {log.LogFilePath}";
+			   }}\n\nLog: {Path.GetFileName(log.LogFilePath)}";
 	}
 
 	[LoggerMessage(Level = LogLevel.Information, Message = "MCP status indicator: {State}.")]
 	private static partial void LogStatusShown(ILogger logger, string state);
 
-	[LoggerMessage(Level = LogLevel.Warning, Message = "Could not update the MCP status indicator to {State}.")]
-	private static partial void LogStatusFailed(ILogger logger, Exception exception, string state);
+	[LoggerMessage(Level = LogLevel.Warning,
+		Message = "Could not update the MCP status indicator to {State} ({FailureType}).")]
+	private static partial void LogStatusFailed(ILogger logger, string failureType, string state);
 }

@@ -8,7 +8,8 @@ Settings are described in [Configuration](configuration.md), client registration
 > **Status.** This page describes the 2.0.0 (v2) architecture.
 > The current branch already contains the v2 foundations: the project layout, the composition builders, the error contract and request filters, the contract rules, the value helpers, the Lua job kernel, the plugin's own logger, the minimal plugin folder and Native AOT analysis of every product project.
 > Anything marked **(v2, in progress)** is an adopted design that the code does not implement yet.
-> The tool catalog itself is still the pre-2.0.0 one, so this page names today's tools where it matters, such as `list_instances` and `execute_lua`.
+> `CheatEngineToolNames` freezes the v2 inventory, and the composed catalogue registers all 172 backend tools with no historic aliases.
+> The running `tools/list` schema remains the authority for effective names and arguments.
 
 ## Purpose
 
@@ -30,8 +31,8 @@ The design follows a few goals:
 |---|---|---|
 | CheatEngine.Mcp.Core | `libs/CheatEngine.Mcp.Core` | The shared domain library and the only project that references the `CheatEngine.Client` package: composition builders, primitive manifest and catalog, contract rules, error contract, value formats, Client dispatch, target leases, the fixed-Lua runtime and the Lua job kernel. |
 | CheatEngine.Mcp.Tools | `srcs/CheatEngine.Mcp.Tools` | The MCP tools and their single entry point `AddTools()`. |
-| CheatEngine.Mcp.Resources | `srcs/CheatEngine.Mcp.Resources` | MCP resources and `AddResources()`; none are composed yet. |
-| CheatEngine.Mcp.Prompts | `srcs/CheatEngine.Mcp.Prompts` | MCP prompts and `AddPrompts()`; none are composed yet. |
+| CheatEngine.Mcp.Resources | `srcs/CheatEngine.Mcp.Resources` | Static MCP knowledge resources and workflow bodies through `AddResources()`, with instance-scoped projections added by their read-only tool domains. |
+| CheatEngine.Mcp.Prompts | `srcs/CheatEngine.Mcp.Prompts` | The 22 static workflow prompts through `AddPrompts()`. |
 | CheatEngine.Mcp.Hosting | `srcs/CheatEngine.Mcp.Hosting` | The per-activation loopback backend, its options, instance discovery and the stdio gateway router. |
 | CheatEngine.Mcp.Plugin | `srcs/CheatEngine.Mcp.Plugin` | The CE plugin `CheatEngine.Mcp.Plugin.dll`: composition root, lifecycle module, status indicator, logger, feature options and the shipped `appsettings.json`. |
 | CheatEngine.Mcp.Gateway | `srcs/CheatEngine.Mcp.Gateway` | The gateway executable's composition root. |
@@ -56,7 +57,7 @@ flowchart BT
     resources --> core
     prompts --> core
     hosting --> core
-    resources -.->|"live projections (v2, in progress)"| tools
+    resources -->|"live projections"| tools
     plugin --> core & hosting & tools & resources & prompts
     gateway --> core & hosting & tools & resources & prompts
     core --> client
@@ -68,7 +69,7 @@ flowchart BT
 
 - Core is referenced by Tools, Resources, Prompts and Hosting; only the Plugin and the Gateway compose.
 - Hosting never references Tools, Resources, Prompts, the Client or a logging library: it sees primitives only through the Core manifest and borrows their instances.
-- Resources will reference Tools so that read-only tool results can be projected as live resources (v2, in progress); Hosting still references neither.
+- Resources reference Tools to project read-only tool results as live resources; Hosting still references neither.
 - Only the plugin project sets `CheatEngineClientPluginProject` and references `CheatEngine.SDK` directly, which the build guards CEMCP002 and CEMCP003 enforce.
 - CEMCP001 fails the build when the plugin would ship an app-local copy of a shared-framework assembly, and CEMCP004 when a dependency asset would land in a subfolder that the Client deployment drops.
 - CEMCP005 keeps every product project under `libs/` and `srcs/` analyzed for Native AOT and trimming, and CEMCP006 keeps the plugin a framework-dependent folder.
@@ -130,7 +131,7 @@ The plugins and the gateway must use the same directory; see [Configuration](con
 - The plugin writes the record atomically (a temporary file, then a move) once the listener runs, and deletes it when disabling starts.
 - The gateway reads a record only if it is at most 16 KiB, well formed, named after its activation ID, points at a literal loopback endpoint, carries a 64-character hexadecimal token, and its CE process is alive with the recorded start time.
 - A record is only a candidate: before listing an instance and before every routed call, the gateway calls `GET /instance` with the bearer token and requires the same instance ID, activation, process ID, start time and plugin version.
-- `list_instances` probes candidates 16 at a time within a 10-second budget and reports `discoveryIncomplete: true` when the budget ran out.
+- `instance_list` probes candidates 16 at a time within a 10-second budget and reports `discoveryIncomplete: true` when the budget ran out.
 - It returns the instance ID, display name, CE process ID and plugin version, never an endpoint or a token.
 - Disabling and re-enabling the plugin, or restarting CE, creates a new instance ID; calls with an old ID fail.
 
@@ -144,17 +145,17 @@ flowchart LR
         direction TB
         module["McpServerModule"]
         targets["McpPrimitiveTargets"]
-        prims["Primitive instances<br/>tools, later resources and prompts"]
+        prims["Primitive instances<br/>tools, resources and prompts"]
         client["ICheatEngineClient"]
         leases["TargetResources"]
-        guard["LuaDebuggerCaptureGuard"]
-        jobs["JobRegistry (v2, in progress)"]
+        guards["TargetTransitionGuards<br/>resources, jobs and main scan"]
+        jobs["JobRegistry"]
         factory["McpBackendHostFactory<br/>validated options"]
         module --> targets --> prims
         module --> factory
         prims --> client
         prims --> leases
-        prims --> guard
+        prims --> guards
         prims --> jobs
     end
     subgraph transport["Transport container: backend web host, owned by McpBackendHost"]
@@ -170,7 +171,7 @@ flowchart LR
 ```
 
 The **domain container** is the Client activation provider.
-Client Hosting builds one scope per activation, and the tools, `TargetResources` and `LuaDebuggerCaptureGuard` are scoped to it.
+Client Hosting builds one scope per activation, and the tools, `TargetResources`, `TargetTransitionGuards` and `JobRegistry` are scoped to it.
 When Client Hosting constructs `McpServerModule`, `McpPrimitiveTargets` resolves every declared primitive instance and the backend factory validates its options, so a constructor or options failure fails the enable before any listener starts.
 Tool constructors must not dispatch Client work.
 
@@ -288,13 +289,13 @@ builder.AddCheatEngineMcpGateway(args, version)
 - All four annotations are set explicitly: `readOnlyHint`, `destructiveHint`, `idempotentHint` and `openWorldHint`; a tool is never both read-only and destructive; a poll is read-only and idempotent; a stop or release is idempotent.
 - The output schema has type `object`, and no tool declares `instanceId`, which only the gateway adds.
 
-A tool without an output schema is a pre-2.0.0 tool: it only gets the duplicate and `instanceId` checks.
-The strict phase removes that exemption together with the last pre-2.0.0 tool, and adds the `CheatEngineToolNames` constants and the `open-world-tools.txt` and `tool-summary.txt` goldens (v2, in progress).
+Every tool has an output schema and receives the duplicate and `instanceId` checks.
+`CheatEngineToolNames` and the reviewed `open-world-tools.txt` and `tool-summary.txt` catalog artifacts record the public contract.
 
 ### Results
 
-- A v2 tool returns an object-shaped `sealed record` with `UseStructuredContent=true`; its output schema is derived from the return type, the same JSON is also sent as text, and there is no `success` field (v2, in progress: today's tools still return `{ success, ... }` objects).
-- Value formats come from `Core/Values`, which is in place; the tools adopt it with the v2 catalog (v2, in progress).
+- Each v2 tool returns an object-shaped `sealed record` with `UseStructuredContent=true`; its output schema is derived from the return type, the same JSON is also sent as text, and there is no `success` field.
+- Value formats come from `Core/Values`.
 - Addresses are uppercase hexadecimal without `0x`; 64-bit integers and memory values are decimal strings; counts, sizes and indexes are numbers; bytes are spaced uppercase hexadecimal such as `"48 8B 05"`; pointer offsets are signed hexadecimal in dereference order.
 - Paging takes `limit` and `offset` and returns `nextOffset`, omitted when the list is complete, and `truncated`, reserved for host-side caps.
 - Contract enums are `snake_case` through `ContractEnumConverter<T>` and reject integers; a Client or SDK enum never appears in a signature.
@@ -316,7 +317,6 @@ The outermost call-tool filter, `MapErrors`, turns any failure into `isError: tr
 - A failed resource read is a JSON-RPC error: -32602 for an invalid argument, -32002 for a missing resource (-32602 from protocol 2026-07-28), and -32603 otherwise; `Exception.Data` carries the kind, operation, host effect, retry flag and hint.
 
 The envelope, the kinds, the failure mapping and the filters are in Core and registered for every composition.
-Today's tools still report failures in-band as `{ success: false, error, kind, operation, hostEffect }` until the v2 catalog replaces them (v2, in progress).
 
 ### Request filters
 
@@ -325,16 +325,15 @@ Today's tools still report failures in-band as `{ success: false, error, kind, o
 | Filter | Stage | Role | Status |
 |---|---|---|---|
 | `MapErrors` | Call tool, outermost | Produces the error envelope; logs unexpected exceptions as event 3002. | In place |
-| `EnforceFeatures` | Call tool, before argument binding | Refuses a tool whose gate is off with `capability_disabled` and `not_started`, from `[RequiresFeature]` metadata copied into the tool's `_meta`. | (v2, in progress) |
+| `EnforceFeatures` | Call tool, before argument binding | Refuses a tool whose gate is off with `capability_disabled` and `not_started`, from `[RequiresFeature]` metadata copied into the tool's `_meta`. | In place |
 | `NormalizeArguments` | Call tool, before argument binding | Parses arrays and objects sent as JSON strings (up to 1 MiB), removes `null` for optional parameters and turns `"true"` or `"false"` into booleans, so published schemas can stay strict. | In place |
 | `MapResourceErrors` | Read resource | Turns failures into the JSON-RPC errors above. | In place |
 
 ### Dispatch
 
 Every compound CE operation runs through Client dispatch on CE's main thread, with target inspection and use in the same dispatch.
-Today `ToolExecution.Run` dispatches the whole body with the activation's stopping token and maps Client failures to an in-band result.
 
-The v2 dispatch (v2, in progress):
+The dispatch:
 
 - `ToolExecution.Run<T>` links the MCP request token to the activation's stopping token; after the first mutation only the stopping token cancels, and a cancellation after effects is logged as a warning.
 - `ToolDispatch`, a scoped service injected into tools, offers `Run` and `RunLua<T>`, measures queue and execution time, logs event 3001 when a dispatch exceeds its budget, and builds Lua source before dispatching.
@@ -351,9 +350,9 @@ For documented `celua.txt` features that the Client lacks, they use `LuaToolRunt
 - Caller data never becomes source: `BuildSource` prefixes the fixed body with `local a = { n = ..., [1] = ..., ... }`, encoding each argument as a Lua literal, and the body reads only `a[i]`.
 - Scripts run through the Client's protected `ICheatEngineClient.Lua` inside the dispatch; only the runtime adapter touches SDK Lua state.
 - Arguments are bounded (1 MiB per string, 4 MiB of source), and copied results are bounded (65,536 items, depth 16, 4 MiB of strings); opaque Lua objects are refused, never exposed.
-- Arbitrary caller Lua (`execute_lua` today) is the only path through the Client's unsafe Lua capability.
-- The v2 runtime streams results through `LuaJsonWriter` (at most 8 MiB of JSON) into typed records, adds a local `mcp` helper prelude, and forbids `load(`, `loadstring(`, `dofile(`, `loadfile(`, `require(`, `_G[a` and `rawget(_G,a` in fixed bodies (v2, in progress; `LuaJsonWriter` is in Core with its tests).
-- In v2 the caller's script enters only as a long-bracket string of a level it cannot close, passed to `load`, and a fixed protected reader copies and clears its bounded result in the same dispatch (v2, in progress; the two-stage `LuaUnsafeScriptWrapper` is in Core).
+- Arbitrary caller Lua (`lua_execute`) is the only path through the Client's unsafe Lua capability.
+- The runtime streams results through `LuaJsonWriter` (at most 8 MiB of JSON) into typed records, adds a local `mcp` helper prelude, and forbids `load(`, `loadstring(`, `dofile(`, `loadfile(`, `require(`, `_G[a` and `rawget(_G,a` in fixed bodies.
+- The caller's script enters only as a long-bracket string of a level it cannot close, passed to `load`; a fixed protected reader copies and clears its bounded result in the same dispatch.
 - CheatEngine.Client 1.0 and CheatEngine.SDK 2.0 return disassembly display columns in the wrong order on CE 7.7; tools keep the typed instruction bytes and lengths but read the named columns through protected Lua in CE's actual `extra, opcode, bytes, address` order.
 
 ### Value scanners
@@ -366,7 +365,7 @@ For documented `celua.txt` features that the Client lacks, they use `LuaToolRunt
 
 - `TargetResources` tracks Client leases with bounded recovery descriptors and refuses a process switch while any remain, except a repeated request for the selected process.
 - An explicit release runs newest first, stops at the first incomplete release, keeps retryable handles and reports manual recovery; an incomplete release is never reported as success.
-- In v2, target transitions consult every registered guard, and a Lua-side registry records resources that the Client does not own (jobs, a speed other than 1, pause, MCP breakpoints, Mono hooks), which the next activation reports as orphaned (v2, in progress).
+- Target transitions consult every registered guard, and a Lua-side registry records resources that the Client does not own (jobs, a speed other than 1, pause, MCP breakpoints, Mono hooks), which the next activation reports as orphaned.
 
 ### Jobs
 
@@ -400,7 +399,7 @@ stateDiagram-v2
 
 Only the first terminal state counts, and it runs the job's cleanup; a job whose cleanup fails stays retained for manual recovery instead of being released.
 
-The managed side is (v2, in progress): a scoped `JobRegistry` that cancels without waiting, Lua and managed job types, `*_start_*` tools that return a `jobId`, `*_poll_*` tools that take `jobId`, `afterSequence` and `limit`, and the generic `runtime_list_jobs` and `runtime_stop_job`.
+The managed side is a scoped `JobRegistry` that cancels without waiting, Lua and managed job types, `*_start_*` tools that return a `jobId`, `*_poll_*` tools that take `jobId`, `afterSequence` and `limit`, and the generic `runtime_list_jobs` and `runtime_stop_job`.
 Its strategies are event callbacks (breakpoints), main-thread timer slices of at most 20 ms per tick at intervals of at least 50 ms, and CE Lua threads that marshal results back with `synchronize`; nothing ever calls `thread.waitfor()` or joins on the main thread.
 
 ## Gateway routing
@@ -425,33 +424,32 @@ sequenceDiagram
 ```
 
 - The gateway composes the same primitives in `Catalog` mode and builds its tool list once at startup, before stdio opens, so a schema failure stops the gateway immediately.
-- Every backend tool gains a required `instanceId` string parameter; `list_instances` is gateway-local and becomes `instance_list` in v2 (v2, in progress).
+- Every gateway-exposed backend tool has a required `instanceId` string parameter; `instance_list` is the gateway-local discovery tool.
 - The catalog is static: it does not depend on which instances run, and there are no gateway profiles or tool subsets.
 - Every call names its instance explicitly: there is no shared selected instance, no automatic fallback and no mutation retry, and display names may repeat.
 - The backend identity is verified before every call.
 - Backend connections use `SocketsHttpHandler` with redirects and proxies disabled and a 10-second connection timeout, so the bearer token only ever reaches the recorded loopback endpoint.
 - The backend hop pins MCP protocol 2025-06-18, which requests exactly that version, uses the initialize handshake and skips the SDK's version-discovery probe; the AI client's own session uses whatever version it negotiates with the gateway (see [Compatibility](compatibility.md#mcp-protocol-versions)).
 - The registry record, the `/instance` identity body and the instance list are serialized with a source-generated hosting JSON context, without reflection.
-- Today the gateway opens a new MCP client connection per call, forwards `_meta` unchanged, sets no overall call timeout and reports its own failures as plain-text error results.
+- The gateway reuses one MCP client per verified record, keyed by instance, activation, endpoint and the SHA-256 of the token, in a 32-entry pool with a 5-minute idle limit.
+- It evicts a client after a transport failure, timeout, identity failure or changed record; it never reconnects or retries a call in progress.
+- Request `_meta` forwards only the string entries `traceparent`, `tracestate` and `baggage` to the backend.
+- A routed call has a 45-second timeout by default, configurable with `--call-timeout-seconds` or `MCP_GATEWAY_CALL_TIMEOUT_SECONDS`.
+- A timed-out tool call reports `timeout` and an `unknown` host effect, with a warning to inspect state before repeating a mutation.
+- Gateway tool failures use the v2 error envelope; routed resource failures carry the same contract fields in the JSON-RPC error data.
+- Both initialize results include server instructions for instance selection, paging, jobs and safe handling of an unknown host effect.
 
-Planned gateway changes (v2, in progress):
+### Resources, prompts and completions
 
-- One reused MCP client per verified record, keyed by instance, activation, endpoint and the SHA-256 of the token, in a 32-entry LRU with a 5-minute idle limit, without reconnection or a standalone GET stream; a client is evicted on error and a call is never re-sent, and identity is still verified on every call.
-- An allow-list for request `_meta`: only `traceparent`, `tracestate` and `baggage` are forwarded.
-- A call timeout of 45 seconds by default (`--call-timeout-seconds`, `MCP_GATEWAY_CALL_TIMEOUT_SECONDS`), reported as `timeout` with `unknown` and a warning not to replay a mutation.
-- Gateway failures in the error envelope, with the `instance_unavailable` kind.
-- Server instructions of about 130 words in both initialize results.
+The gateway and every backend compose static resources and prompts today.
+They do not require a running Cheat Engine instance.
 
-### Resources, prompts and completions (v2, in progress)
-
-Today the gateway handles tools only, and no resource or prompt is composed, although the manifest, the catalog and the resource error filter already support them.
-
-- Static knowledge documents use `cheatengine://docs/{slug}`: the files in `skills/cheatengine-mcp/references` are embedded into `CheatEngine.Mcp.Resources.dll` and served locally by the gateway and by each backend, with the template `cheatengine://docs/workflows/{workflow}`.
-- A backend serves live resources under `cheatengine://instance/...`; the gateway exposes them as `cheatengine://instances/{instanceId}/...`, a prefix swap routed like a tool call with the same identity check, and rewrites content URIs and resource links on the way back.
+- Static knowledge documents use `cheatengine://docs/{slug}`: the files in `skills/cheatengine-mcp/references` are embedded into `CheatEngine.Mcp.Resources.dll` and served locally, with the template `cheatengine://docs/workflows/{workflow}`.
 - `cheatengine://instances` lists the instances locally, without tokens.
-- Each live template projects exactly one read-only, ungated tool result, identical to that tool's structured content; Mono, .NET, kernel, capture and trace pages are excluded, and a read-resource filter re-checks the gates.
-- Prompts are static and instance-free, built from the embedded workflows, and served by the gateway.
-- Completions cover prompt and workflow arguments; `instanceId` is completed from the gateway's cache of identities verified in the last 10 seconds, identifiers only.
+- Prompts are static and instance-free, built from the 22 embedded workflow bodies and served by the gateway and each backend.
+- The gateway routes an instance resource from `cheatengine://instance/...` to `cheatengine://instances/{instanceId}/...`, with the same identity check and URI rewrite used for tools.
+- The six live projections are `runtime`, `process`, `modules`, `memory/regions`, `records`, and `structures`; each returns the structured result of exactly one read-only v2 tool with default arguments.
+- Completion support for prompt and workflow arguments remains (v2, in progress).
 
 ## Key design decisions
 
@@ -460,14 +458,14 @@ Today the gateway handles tools only, and no resource or prompt is composed, alt
 | One backend per CE process, one stdio gateway per AI client | CE state is per process, loopback HTTP keeps each backend inside its own CE, and the AI client needs one connection for many instances. | In place |
 | Explicit, immutable `instanceId`, no selected instance | A shared selection or a fallback could silently send a mutation to the wrong process. | In place |
 | Stateless backend transport | No MCP session can be lost or leak between callers; state belongs to the activation, not to an HTTP connection. | In place |
-| One static catalog, no profiles | The gateway lists tools with no CE running, and its schemas match every backend's exactly. | In place; v2 catalog in progress |
+| One static catalog, no profiles | The gateway lists tools with no CE running, and its schemas match every backend's exactly. | In place |
 | Two containers per activation | HTTP never constructs a Client activation or disposes a tool, and constructor or options failures surface at enable. | In place |
 | Non-blocking disable | CE's main thread must never wait for HTTP workers. | In place |
 | Fixed Lua with `a[]` arguments | Caller input never becomes code, and one adapter owns Lua state. | In place |
-| Jobs instead of waits | Long work must not freeze CE, and idempotent polls make a lost response harmless. | Kernel in place; tools (v2, in progress) |
+| Jobs instead of waits | Long work must not freeze CE, and idempotent polls make a lost response harmless. | In place |
 | The plugin's own rolling logger instead of NLog | Fewer files, no static state across enables, non-blocking writes, and transport categories never logged below Information. | In place |
 | A plugin folder, not one DLL | See below. | In place |
-| A Native AOT gateway | See below. | (v2, in progress) |
+| A Native AOT gateway | See below. | In place |
 
 ### Why a plugin folder and not one DLL
 
@@ -482,17 +480,17 @@ Today the gateway handles tools only, and no resource or prompt is composed, alt
 - Keep the folder intact and `CheatEngine.Mcp.Plugin.dll` unrenamed.
 - Every product project sets `IsAotCompatible`, so an AOT- or trim-unsafe API is a build error (CEMCP005); only the projects that reference ASP.NET Core turn off reference verification, because its shared-framework assemblies carry no AOT metadata.
 - CEMCP006 fails the build if the plugin is ever made Native AOT, self-contained, single-file, trimmed or ReadyToRun, or loses its embedded symbols: AOT analysis keeps the code ready for the Native AOT gateway, never for AOT loading of the plugin.
-- The gateway-only Native AOT guard (CEMCP007) and the check for AOT runtime notices at publish (CEMCP008) are (v2, in progress).
+- The gateway project disables `System.Text.Json` reflection defaults and the composed product projects register source-generated JSON metadata for their public contract shapes.
+- The standalone gateway publish profile fixes `win-x64`, `PublishAot=true`, and its own locked restore graph, while `eng/Publish.ps1` verifies the published MCP executable outside Cheat Engine.
 
 ### Why a Native AOT gateway
 
-This change is (v2, in progress).
-
 - The gateway is an executable, not a CE plugin, so Native AOT is a supported profile for it; CESDK9102 concerns plugin libraries only, and the gateway never loads into CE.
-- Today the gateway is a self-contained single-file executable of about 108 MB that bundles the .NET runtime and extracts its native libraries when it starts.
-- A Native AOT gateway needs no .NET runtime on the AI client's machine, extracts nothing, starts quickly for clients that time out server startup, and is much smaller: the AOT spike measured 14.4 MB.
-- It enforces the reflection-free contract: source-generated JSON contexts, typed results and no anonymous types; the spike crashed at startup on reflection-based JSON, which the strict phase removes.
-- Publishing it requires the MSVC linker (the Visual Studio C++ build tools, with `vswhere.exe` on `PATH`).
+- The gateway publish profile fixes `RuntimeIdentifier=win-x64` and `PublishAot=true`, which produces one self-contained native executable without a .NET runtime beside it.
+- The gateway project sets `JsonSerializerIsReflectionEnabledByDefault=false`, and the primitive builders register source-generated JSON contexts for public contract shapes.
+- A reflection-backed serializer consequently fails deterministically during development as well as in the published executable, instead of becoming a Native AOT-only runtime failure.
+- `eng/Publish.ps1` uses the locked AOT dependency graph and performs an MCP handshake and catalogue smoke check on the executable before placing it in the distribution.
+- Publishing requires the MSVC linker supplied by the Visual Studio C++ build tools and the Windows SDK.
 
 ## See also
 

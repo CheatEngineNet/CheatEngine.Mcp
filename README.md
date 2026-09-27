@@ -30,7 +30,7 @@ Release is the default. Copy these from `artifacts/dist/release/` into a stable 
 | Deployment item               | How it is used                                                                                                                                                                          |
 |-------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `CheatEngine.Mcp/` folder     | The plugin. Load its `CheatEngine.Mcp.Plugin.dll` in Cheat Engine. The folder also holds the plugin's dependencies, native Lua bridge, default `appsettings.json`, README and licenses. |
-| `CheatEngine.Mcp.Gateway.exe` | Set this as the MCP server command in your AI client. It includes its own .NET runtime.                                                                                                 |
+| `CheatEngine.Mcp.Gateway.exe` | Set this as the MCP server command in your AI client. It runs independently of Cheat Engine's .NET host configuration.                                                                  |
 
 The release also contains `skills/cheatengine-mcp/`, an optional separate AI skill. Install it in your AI client's skill
 directory as described below; it is not part of the plugin folder.
@@ -143,13 +143,15 @@ Ask your AI client:
 > Use the Cheat Engine MCP to list running instances, then show the selected target and plugin version for each. Do not
 > change memory yet.
 
-The agent should call `list_instances`, then pass a returned `instanceId` to `get_current_process` and
-`get_plugin_version`. A connected gateway can return an empty instance list when no CE backend is enabled. Discovery
-returns the **CE process ID**; `get_current_process` reports the separate **target process ID**. No selected target is
+The agent should call `instance_list`, then use the live schema to inspect the available runtime and process tools with
+the returned `instanceId`. A connected gateway can return an empty instance list when no CE backend is enabled.
+Discovery
+returns the **CE process ID**; the selected-target tool reports the separate **target process ID**. No selected target
+is
 normal before you attach one.
 
 Select a process in CE's process picker, or tell the AI the exact target process name/PID and the intended CE instance
-so it can use `open_process`. Then give a concrete task, for example:
+so it can use the process-attach tool that the live schema exposes. Then give a concrete task, for example:
 
 - "In instance game-a, show the address list and identify which numeric records are frozen."
 - "For my test program in game-a, add a Dword record named Health at the address I provide, set it to 100, and freeze
@@ -158,8 +160,11 @@ so it can use `open_process`. Then give a concrete task, for example:
 
 Use a real, verified address for memory tasks; the agent should not invent an address from an example. See
 the [address-list and speedhack guide](skills/cheatengine-mcp/references/address-list-and-speedhack.md) for exact tools
-and cleanup, and the [tool catalog](skills/cheatengine-mcp/references/tool-catalog.md) for all **142 gateway tools**.
-Lua execution, Auto Assembler patches, and the dedicated tools are enabled by default; no execution opt-in is needed.
+and cleanup, and the [tool reference](docs/reference/tools.md) for the relationship between the frozen v2 inventory and
+the effective tool catalogue.
+Unsafe Lua, Auto Assembler, target-code execution, and kernel access are enabled by default. Set the corresponding
+`Mcp:Enable*` setting to `false` when a session must not expose that capability; see the
+[configuration reference](docs/configuration.md#capability-gates).
 
 ### Optional AI skill
 
@@ -194,7 +199,7 @@ $env:MCP_INSTANCE_NAME = 'game-b'
 ```
 
 These environment values apply to processes launched from those shells; they do not rename an already running CE. Attach
-each instance to its intended target and ask the AI to refresh `list_instances`. A display name can repeat, so route
+each instance to its intended target and ask the AI to refresh `instance_list`. A display name can repeat, so route
 with the returned ID. Restarting CE or disabling/re-enabling the plugin creates a new ID. Two instances attached to the
 same target can still change that shared target's memory.
 
@@ -249,7 +254,7 @@ gateway; the gateway also accepts `--instance-directory <path>`. Both run as the
 isolates backend calls from unauthenticated HTTP clients; it is not a boundary against other applications running as
 that user.
 
-Call `list_instances`, choose the intended name/CE PID, and pass its exact `instanceId` to every CE tool. Labels may
+Call `instance_list`, choose the intended name/CE PID, and pass its exact `instanceId` to every CE tool. Labels may
 repeat; IDs are unambiguous and change on every plugin activation. There is no shared selected-instance state, automatic
 fallback, or automatic retry. A stopped instance fails its calls without redirecting them to another CE. Independent
 instances have independent CE state, but attaching both to the same target still allows both to change that target.
@@ -267,10 +272,10 @@ data and discovery directories inside its test run.
 |---------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | CE refuses to load the plugin                     | Use CE x64, load `CheatEngine.Mcp.Plugin.dll` from the intact plugin folder, check all three x64 .NET 10 runtimes, and check CE's own `ce.runtimeconfig.json`. Restart CE after changing it. |
 | The gateway EXE waits in a console                | It is a stdio MCP server. Configure it as the AI client's command; the client starts it and sends protocol requests.                                                                         |
-| `list_instances` returns an empty list            | Enable the plugin in an open CE process. Run CE and the gateway as the same Windows user and check that any `MCP_INSTANCE_DIRECTORY` overrides agree.                                        |
+| `instance_list` returns an empty list             | Enable the plugin in an open CE process. Run CE and the gateway as the same Windows user and check that any `MCP_INSTANCE_DIRECTORY` overrides agree.                                        |
 | One CE works but another cannot start its backend | Leave `Port` at `0`, or give each instance a unique fixed port. Check that the plugin is enabled in both.                                                                                    |
-| An instance becomes unavailable                   | Call `list_instances` again. Restart or re-enable creates a new ID; do not reuse old instance or resource IDs.                                                                               |
-| A tool reports no target                          | Select the intended target in CE or use `open_process` with its exact PID/name and the chosen CE instance ID.                                                                                |
+| An instance becomes unavailable                   | Call `instance_list` again. Restart or re-enable creates a new ID; do not reuse old instance or resource IDs.                                                                                |
+| A tool reports no target                          | Select the intended target in CE or use the process-attach tool shown by the live schema with its exact PID/name and the chosen CE instance ID.                                              |
 | Lua execution or Auto Assembler is refused        | Both are enabled by default. Check plugin-adjacent and user settings for explicit `false` overrides, then reload the plugin after changing them.                                             |
 | A table file is refused                           | Check `CheatEngineClient:AllowedTableRoots` and use an absolute table path.                                                                                                                  |
 | Enabling fails with an options error              | Correct the named `Mcp` setting or `MCP_*` variable; the message lists each rejected value. Then enable the plugin again.                                                                    |
@@ -285,7 +290,7 @@ detail is in the [connection troubleshooting guide](skills/cheatengine-mcp/refer
 To update, finish target cleanup, close CE, stop the MCP connection in your AI client, and replace the whole plugin
 folder
 and the gateway EXE together, from the same build; do not mix files from two builds in the plugin folder. Restart CE,
-enable the plugin, reconnect the client, and refresh `list_instances`. Settings in the user file survive updates.
+enable the plugin, reconnect the client, and refresh `instance_list`. Settings in the user file survive updates.
 
 To remove it, undo task-owned freezes, speed changes, and debugger state first. Disable/remove the plugin in CE, close
 CE, and remove the MCP server configuration from your AI client. You can then delete the plugin folder and the gateway
@@ -294,8 +299,10 @@ does not undo every CE-owned change.
 
 ## Tools and ownership
 
-The [catalog](skills/cheatengine-mcp/references/tool-catalog.md) lists **142 gateway tools**: `list_instances` plus
-**141 CE tools**, each with a required `instanceId`. Use live MCP schemas for parameter types and defaults.
+The [tool reference](docs/reference/tools.md) explains the frozen v2 inventory and live schema.
+The live MCP schema is authoritative for the effective tool names, parameter types, defaults, results, and annotations
+of this build.
+`instance_list` is gateway-local; every listed Cheat Engine tool requires `instanceId`.
 The [address-list and speedhack guide](skills/cheatengine-mcp/references/address-list-and-speedhack.md) covers adding
 records, freezing, unfreezing, and restoring speed.
 
@@ -303,32 +310,31 @@ The [scanning and debugging guide](skills/cheatengine-mcp/references/scanning-an
 unknown-initial/changed/increased/range value scans, pointer maps and rescans, write/access collectors, break-and-trace,
 and register editing. Value scans use the same tools for both modes: omit `scannerName` (or use `main`) for the visible
 CE scan tab, or choose another name for an independent Client session. Main scans update CE's native controls and result
-list; use `get_memory_scan_status` to wait for completion and `get_memory_scan_results` to read either MCP-started or
-manually started UI scans. `list_memory_scanners` lists main and the independent sessions. The UI adapter uses fixed Lua
+list; use `scan_get_status` to wait for completion and `scan_list_results` to read either MCP-started or
+manually started UI scans. `scan_list_scanners` lists main and the independent sessions. The UI adapter uses fixed Lua
 through Client because Client 1.0 has no UI-scan API. Independent scans and pointer memory access use typed Client APIs;
 debugger callbacks use fixed CE Lua operations. Pointer maps are bounded in-memory MCP snapshots, not CE's native
 pointer-map files. Debugger captures/traces have explicit stop, finite lifetime, and a 30-second result-retention window
 after completion/expiry.
 
-- Start with `list_instances`, then `get_runtime_info`, `get_plugin_version`, and `get_current_process` on the chosen
-  instance.
+- Start with `instance_list`, then inspect the live runtime and process tools on the chosen instance.
 - Process selection, typed memory, pointers, AOB scans, inspection, and address-table tools use Client contracts.
 - Independent value scans, allocations, assembly, and Auto Assembler retain Client experimental/capability checks. An
   API's presence does not establish that the current host supports it.
-- Arbitrary `execute_lua` and Client Auto Assembler patches require their respective configuration flags. These flags
+- Arbitrary `lua_execute` and Client Auto Assembler patches require their respective configuration flags. These flags
   are not a sandbox: dedicated tools can write memory, launch/inject code, control the debugger, access files, and alter
   host state. Table load/save uses configured allowed roots.
 - Independent named scans, allocations, registered symbols, and patches belong to one enable epoch. The `main` scanner
   belongs to CE: it survives plugin disable, follows the visible CE scan tab, and is never destroyed by MCP.
-  `reset_memory_scan` on main explicitly clears its visible results through CE's New Scan action. Wait for or cancel an
-  active UI scan before switching targets. Before switching processes, use `release_target_resources`; it releases in
+  `scan_reset` on main explicitly clears its visible results through CE's New Scan action. Wait for or cancel an
+  active UI scan before switching targets. Before switching processes, use `runtime_release_resources`; it releases in
   reverse creation order and stops on incomplete cleanup. A repeated request for the selected PID preserves resources.
 - Failed releases report recovery details and keep retryable handles. If Cheat Engine changes targets outside MCP,
   inspect cleanup outcomes and perform manual recovery when reported. Never reuse identifiers after disable/re-enable.
 
 The Lua adapter encodes arguments as data, runs a protected call inside the Client activation/main-thread boundary, and
-copies bounded results. It returns `{ success, result }`; direct Lua calls preserve multiple return values as arrays,
-including null slots. A Lua failure includes `hostEffect`: an operation that started may have partially changed the
+copies bounded results into the tool's structured result. A Lua failure includes `hostEffect`: an operation that started
+may have partially changed the
 host. It is unsafe to blindly retry a failed mutation. Requests are limited to 8 MiB; copied Lua results are limited to
 65,536 items, depth 16, and 4 MiB of strings. Individual tools apply tighter limits.
 
@@ -351,8 +357,8 @@ operations through `ICheatEngineClient.Lua`. Bindings follow the installed Cheat
 APIs return errors. The complete public surface and each tool description are in the catalog.
 
 Tool parameters and responses have changed where Client ownership requires it: allocations have names, scans are bounded
-sessions, patches return lease IDs, record content and activation are separate tools, and `execute_lua` reports
-execution status without serializing Lua return values.
+sessions, patches return lease IDs, record content and activation are separate tools, and `lua_execute` returns bounded
+execution results.
 
 ## Build from source
 
@@ -365,10 +371,12 @@ dotnet test --solution CheatEngine.Mcp.slnx --no-restore --no-build --filter-not
 pwsh -NoProfile -File eng/Publish.ps1 -Configuration Release
 ```
 
-The distributable files are under `artifacts/dist/release/`. A normal `dotnet build` prepares development outputs;
-`eng/Publish.ps1` stages the plugin folder through the Client's plugin deployment, creates the self-contained gateway,
-and copies the separate `skills/cheatengine-mcp/` folder. Publishing uses the checked-in NuGet lock files. CI publishes
-the same layout for Debug and Release.
+The distributable files are under `artifacts/dist/release/`.
+A normal `dotnet build` prepares development outputs.
+`eng/Publish.ps1` stages the plugin folder through the Client's plugin deployment, publishes the self-contained Windows
+x64 Native AOT gateway, runs its MCP smoke check, and copies the separate `skills/cheatengine-mcp/` folder.
+Publishing uses the checked-in NuGet lock files.
+CI publishes the same layout for Debug and Release.
 
 The plugin references **[CheatEngine.Client 1.0.0](https://www.nuget.org/packages/CheatEngine.Client/1.0.0)** through
 NuGet. Its package metadata identifies source revision `f88de3d843252c9139f08c71531a02f03c0516bb`. No submodule checkout
@@ -385,15 +393,15 @@ through the SDK-generated entry point; Client owns activation and cleanup. This 
 
 ### Project layout
 
-| Project                                                            | Role                                                                                                           |
-|--------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------|
-| [`libs/CheatEngine.Mcp.Core`](libs/CheatEngine.Mcp.Core)           | Shared library on CheatEngine.Client: composition builders, tool execution, target leases and the Lua adapter. |
-| [`srcs/CheatEngine.Mcp.Tools`](srcs/CheatEngine.Mcp.Tools)         | The Cheat Engine tools, registered by `AddTools()`.                                                            |
-| [`srcs/CheatEngine.Mcp.Resources`](srcs/CheatEngine.Mcp.Resources) | MCP resources, registered by `AddResources()` (none yet).                                                      |
-| [`srcs/CheatEngine.Mcp.Prompts`](srcs/CheatEngine.Mcp.Prompts)     | MCP prompts, registered by `AddPrompts()` (none yet).                                                          |
-| [`srcs/CheatEngine.Mcp.Hosting`](srcs/CheatEngine.Mcp.Hosting)     | The loopback backend host, its options, instance discovery and the stdio gateway routing.                      |
-| [`srcs/CheatEngine.Mcp.Plugin`](srcs/CheatEngine.Mcp.Plugin)       | The Cheat Engine plugin: composition root, lifecycle module, status menu and logging.                          |
-| [`srcs/CheatEngine.Mcp.Gateway`](srcs/CheatEngine.Mcp.Gateway)     | The gateway executable's composition root.                                                                     |
+| Project                                                            | Role                                                                                                                                                                                                                                      |
+|--------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [`libs/CheatEngine.Mcp.Core`](libs/CheatEngine.Mcp.Core)           | Shared library on CheatEngine.Client: composition builders, tool execution, target leases and the Lua adapter.                                                                                                                            |
+| [`srcs/CheatEngine.Mcp.Tools`](srcs/CheatEngine.Mcp.Tools)         | The Cheat Engine tools, registered by `AddTools()`.                                                                                                                                                                                       |
+| [`srcs/CheatEngine.Mcp.Resources`](srcs/CheatEngine.Mcp.Resources) | MCP knowledge resources, registered by `AddResources()`: static `cheatengine://docs/...` documents, workflow bodies, gateway instance discovery, and live runtime, process, modules, memory-regions, records, and structures projections. |
+| [`srcs/CheatEngine.Mcp.Prompts`](srcs/CheatEngine.Mcp.Prompts)     | The 22 static workflow prompts, registered by `AddPrompts()`.                                                                                                                                                                             |
+| [`srcs/CheatEngine.Mcp.Hosting`](srcs/CheatEngine.Mcp.Hosting)     | The loopback backend host, its options, instance discovery and the stdio gateway routing.                                                                                                                                                 |
+| [`srcs/CheatEngine.Mcp.Plugin`](srcs/CheatEngine.Mcp.Plugin)       | The Cheat Engine plugin: composition root, lifecycle module, status menu and logging.                                                                                                                                                     |
+| [`srcs/CheatEngine.Mcp.Gateway`](srcs/CheatEngine.Mcp.Gateway)     | The gateway executable's composition root.                                                                                                                                                                                                |
 
 The plugin and the gateway compose the same primitives with the same builder calls, so the gateway's catalog always
 matches what a backend serves. Architecture tests enforce the project graph.
@@ -439,7 +447,7 @@ require a Client source checkout. A later run restores a leftover backup and sto
 settings and logs stay in the run folder. Reports contain the exact host version/hash, plugin hash, individual checks,
 and cleanup results. Local reports and backups stay outside the checkout.
 
-The live scenario checks all tool names, loaded plugin paths, runtime evidence, target attachment, typed memory
+The live scenario checks all tool names, loaded plugin file names, runtime evidence, target attachment, typed memory
 reads/writes, address-list add/update/delete, actual freeze/unfreeze behavior, and speedhack setting/readback. It
 verifies that changing A leaves B's separate target and table unchanged, then stops B and verifies A remains available
 while B calls fail. Speedhack readback does not measure timing accuracy. This smoke test is separate from the Client's

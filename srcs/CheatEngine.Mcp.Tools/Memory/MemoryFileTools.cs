@@ -20,6 +20,8 @@ public sealed class MemoryFileTools
 	/// <summary>The largest range of <c>memory_dump_to_file</c>.</summary>
 	internal const int MaximumDumpBytes = 256 * 1024 * 1024;
 
+	internal const int MaximumLoadBytes = 256 * 1024 * 1024;
+
 	/// <summary>The most zero-filled ranges one result lists.</summary>
 	internal const int MaximumZeroRanges = 256;
 
@@ -54,7 +56,8 @@ public sealed class MemoryFileTools
 		string path,
 		[Description("Whether an existing file may be replaced.")]
 		bool overwrite = false,
-		[Description("What to do with unreadable memory: fail (default, no file is written) or zero (write zeros and list them).")]
+		[Description(
+			"What to do with unreadable memory: fail (default, no file is written) or zero (write zeros and list them).")]
 		UnreadableMemory unreadable = UnreadableMemory.Fail,
 		CancellationToken cancellationToken = default)
 	{
@@ -96,6 +99,116 @@ public sealed class MemoryFileTools
 		Complete(write);
 		return new FileDumpResult(write.FullPath, HexFormat.Address(target), size, zeros.Bytes, [.. zeros.Listed],
 			zeros.Truncated);
+	}
+
+	/// <summary>Copies a pinned local file into target memory in one MiB blocks.</summary>
+	[McpServerTool(Name = CheatEngineToolNames.MemoryLoadFromFile, Title = "Load memory from a file",
+		ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = true, UseStructuredContent = true)]
+	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+	[Description(
+		"Write a local file of 1 to 256 MiB into target memory. The absolute local path is checked and pinned against changes; MCP data and registry paths are refused. Writes run in blocks of at most 1 MiB. A failure reports the confirmed written prefix, including when the selected target changes; inspect memory before retrying.")]
+	public FileLoadResult LoadFromFile(
+		[Description("Destination address or Cheat Engine address expression.")]
+		string address,
+		[Description("Absolute path of the local file on the Cheat Engine host.")]
+		string path,
+		CancellationToken cancellationToken = default)
+	{
+		string expression = MemoryTargets.RequireExpression(address, "address");
+		using HeldFile file = _files.OpenRead(path, CheatEngineToolNames.MemoryLoadFromFile, 0);
+		if (file.Length is < 1 or > MaximumLoadBytes)
+		{
+			throw CheatEngineToolException.LimitExceeded("path", $"file size must be 1 to {MaximumLoadBytes} bytes.");
+		}
+
+		(Address target, long epoch) = _dispatch.Run(CheatEngineToolNames.MemoryLoadFromFile, token =>
+		{
+			ICheatEngineClient client = _dispatch.Client;
+			return (MemoryTargets.Resolve(client, expression, "address", token),
+				MemoryTargets.SelectionEpoch(client, token));
+		}, cancellationToken);
+		if (target.ToUInt64() > ulong.MaxValue - (ulong) file.Length + 1)
+		{
+			throw CheatEngineToolException.InvalidArgument("address",
+				"the file would cross the end of the address space.");
+		}
+
+		long written = 0;
+		byte[] buffer = new byte[MemoryTargets.ChunkBytes];
+		while (written < file.Length)
+		{
+			int length = (int) Math.Min(buffer.Length, file.Length - written);
+			int read = 0;
+			try
+			{
+				while (read < length)
+				{
+					int count = file.ReadAt(buffer.AsSpan(read, length - read), written + read);
+					if (count == 0)
+					{
+						break;
+					}
+
+					read += count;
+				}
+			}
+			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+			{
+				throw LoadFailure(file, target, written, "The pinned source file could not be read.", exception);
+			}
+
+			if (read != length)
+			{
+				throw LoadFailure(file, target, written, "The pinned source file ended before its declared length.");
+			}
+
+			long offset = written;
+			byte[] bytes = buffer.AsSpan(0, length).ToArray();
+			try
+			{
+				_dispatch.Run(CheatEngineToolNames.MemoryLoadFromFile, token =>
+				{
+					ICheatEngineClient client = _dispatch.Client;
+					MemoryTargets.RequireSameTarget(client, epoch, CheatEngineToolNames.MemoryLoadFromFile, token);
+					client.Memory.WriteBytes(new MemoryBytesWriteRequest(target + offset, bytes), token);
+					return true;
+				}, cancellationToken);
+			}
+			catch (CheatEngineToolException exception)
+			{
+				if (written == 0 &&
+					exception.Error.HostEffect is ToolHostEffect.NotStarted or ToolHostEffect.NotApplied)
+				{
+					throw;
+				}
+
+				throw LoadFailure(file, target, written,
+					"The file load stopped; the reported prefix is confirmed, and the failed block may have changed memory.",
+					exception, written == 0 ? exception.Error.HostEffect : ToolHostEffect.Started);
+			}
+
+			written += length;
+		}
+
+		return new FileLoadResult(file.FullPath, HexFormat.Address(target), written);
+	}
+
+	private static CheatEngineToolException LoadFailure(HeldFile file, Address target, long written, string message,
+		Exception? exception = null, ToolHostEffect? effect = null)
+	{
+		if (written == 0 && effect is null or ToolHostEffect.NotStarted)
+		{
+			return new CheatEngineToolException(new ToolError(ToolErrorKind.InvalidState, message,
+				CheatEngineToolNames.MemoryLoadFromFile, ToolHostEffect.NotStarted, false,
+				"Check the source file and repeat the call."), exception);
+		}
+
+		CheatEngineToolException partial = CheatEngineToolException.PartialEffect(message,
+			effect ?? (written == 0 ? ToolHostEffect.NotStarted : ToolHostEffect.Started),
+			new FileLoadFailure(file.FullPath, HexFormat.Address(target), written, file.Length),
+			MemoryJsonContext.Default.FileLoadFailure,
+			hint: "Read the destination range before resuming or restoring it.");
+		return exception is null ? partial : new CheatEngineToolException(partial.Error, exception);
 	}
 
 	/// <summary>

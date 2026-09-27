@@ -6,48 +6,38 @@ using CheatEngine.Mcp.Tests.Support;
 namespace CheatEngine.Mcp.Tests.Contract;
 
 /// <summary>
-///     The operator skill's tool catalog: the frozen v2 names, then the legacy tools still served, so each migration batch
-///     that removes a legacy tool also removes its row.
+///     The operator skill's tool catalog: the frozen v2 names and a separate historic-name migration table. Historic
+///     names are documentation, not registered tools.
 /// </summary>
 public sealed partial class SkillCatalogTests
 {
-	private const string LegacyHeading = "## Legacy tools (removed by 2.0.0)";
+	private const string HistoricMigrationHeading = "## Historic name migration";
 
 	[Fact]
 	public void SkillCatalog_V2Section_ListsEveryFrozenNameOnce()
 	{
-		string[] v2 = ReadCatalog().V2;
+		string[] v2 = ReadCatalog();
 
 		Assert.Equal(v2.Length, v2.Distinct(StringComparer.Ordinal).Count());
 		Assert.Equal(CheatEngineToolNames.All.Order(StringComparer.Ordinal), v2.Order(StringComparer.Ordinal));
 	}
 
 	[Fact]
-	public void SkillCatalog_LegacySection_ListsExactlyTheLegacyToolsStillServed()
-	{
-		string[] legacy = ReadCatalog().Legacy;
-		IEnumerable<string> served = McpPrimitiveCatalog.Create(TestComposition.BackendManifest).Tools
-			.Where(McpContractRules.IsLegacy).Select(static tool => tool.Name);
-
-		Assert.Equal(legacy.Length, legacy.Distinct(StringComparer.Ordinal).Count());
-		Assert.Equal(served.Order(StringComparer.Ordinal), legacy.Order(StringComparer.Ordinal));
-	}
-
-	[Fact]
 	public void SkillCatalog_ListsEveryExposedTool()
 	{
-		(string[] v2, string[] legacy) = ReadCatalog();
+		string[] v2 = ReadCatalog();
 
-		Assert.Empty(TestComposition.GatewayTools.Select(static tool => tool.Name).Except(v2.Concat(legacy)));
+		Assert.Empty(TestComposition.GatewayTools.Select(static tool => tool.Name).Except(v2));
 	}
 
-	private static (string[] V2, string[] Legacy) ReadCatalog()
+	private static string[] ReadCatalog()
 	{
 		string[] lines = File.ReadAllLines(Path.Combine(RepositoryPaths.Root, "skills", "cheatengine-mcp", "references",
 			"tool-catalog.md"));
-		int legacyHeading = Array.IndexOf(lines, LegacyHeading);
-		int split = legacyHeading < 0 ? lines.Length : legacyHeading;
-		return (Rows(lines.Take(split)), Rows(lines.Skip(split)));
+		int historicHeading = Array.IndexOf(lines, HistoricMigrationHeading);
+		int split = historicHeading < 0 ? lines.Length : historicHeading;
+		// The migration mapping is intentionally not parsed as a tool list: no historic tool is registered.
+		return Rows(lines.Take(split));
 	}
 
 	// Only a table row's first cell names a tool; prose may cite tools freely.

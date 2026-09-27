@@ -1,4 +1,4 @@
-# The 142 pre-v2 tool names (legacy-tool-names.txt) and their 2.0.0 replacements, one line per old name.
+# The 191 pre-v2 tool names (legacy-tool-names.txt) and their 2.0.0 replacements, one line per old name.
 # Columns: old name | kind | new name(s), comma-separated, or - | note
 # Kinds: renamed (one new tool, the only one replacing it), merged (one new tool that also replaces other old names),
 # split (several new tools), changed_in_place (the name stays with a v2 contract), removed (no replacement).
@@ -7,19 +7,56 @@ add_code_reference | removed | - | Dissect-reference editing is deferred past 2.
 add_memory_record | renamed | record_create | Up to 256 value, script or group records, rolled back on failure.
 add_structure_element | renamed | structure_add_elements | Batched.
 allocate_memory | renamed | memory_allocate | Optional executable protection.
+allocate_shared_memory | removed | - | No mapping is retained until Cheat Engine shared mappings have a verifiable release lifecycle.
 analyze_code_range | renamed | code_start_dissect | Now a job; poll it with code_poll_job.
 aob_scan | merged | aob_find | Up to 8 patterns with module, range, protection and alignment filters.
+aob_scan_module_unique | merged | aob_find | Module filtering and per-pattern uniqueness are options of one AOB search.
 aob_scan_unique | merged | aob_find | Uniqueness is reported per pattern.
 assemble | renamed | asm_assemble | Several instructions per call; never writes.
 auto_assemble | split | asm_apply, asm_release_patch | Applying and releasing a patch are separate tools.
 auto_assemble_check | renamed | asm_check | Checks without applying.
 autoguess_structure | renamed | structure_autoguess | Creates the structure when missing.
+clear_address_list | renamed | record_clear | Clears the complete hierarchy and returns the number of removed records.
 clear_code_analysis | renamed | code_clear_dissect | Refused while a dissect job runs.
 compare_memory | renamed | memory_compare | Target ranges only.
+compare_structures | renamed | structure_compare | Compares instances through their typed structure layout.
+compile_c | renamed | exec_compile_c | Requires target-code-execution capability.
 convert_string | removed | - | Broken ANSI round trip; use util_convert_value, or memory_hash for digests.
 copy_memory | renamed | memory_copy | Target to target only.
 create_process | renamed | process_create | Gated by Mcp:EnableTargetCodeExecution.
 create_structure | renamed | structure_create | Also from a clone or a PDB type.
+dbg_add_bp | split | debugger_set_breakpoint, debugger_start_capture, debugger_poll_capture | Breakpoint installation and hit capture are separate operations.
+dbg_add_thread_bp | merged | debugger_set_breakpoint | Method, thread and one-shot options are explicit.
+dbg_bps | merged | debugger_list_breakpoints | Lists MCP-owned breakpoints with paging.
+dbg_break_thread | merged | debugger_break_thread | Returns the typed break outcome.
+dbg_clear_bp_hits | merged | runtime_stop_job | Stop and recreate the capture because polls never consume hits.
+dbg_context_table | merged | debugger_get_context | FPU and XMM registers are selected explicitly.
+dbg_continue | split | debugger_continue, debugger_step | Step modes are explicit.
+dbg_delete_bp | merged | debugger_delete_breakpoint | Deletes an MCP-owned breakpoint.
+dbg_exclude_thread | merged | debugger_set_thread_ignored | Uses ignored=true.
+dbg_exit | merged | debugger_detach | Detaches the MCP-owned debugger state.
+dbg_get_bp_hits | merged | debugger_poll_capture | Polls a debugger_start_capture job.
+dbg_gpregs | merged | debugger_get_context | Typed register context.
+dbg_gpregs_remote | merged | debugger_get_context | Typed register context.
+dbg_include_thread | merged | debugger_set_thread_ignored | Uses ignored=false.
+dbg_is_broken | merged | debugger_get_status | Typed debugger status.
+dbg_is_debugging | merged | debugger_get_status | Typed debugger status.
+dbg_lbr_enable | removed | - | Cheat Engine LBR Lua support is unreliable on modern Windows.
+dbg_lbr_records | removed | - | Cheat Engine LBR Lua support is unreliable on modern Windows.
+dbg_read | merged | memory_read | The historical tool read target memory.
+dbg_read_xmm | merged | debugger_get_context | Uses includeExtraRegisters=true.
+dbg_regs | merged | debugger_get_context | Typed register context.
+dbg_regs_all | merged | debugger_get_context | Typed register context.
+dbg_regs_named | merged | debugger_get_context | Typed register context.
+dbg_regs_named_remote | merged | debugger_get_context | Typed register context.
+dbg_regs_remote | merged | debugger_get_context | Typed register context.
+dbg_run_to | renamed | debugger_run_to | Starts a bounded run-to job.
+dbg_stacktrace | renamed | debugger_get_stack_trace | Returns the bounded stack trace.
+dbg_start | merged | debugger_attach | Attaches through the guarded debugger activation.
+dbg_step_into | merged | debugger_step | Uses the step-into mode.
+dbg_step_over | merged | debugger_step | Uses the step-over mode.
+dbg_toggle_bp | split | debugger_list_breakpoints, debugger_set_breakpoint, debugger_delete_breakpoint | The implicit toggle is replaced by explicit inspection and mutation.
+dbg_write | merged | memory_write | The historical tool wrote target memory.
 dbk_control_registers | merged | kernel_get_status | Control registers are status fields.
 dbk_physical_address | renamed | kernel_translate_address | Gated by Mcp:EnableKernelAccess.
 dbk_status | merged | kernel_get_status | DBK and DBVM state in one result.
@@ -31,21 +68,21 @@ dbvm_watch | renamed | kernel_start_watch | Now a job; no main-thread wait.
 dbvm_watch_log | renamed | kernel_poll_watch | Non-consuming poll with afterSequence.
 dbvm_watch_stop | merged | runtime_stop_job | Generic job stop.
 dbvm_write_physical | renamed | kernel_write_physical | Gated by Mcp:EnableKernelAccess.
-debugger_add_breakpoint | renamed | debugger_set_breakpoint | Adds method, thread and one-shot options.
+debugger_add_breakpoint | merged | debugger_set_breakpoint | Adds method, thread and one-shot options.
 debugger_break_thread | changed_in_place | debugger_break_thread | Typed result.
-debugger_breakpoints | renamed | debugger_list_breakpoints | Paged.
-debugger_context | renamed | debugger_get_context | Registers in uppercase hex; FPU and XMM on request.
+debugger_breakpoints | merged | debugger_list_breakpoints | Paged.
+debugger_context | merged | debugger_get_context | Registers in uppercase hex; FPU and XMM on request.
 debugger_continue | changed_in_place | debugger_continue, debugger_step | Stepping moved to debugger_step.
 debugger_detach | changed_in_place | debugger_detach | Typed result.
-debugger_ignore_thread | renamed | debugger_set_thread_ignored | One tool adds or removes the thread.
+debugger_ignore_thread | merged | debugger_set_thread_ignored | One tool adds or removes the thread.
 debugger_poll_capture | changed_in_place | debugger_poll_capture | Takes jobId and afterSequence; never consumes hits.
 debugger_poll_step_trace | renamed | debugger_poll_trace | Takes jobId and afterSequence; paged.
-debugger_remove_breakpoint | renamed | debugger_delete_breakpoint | Deletes by address.
+debugger_remove_breakpoint | merged | debugger_delete_breakpoint | Deletes by address.
 debugger_set_register | changed_in_place | debugger_set_register | Read-back verified.
-debugger_start | renamed | debugger_attach | The kernel and VEH interfaces are gated.
+debugger_start | merged | debugger_attach | The kernel and VEH interfaces are gated.
 debugger_start_capture | changed_in_place | debugger_start_capture | Returns a jobId; optional aggregation by instruction.
 debugger_start_step_trace | renamed | debugger_start_trace | Returns a jobId.
-debugger_status | renamed | debugger_get_status | Typed result.
+debugger_status | merged | debugger_get_status | Typed result.
 debugger_stop_capture | merged | runtime_stop_job | Generic job stop.
 debugger_stop_step_trace | merged | runtime_stop_job | Generic job stop.
 delete_code_reference | removed | - | Dissect-reference editing is deferred past 2.0.0.
@@ -56,18 +93,23 @@ disassemble | merged | code_disassemble | count and before parameters.
 disassemble_bytes | renamed | code_disassemble_bytes | Decodes every instruction, not only the first.
 disassemble_range | merged | code_disassemble | count parameter.
 dump_memory | renamed | memory_dump_to_file | Write roots apply.
+enable_symbols | renamed | symbol_enable_sources | Windows source access is explicit and the kernel source needs KernelAccess.
 enum_memory_regions | renamed | memory_list_regions | Paged, with filters.
-enum_module_sections | renamed | module_get | Sections plus PE header fields.
+enum_module_sections | merged | module_get | Sections plus PE header fields.
 enum_modules | renamed | module_list | Paged.
 enum_registered_symbols | renamed | symbol_list_registered | Every registered symbol, marking the MCP-owned ones.
 execute_local_code | renamed | exec_call_local | Typed arguments.
 execute_lua | renamed | lua_execute | Returns bounded values.
-execute_remote_code | renamed | exec_call_remote | Typed arguments and calling convention.
+execute_remote_code | merged | exec_call_remote | Typed arguments and calling convention.
+execute_remote_function | merged | exec_call_remote | Typed arguments, calling convention and limits.
+execute_remote_function_ex | merged | exec_call_remote | Typed arguments, calling convention and limits.
 fill_structure_from_dotnet | renamed | structure_fill_from_dotnet | Refused while the target is paused or broken.
 find_memory_records_by_description | renamed | record_find | Substring and other predicates.
+find_pointer_references | renamed | pointer_find_references | Bounded pointer-reference search.
 free_memory | renamed | memory_free | Typed release result.
 full_access_memory | merged | memory_set_protection | Read, write and execute together.
 generate_api_hook_script | renamed | asm_generate_api_hook | Keeps the disable section.
+generate_code_injection_script | renamed | asm_generate_injection | Generates the bounded code-injection script.
 generate_pointer_map | renamed | pointer_create_map | Now a job.
 get_address_list | renamed | record_list | Hierarchy and paging.
 get_code_references | renamed | code_find_references | Paged.
@@ -80,6 +122,7 @@ get_memory_region | merged | memory_get_address_info | Batched up to 256 address
 get_memory_scan_results | renamed | scan_list_results | Paged; symbol per result.
 get_memory_scan_status | renamed | scan_get_status | Typed status.
 get_module_preference | renamed | symbol_get_module_preference | Typed result.
+get_module_size | merged | module_get | Returns base, size, PE information and sections.
 get_name_from_address | merged | symbol_resolve | Batched.
 get_opened_file_size | merged | process_get_current | fileSize field.
 get_plugin_version | merged | runtime_get_info | pluginVersion and pluginPath fields.
@@ -90,6 +133,7 @@ get_process_list | renamed | process_list | Window titles and paging.
 get_process_state | merged | process_get_current | paused and ageMs fields.
 get_referenced_functions | renamed | code_list_functions | Paged.
 get_referenced_strings | renamed | code_find_strings | Filtered and paged.
+get_rtti_class_name | merged | memory_get_address_info | Uses includeRtti=true.
 get_runtime_info | merged | runtime_get_info | Adds settings, dispatch statistics and limits.
 get_selected_memory_record | renamed | record_get_selected | Optionally every selected record.
 get_speedhack_speed | renamed | speedhack_get_state | Reports whether the hooks are installed.
@@ -100,7 +144,8 @@ get_symbol_info | merged | symbol_resolve | Batched.
 get_symbols_loading_state | removed | - | Read runtime_get_overview (symbolsLoaded) or symbol_reload (done).
 get_thread_list | renamed | process_list_threads | Paged.
 hash_memory | renamed | memory_hash | MD5, SHA-1 or SHA-256.
-inject_dotnet_library | renamed | exec_inject_dotnet | Flattened result; waits at most 30 s.
+inject_dotnet_assembly | merged | exec_inject_dotnet | Bounded .NET injection result.
+inject_dotnet_library | merged | exec_inject_dotnet | Flattened result; waits at most 30 s.
 inject_library | renamed | exec_inject_library | Gated by Mcp:EnableTargetCodeExecution.
 is_jump_destination | merged | code_get_function | addressIsJumpDestination field.
 list_instances | renamed | instance_list | Gateway-local.
@@ -108,15 +153,17 @@ list_memory_scanners | renamed | scan_list_scanners | Typed status per scanner.
 list_pointer_maps | renamed | pointer_list_maps | Capture progress per map.
 list_structures | renamed | structure_list | Paged.
 load_cheat_table | renamed | table_load | Inspected before loading.
+load_memory | renamed | memory_load_from_file | Checked local path, bounded blocks and explicit partial effects.
 load_new_symbols | merged | symbol_reload | scope new_modules.
 lookup_rtti_class_name | merged | memory_get_address_info | includeRtti parameter.
-memory_scan | renamed | scan_first | Independent scans run in the background.
+memory_scan | merged | scan_first | Independent scans run in the background.
 next_memory_scan | renamed | scan_next | compareTo first on the main scanner.
 open_file_as_process | renamed | process_open_file | Read path rules apply.
+open_foreground_process | removed | - | Foreground-window selection is variable; v2 requires explicit process_attach identity.
 open_process | renamed | process_attach | processId or exact processName.
 pause_process | merged | process_set_paused | paused true.
 pointer_scan | renamed | pointer_find_paths | Now a job.
-read_memory | renamed | memory_read | Typed values, arrays, bytes or strings.
+read_memory | merged | memory_read | Typed values, arrays, bytes or strings.
 read_pointer_chain | renamed | pointer_read_chain | Reports every hop.
 register_symbol | renamed | symbol_register | Owned by the activation.
 reinitialize_dotnet_symbols | merged | symbol_reload | scope dotnet.
@@ -130,6 +177,7 @@ resolve_address | merged | symbol_resolve | Batched.
 resume_process | merged | process_set_paused | paused false.
 save_cheat_table | renamed | table_save | overwrite must be explicit.
 save_opened_file | renamed | process_save_file | Write roots apply.
+search_disassembly | renamed | code_start_search | Starts a text search job, then code_poll_job reads its bounded results.
 select_memory_record | renamed | record_select | Typed result.
 set_comment | renamed | code_set_comment | Headers too.
 set_memory_protection | merged | memory_set_protection | Reports the previous and current protection.
@@ -140,8 +188,9 @@ set_module_preference | renamed | symbol_set_module_preference | Full list, opti
 set_pointer_size | renamed | process_set_pointer_size | 4 or 8.
 set_speedhack_speed | renamed | speedhack_set_speed | Gated by Mcp:EnableTargetCodeExecution.
 set_structure_element_value | renamed | structure_write_element | Read-back verified.
+string_scan | merged | scan_first | Use a named string scanner, then scan_get_status and scan_list_results.
 unregister_symbol | renamed | symbol_unregister | Typed release result.
 update_memory_record | merged | record_update | Batched; the read-only mode moved to record_get.
 update_structure_element | renamed | structure_update_elements | Batched.
 wait_for_symbols | removed | - | Unbounded main-thread wait; poll runtime_get_overview (symbolsLoaded).
-write_memory | renamed | memory_write | Read-back verification.
+write_memory | merged | memory_write | Read-back verification.

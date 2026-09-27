@@ -125,6 +125,7 @@ public sealed class PointerScanTools
 		{
 			DateTimeOffset expires = _time.GetUtcNow() + lifetime;
 			ICheatEngineClient client = _dispatch.Client;
+
 			void Attach(ManagedJob<int> job)
 			{
 				if (!scan.TryAttach(job))

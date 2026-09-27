@@ -52,11 +52,11 @@ public sealed class GatewayTokenLeakTests
 			Assert.DoesNotContain(forged.InstanceId, listed.StructuredContent!.Value.GetRawText(),
 				StringComparison.Ordinal);
 
-			Assert.NotEqual(true, (await CallAsync(client, observed, "get_plugin_version", record.InstanceId)).IsError);
-			Assert.NotEqual(true, (await CallAsync(client, observed, "get_plugin_version", record.InstanceId)).IsError);
-			Assert.True((await CallAsync(client, observed, "get_plugin_version", null)).IsError);
-			Assert.True((await CallAsync(client, observed, "get_plugin_version", forged.InstanceId)).IsError);
-			Assert.True((await CallAsync(client, observed, "get_plugin_version",
+			Assert.NotEqual(true, (await CallAsync(client, observed, "runtime_list_jobs", record.InstanceId)).IsError);
+			Assert.NotEqual(true, (await CallAsync(client, observed, "runtime_list_jobs", record.InstanceId)).IsError);
+			Assert.True((await CallAsync(client, observed, "runtime_list_jobs", null)).IsError);
+			Assert.True((await CallAsync(client, observed, "runtime_list_jobs", forged.InstanceId)).IsError);
+			Assert.True((await CallAsync(client, observed, "runtime_list_jobs",
 				"ce-1-00000000000000000000000000000000")).IsError);
 			try
 			{
@@ -69,17 +69,19 @@ public sealed class GatewayTokenLeakTests
 
 			await backend.StopAsync();
 			// Stopping withdraws the record, so the old instanceId is now unknown.
-			Assert.True((await CallAsync(client, observed, "get_plugin_version", record.InstanceId)).IsError);
+			Assert.True((await CallAsync(client, observed, "runtime_list_jobs", record.InstanceId)).IsError);
 		}
 		finally
 		{
 			await backend.StopAsync();
 		}
 
-		// Trace really was on: the backend dumped MCP messages, and the gateway logged its own Debug diagnostics.
-		Assert.Contains(backendLogs.Entries, static entry => entry.Level == LogLevel.Trace
-															 && entry.Category.StartsWith("ModelContextProtocol",
-																 StringComparison.Ordinal));
+		// Trace is configured globally, but authenticated backend and gateway transports keep their guarded categories
+		// at Information or above. The client remains unguarded here to exercise its own Trace diagnostics.
+		Assert.DoesNotContain(backendLogs.Entries, static entry => entry.Level < LogLevel.Information
+															   && TokenSafeLogging.GuardedCategories.Any(guarded =>
+																   entry.Category.StartsWith(guarded,
+																	   StringComparison.Ordinal)));
 		Assert.Contains(gatewayLogs.Entries, static entry => entry.Level == LogLevel.Debug
 															 && entry.Category.StartsWith(
 																 "CheatEngine.Mcp.Hosting.Gateway",

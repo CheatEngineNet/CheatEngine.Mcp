@@ -72,8 +72,9 @@ internal sealed class TestPe
 	internal IReadOnlyList<TestSection> Sections => _sections;
 
 	internal uint SizeOfImage => Align(_sections.Count == 0
-		? HeaderSize
-		: _sections.Max(static section => section.VirtualAddress + Math.Max(section.VirtualSize, (uint) section.Data.Length)),
+			? HeaderSize
+			: _sections.Max(static section =>
+				section.VirtualAddress + Math.Max(section.VirtualSize, (uint) section.Data.Length)),
 		SectionAlignment);
 
 	internal TestPe AddSection(string name, uint rva, byte[] data, uint characteristics, uint? virtualSize = null)
@@ -201,8 +202,11 @@ internal sealed class TestPe
 		foreach (IGrouping<uint, (uint Rva, byte Type)> page in relocations.GroupBy(static relocation =>
 					 relocation.Rva & ~0xFFFu).OrderBy(static page => page.Key))
 		{
-			List<ushort> entries = [.. page.Select(static relocation =>
-				(ushort) ((relocation.Type << 12) | (int) (relocation.Rva & 0xFFF)))];
+			List<ushort> entries =
+			[
+				.. page.Select(static relocation =>
+					(ushort) ((relocation.Type << 12) | (int) (relocation.Rva & 0xFFF)))
+			];
 			if (entries.Count % 2 != 0)
 			{
 				entries.Add(0);
@@ -241,6 +245,7 @@ internal sealed class TestPe
 		int ordinalsOffset = namesOffset + (named.Length * 4);
 		List<byte> strings = [];
 		int stringsOffset = ordinalsOffset + (named.Length * 2);
+
 		int Add(string text)
 		{
 			int offset = stringsOffset + strings.Count;
@@ -251,7 +256,8 @@ internal sealed class TestPe
 
 		int moduleOffset = Add(moduleName);
 		int[] nameOffsets = [.. named.Select(pair => Add(pair.Name))];
-		int[] forwarderOffsets = [.. functions.Select(function => function.Forwarder is null ? -1 : Add(function.Forwarder))];
+		int[] forwarderOffsets =
+			[.. functions.Select(function => function.Forwarder is null ? -1 : Add(function.Forwarder))];
 		byte[] data = new byte[stringsOffset + strings.Count];
 		Span<byte> span = data;
 		BinaryPrimitives.WriteUInt32LittleEndian(span[12..], rva + (uint) moduleOffset);
@@ -269,8 +275,10 @@ internal sealed class TestPe
 
 		for (int index = 0; index < named.Length; index++)
 		{
-			BinaryPrimitives.WriteUInt32LittleEndian(span[(namesOffset + (index * 4))..], rva + (uint) nameOffsets[index]);
-			BinaryPrimitives.WriteUInt16LittleEndian(span[(ordinalsOffset + (index * 2))..], (ushort) named[index].Index);
+			BinaryPrimitives.WriteUInt32LittleEndian(span[(namesOffset + (index * 4))..],
+				rva + (uint) nameOffsets[index]);
+			BinaryPrimitives.WriteUInt16LittleEndian(span[(ordinalsOffset + (index * 2))..],
+				(ushort) named[index].Index);
 		}
 
 		strings.CopyTo(data, stringsOffset);
@@ -318,7 +326,7 @@ internal sealed class ArrayImage(byte[] image) : IPeImage
 	public void Read(uint rva, Span<byte> destination)
 	{
 		Reads++;
-		if ((ulong) rva + (ulong) destination.Length > (ulong) image.Length)
+		if (rva + (ulong) destination.Length > (ulong) image.Length)
 		{
 			throw new InvalidDataException($"RVA {rva:X} is outside the image.");
 		}

@@ -11,7 +11,7 @@ public sealed class StructureCompareToolsTests
 		StructureToolHarness harness = new();
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			harness.Comparisons.Compare(["1000"], ["2000"], size: 5, granularity: 4,
+			harness.Comparisons.Compare(["1000"], ["2000"], 5, granularity: 4,
 				cancellationToken: TestContext.Current.CancellationToken));
 
 		Assert.Equal((ToolErrorKind.InvalidArgument, ToolHostEffect.NotStarted),

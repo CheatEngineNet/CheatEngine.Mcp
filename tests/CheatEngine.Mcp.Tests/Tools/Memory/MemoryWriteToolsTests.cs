@@ -96,7 +96,8 @@ public sealed class MemoryWriteToolsTests
 		TargetDouble target = new();
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			new MemoryWriteTools(target.Dispatch).Write("1000", type, value, repeat, nullTerminate, cancellationToken: Token));
+			new MemoryWriteTools(target.Dispatch).Write("1000", type, value, repeat, nullTerminate,
+				cancellationToken: Token));
 
 		Assert.Equal(kind, exception.Error.Kind);
 		Assert.Equal(ToolHostEffect.NotStarted, exception.Error.HostEffect);
@@ -112,7 +113,8 @@ public sealed class MemoryWriteToolsTests
 		};
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			new MemoryWriteTools(target.Dispatch).Write("1000", McpValueType.Pointer, "1FFFFFFFF", cancellationToken: Token));
+			new MemoryWriteTools(target.Dispatch).Write("1000", McpValueType.Pointer, "1FFFFFFFF",
+				cancellationToken: Token));
 
 		Assert.Equal(ToolErrorKind.InvalidArgument, exception.Error.Kind);
 		Assert.Equal(0, target.Mutations);
@@ -160,7 +162,10 @@ public sealed class MemoryWriteToolsTests
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
 			new MemoryWriteTools(target.Dispatch).WriteBatch(
-				[new MemoryWriteItem("1000", McpValueType.Float, "1.5"), new MemoryWriteItem("2000", McpValueType.Bytes, "90")], cancellationToken: Token));
+			[
+				new MemoryWriteItem("1000", McpValueType.Float, "1.5"),
+				new MemoryWriteItem("2000", McpValueType.Bytes, "90")
+			], cancellationToken: Token));
 
 		Assert.Equal(ToolErrorKind.MemoryWriteFailed, exception.Error.Kind);
 		Assert.Equal(new MemoryWriteBatchFailure(0, 0, BatchWriteEffect.NotStarted),
@@ -189,7 +194,9 @@ public sealed class MemoryWriteToolsTests
 					return true;
 				case nameof(IMemoryClient.ReadBytesDetailed):
 					MemoryBytesReadRequest request = (MemoryBytesReadRequest) arguments[0]!;
-					byte[] bytes = request.Address == new Address(0x3000) ? [9, 9, 9, 9, 9, 9, 9, 9] : ExpectedAt(request);
+					byte[] bytes = request.Address == new Address(0x3000)
+						? [9, 9, 9, 9, 9, 9, 9, 9]
+						: ExpectedAt(request);
 					return new MemoryBytesReadOutcome(request.Length, bytes.ToImmutableArray(), null);
 				default:
 					throw new XunitException($"Unexpected {method.Name}.");
@@ -201,7 +208,7 @@ public sealed class MemoryWriteToolsTests
 			new MemoryWriteItem("1000", McpValueType.Int32, "1"), new MemoryWriteItem("2000", McpValueType.Int32, "2"),
 			new MemoryWriteItem("3000", McpValueType.Pointer, "401000"),
 			new MemoryWriteItem("4000", McpValueType.String, "ab"), new MemoryWriteItem("5000", McpValueType.Int32, "5")
-		], true, cancellationToken: Token);
+		], true, Token);
 
 		Assert.Equal(["Int32x2", "Addressx1", "string", "Int32x1"], order);
 		Assert.Equal((5, false), (result.Written, result.Verified));
@@ -215,7 +222,10 @@ public sealed class MemoryWriteToolsTests
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
 			new MemoryWriteTools(target.Dispatch).WriteBatch(
-				[new MemoryWriteItem("1000", McpValueType.Int32, "1"), new MemoryWriteItem("nowhere", McpValueType.Int32, "2")], cancellationToken: Token));
+			[
+				new MemoryWriteItem("1000", McpValueType.Int32, "1"),
+				new MemoryWriteItem("nowhere", McpValueType.Int32, "2")
+			], cancellationToken: Token));
 
 		Assert.Equal(ToolErrorKind.NotFound, exception.Error.Kind);
 		Assert.Contains("items[1].address", exception.Error.Message, StringComparison.Ordinal);
@@ -233,7 +243,7 @@ public sealed class MemoryWriteToolsTests
 			_ => throw new XunitException($"Unexpected {method.Name}.")
 		};
 
-		MemoryCopyResult result = new MemoryWriteTools(target.Dispatch).Copy("1000", "2001", 3, cancellationToken: Token);
+		MemoryCopyResult result = new MemoryWriteTools(target.Dispatch).Copy("1000", "2001", 3, Token);
 
 		Assert.Equal(new MemoryCopyResult("1000", "2001", 3), result);
 		Assert.Equal(["Memory.ReadBytes", "Memory.WriteBytes"], target.CallsTo("Memory"));
@@ -251,11 +261,13 @@ public sealed class MemoryWriteToolsTests
 			return new ProtectionProbe(new ProtectionFlags(true, false, true), new ProtectionFlags(true, true, true));
 		};
 
-		ProtectionChange change = new MemoryWriteTools(target.Dispatch).SetProtection("401000", 4096, true, true, true, cancellationToken: Token);
+		ProtectionChange change =
+			new MemoryWriteTools(target.Dispatch).SetProtection("401000", 4096, true, true, true, Token);
 
 		Assert.Equal(new ProtectionChange("401000", 4096, new ProtectionFlags(true, false, true),
 			new ProtectionFlags(true, true, true)), change);
-		Assert.Contains("[1] = 0x401000, [2] = 4096, [3] = true, [4] = true, [5] = true", source, StringComparison.Ordinal);
+		Assert.Contains("[1] = 0x401000, [2] = 4096, [3] = true, [4] = true, [5] = true", source,
+			StringComparison.Ordinal);
 		Assert.Equal(1, target.LuaCalls);
 	}
 
@@ -315,7 +327,8 @@ public sealed class MemoryWriteToolsTests
 		TargetDouble target = new();
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			new MemoryWriteTools(target.Dispatch).SetProtection("401000", (16 * 1024 * 1024) + 1, cancellationToken: Token));
+			new MemoryWriteTools(target.Dispatch).SetProtection("401000", (16 * 1024 * 1024) + 1,
+				cancellationToken: Token));
 
 		Assert.Equal(ToolErrorKind.LimitExceeded, exception.Error.Kind);
 		Assert.Equal(0, target.Dispatcher.Calls);

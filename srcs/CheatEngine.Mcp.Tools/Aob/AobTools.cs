@@ -54,7 +54,8 @@ public sealed class AobTools
 	public AobFindResult Find(
 		[Description("The patterns, 1 to 8, each up to 4096 byte positions, such as 48 8B ?? ?? ?? ?? 89 43 10.")]
 		string[] patterns,
-		[Description("Scan only this loaded module's image, such as game.exe; faster and cannot match in another module.")]
+		[Description(
+			"Scan only this loaded module's image, such as game.exe; faster and cannot match in another module.")]
 		string? module = null,
 		[Description("The first allowed match address or expression; requires endAddress.")]
 		string? startAddress = null,
@@ -173,7 +174,8 @@ public sealed class AobTools
 				"Cheat Engine returned a signature without an offset.");
 			if (offset < 0 || offset >= length || (ulong) offset > target.ToUInt64())
 			{
-				throw InvalidSignature("Cheat Engine returned a signature whose offset does not place the address inside it.");
+				throw InvalidSignature(
+					"Cheat Engine returned a signature whose offset does not place the address inside it.");
 			}
 
 			Address start = target - offset;
@@ -246,7 +248,7 @@ public sealed class AobTools
 						$"{HexFormat.Address(target)} is not inside a loaded module of known size.", OutsideModuleHint);
 		}
 
-		return owner.ImageSize!.Value.Value <= (ulong) MaximumSignatureModuleBytes
+		return owner.ImageSize!.Value.Value <= MaximumSignatureModuleBytes
 			? owner
 			: throw CheatEngineToolException.LimitExceeded("module",
 				$"'{owner.Name}' is larger than {MaximumSignatureModuleBytes} bytes; build the signature by hand from code_disassemble.");

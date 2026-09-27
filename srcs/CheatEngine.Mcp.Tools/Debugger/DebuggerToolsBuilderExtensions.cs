@@ -6,16 +6,15 @@ public static class DebuggerToolsBuilderExtensions
 	extension(ICheatEngineMcpBuilder builder)
 	{
 		/// <summary>
-		///     Declares the <c>debugger_*</c> tool containers and their JSON metadata. None is declared yet; the legacy tools
-		///     this domain replaces are still declared by <c>AddTools()</c>.
+		///     Declares the <c>debugger_*</c> tool container and its generated JSON metadata.
 		/// </summary>
 		/// <returns>The same builder.</returns>
 		public ICheatEngineMcpBuilder AddDebuggerTools()
 		{
 			ArgumentNullException.ThrowIfNull(builder);
-			// B10 adds AddJsonTypeInfoResolver(DebuggerJsonContext.Default) and one AddToolType<...>() per container
-			// here, then removes the legacy lines it replaces from AddTools().
-			return builder;
+			return builder
+				.AddJsonTypeInfoResolver(DebuggerJsonContext.Default)
+				.AddToolType<DebuggerTools>();
 		}
 	}
 }
