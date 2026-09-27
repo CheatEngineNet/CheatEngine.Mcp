@@ -28,8 +28,6 @@ jobs:
         run: dotnet build CheatEngine.Mcp.slnx --no-restore
       - name: Test
         run: dotnet test --solution CheatEngine.Mcp.slnx --no-restore --no-build --filter-not-trait Category=LiveQualification --filter-not-trait Category=NativeLua --fail-skips on
-      - name: Test bundle writer
-        run: pwsh -NoProfile -File eng/Test-Bundle.ps1
       - name: Check formatting
         run: |
           dotnet format style CheatEngine.Mcp.slnx --no-restore --severity warn --verify-no-changes

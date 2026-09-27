@@ -1,5 +1,8 @@
+using System.Globalization;
 using System.Runtime.Versioning;
 using System.Text.Json.Nodes;
+
+using CheatEngine.Mcp.Tests.Contract;
 
 namespace CheatEngine.Mcp.Tests.LiveQualification;
 
@@ -16,8 +19,9 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 	{
 		LiveQualificationInputs inputs = fixture.RequireAuthorization();
 		await using LiveSandboxSession sandbox = await LiveSandboxSession.StartAsync(inputs);
-		await using LiveMcpClient gateway = await LiveMcpClient.ConnectGatewayAsync(sandbox.GatewayExecutablePath, sandbox.InstanceDirectory,
-			TestContext.Current.CancellationToken)
+		await using LiveMcpClient gateway = await LiveMcpClient.ConnectGatewayAsync(sandbox.GatewayExecutablePath,
+				sandbox.InstanceDirectory,
+				TestContext.Current.CancellationToken)
 			.WaitAsync(McpTimeout, TestContext.Current.CancellationToken);
 		int? recordId = null;
 		bool speedhackAttempted = false;
@@ -26,14 +30,13 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 		LiveMcpInstanceClient? instanceA = null;
 		try
 		{
-			string[] expectedToolNames = ToolContractTests.GetToolNames().Append("list_instances").Order(StringComparer.Ordinal).ToArray();
-			string[] actualToolNames = (await gateway.ListToolsAsync().AsTask().WaitAsync(McpTimeout, TestContext.Current.CancellationToken))
+			string[] expectedToolNames = ToolContractTests.GetToolNames().Append("list_instances")
+				.Order(StringComparer.Ordinal).ToArray();
+			string[] actualToolNames = (await gateway.ListToolsAsync().AsTask()
+					.WaitAsync(McpTimeout, TestContext.Current.CancellationToken))
 				.Select(tool => tool.Name).Order(StringComparer.Ordinal).ToArray();
 			Assert.Equal(expectedToolNames, actualToolNames);
-			sandbox.Record("gateway_tool_discovery", new
-			{
-				count = actualToolNames.Length
-			});
+			sandbox.Record("gateway_tool_discovery", new { count = actualToolNames.Length });
 
 			step = "gateway instance discovery";
 			JsonArray instances = (await GatewayCallAsync(gateway, "list_instances"))["instances"]!.AsArray();
@@ -42,21 +45,22 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			AssertInstance(instances, sandbox.HostB);
 			Assert.NotEqual(sandbox.HostA.InstanceId, sandbox.HostB.InstanceId);
 			Assert.NotEqual(new Uri(sandbox.HostA.Endpoint).Port, new Uri(sandbox.HostB.Endpoint).Port);
-			sandbox.Record("gateway_instances", new
-			{
-				A = new
+			sandbox.Record("gateway_instances",
+				new
 				{
-					sandbox.HostA.Name,
-					sandbox.HostA.InstanceId,
-					port = new Uri(sandbox.HostA.Endpoint).Port
-				},
-				B = new
-				{
-					sandbox.HostB.Name,
-					sandbox.HostB.InstanceId,
-					port = new Uri(sandbox.HostB.Endpoint).Port
-				}
-			});
+					A = new
+					{
+						sandbox.HostA.Name,
+						sandbox.HostA.InstanceId,
+						port = new Uri(sandbox.HostA.Endpoint).Port
+					},
+					B = new
+					{
+						sandbox.HostB.Name,
+						sandbox.HostB.InstanceId,
+						port = new Uri(sandbox.HostB.Endpoint).Port
+					}
+				});
 
 			instanceA = gateway.Bind(sandbox.HostA.InstanceId);
 			LiveMcpInstanceClient instanceB = gateway.Bind(sandbox.HostB.InstanceId);
@@ -64,23 +68,19 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			step = "instance A plugin version";
 			JsonNode pluginVersionA = await SuccessfulCallAsync(instanceA, "get_plugin_version");
 			Assert.Equal(sandbox.HostA.PluginPath, pluginVersionA["location"]!.GetValue<string>());
-			AssertRuntimeLocation(pluginVersionA, sandbox.BundleCacheDirectory);
+			AssertRuntimeLocation(pluginVersionA, sandbox.HostA.PluginPath);
 
 			step = "instance B plugin version";
 			JsonNode pluginVersionB = await SuccessfulCallAsync(instanceB, "get_plugin_version");
 			Assert.Equal(sandbox.HostB.PluginPath, pluginVersionB["location"]!.GetValue<string>());
-			AssertRuntimeLocation(pluginVersionB, sandbox.BundleCacheDirectory);
+			AssertRuntimeLocation(pluginVersionB, sandbox.HostB.PluginPath);
 
 			step = "instance runtime information";
 			JsonNode runtimeA = await SuccessfulCallAsync(instanceA, "get_runtime_info");
 			JsonNode runtimeB = await SuccessfulCallAsync(instanceB, "get_runtime_info");
 			Assert.True(runtimeA["epoch"]!.GetValue<long>() > 0);
 			Assert.True(runtimeB["epoch"]!.GetValue<long>() > 0);
-			sandbox.Record("runtime", new
-			{
-				A = runtimeA.DeepClone(),
-				B = runtimeB.DeepClone()
-			});
+			sandbox.Record("runtime", new { A = runtimeA.DeepClone(), B = runtimeB.DeepClone() });
 
 			step = "instance A target attach";
 			await OpenTargetAsync(instanceA, sandbox.HostA);
@@ -94,7 +94,7 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			JsonNode addressListB = await SuccessfulCallAsync(instanceB, "get_address_list");
 			Assert.Empty(addressListB["records"]!.AsArray());
 			JsonNode speedB = await SuccessfulCallAsync(instanceB, "get_speedhack_speed");
-			Assert.Equal(1.0, speedB["result"]!["speed"]!.GetValue<double>(), precision: 4);
+			Assert.Equal(1.0, speedB["result"]!["speed"]!.GetValue<double>(), 4);
 
 			step = "main UI and independent scanner isolation";
 			await AssertScannerIsolationAsync(sandbox, instanceA, instanceB);
@@ -103,19 +103,22 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			await AssertDisassemblyAsync(sandbox, instanceA);
 
 			step = "instance A address-list creation";
-			JsonNode created = await SuccessfulCallAsync(instanceA, "add_memory_record", new Dictionary<string, object?>
-			{
-				["description"] = "CheatEngine.Mcp live target A",
-				["address"] = sandbox.HostA.TargetAddress,
-				["value"] = "20260928",
-				["variableType"] = "Dword"
-			});
+			JsonNode created = await SuccessfulCallAsync(instanceA, "add_memory_record",
+				new Dictionary<string, object?>
+				{
+					["description"] = "CheatEngine.Mcp live target A",
+					["address"] = sandbox.HostA.TargetAddress,
+					["value"] = "20260928",
+					["variableType"] = "Dword"
+				});
 			recordId = created["record"]!["id"]!.GetValue<int>();
 			Assert.Equal("CheatEngine.Mcp live target A", created["record"]!["description"]!.GetValue<string>());
 
 			step = "instance A address-list freeze";
-			await SuccessfulCallAsync(instanceA, "update_memory_record", new Dictionary<string, object?> { ["id"] = recordId, ["value"] = "20260929" });
-			await SuccessfulCallAsync(instanceA, "set_memory_record_active", new Dictionary<string, object?> { ["id"] = recordId, ["active"] = true });
+			await SuccessfulCallAsync(instanceA, "update_memory_record",
+				new Dictionary<string, object?> { ["id"] = recordId, ["value"] = "20260929" });
+			await SuccessfulCallAsync(instanceA, "set_memory_record_active",
+				new Dictionary<string, object?> { ["id"] = recordId, ["active"] = true });
 			await WriteMemoryAsync(instanceA, sandbox.HostA.TargetAddress, 20260930);
 			await AssertEventuallyMemoryValueAsync(instanceA, sandbox.HostA.TargetAddress, 20260929);
 			AssertMemoryValue(await ReadMemoryAsync(instanceB, sandbox.HostB.TargetAddress), 20260926);
@@ -124,41 +127,43 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			step = "instance A speedhack";
 			speedhackAttempted = true;
 			await AssertSpeedAsync(instanceA, 0.5);
-			Assert.Equal(1.0, (await SuccessfulCallAsync(instanceB, "get_speedhack_speed"))["result"]!["speed"]!.GetValue<double>(), precision: 4);
+			Assert.Equal(1.0,
+				(await SuccessfulCallAsync(instanceB, "get_speedhack_speed"))["result"]!["speed"]!.GetValue<double>(),
+				4);
 			await AssertSpeedAsync(instanceA, 2.0);
 			await AssertSpeedAsync(instanceA, 1.0);
-			Assert.Equal(1.0, (await SuccessfulCallAsync(instanceB, "get_speedhack_speed"))["result"]!["speed"]!.GetValue<double>(), precision: 4);
+			Assert.Equal(1.0,
+				(await SuccessfulCallAsync(instanceB, "get_speedhack_speed"))["result"]!["speed"]!.GetValue<double>(),
+				4);
 
 			step = "instance A address-list unfreeze and deletion";
-			int existingRecordId = recordId ?? throw new InvalidOperationException("The active memory record was not retained.");
-			await SuccessfulCallAsync(instanceA, "set_memory_record_active", new Dictionary<string, object?> { ["id"] = existingRecordId, ["active"] = false });
+			int existingRecordId =
+				recordId ?? throw new InvalidOperationException("The active memory record was not retained.");
+			await SuccessfulCallAsync(instanceA, "set_memory_record_active",
+				new Dictionary<string, object?> { ["id"] = existingRecordId, ["active"] = false });
 			await WriteMemoryAsync(instanceA, sandbox.HostA.TargetAddress, 20260931);
 			await Task.Delay(TimeSpan.FromMilliseconds(500), TestContext.Current.CancellationToken);
 			AssertMemoryValue(await ReadMemoryAsync(instanceA, sandbox.HostA.TargetAddress), 20260931);
-			await SuccessfulCallAsync(instanceA, "delete_memory_record", new Dictionary<string, object?> { ["id"] = existingRecordId });
-			Assert.DoesNotContain((await SuccessfulCallAsync(instanceA, "get_address_list"))["records"]!.AsArray(), entry => entry!["id"]!.GetValue<int>() == existingRecordId);
+			await SuccessfulCallAsync(instanceA, "delete_memory_record",
+				new Dictionary<string, object?> { ["id"] = existingRecordId });
+			Assert.DoesNotContain((await SuccessfulCallAsync(instanceA, "get_address_list"))["records"]!.AsArray(),
+				entry => entry!["id"]!.GetValue<int>() == existingRecordId);
 			recordId = null;
 
 			step = "instance B shutdown";
 			await sandbox.StopHostAsync("B");
 			await AssertEventuallyInstancesAsync(gateway, sandbox.HostA.InstanceId);
-			await Assert.ThrowsAsync<InvalidOperationException>(async () => await instanceB.CallToolAsync("get_plugin_version"));
+			await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+				await instanceB.CallToolAsync("get_plugin_version"));
 			AssertMemoryValue(await ReadMemoryAsync(instanceA, sandbox.HostA.TargetAddress), 20260931);
-			sandbox.Record("instance_b_unavailable_instance_a_healthy", new
-			{
-				AInstanceId = sandbox.HostA.InstanceId,
-				BInstanceId = sandbox.HostB.InstanceId
-			});
+			sandbox.Record("instance_b_unavailable_instance_a_healthy",
+				new { AInstanceId = sandbox.HostA.InstanceId, BInstanceId = sandbox.HostB.InstanceId });
 
 			scenarioCompleted = true;
 		}
 		catch (Exception exception)
 		{
-			sandbox.Record("failure", new
-			{
-				step,
-				exception = exception.ToString()
-			});
+			sandbox.Record("failure", new { step, exception = exception.ToString() });
 			throw;
 		}
 		finally
@@ -170,27 +175,35 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 				{
 					await CleanupMemoryRecordAsync(instanceA, existingRecordId);
 				}
-				catch (Exception exception) { cleanupFailures.Add(exception); }
+				catch (Exception exception)
+				{
+					cleanupFailures.Add(exception);
+				}
 			}
+
 			if (instanceA is not null && speedhackAttempted)
 			{
 				try
 				{
 					await RestoreSpeedAsync(instanceA);
 				}
-				catch (Exception exception) { cleanupFailures.Add(exception); }
-			}
-			if (cleanupFailures.Count > 0)
-			{
-				sandbox.Record("cleanup_failure", new
+				catch (Exception exception)
 				{
-					errors = cleanupFailures.Select(exception => exception.ToString()).ToArray()
-				});
-				if (scenarioCompleted)
-				{
-					Assert.Fail($"Live scenario cleanup failed: {string.Join(Environment.NewLine, cleanupFailures.Select(exception => exception.Message))}");
+					cleanupFailures.Add(exception);
 				}
 			}
+
+			if (cleanupFailures.Count > 0)
+			{
+				sandbox.Record("cleanup_failure",
+					new { errors = cleanupFailures.Select(exception => exception.ToString()).ToArray() });
+				if (scenarioCompleted)
+				{
+					Assert.Fail(
+						$"Live scenario cleanup failed: {string.Join(Environment.NewLine, cleanupFailures.Select(exception => exception.Message))}");
+				}
+			}
+
 			if (scenarioCompleted)
 			{
 				sandbox.MarkPassed();
@@ -201,56 +214,45 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 	private static async Task AssertDisassemblyAsync(LiveSandboxSession sandbox, ILiveMcpToolClient instance)
 	{
 		const string allocationName = "disassembly-probe";
-		JsonNode allocated = await SuccessfulCallAsync(instance, "allocate_memory", new Dictionary<string, object?>
-		{
-			["name"] = allocationName,
-			["size"] = 64
-		});
+		JsonNode allocated = await SuccessfulCallAsync(instance, "allocate_memory",
+			new Dictionary<string, object?> { ["name"] = allocationName, ["size"] = 64 });
 		try
 		{
 			string address = allocated["address"]!.GetValue<string>();
-			await SuccessfulCallAsync(instance, "write_memory", new Dictionary<string, object?>
-			{
-				["address"] = address,
-				["dataType"] = "bytes",
-				["value"] = "90 C3"
-			});
-			JsonNode single = await SuccessfulCallAsync(instance, "disassemble", new Dictionary<string, object?> { ["address"] = address });
-			Assert.Equal("nop", single["opcode"]!.GetValue<string>().Trim(), ignoreCase: true);
+			await SuccessfulCallAsync(instance, "write_memory",
+				new Dictionary<string, object?> { ["address"] = address, ["dataType"] = "bytes", ["value"] = "90 C3" });
+			JsonNode single = await SuccessfulCallAsync(instance, "disassemble",
+				new Dictionary<string, object?> { ["address"] = address });
+			Assert.Equal("nop", single["opcode"]!.GetValue<string>().Trim(), true);
 			Assert.Equal(1, single["size"]!.GetValue<int>());
 			Assert.Equal("90", Assert.Single(single["bytes"]!.AsArray())!.GetValue<string>());
 			Assert.False(string.IsNullOrWhiteSpace(single["addressText"]!.GetValue<string>()));
 			Assert.Equal(string.Empty, single["extra"]!.GetValue<string>());
-			JsonNode range = await SuccessfulCallAsync(instance, "disassemble_range", new Dictionary<string, object?> { ["address"] = address, ["count"] = 2 });
+			JsonNode range = await SuccessfulCallAsync(instance, "disassemble_range",
+				new Dictionary<string, object?> { ["address"] = address, ["count"] = 2 });
 			JsonArray instructions = range["instructions"]!.AsArray();
 			Assert.Equal(2, instructions.Count);
-			Assert.Equal("nop", instructions[0]!["opcode"]!.GetValue<string>().Trim(), ignoreCase: true);
-			Assert.Equal("ret", instructions[1]!["opcode"]!.GetValue<string>().Trim(), ignoreCase: true);
+			Assert.Equal("nop", instructions[0]!["opcode"]!.GetValue<string>().Trim(), true);
+			Assert.Equal("ret", instructions[1]!["opcode"]!.GetValue<string>().Trim(), true);
 			Assert.Equal("C3", instructions[1]!["bytes"]!.GetValue<string>());
-			sandbox.Record("disassembly_columns", new
-			{
-				single = single.DeepClone(),
-				range = range.DeepClone()
-			});
+			sandbox.Record("disassembly_columns", new { single = single.DeepClone(), range = range.DeepClone() });
 		}
 		finally
 		{
-			await SuccessfulCallAsync(instance, "free_memory", new Dictionary<string, object?> { ["name"] = allocationName });
+			await SuccessfulCallAsync(instance, "free_memory",
+				new Dictionary<string, object?> { ["name"] = allocationName });
 		}
 	}
 
-	private static async Task AssertScannerIsolationAsync(LiveSandboxSession sandbox, ILiveMcpToolClient instanceA, ILiveMcpToolClient instanceB)
+	private static async Task AssertScannerIsolationAsync(LiveSandboxSession sandbox, ILiveMcpToolClient instanceA,
+		ILiveMcpToolClient instanceB)
 	{
 		await sandbox.ScanUiAsync("A", "prepare");
 		await SuccessfulCallAsync(instanceA, "memory_scan", new Dictionary<string, object?> { ["value"] = "20260927" });
 		await WaitForMainScanAsync(instanceA);
 		JsonNode main = await SuccessfulCallAsync(instanceA, "get_memory_scan_results");
 		string[] visible = await sandbox.ScanUiAsync("A", "snapshot");
-		sandbox.Record("main_scan_first", new
-		{
-			response = main.DeepClone(),
-			ui = visible
-		});
+		sandbox.Record("main_scan_first", new { response = main.DeepClone(), ui = visible });
 		Assert.Equal("main", main["scannerName"]!.GetValue<string>());
 		Assert.Equal("ui", main["mode"]!.GetValue<string>());
 		Assert.Equal(1, main["count"]!.GetValue<int>());
@@ -261,49 +263,60 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 		Assert.Equal("3", visible[4]);
 		Assert.Equal("1", visible[5]);
 
-		JsonNode independentOne = await SuccessfulCallAsync(instanceA, "memory_scan", new Dictionary<string, object?>
-		{
-			["scannerName"] = "independent-one",
-			["valueType"] = "int32",
-			["value"] = "20260927"
-		});
-		JsonNode independentTwo = await SuccessfulCallAsync(instanceA, "memory_scan", new Dictionary<string, object?>
-		{
-			["scannerName"] = "independent-two",
-			["valueType"] = "int32",
-			["value"] = "20260927"
-		});
+		JsonNode independentOne = await SuccessfulCallAsync(instanceA, "memory_scan",
+			new Dictionary<string, object?>
+			{
+				["scannerName"] = "independent-one", ["valueType"] = "int32", ["value"] = "20260927"
+			});
+		JsonNode independentTwo = await SuccessfulCallAsync(instanceA, "memory_scan",
+			new Dictionary<string, object?>
+			{
+				["scannerName"] = "independent-two", ["valueType"] = "int32", ["value"] = "20260927"
+			});
 		Assert.Equal(visible, await sandbox.ScanUiAsync("A", "snapshot"));
 		JsonNode listed = await SuccessfulCallAsync(instanceA, "list_memory_scanners");
 		Assert.Equal(3, listed["scanners"]!.AsArray().Count);
-		foreach ((string name, string mode, JsonNode expected) in new[] { ("main", "ui", main), ("independent-one", "independent", independentOne), ("independent-two", "independent", independentTwo) })
+		foreach ((string name, string mode, JsonNode expected) in new[]
+		         {
+			         ("main", "ui", main), ("independent-one", "independent", independentOne),
+			         ("independent-two", "independent", independentTwo)
+		         })
 		{
-			JsonNode scanner = Assert.Single(listed["scanners"]!.AsArray(), scanner => scanner!["scannerName"]!.GetValue<string>() == name)!;
+			JsonNode scanner = Assert.Single(listed["scanners"]!.AsArray(),
+				scanner => scanner!["scannerName"]!.GetValue<string>() == name)!;
 			Assert.Equal(mode, scanner["mode"]!.GetValue<string>());
 			Assert.Equal("ResultsReady", scanner["state"]!.GetValue<string>());
 			Assert.True(scanner["resultsReady"]!.GetValue<bool>());
 			Assert.Equal("int32", scanner["valueType"]!.GetValue<string>());
 			Assert.Equal(expected["count"]!.GetValue<long>(), scanner["count"]!.GetValue<long>());
-			JsonNode status = await SuccessfulCallAsync(instanceA, "get_memory_scan_status", new Dictionary<string, object?> { ["scannerName"] = name });
+			JsonNode status = await SuccessfulCallAsync(instanceA, "get_memory_scan_status",
+				new Dictionary<string, object?> { ["scannerName"] = name });
 			Assert.True(JsonNode.DeepEquals(scanner, status));
 		}
+
 		Assert.Single((await SuccessfulCallAsync(instanceB, "list_memory_scanners"))["scanners"]!.AsArray());
 
 		await WriteMemoryAsync(instanceA, sandbox.HostA.TargetAddress, 20260932);
-		await SuccessfulCallAsync(instanceA, "next_memory_scan", new Dictionary<string, object?>
-		{
-			["scannerName"] = "independent-one",
-			["value"] = "20260932"
-		});
-		AssertScanContains(await SuccessfulCallAsync(instanceA, "get_memory_scan_results", new Dictionary<string, object?> { ["scannerName"] = "independent-one" }), sandbox.HostA.TargetAddress, "20260932");
+		await SuccessfulCallAsync(instanceA, "next_memory_scan",
+			new Dictionary<string, object?> { ["scannerName"] = "independent-one", ["value"] = "20260932" });
+		AssertScanContains(
+			await SuccessfulCallAsync(instanceA, "get_memory_scan_results",
+				new Dictionary<string, object?> { ["scannerName"] = "independent-one" }), sandbox.HostA.TargetAddress,
+			"20260932");
 		Assert.Equal(visible, await sandbox.ScanUiAsync("A", "snapshot"));
-		await SuccessfulCallAsync(instanceA, "next_memory_scan", new Dictionary<string, object?> { ["value"] = "20260932" });
+		await SuccessfulCallAsync(instanceA, "next_memory_scan",
+			new Dictionary<string, object?> { ["value"] = "20260932" });
 		await WaitForMainScanAsync(instanceA);
-		AssertScanContains(await SuccessfulCallAsync(instanceA, "get_memory_scan_results"), sandbox.HostA.TargetAddress, "20260932");
-		await SuccessfulCallAsync(instanceA, "reset_memory_scan", new Dictionary<string, object?> { ["scannerName"] = "independent-one" });
+		AssertScanContains(await SuccessfulCallAsync(instanceA, "get_memory_scan_results"), sandbox.HostA.TargetAddress,
+			"20260932");
+		await SuccessfulCallAsync(instanceA, "reset_memory_scan",
+			new Dictionary<string, object?> { ["scannerName"] = "independent-one" });
 		Assert.Equal(1, (await SuccessfulCallAsync(instanceA, "get_memory_scan_results"))["count"]!.GetValue<int>());
-		Assert.True((await SuccessfulCallAsync(instanceA, "get_memory_scan_status", new Dictionary<string, object?> { ["scannerName"] = "independent-two" }))["resultsReady"]!.GetValue<bool>());
-		await SuccessfulCallAsync(instanceA, "reset_memory_scan", new Dictionary<string, object?> { ["scannerName"] = "independent-two" });
+		Assert.True((await SuccessfulCallAsync(instanceA, "get_memory_scan_status",
+				new Dictionary<string, object?> { ["scannerName"] = "independent-two" }))["resultsReady"]!
+			.GetValue<bool>());
+		await SuccessfulCallAsync(instanceA, "reset_memory_scan",
+			new Dictionary<string, object?> { ["scannerName"] = "independent-two" });
 
 		Assert.Equal("false", (await sandbox.ScanUiAsync("A", "hide"))[7]);
 		await SuccessfulCallAsync(instanceA, "reset_memory_scan");
@@ -313,21 +326,25 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 		await WriteMemoryAsync(instanceA, sandbox.HostA.TargetAddress, 20260927);
 		await sandbox.ScanUiAsync("A", "manual");
 		await WaitForMainScanAsync(instanceA);
-		AssertScanContains(await SuccessfulCallAsync(instanceA, "get_memory_scan_results"), sandbox.HostA.TargetAddress, "20260927");
+		AssertScanContains(await SuccessfulCallAsync(instanceA, "get_memory_scan_results"), sandbox.HostA.TargetAddress,
+			"20260927");
 		await SuccessfulCallAsync(instanceA, "reset_memory_scan");
-		sandbox.Record("main_and_independent_scanners", new
-		{
-			visibleRows = visible[1],
-			manualScanReadable = true,
-			independentScanners = 2,
-			instanceIsolation = true
-		});
+		sandbox.Record("main_and_independent_scanners",
+			new
+			{
+				visibleRows = visible[1],
+				manualScanReadable = true,
+				independentScanners = 2,
+				instanceIsolation = true
+			});
 	}
 
-	private static void AssertScanContains(JsonNode page, string address, string value) =>
+	private static void AssertScanContains(JsonNode page, string address, string value)
+	{
 		Assert.Contains(page["results"]!.AsArray(), row =>
 			string.Equals(row!["address"]!.GetValue<string>(), address, StringComparison.OrdinalIgnoreCase)
 			&& row["value"]!.GetValue<string>() == value);
+	}
 
 	private static async Task WaitForMainScanAsync(ILiveMcpToolClient client)
 	{
@@ -340,24 +357,27 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 				Assert.Equal("ResultsReady", status["state"]!.GetValue<string>());
 				return;
 			}
+
 			await Task.Delay(50, TestContext.Current.CancellationToken);
-		}
-		while (DateTimeOffset.UtcNow < deadline);
+		} while (DateTimeOffset.UtcNow < deadline);
+
 		Assert.Fail("CE's main scanner did not finish within 15 seconds.");
 	}
 
 	private static void AssertInstance(JsonArray instances, LiveSandboxHost expected)
 	{
-		JsonNode instance = Assert.Single(instances, candidate => candidate!["instanceId"]!.GetValue<string>() == expected.InstanceId)!;
+		JsonNode instance = Assert.Single(instances,
+			candidate => candidate!["instanceId"]!.GetValue<string>() == expected.InstanceId)!;
 		Assert.Equal($"Live Qualification {expected.Name}", instance["name"]!.GetValue<string>());
 		Assert.Equal(expected.ProcessId, instance["processId"]!.GetValue<int>());
 	}
 
-	private static void AssertRuntimeLocation(JsonNode pluginVersion, string bundleCacheDirectory)
+	private static void AssertRuntimeLocation(JsonNode pluginVersion, string pluginPath)
 	{
+		// Cheat Engine loads the staged plugin folder in place: the runtime is the installed plugin assembly itself.
 		string runtimeLocation = pluginVersion["runtimeLocation"]!.GetValue<string>();
-		Assert.True(LiveQualificationOptIn.IsSameOrBelow(runtimeLocation, bundleCacheDirectory));
-		Assert.Equal("CheatEngine.Mcp.Runtime.dll", Path.GetFileName(runtimeLocation));
+		Assert.Equal(Path.GetFullPath(pluginPath), Path.GetFullPath(runtimeLocation), StringComparer.OrdinalIgnoreCase);
+		Assert.Equal("CheatEngine.Mcp.Plugin.dll", Path.GetFileName(runtimeLocation));
 	}
 
 	private static async Task AssertEventuallyInstancesAsync(LiveMcpClient gateway, string remainingInstanceId)
@@ -370,32 +390,37 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			{
 				return;
 			}
+
 			await Task.Delay(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
-		}
-		while (DateTimeOffset.UtcNow < deadline);
+		} while (DateTimeOffset.UtcNow < deadline);
+
 		Assert.Fail("The gateway did not withdraw the stopped instance while retaining the running instance.");
 	}
 
 	private static async Task OpenTargetAsync(ILiveMcpToolClient client, LiveSandboxHost host)
 	{
-		JsonNode opened = await SuccessfulCallAsync(client, "open_process", new Dictionary<string, object?>
-		{
-			["process"] = host.TargetProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture)
-		});
+		JsonNode opened = await SuccessfulCallAsync(client, "open_process",
+			new Dictionary<string, object?>
+			{
+				["process"] = host.TargetProcessId.ToString(CultureInfo.InvariantCulture)
+			});
 		Assert.Equal(host.TargetProcessId, opened["processId"]!.GetValue<int>());
 	}
 
 	private static async Task AssertSpeedAsync(ILiveMcpToolClient client, double expected)
 	{
-		JsonNode configured = await SuccessfulCallAsync(client, "set_speedhack_speed", new Dictionary<string, object?> { ["speed"] = expected });
-		Assert.Equal(expected, configured["result"]!["speed"]!.GetValue<double>(), precision: 4);
+		JsonNode configured = await SuccessfulCallAsync(client, "set_speedhack_speed",
+			new Dictionary<string, object?> { ["speed"] = expected });
+		Assert.Equal(expected, configured["result"]!["speed"]!.GetValue<double>(), 4);
 		JsonNode observed = await SuccessfulCallAsync(client, "get_speedhack_speed");
-		Assert.Equal(expected, observed["result"]!["speed"]!.GetValue<double>(), precision: 4);
+		Assert.Equal(expected, observed["result"]!["speed"]!.GetValue<double>(), 4);
 	}
 
-	private static async Task<JsonNode> SuccessfulCallAsync(ILiveMcpToolClient client, string name, IReadOnlyDictionary<string, object?>? arguments = null)
+	private static async Task<JsonNode> SuccessfulCallAsync(ILiveMcpToolClient client, string name,
+		IReadOnlyDictionary<string, object?>? arguments = null)
 	{
-		JsonNode? result = await client.CallToolAsync(name, arguments).WaitAsync(McpTimeout, TestContext.Current.CancellationToken);
+		JsonNode? result = await client.CallToolAsync(name, arguments)
+			.WaitAsync(McpTimeout, TestContext.Current.CancellationToken);
 		Assert.NotNull(result);
 		Assert.True(result["success"]?.GetValue<bool>() == true, $"Tool '{name}' failed: {result.ToJsonString()}");
 		return result;
@@ -403,25 +428,33 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 
 	private static async Task<JsonNode> GatewayCallAsync(LiveMcpClient client, string name)
 	{
-		JsonNode? result = await client.CallToolAsync(name).WaitAsync(McpTimeout, TestContext.Current.CancellationToken);
+		JsonNode? result =
+			await client.CallToolAsync(name).WaitAsync(McpTimeout, TestContext.Current.CancellationToken);
 		Assert.NotNull(result);
 		return result;
 	}
 
-	private static Task<JsonNode> ReadMemoryAsync(ILiveMcpToolClient client, string address) => SuccessfulCallAsync(client, "read_memory", new Dictionary<string, object?>
+	private static Task<JsonNode> ReadMemoryAsync(ILiveMcpToolClient client, string address)
 	{
-		["address"] = address,
-		["dataType"] = "int32"
-	});
+		return SuccessfulCallAsync(client, "read_memory",
+			new Dictionary<string, object?> { ["address"] = address, ["dataType"] = "int32" });
+	}
 
-	private static Task<JsonNode> WriteMemoryAsync(ILiveMcpToolClient client, string address, int value) => SuccessfulCallAsync(client, "write_memory", new Dictionary<string, object?>
+	private static Task<JsonNode> WriteMemoryAsync(ILiveMcpToolClient client, string address, int value)
 	{
-		["address"] = address,
-		["dataType"] = "int32",
-		["value"] = value.ToString(System.Globalization.CultureInfo.InvariantCulture)
-	});
+		return SuccessfulCallAsync(client, "write_memory",
+			new Dictionary<string, object?>
+			{
+				["address"] = address,
+				["dataType"] = "int32",
+				["value"] = value.ToString(CultureInfo.InvariantCulture)
+			});
+	}
 
-	private static void AssertMemoryValue(JsonNode result, int expected) => Assert.Equal(expected, result["value"]!.GetValue<int>());
+	private static void AssertMemoryValue(JsonNode result, int expected)
+	{
+		Assert.Equal(expected, result["value"]!.GetValue<int>());
+	}
 
 	private static async Task AssertEventuallyMemoryValueAsync(ILiveMcpToolClient client, string address, int expected)
 	{
@@ -435,16 +468,19 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			{
 				return;
 			}
+
 			await Task.Delay(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
-		}
-		while (DateTimeOffset.UtcNow < deadline);
+		} while (DateTimeOffset.UtcNow < deadline);
+
 		Assert.Fail($"The active memory record did not restore {expected}; last observed value was {observed}.");
 	}
 
 	private static async Task CleanupMemoryRecordAsync(ILiveMcpToolClient client, int recordId)
 	{
-		await SuccessfulCallAsync(client, "set_memory_record_active", new Dictionary<string, object?> { ["id"] = recordId, ["active"] = false });
-		await SuccessfulCallAsync(client, "delete_memory_record", new Dictionary<string, object?> { ["id"] = recordId });
+		await SuccessfulCallAsync(client, "set_memory_record_active",
+			new Dictionary<string, object?> { ["id"] = recordId, ["active"] = false });
+		await SuccessfulCallAsync(client, "delete_memory_record",
+			new Dictionary<string, object?> { ["id"] = recordId });
 	}
 
 	private static async Task RestoreSpeedAsync(ILiveMcpToolClient client)

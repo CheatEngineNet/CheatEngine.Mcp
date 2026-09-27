@@ -25,9 +25,7 @@ internal static class Program
 			string address = $"0x{unchecked((ulong) allocation.ToInt64()):X}";
 			string manifest = JsonSerializer.Serialize(new
 			{
-				processId = Environment.ProcessId,
-				address,
-				initialValue = InitialValue
+				processId = Environment.ProcessId, address, initialValue = InitialValue
 			});
 			File.WriteAllText(manifestPath + ".tmp", manifest);
 			File.Move(manifestPath + ".tmp", manifestPath);

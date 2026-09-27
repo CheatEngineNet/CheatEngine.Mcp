@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!--
+      The Cheat Engine plugin: the Client plugin profile (CECLIENT001-017, and CECLIENT010-016 for a staged deployment
+      through CheatEnginePluginOutputPath) plus the repository guards, for which McpPluginProject marks this project.
+    -->
+    <CheatEngineClientPluginProject>true</CheatEngineClientPluginProject>
+    <McpPluginProject>true</McpPluginProject>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
+    <!-- The HTTP adapter deliberately opts into the Client's experimental typed APIs. -->
+    <NoWarn>$(NoWarn);CECLIENT5001;CECLIENT5002;CECLIENT5003;CECLIENT5004</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+    <PackageReference Include="CheatEngine.Client"/>
+    <!-- Direct SDK build assets generate the entry point and copy the native Lua bridge. -->
+    <PackageReference Include="CheatEngine.SDK"/>
+    <PackageReference Include="ModelContextProtocol.AspNetCore"/>
+    <PackageReference Include="NLog"/>
+    <PackageReference Include="NLog.Extensions.Logging"/>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../libs/CheatEngine.Mcp.Core/CheatEngine.Mcp.Core.csproj"/>
+    <ProjectReference Include="../CheatEngine.Mcp.Hosting/CheatEngine.Mcp.Hosting.csproj"/>
+    <ProjectReference Include="../CheatEngine.Mcp.Prompts/CheatEngine.Mcp.Prompts.csproj"/>
+    <ProjectReference Include="../CheatEngine.Mcp.Resources/CheatEngine.Mcp.Resources.csproj"/>
+    <ProjectReference Include="../CheatEngine.Mcp.Tools/CheatEngine.Mcp.Tools.csproj"/>
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="CheatEngine.Mcp.Core.Composition"/>
+    <Using Include="CheatEngine.Mcp.Core.Lua"/>
+    <Using Include="CheatEngine.Mcp.Core.Runtime"/>
+    <InternalsVisibleTo Include="CheatEngine.Mcp.Tests"/>
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/>
+    <None Include="../../README.md;../../LICENSE" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/>
+    <None Include="../../licenses/CheatEngine.Client.LICENSE" Link="licenses/CheatEngine.Client.LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/>
+  </ItemGroup>
+</Project>

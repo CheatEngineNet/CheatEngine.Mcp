@@ -326,7 +326,7 @@ dotnet_diagnostic.IDE0005.severity = error
 # never ship without an explicit API baseline entry.
 dotnet_public_api_analyzer.require_api_files = true
 
-[src/**.cs]
+[srcs/**.cs]
 # This application uses MCP parameter metadata instead of publishing an XML API reference.
 dotnet_diagnostic.IDE0005.severity = suggestion
 
