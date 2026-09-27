@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Shared kernel for every MCP primitive project: Client dispatch and result shaping, target-resource leases, the fixed
+    Lua runtime, MCP registration conventions and the runtime identity. It owns the CheatEngine.Client package; it never
+    references CheatEngine.SDK directly (CEMCP003), ASP.NET Core, logging providers or concrete primitives.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="CheatEngine.Client"/>
+    <PackageReference Include="ModelContextProtocol"/>
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="CheatEngine.Mcp.Tests"/>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The Cheat Engine MCP tools. The only public composition entry point is ICheatEngineMcpBuilder.AddTools(); everything
+    else these tools share (Client dispatch, target leases, the fixed Lua runtime) comes from CheatEngine.Mcp.Core.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- The tools deliberately use the Client's experimental value-scan, allocation, instruction and Auto Assembler APIs. -->
+    <NoWarn>$(NoWarn);CECLIENT5001;CECLIENT5002;CECLIENT5003;CECLIENT5004</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../libs/CheatEngine.Mcp.Core/CheatEngine.Mcp.Core.csproj"/>
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="CheatEngine.Mcp.Core.Composition"/>
+    <Using Include="CheatEngine.Mcp.Core.Execution"/>
+    <Using Include="CheatEngine.Mcp.Core.Lua"/>
+    <Using Include="CheatEngine.Mcp.Core.Runtime"/>
+    <Using Include="CheatEngine.Mcp.Core.Targets"/>
+    <InternalsVisibleTo Include="CheatEngine.Mcp.Tests"/>
+  </ItemGroup>
+</Project>

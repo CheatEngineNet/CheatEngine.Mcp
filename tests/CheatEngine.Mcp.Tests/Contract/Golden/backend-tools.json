@@ -1,0 +1,2823 @@
+[
+  {
+    "name": "add_code_reference",
+    "description": "Add a persistent reference to Cheat Engine\u0027s code-dissection data.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "description": "Source instruction address or symbol.",
+          "type": "string"
+        },
+        "destination": {
+          "description": "Referenced address or symbol.",
+          "type": "string"
+        },
+        "type": {
+          "description": "call, jump, conditional, or memory.",
+          "type": "string"
+        },
+        "isString": {
+          "description": "For memory references, record the target as a string.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "source",
+        "destination",
+        "type"
+      ]
+    }
+  },
+  {
+    "name": "add_memory_record",
+    "description": "Add a typed top-level memory record to the Cheat Engine address list.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "description": "Display description.",
+          "type": "string"
+        },
+        "address": {
+          "description": "Cheat Engine address expression, such as game.exe\u002B10.",
+          "type": "string"
+        },
+        "value": {
+          "description": "Initial Cheat Engine value text.",
+          "type": "string"
+        },
+        "variableType": {
+          "description": "Cheat Engine variable type.",
+          "type": "string",
+          "enum": [
+            "Byte",
+            "Word",
+            "Dword",
+            "Qword",
+            "Single",
+            "Double",
+            "String",
+            "WideString",
+            "ByteArray",
+            "Binary",
+            "All",
+            "AutoAssembler",
+            "Pointer",
+            "Custom",
+            "Grouped"
+          ],
+          "default": "Dword"
+        }
+      },
+      "required": [
+        "description",
+        "address",
+        "value"
+      ]
+    }
+  },
+  {
+    "name": "add_structure_element",
+    "description": "Append one Structure Dissect element with validated primitive fields.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "structureName": {
+          "description": "Case-sensitive structure name. ",
+          "type": "string"
+        },
+        "offset": {
+          "description": "Byte offset from the structure base. ",
+          "type": "integer"
+        },
+        "name": {
+          "description": "Element display name (up to 256 characters). ",
+          "type": "string"
+        },
+        "variableType": {
+          "description": "Cheat Engine variable-type integer. ",
+          "type": "integer"
+        },
+        "byteSize": {
+          "description": "Optional byte size for strings or byte arrays (0-1048576). ",
+          "type": "integer",
+          "default": 0
+        },
+        "childClassName": {
+          "description": "Optional child class-name hint (up to 256 characters). ",
+          "type": "string",
+          "default": null
+        }
+      },
+      "required": [
+        "structureName",
+        "offset",
+        "name",
+        "variableType"
+      ]
+    }
+  },
+  {
+    "name": "allocate_memory",
+    "description": "Allocate target memory owned by a named Client lease.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Caller-owned allocation name.",
+          "type": "string"
+        },
+        "size": {
+          "description": "Requested allocation size in bytes (1-16777216).",
+          "type": "integer"
+        },
+        "preferredAddress": {
+          "description": "Optional preferred target address.",
+          "type": "string",
+          "default": null
+        }
+      },
+      "required": [
+        "name",
+        "size"
+      ]
+    }
+  },
+  {
+    "name": "analyze_code_range",
+    "description": "Run Cheat Engine\u0027s code dissector on one bounded target-memory range.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "Range base address or symbol expression. ",
+          "type": "string"
+        },
+        "size": {
+          "description": "Range size in bytes (1-1048576). ",
+          "type": "integer",
+          "default": 4096
+        }
+      },
+      "required": [
+        "address"
+      ]
+    }
+  },
+  {
+    "name": "aob_scan",
+    "description": "Run a bounded AOB scan using CheatEngine.Client.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "pattern": {
+          "description": "Hexadecimal bytes and ?? wildcard tokens.",
+          "type": "string"
+        },
+        "maximumResults": {
+          "description": "Maximum copied matches (1-65535).",
+          "type": "integer",
+          "default": 1000
+        },
+        "moduleName": {
+          "description": "Optional module name that bounds the scan.",
+          "type": "string",
+          "default": null
+        },
+        "startAddress": {
+          "description": "Optional inclusive first match address; requires endAddress.",
+          "type": "string",
+          "default": null
+        },
+        "endAddress": {
+          "description": "Optional inclusive last match address; requires startAddress.",
+          "type": "string",
+          "default": null
+        }
+      },
+      "required": [
+        "pattern"
+      ]
+    }
+  },
+  {
+    "name": "aob_scan_unique",
+    "description": "Find at most one AOB match; truncated results are not proof of uniqueness.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "pattern": {
+          "description": "Hexadecimal bytes and ?? wildcard tokens.",
+          "type": "string"
+        },
+        "moduleName": {
+          "description": "Optional module name that bounds the scan.",
+          "type": "string",
+          "default": null
+        }
+      },
+      "required": [
+        "pattern"
+      ]
+    }
+  },
+  {
+    "name": "assemble",
+    "description": "Assemble one target instruction into bytes through the Client instruction capability.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instruction": {
+          "description": "Assembly source for exactly one instruction.",
+          "type": "string"
+        },
+        "address": {
+          "description": "Target origin as hexadecimal; required for relative operands.",
+          "type": "string"
+        },
+        "preference": {
+          "description": "0=None, 1=Short, 2=Long, 3=Far.",
+          "type": "string",
+          "enum": [
+            "None",
+            "Short",
+            "Long",
+            "Far"
+          ],
+          "default": "None"
+        },
+        "skipRangeCheck": {
+          "description": "Skip relative-branch reachability checks.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "instruction",
+        "address"
+      ]
+    }
+  },
+  {
+    "name": "auto_assemble",
+    "description": "Apply an Auto Assembler patch and retain its Client lease, or release a previously returned patch ID.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "script": {
+          "description": "Complete Auto Assembler source, required when applying a patch.",
+          "type": "string",
+          "default": null
+        },
+        "disableId": {
+          "description": "Patch ID returned by a prior enable call. Supplying it releases that Client-owned patch.",
+          "type": "string",
+          "default": null
+        },
+        "name": {
+          "description": "Optional diagnostic name for a new patch.",
+          "type": "string",
+          "default": null
+        }
+      }
+    }
+  },
+  {
+    "name": "auto_assemble_check",
+    "description": "Check an Auto Assembler [ENABLE] section without applying a patch.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "script": {
+          "description": "Auto Assembler source to check.",
+          "type": "string"
+        },
+        "name": {
+          "description": "Optional diagnostic name for the script.",
+          "type": "string",
+          "default": null
+        }
+      },
+      "required": [
+        "script"
+      ]
+    }
+  },
+  {
+    "name": "autoguess_structure",
+    "description": "Ask Cheat Engine to infer Structure Dissect fields from a bounded target range.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "structureName": {
+          "description": "Case-sensitive structure name. ",
+          "type": "string"
+        },
+        "baseAddress": {
+          "description": "Target base address or symbol expression. ",
+          "type": "string"
+        },
+        "offset": {
+          "description": "Starting byte offset. ",
+          "type": "integer",
+          "default": 0
+        },
+        "size": {
+          "description": "Maximum bytes to infer (1-1048576). ",
+          "type": "integer",
+          "default": 4096
+        }
+      },
+      "required": [
+        "structureName",
+        "baseAddress"
+      ]
+    }
+  },
+  {
+    "name": "clear_code_analysis",
+    "description": "Clear Cheat Engine\u0027s current code-dissection data and references.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "compare_memory",
+    "description": "Compare two bounded memory ranges through Cheat Engine Lua.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "firstAddress": {
+          "description": "First address expression or number.",
+          "type": "string"
+        },
+        "secondAddress": {
+          "description": "Second address expression or number.",
+          "type": "string"
+        },
+        "size": {
+          "description": "Positive byte count, up to 1048576.",
+          "type": "integer"
+        },
+        "method": {
+          "description": "0 target-to-target, 1 target-to-CE, or 2 CE-to-CE.",
+          "type": "integer",
+          "default": 0
+        }
+      },
+      "required": [
+        "firstAddress",
+        "secondAddress",
+        "size"
+      ]
+    }
+  },
+  {
+    "name": "convert_string",
+    "description": "Convert text with a managed MD5 digest or explicit UTF-8 and ANSI byte round trips.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "input": {
+          "description": "Input text.",
+          "type": "string"
+        },
+        "conversionType": {
+          "description": "md5, ansitoutf8, or utf8toansi.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "input",
+        "conversionType"
+      ]
+    }
+  },
+  {
+    "name": "copy_memory",
+    "description": "Copy a bounded memory range using Cheat Engine\u0027s target or local copy route.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sourceAddress": {
+          "description": "Source address expression or number.",
+          "type": "string"
+        },
+        "size": {
+          "description": "Positive byte count, up to 1048576.",
+          "type": "integer"
+        },
+        "destinationAddress": {
+          "description": "Destination address expression or number. Allocate a Client-owned destination first when needed.",
+          "type": "string"
+        },
+        "method": {
+          "description": "0 target-to-target, 1 target-to-CE, 2 CE-to-target, or 3 CE-to-CE.",
+          "type": "integer",
+          "default": 0
+        }
+      },
+      "required": [
+        "sourceAddress",
+        "size",
+        "destinationAddress"
+      ]
+    }
+  },
+  {
+    "name": "create_process",
+    "description": "Launch and open a process through Cheat Engine. This starts an external executable.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "description": "Executable path, up to 4096 characters.",
+          "type": "string"
+        },
+        "parameters": {
+          "description": "Optional command-line parameters.",
+          "type": "string",
+          "default": null
+        },
+        "debug": {
+          "description": "Create under Cheat Engine\u0027s debugger.",
+          "type": "boolean",
+          "default": false
+        },
+        "breakOnEntryPoint": {
+          "description": "Break at entry point; requires debug=true.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "create_structure",
+    "description": "Create a persistent global Structure Dissect definition. Delete it explicitly with delete_structure.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Unique structure name (1-256 characters). ",
+          "type": "string"
+        },
+        "isInternal": {
+          "description": "Hide the definition from normal Structure Dissect selection. ",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "name"
+      ]
+    }
+  },
+  {
+    "name": "dbk_control_registers",
+    "description": "Read copied CR0, CR3, and CR4 values through DBK.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "dbk_physical_address",
+    "description": "Resolve a target virtual address to its physical address through DBK.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "Target virtual address expression or number.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "address"
+      ]
+    }
+  },
+  {
+    "name": "dbk_status",
+    "description": "Report whether DBK is already initialized; this query does not initialize it.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "dbvm_cr4",
+    "description": "Read DBVM\u0027s real CR4 value.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "dbvm_initialize",
+    "description": "Initialize DBVM. Offloading the operating system is advanced and can destabilize the host.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "offloadOperatingSystem": {
+          "description": "Offload the operating system when possible.",
+          "type": "boolean",
+          "default": false
+        },
+        "reason": {
+          "description": "Short diagnostic reason, up to 256 characters.",
+          "type": "string",
+          "default": null
+        }
+      }
+    }
+  },
+  {
+    "name": "dbvm_read_physical",
+    "description": "Read a bounded physical-memory range through DBVM.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "Physical address expression or number.",
+          "type": "string"
+        },
+        "size": {
+          "description": "Byte count from 1 through 4096.",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "address",
+        "size"
+      ]
+    }
+  },
+  {
+    "name": "dbvm_status",
+    "description": "Report whether DBVM is already initialized; this query does not initialize it.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "dbvm_watch",
+    "description": "Capture a DBVM watch for up to five seconds and disable it before returning up to 1024 copied events.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "access": {
+          "description": "read, write, or execute.",
+          "type": "string"
+        },
+        "address": {
+          "description": "Physical address expression or number.",
+          "type": "string"
+        },
+        "byteSize": {
+          "description": "Watched byte size (1-4096).",
+          "type": "integer",
+          "default": 1
+        },
+        "options": {
+          "description": "DBVM options bit field, bits 0-3 only.",
+          "type": "integer",
+          "default": 0
+        },
+        "internalEntryCount": {
+          "description": "Internal log entries from 1 through 4096.",
+          "type": "integer",
+          "default": 1024
+        },
+        "durationMilliseconds": {
+          "description": "Capture duration (1-5000 milliseconds). Blocks Cheat Engine during capture.",
+          "type": "integer",
+          "default": 100
+        }
+      },
+      "required": [
+        "access",
+        "address"
+      ]
+    }
+  },
+  {
+    "name": "dbvm_watch_log",
+    "description": "Retrieve a bounded copied DBVM watch log.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "DBVM watch identifier.",
+          "type": "integer"
+        },
+        "maximumResults": {
+          "description": "Maximum events from 1 through 1024.",
+          "type": "integer",
+          "default": 256
+        }
+      },
+      "required": [
+        "id"
+      ]
+    }
+  },
+  {
+    "name": "dbvm_watch_stop",
+    "description": "Disable a DBVM watch by identifier.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Non-negative DBVM watch identifier.",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    }
+  },
+  {
+    "name": "dbvm_write_physical",
+    "description": "Write a bounded hexadecimal byte sequence to physical memory through DBVM.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "Physical address expression or number.",
+          "type": "string"
+        },
+        "hexadecimalBytes": {
+          "description": "Whitespace- or comma-separated hexadecimal bytes.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "address",
+        "hexadecimalBytes"
+      ]
+    }
+  },
+  {
+    "name": "debugger_add_breakpoint",
+    "description": "Create an execute, access, or write breakpoint. It persists until removed or debugger detachment.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "Target address expression or number.",
+          "type": "string"
+        },
+        "size": {
+          "description": "Watch size for access or write: 1, 2, 4, or 8.",
+          "type": "integer",
+          "default": 1
+        },
+        "trigger": {
+          "description": "execute, access, or write.",
+          "type": "string",
+          "default": "execute"
+        }
+      },
+      "required": [
+        "address"
+      ]
+    }
+  },
+  {
+    "name": "debugger_break_thread",
+    "description": "Request that Cheat Engine break a target thread; stopping can be asynchronous.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "threadId": {
+          "description": "Target thread identifier.",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "threadId"
+      ]
+    }
+  },
+  {
+    "name": "debugger_breakpoints",
+    "description": "Return a bounded copied list of breakpoint addresses.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "maximumResults": {
+          "description": "Maximum entries from 1 through 1024.",
+          "type": "integer",
+          "default": 256
+        }
+      }
+    }
+  },
+  {
+    "name": "debugger_context",
+    "description": "Read copied current registers; the debugger must be broken for meaningful values.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "includeExtraRegisters": {
+          "description": "Include floating-point and XMM registers.",
+          "type": "boolean",
+          "default": false
+        }
+      }
+    }
+  },
+  {
+    "name": "debugger_continue",
+    "description": "Continue, step into, or step over from the current broken context.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "description": "run, stepInto, or stepOver.",
+          "type": "string",
+          "default": "run"
+        }
+      }
+    }
+  },
+  {
+    "name": "debugger_detach",
+    "description": "Unpause and detach the debugger while preserving the current target selection.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "debugger_ignore_thread",
+    "description": "Add or remove a target thread from Cheat Engine\u0027s breakpoint-ignore list.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "threadId": {
+          "description": "Target thread identifier.",
+          "type": "integer"
+        },
+        "ignore": {
+          "description": "True adds; false removes.",
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "required": [
+        "threadId"
+      ]
+    }
+  },
+  {
+    "name": "debugger_poll_capture",
+    "description": "Read buffered breakpoint hits in FIFO order without waiting; clear removes only the returned hits.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "captureId": {
+          "description": "Capture identifier returned by debugger_start_capture.",
+          "type": "string"
+        },
+        "maximumHits": {
+          "description": "Maximum copied hits, 1-1024.",
+          "type": "integer",
+          "default": 256
+        },
+        "clear": {
+          "description": "Remove the returned hits from the buffer.",
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "required": [
+        "captureId"
+      ]
+    }
+  },
+  {
+    "name": "debugger_poll_step_trace",
+    "description": "Copy collected trace contexts without waiting or consuming them.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "traceId": {
+          "description": "Identifier returned by debugger_start_step_trace.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "traceId"
+      ]
+    }
+  },
+  {
+    "name": "debugger_remove_breakpoint",
+    "description": "Remove the breakpoint containing the supplied address.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "Breakpoint address expression or number.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "address"
+      ]
+    }
+  },
+  {
+    "name": "debugger_set_register",
+    "description": "Set one general-purpose register in the currently broken debugger context, then write the context back before continuation.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "register": {
+          "description": "Register name: EAX through EIP, RAX through R15, RIP, RSP, RBP, or EFLAGS.",
+          "type": "string"
+        },
+        "value": {
+          "description": "Integer value to write.",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "register",
+        "value"
+      ]
+    }
+  },
+  {
+    "name": "debugger_start",
+    "description": "Attach the selected debugger interface. A repeated request is idempotent. Interface changes require explicit detach; targets previously using VEH must restart before reattachment.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "debuggerInterface": {
+          "description": "0 default, 1 Windows, 2 VEH, or 3 kernel.",
+          "type": "integer",
+          "default": 0
+        }
+      }
+    }
+  },
+  {
+    "name": "debugger_start_capture",
+    "description": "Find instructions accessing or writing an address using a pollable breakpoint capture. Hits contain trap IP, thread ID and registers. Automatically expires; poll results within 30 seconds of expiry.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "Target address expression or number.",
+          "type": "string"
+        },
+        "trigger": {
+          "description": "execute, access, or write.",
+          "type": "string",
+          "default": "write"
+        },
+        "size": {
+          "description": "Aligned data-watch size: 1, 2, 4, or 8.",
+          "type": "integer",
+          "default": 4
+        },
+        "maximumHits": {
+          "description": "Maximum buffered hits, 1-1024; excess hits are counted as dropped.",
+          "type": "integer",
+          "default": 256
+        },
+        "lifetimeSeconds": {
+          "description": "Capture lifetime in seconds, 1-300.",
+          "type": "integer",
+          "default": 60
+        }
+      },
+      "required": [
+        "address"
+      ]
+    }
+  },
+  {
+    "name": "debugger_start_step_trace",
+    "description": "Break at an address and single-step one thread for a bounded number of contexts, then leave it stopped. Requires no existing breakpoints or global breakpoint hook. Results expire 30 seconds after completion or timeout.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "Entry instruction address expression.",
+          "type": "string"
+        },
+        "maximumSteps": {
+          "description": "Maximum contexts including the entry instruction, 1-256.",
+          "type": "integer",
+          "default": 32
+        },
+        "lifetimeSeconds": {
+          "description": "Maximum trace lifetime in seconds, 1-60.",
+          "type": "integer",
+          "default": 30
+        }
+      },
+      "required": [
+        "address"
+      ]
+    }
+  },
+  {
+    "name": "debugger_status",
+    "description": "Read copied debugger state and active interface.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "debugger_stop_capture",
+    "description": "Remove the owned capture breakpoint, timer, and results. Cleanup failures retain the ID for retry.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "captureId": {
+          "description": "Capture identifier returned by debugger_start_capture.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "captureId"
+      ]
+    }
+  },
+  {
+    "name": "debugger_stop_step_trace",
+    "description": "Remove the owned trace breakpoint, hook, timer and results. Does not resume a stopped thread; cleanup failures retain the ID for retry.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "traceId": {
+          "description": "Identifier returned by debugger_start_step_trace.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "traceId"
+      ]
+    }
+  },
+  {
+    "name": "delete_code_reference",
+    "description": "Remove one source-to-destination code reference.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "description": "Source instruction address or symbol.",
+          "type": "string"
+        },
+        "destination": {
+          "description": "Referenced address or symbol.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "destination"
+      ]
+    }
+  },
+  {
+    "name": "delete_memory_record",
+    "description": "Delete one memory record by Client-issued record ID.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Client-issued memory-record ID.",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    }
+  },
+  {
+    "name": "delete_pointer_map",
+    "description": "Delete an MCP pointer snapshot. Existing copied scan paths remain usable.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "mapName": {
+          "description": "Existing snapshot name.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "mapName"
+      ]
+    }
+  },
+  {
+    "name": "delete_structure",
+    "description": "Remove a persistent global Structure Dissect definition by name.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Case-sensitive structure name (1-256 characters). ",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    }
+  },
+  {
+    "name": "disassemble",
+    "description": "Disassemble one instruction or obtain its exact length at a target address.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "Target address as hexadecimal.",
+          "type": "string"
+        },
+        "requestType": {
+          "description": "disassemble (default) or get-instruction-size.",
+          "type": "string",
+          "default": null
+        }
+      },
+      "required": [
+        "address"
+      ]
+    }
+  },
+  {
+    "name": "disassemble_bytes",
+    "description": "Disassemble a bounded hexadecimal byte sequence without reading target memory.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "hexadecimalBytes": {
+          "description": "Hexadecimal bytes, up to 1 MiB of text. ",
+          "type": "string"
+        },
+        "address": {
+          "description": "Optional target origin expression for relative operands. ",
+          "type": "string",
+          "default": null
+        }
+      },
+      "required": [
+        "hexadecimalBytes"
+      ]
+    }
+  },
+  {
+    "name": "disassemble_range",
+    "description": "Disassemble a bounded sequence of target instructions using the Client\u0027s typed assembly API.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "Start address or symbol expression.",
+          "type": "string"
+        },
+        "count": {
+          "description": "Instruction count (1-1024).",
+          "type": "integer",
+          "default": 20
+        }
+      },
+      "required": [
+        "address"
+      ]
+    }
+  },
+  {
+    "name": "dump_memory",
+    "description": "Write a bounded target-memory range to an explicit file through a temporary Cheat Engine memory stream.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "filename": {
+          "description": "Destination filename, up to 4096 characters.",
+          "type": "string"
+        },
+        "address": {
+          "description": "Target address expression or number.",
+          "type": "string"
+        },
+        "size": {
+          "description": "Positive byte count, up to 1048576.",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "filename",
+        "address",
+        "size"
+      ]
+    }
+  },
+  {
+    "name": "enum_memory_regions",
+    "description": "Copy a bounded target memory-region map.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "maximumResults": {
+          "description": "Maximum regions to copy (1-16384).",
+          "type": "integer",
+          "default": 4096
+        }
+      }
+    }
+  },
+  {
+    "name": "enum_module_sections",
+    "description": "Copy a bounded section list for one target module through CheatEngine.Client.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "module": {
+          "description": "Module name, up to 256 characters.",
+          "type": "string"
+        },
+        "maximumResults": {
+          "description": "Maximum sections to copy (1-4096).",
+          "type": "integer",
+          "default": 1024
+        }
+      },
+      "required": [
+        "module"
+      ]
+    }
+  },
+  {
+    "name": "enum_modules",
+    "description": "Copy a bounded module list from the selected target.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "maximumResults": {
+          "description": "Maximum modules to copy (1-4096).",
+          "type": "integer",
+          "default": 1024
+        }
+      }
+    }
+  },
+  {
+    "name": "enum_registered_symbols",
+    "description": "List symbols currently owned by this MCP server.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "execute_local_code",
+    "description": "Execute a one-parameter stdcall function inside Cheat Engine and return its copied result.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "Cheat Engine local function address expression or number.",
+          "type": "string"
+        },
+        "parameter": {
+          "description": "Integer parameter.",
+          "type": "integer",
+          "default": 0
+        }
+      },
+      "required": [
+        "address"
+      ]
+    }
+  },
+  {
+    "name": "execute_lua",
+    "description": "Execute trusted Lua through the Client capability, enabled by default. Prefer typed MCP tools whenever possible.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "script": {
+          "description": "Trusted Lua source to execute.",
+          "type": "string"
+        },
+        "chunkName": {
+          "description": "Optional non-empty chunk name for Lua diagnostics.",
+          "type": "string",
+          "default": null
+        }
+      },
+      "required": [
+        "script"
+      ]
+    }
+  },
+  {
+    "name": "execute_remote_code",
+    "description": "Execute a one-parameter stdcall function in the selected target and return its copied result.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "Target function address expression or number.",
+          "type": "string"
+        },
+        "timeoutMilliseconds": {
+          "description": "Timeout in milliseconds, 1 through 300000. The call waits for completion within the supplied timeout.",
+          "type": "integer",
+          "default": 30000
+        },
+        "parameter": {
+          "description": "Integer parameter.",
+          "type": "integer",
+          "default": 0
+        }
+      },
+      "required": [
+        "address"
+      ]
+    }
+  },
+  {
+    "name": "fill_structure_from_dotnet",
+    "description": "Fill an existing Structure Dissect definition using the layout of a target .NET object.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "structureName": {
+          "description": "Case-sensitive structure name.",
+          "type": "string"
+        },
+        "address": {
+          "description": "Target .NET object address or symbol.",
+          "type": "string"
+        },
+        "changeName": {
+          "description": "Rename the structure to the .NET class name.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "structureName",
+        "address"
+      ]
+    }
+  },
+  {
+    "name": "find_memory_records_by_description",
+    "description": "Find up to 1024 current address-list records matching an exact description.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "description": "Exact record description, up to 256 characters. ",
+          "type": "string"
+        },
+        "maximumResults": {
+          "description": "Maximum records to return (1-1024). ",
+          "type": "integer",
+          "default": 256
+        }
+      },
+      "required": [
+        "description"
+      ]
+    }
+  },
+  {
+    "name": "free_memory",
+    "description": "Release a named target-memory allocation lease.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "The allocation name returned by allocate_memory.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    }
+  },
+  {
+    "name": "full_access_memory",
+    "description": "Make a bounded target range writable and executable through Cheat Engine Lua.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "Target address expression or number.",
+          "type": "string"
+        },
+        "size": {
+          "description": "Positive range size in bytes, up to 1048576.",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "address",
+        "size"
+      ]
+    }
+  },
+  {
+    "name": "generate_api_hook_script",
+    "description": "Generate a Cheat Engine Auto Assembler API-hook script without applying it.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "Hook address expression.",
+          "type": "string"
+        },
+        "jumpTarget": {
+          "description": "Jump target expression.",
+          "type": "string"
+        },
+        "newCallAddress": {
+          "description": "Optional symbol for the new call address.",
+          "type": "string",
+          "default": null
+        },
+        "extension": {
+          "description": "Optional architecture extension.",
+          "type": "string",
+          "default": null
+        },
+        "targetSelf": {
+          "description": "Generate for Cheat Engine itself.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "address",
+        "jumpTarget"
+      ]
+    }
+  },
+  {
+    "name": "generate_pointer_map",
+    "description": "Capture a bounded pointer snapshot with Client memory APIs. Maps live until deleted or plugin disable; they are not CE .scandata files. Inspect incomplete before relying on absence.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "mapName": {
+          "description": "Unique snapshot name, 1-128 characters.",
+          "type": "string"
+        },
+        "startAddress": {
+          "description": "Optional first address expression to capture; requires endAddress.",
+          "type": "string",
+          "default": null
+        },
+        "endAddress": {
+          "description": "Optional inclusive last address expression; requires startAddress.",
+          "type": "string",
+          "default": null
+        },
+        "maximumBytes": {
+          "description": "Maximum attempted readable bytes, 1-67108864; default 16 MiB.",
+          "type": "integer",
+          "default": 16777216
+        },
+        "maximumPointers": {
+          "description": "Maximum nonzero pointers retained, 1-1000000.",
+          "type": "integer",
+          "default": 250000
+        },
+        "alignment": {
+          "description": "Pointer storage alignment: 1, 2, 4, or 8. Four also finds 4-aligned x64 pointers.",
+          "type": "integer",
+          "default": 4
+        }
+      },
+      "required": [
+        "mapName"
+      ]
+    }
+  },
+  {
+    "name": "get_address_list",
+    "description": "Copy the current top-level Cheat Engine address list.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "maximumRecords": {
+          "description": "Maximum records to materialize. The request fails if the table exceeds this bound.",
+          "type": "integer",
+          "default": 256
+        }
+      }
+    }
+  },
+  {
+    "name": "get_code_references",
+    "description": "Read copied references to an address from Cheat Engine\u0027s current code dissector data.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "Target address or symbol expression. ",
+          "type": "string"
+        },
+        "maximumResults": {
+          "description": "Maximum references to return (1-1024). ",
+          "type": "integer",
+          "default": 256
+        }
+      },
+      "required": [
+        "address"
+      ]
+    }
+  },
+  {
+    "name": "get_comment",
+    "description": "Read the persistent user-defined Memory View comment at a target address.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "Target address or symbol expression. ",
+          "type": "string"
+        }
+      },
+      "required": [
+        "address"
+      ]
+    }
+  },
+  {
+    "name": "get_current_process",
+    "description": "Get the process currently selected in Cheat Engine.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "get_function_range",
+    "description": "Return Cheat Engine\u0027s estimated function boundaries for a target address.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "Address inside the target function. ",
+          "type": "string"
+        }
+      },
+      "required": [
+        "address"
+      ]
+    }
+  },
+  {
+    "name": "get_memory_protection",
+    "description": "Read the target memory protection flags reported by Cheat Engine Lua.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "Target address expression or number.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "address"
+      ]
+    }
+  },
+  {
+    "name": "get_memory_record_details",
+    "description": "Read pointer offsets and script text for one current Cheat Engine memory-record ID.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Current Cheat Engine memory-record ID. ",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    }
+  },
+  {
+    "name": "get_memory_region",
+    "description": "Get copied metadata for the region containing an address.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "A hexadecimal address or Cheat Engine address expression.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "address"
+      ]
+    }
+  },
+  {
+    "name": "get_memory_scan_results",
+    "description": "Read a bounded page from main\u0027s visible CE found list, including manual scans, or an independent Client session. Main must have completed; unknown-initial baselines need a next scan first.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "scannerName": {
+          "description": "main (default) for the visible CE scan tab, or an existing independent scanner name.",
+          "type": "string",
+          "default": "main"
+        },
+        "startIndex": {
+          "description": "Zero-based result index.",
+          "type": "integer",
+          "default": 0
+        },
+        "maximumResults": {
+          "description": "Maximum copied results (1-1024).",
+          "type": "integer",
+          "default": 1000
+        }
+      }
+    }
+  },
+  {
+    "name": "get_memory_scan_status",
+    "description": "Get main\u0027s live UI scan state or an independent session\u0027s state. Poll main until ResultsReady or BaselineReady before reading or narrowing; Scanning is still in progress.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "scannerName": {
+          "description": "main (default) for the visible CE scan tab, or an existing independent scanner name.",
+          "type": "string",
+          "default": "main"
+        }
+      }
+    }
+  },
+  {
+    "name": "get_module_preference",
+    "description": "Get Cheat Engine\u0027s symbol lookup module-precedence list, capped at 1024 entries.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "get_name_from_address",
+    "description": "Resolve the best Cheat Engine name for an address.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "A hexadecimal address or Cheat Engine address expression.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "address"
+      ]
+    }
+  },
+  {
+    "name": "get_opened_file_size",
+    "description": "Get the size of the currently opened file-as-process target.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "get_plugin_version",
+    "description": "Get the loaded plugin version and assembly path.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "get_pointer_scan_results",
+    "description": "Page stored pointer chains. Offsets are in dereference order; CE\u0027s address-list offset order is reversed.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "scannerName": {
+          "description": "Existing pointer scan name.",
+          "type": "string"
+        },
+        "startIndex": {
+          "description": "Zero-based first result.",
+          "type": "integer",
+          "default": 0
+        },
+        "maximumResults": {
+          "description": "Maximum copied paths, 1-1024.",
+          "type": "integer",
+          "default": 100
+        }
+      },
+      "required": [
+        "scannerName"
+      ]
+    }
+  },
+  {
+    "name": "get_pointer_size",
+    "description": "Get Cheat Engine\u0027s configured target pointer size.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "get_previous_opcodes",
+    "description": "Return a bounded predecessor-instruction walk before one target address.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "Target address or symbol expression. ",
+          "type": "string"
+        },
+        "count": {
+          "description": "Predecessor count (1-1024). ",
+          "type": "integer",
+          "default": 5
+        }
+      },
+      "required": [
+        "address"
+      ]
+    }
+  },
+  {
+    "name": "get_process_list",
+    "description": "List a bounded set of local processes.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "maximumResults": {
+          "description": "Maximum copied processes (1-4096).",
+          "type": "integer",
+          "default": 1024
+        },
+        "nameContains": {
+          "description": "Optional case-insensitive process-name substring.",
+          "type": "string",
+          "default": null
+        }
+      }
+    }
+  },
+  {
+    "name": "get_process_state",
+    "description": "Get the currently opened target process ID, pause state, and age.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "get_referenced_functions",
+    "description": "List bounded function addresses referenced by the current code dissector data.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "maximumResults": {
+          "description": "Maximum functions to return (1-1024).",
+          "type": "integer",
+          "default": 256
+        }
+      }
+    }
+  },
+  {
+    "name": "get_referenced_strings",
+    "description": "Read a bounded copied list of strings referenced by current code dissector data.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "maximumResults": {
+          "description": "Maximum entries to return (1-1024). ",
+          "type": "integer",
+          "default": 256
+        }
+      }
+    }
+  },
+  {
+    "name": "get_runtime_info",
+    "description": "Read the active Client epoch, host version and capability evidence before using optional features.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "get_selected_memory_record",
+    "description": "Read the currently selected Cheat Engine address-list record with pointer-offset details.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "get_speedhack_speed",
+    "description": "Get Cheat Engine\u0027s last configured speedhack speed.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "get_structure",
+    "description": "Get one global or internal Structure Dissect definition by its case-sensitive name.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Case-sensitive structure name (1-256 characters). ",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    }
+  },
+  {
+    "name": "get_structure_element_value",
+    "description": "Read one Structure Dissect element value from a target base address.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "structureName": {
+          "description": "Case-sensitive structure name. ",
+          "type": "string"
+        },
+        "index": {
+          "description": "Zero-based element index. ",
+          "type": "integer"
+        },
+        "baseAddress": {
+          "description": "Target base address or symbol expression. ",
+          "type": "string"
+        }
+      },
+      "required": [
+        "structureName",
+        "index",
+        "baseAddress"
+      ]
+    }
+  },
+  {
+    "name": "get_structure_elements",
+    "description": "Get PDB-backed structure elements by name, capped at 4096 entries.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Structure name, up to 256 characters.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    }
+  },
+  {
+    "name": "get_symbol_info",
+    "description": "Get copied metadata for one Cheat Engine symbol expression.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "symbolName": {
+          "description": "A Cheat Engine symbol expression.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "symbolName"
+      ]
+    }
+  },
+  {
+    "name": "get_symbols_loading_state",
+    "description": "Get whether Cheat Engine reports all symbols loaded.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "get_thread_list",
+    "description": "List target thread IDs reported by Cheat Engine, capped at 4096 entries.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "hash_memory",
+    "description": "Compute Cheat Engine\u0027s MD5 hash for a bounded target memory range.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "Target address expression or number.",
+          "type": "string"
+        },
+        "size": {
+          "description": "Positive byte count, up to 1048576.",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "address",
+        "size"
+      ]
+    }
+  },
+  {
+    "name": "inject_dotnet_library",
+    "description": "Inject a managed assembly and invoke its static entry point in the selected target.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "assemblyPath": {
+          "description": "Absolute managed assembly path.",
+          "type": "string"
+        },
+        "className": {
+          "description": "Fully qualified class name.",
+          "type": "string"
+        },
+        "methodName": {
+          "description": "Static method name.",
+          "type": "string"
+        },
+        "parameter": {
+          "description": "String parameter.",
+          "type": "string",
+          "default": ""
+        },
+        "timeoutMilliseconds": {
+          "description": "Timeout in milliseconds, 0 through 300000.",
+          "type": "integer",
+          "default": 30000
+        }
+      },
+      "required": [
+        "assemblyPath",
+        "className",
+        "methodName"
+      ]
+    }
+  },
+  {
+    "name": "inject_library",
+    "description": "Inject a native DLL or library into the selected target. Cheat Engine must report true for success.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "fileName": {
+          "description": "Absolute library path, up to 32767 characters.",
+          "type": "string"
+        },
+        "skipSymbolReloadWait": {
+          "description": "Skip symbol reload wait after injection.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "fileName"
+      ]
+    }
+  },
+  {
+    "name": "is_jump_destination",
+    "description": "Check whether an address is a jump destination within a bounded code range.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "Address to test. ",
+          "type": "string"
+        },
+        "range": {
+          "description": "Containing function or code-range size in bytes (1-1048576). ",
+          "type": "integer",
+          "default": 4096
+        }
+      },
+      "required": [
+        "address"
+      ]
+    }
+  },
+  {
+    "name": "list_memory_scanners",
+    "description": "List main (the currently visible CE scan tab) and up to 32 independent Client scan sessions in this instance. Independent scanner names do not refer to CE UI tabs.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "list_pointer_maps",
+    "description": "List bounded MCP-owned snapshots and their capture completeness.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "list_structures",
+    "description": "List up to 1024 global Cheat Engine Structure Dissect definitions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "maximumResults": {
+          "description": "Maximum structures to return (1-1024). ",
+          "type": "integer",
+          "default": 256
+        }
+      }
+    }
+  },
+  {
+    "name": "load_cheat_table",
+    "description": "Load a trusted absolute Cheat Engine table path. The Client enforces configured table roots.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "filename": {
+          "description": "Absolute .CT or .CETRAINER path under a configured trusted table root.",
+          "type": "string"
+        },
+        "merge": {
+          "description": "Merge into the current table instead of replacing it.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "filename"
+      ]
+    }
+  },
+  {
+    "name": "load_new_symbols",
+    "description": "Ask Cheat Engine to scan for loaded modules and add their symbols.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "lookup_rtti_class_name",
+    "description": "Resolve a likely RTTI class name for a target address, returning found=false when unavailable.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "Target address expression or number.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "address"
+      ]
+    }
+  },
+  {
+    "name": "memory_scan",
+    "description": "Start a value scan. The default main scanner uses CE\u0027s visible scan tab and UI options; poll its status for completion. Other names create independent Client sessions without changing the UI. Reset explicitly before another first scan.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "scannerName": {
+          "description": "main (default) for the visible CE scan tab, or a unique case-sensitive name for an independent session (up to 32). The name main is reserved.",
+          "type": "string",
+          "default": "main"
+        },
+        "valueType": {
+          "description": "byte, int16, int32 (default), int64, float, double, string, wstring, or bytes.",
+          "type": "string",
+          "default": "int32"
+        },
+        "value": {
+          "description": "Value for exact, between, greater, or less comparisons; omit for unknown initial value.",
+          "type": "string",
+          "default": null
+        },
+        "comparison": {
+          "description": "exact, unknown, between, greater, or less.",
+          "type": "string",
+          "default": "exact"
+        },
+        "upperValue": {
+          "description": "Inclusive upper value for a between comparison.",
+          "type": "string",
+          "default": null
+        }
+      }
+    }
+  },
+  {
+    "name": "next_memory_scan",
+    "description": "Narrow main\u0027s visible CE scan (including a manually started scan), or a named independent Client scan. Poll main\u0027s status until completion.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "scannerName": {
+          "description": "main (default) for the visible CE scan tab, or an existing independent scanner name.",
+          "type": "string",
+          "default": "main"
+        },
+        "value": {
+          "description": "Value for exact, between, greater, less, increasedBy, or decreasedBy comparisons; omit for state comparisons.",
+          "type": "string",
+          "default": null
+        },
+        "comparison": {
+          "description": "exact, between, greater, less, increased, decreased, increasedBy, decreasedBy, changed, or unchanged.",
+          "type": "string",
+          "default": "exact"
+        },
+        "upperValue": {
+          "description": "Inclusive upper value for a between comparison.",
+          "type": "string",
+          "default": null
+        }
+      }
+    }
+  },
+  {
+    "name": "open_file_as_process",
+    "description": "Open a file through Cheat Engine\u0027s process-like memory interface.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "filename": {
+          "description": "File path, up to 4096 characters.",
+          "type": "string"
+        },
+        "is64Bit": {
+          "description": "Treat the file as 64-bit.",
+          "type": "boolean",
+          "default": true
+        },
+        "startAddress": {
+          "description": "Optional base address expression or number.",
+          "type": "string",
+          "default": null
+        }
+      },
+      "required": [
+        "filename"
+      ]
+    }
+  },
+  {
+    "name": "open_process",
+    "description": "Attach Cheat Engine to a process ID or exact process name.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "process": {
+          "description": "A positive process ID or an exact process name.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "process"
+      ]
+    }
+  },
+  {
+    "name": "pause_process",
+    "description": "Pause the currently opened Cheat Engine target process.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "pointer_scan",
+    "description": "Find pointer chains in a captured map using nonnegative offsets. Results and traversal are bounded; module-relative roots support later rebasing.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "scannerName": {
+          "description": "Unique scan name, 1-128 characters.",
+          "type": "string"
+        },
+        "mapName": {
+          "description": "Existing pointer map name.",
+          "type": "string"
+        },
+        "targetAddress": {
+          "description": "Hexadecimal destination address in the snapshot, with optional 0x prefix.",
+          "type": "string"
+        },
+        "maximumDepth": {
+          "description": "Maximum pointer dereferences, 1-8.",
+          "type": "integer",
+          "default": 5
+        },
+        "maximumOffset": {
+          "description": "Largest nonnegative offset at each hop, 0-1048576.",
+          "type": "integer",
+          "default": 4096
+        },
+        "moduleRootsOnly": {
+          "description": "Only return roots inside known modules.",
+          "type": "boolean",
+          "default": true
+        },
+        "maximumResults": {
+          "description": "Maximum retained paths, 1-10000.",
+          "type": "integer",
+          "default": 1000
+        },
+        "maximumNodes": {
+          "description": "Maximum visited candidates, 1-1000000.",
+          "type": "integer",
+          "default": 100000
+        }
+      },
+      "required": [
+        "scannerName",
+        "mapName",
+        "targetAddress"
+      ]
+    }
+  },
+  {
+    "name": "read_memory",
+    "description": "Read typed target memory through CheatEngine.Client.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "A hexadecimal address or Cheat Engine address expression.",
+          "type": "string"
+        },
+        "dataType": {
+          "description": "bytes, byte, int16, int32, int64, float, double, or string.",
+          "type": "string"
+        },
+        "byteCount": {
+          "description": "Required byte count for bytes reads.",
+          "type": "integer",
+          "default": null
+        },
+        "maximumLength": {
+          "description": "Required maximum length for string reads.",
+          "type": "integer",
+          "default": null
+        },
+        "wideChar": {
+          "description": "Read or write UTF-16 strings instead of UTF-8.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "address",
+        "dataType"
+      ]
+    }
+  },
+  {
+    "name": "read_pointer_chain",
+    "description": "Resolve a bounded pointer chain using the target pointer width.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "baseAddress": {
+          "description": "Address containing the first pointer.",
+          "type": "string"
+        },
+        "offsets": {
+          "description": "One to 64 signed offsets, applied after each dereference.",
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        }
+      },
+      "required": [
+        "baseAddress",
+        "offsets"
+      ]
+    }
+  },
+  {
+    "name": "register_symbol",
+    "description": "Register a Client-owned target symbol. The server releases it on disable.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Session-wide symbol name. Use a distinctive name to avoid collisions.",
+          "type": "string"
+        },
+        "address": {
+          "description": "Target address as hexadecimal.",
+          "type": "string"
+        },
+        "doNotSave": {
+          "description": "Omit the symbol when Cheat Engine saves a table.",
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "required": [
+        "name",
+        "address"
+      ]
+    }
+  },
+  {
+    "name": "reinitialize_dotnet_symbols",
+    "description": "Reinitialize the .NET symbol list for an optional module.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "module": {
+          "description": "Optional module name, up to 256 characters.",
+          "type": "string",
+          "default": null
+        }
+      }
+    }
+  },
+  {
+    "name": "reinitialize_symbols",
+    "description": "Reinitialize Cheat Engine\u0027s symbol handler.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "waitUntilDone": {
+          "description": "Wait for completion before returning.",
+          "type": "boolean",
+          "default": true
+        }
+      }
+    }
+  },
+  {
+    "name": "release_target_resources",
+    "description": "Release owned scans, symbols, allocations and patches in reverse creation order before switching processes. Stops at the first incomplete release.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "remove_structure_element",
+    "description": "Remove one Structure Dissect element by zero-based index.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "structureName": {
+          "description": "Case-sensitive structure name. ",
+          "type": "string"
+        },
+        "index": {
+          "description": "Zero-based element index. ",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "structureName",
+        "index"
+      ]
+    }
+  },
+  {
+    "name": "rescan_pointer_scan",
+    "description": "Filter existing paths against a new map or live Client pointer-chain reads. Module roots rebase; absolute roots remain absolute. Unresolved paths are retained and counted; interrupted scans keep original results.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "scannerName": {
+          "description": "Existing pointer scan name.",
+          "type": "string"
+        },
+        "targetAddress": {
+          "description": "New hexadecimal destination address, with optional 0x prefix.",
+          "type": "string"
+        },
+        "mapName": {
+          "description": "New snapshot name, or omit to read the currently selected process.",
+          "type": "string",
+          "default": null
+        }
+      },
+      "required": [
+        "scannerName",
+        "targetAddress"
+      ]
+    }
+  },
+  {
+    "name": "reset_memory_scan",
+    "description": "Reset main through CE\u0027s New Scan action (clearing visible results), or release one independent Client session. Refuses to reset a running UI scan; cancel it in CE first.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "scannerName": {
+          "description": "main (default) for the visible CE scan tab, or the independent scanner name to release.",
+          "type": "string",
+          "default": "main"
+        }
+      }
+    }
+  },
+  {
+    "name": "reset_pointer_scan",
+    "description": "Release an MCP-owned pointer result list.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "scannerName": {
+          "description": "Existing scan name.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scannerName"
+      ]
+    }
+  },
+  {
+    "name": "resolve_address",
+    "description": "Resolve a target-process symbol expression, such as game.exe\u002B10.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "addressString": {
+          "description": "Target-process symbol expression.",
+          "type": "string"
+        },
+        "shallow": {
+          "description": "Use Cheat Engine shallow symbol resolution.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "addressString"
+      ]
+    }
+  },
+  {
+    "name": "resume_process",
+    "description": "Resume the currently opened Cheat Engine target process.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "save_cheat_table",
+    "description": "Save the current table to a trusted absolute Cheat Engine table path.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "filename": {
+          "description": "Absolute destination path under a configured trusted table root.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "filename"
+      ]
+    }
+  },
+  {
+    "name": "save_opened_file",
+    "description": "Save the open file-as-process target, optionally to an explicit filename.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "filename": {
+          "description": "Optional destination filename, up to 4096 characters.",
+          "type": "string",
+          "default": null
+        }
+      }
+    }
+  },
+  {
+    "name": "select_memory_record",
+    "description": "Select one current Cheat Engine address-list record by ID.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Current Cheat Engine memory-record ID. ",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    }
+  },
+  {
+    "name": "set_comment",
+    "description": "Set a persistent user-defined Memory View comment at a target address.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "Target address or symbol expression. ",
+          "type": "string"
+        },
+        "comment": {
+          "description": "Comment text, up to 1 MiB. ",
+          "type": "string"
+        }
+      },
+      "required": [
+        "address",
+        "comment"
+      ]
+    }
+  },
+  {
+    "name": "set_memory_protection",
+    "description": "Set target range read, write, and execute protection through Cheat Engine Lua.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "Target address expression or number.",
+          "type": "string"
+        },
+        "size": {
+          "description": "Positive range size in bytes, up to 1048576.",
+          "type": "integer"
+        },
+        "read": {
+          "description": "Allow reads.",
+          "type": "boolean",
+          "default": true
+        },
+        "write": {
+          "description": "Allow writes.",
+          "type": "boolean",
+          "default": false
+        },
+        "execute": {
+          "description": "Allow execution.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "address",
+        "size"
+      ]
+    }
+  },
+  {
+    "name": "set_memory_record_active",
+    "description": "Activate or deactivate one memory record by Client-issued record ID.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Client-issued memory-record ID.",
+          "type": "integer"
+        },
+        "active": {
+          "description": "Requested active state.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "active"
+      ]
+    }
+  },
+  {
+    "name": "set_memory_record_offsets",
+    "description": "Replace a memory record\u0027s pointer offsets. Offsets are Cheat Engine internal order, index zero nearest the final value.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Current Cheat Engine memory-record ID. ",
+          "type": "integer"
+        },
+        "offsets": {
+          "description": "Pointer offsets in Cheat Engine internal order, up to 128 entries. ",
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "offsets"
+      ]
+    }
+  },
+  {
+    "name": "set_memory_record_script",
+    "description": "Set a bounded Auto Assembler script on a memory record. The record persists it in the cheat table.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Current Cheat Engine memory-record ID. ",
+          "type": "integer"
+        },
+        "script": {
+          "description": "Auto Assembler script text, up to 1 MiB. ",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "script"
+      ]
+    }
+  },
+  {
+    "name": "set_module_preference",
+    "description": "Put one extensionless module name first in Cheat Engine symbol lookup precedence.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "module": {
+          "description": "Extensionless module name, up to 256 characters.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "module"
+      ]
+    }
+  },
+  {
+    "name": "set_pointer_size",
+    "description": "Set Cheat Engine\u0027s configured target pointer size to 4 or 8 bytes.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "size": {
+          "description": "Pointer size in bytes: 4 or 8.",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "size"
+      ]
+    }
+  },
+  {
+    "name": "set_speedhack_speed",
+    "description": "Enable Cheat Engine speedhack and set a finite positive target speed.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "speed": {
+          "description": "Finite positive speed multiplier.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "speed"
+      ]
+    }
+  },
+  {
+    "name": "set_structure_element_value",
+    "description": "Write a value interpreted by a Structure Dissect element into the selected target.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "structureName": {
+          "description": "Case-sensitive structure name.",
+          "type": "string"
+        },
+        "index": {
+          "description": "Zero-based element index.",
+          "type": "integer"
+        },
+        "baseAddress": {
+          "description": "Target structure base address or symbol.",
+          "type": "string"
+        },
+        "value": {
+          "description": "Value in Cheat Engine\u0027s format for the element type.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "structureName",
+        "index",
+        "baseAddress",
+        "value"
+      ]
+    }
+  },
+  {
+    "name": "unregister_symbol",
+    "description": "Release a symbol that this MCP server registered in the current activation.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Name returned by register_symbol.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    }
+  },
+  {
+    "name": "update_memory_record",
+    "description": "Update one memory record by Client-issued record ID.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Client-issued memory-record ID from get_address_list or add_memory_record.",
+          "type": "integer"
+        },
+        "description": {
+          "description": "Replacement display description, if any.",
+          "type": "string",
+          "default": null
+        },
+        "address": {
+          "description": "Replacement address expression, if any.",
+          "type": "string",
+          "default": null
+        },
+        "value": {
+          "description": "Replacement value text, if any.",
+          "type": "string",
+          "default": null
+        },
+        "variableType": {
+          "description": "Replacement Cheat Engine variable type, if any.",
+          "type": "string",
+          "enum": [
+            "Byte",
+            "Word",
+            "Dword",
+            "Qword",
+            "Single",
+            "Double",
+            "String",
+            "WideString",
+            "ByteArray",
+            "Binary",
+            "All",
+            "AutoAssembler",
+            "Pointer",
+            "Custom",
+            "Grouped",
+            null
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id"
+      ]
+    }
+  },
+  {
+    "name": "update_structure_element",
+    "description": "Change selected fields of one Structure Dissect element by zero-based index.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "structureName": {
+          "description": "Case-sensitive structure name. ",
+          "type": "string"
+        },
+        "index": {
+          "description": "Zero-based element index. ",
+          "type": "integer"
+        },
+        "offset": {
+          "description": "Replacement offset, or null to retain it. ",
+          "type": "integer",
+          "default": null
+        },
+        "name": {
+          "description": "Replacement element name, or null to retain it. ",
+          "type": "string",
+          "default": null
+        },
+        "variableType": {
+          "description": "Replacement variable-type integer, or null to retain it. ",
+          "type": "integer",
+          "default": null
+        },
+        "byteSize": {
+          "description": "Replacement byte size (0-1048576), or null to retain it. ",
+          "type": "integer",
+          "default": null
+        }
+      },
+      "required": [
+        "structureName",
+        "index"
+      ]
+    }
+  },
+  {
+    "name": "wait_for_symbols",
+    "description": "Wait for one Cheat Engine symbol-loading stage.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "stage": {
+          "description": "sections, exports, dotnet, or pdb.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "stage"
+      ]
+    }
+  },
+  {
+    "name": "write_memory",
+    "description": "Write typed target memory through CheatEngine.Client.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "A hexadecimal address or Cheat Engine address expression.",
+          "type": "string"
+        },
+        "dataType": {
+          "description": "bytes, byte, int16, int32, int64, float, double, or string.",
+          "type": "string"
+        },
+        "value": {
+          "description": "The value formatted for the selected data type.",
+          "type": "string"
+        },
+        "maximumLength": {
+          "description": "Explicit maximum encoded length for string writes.",
+          "type": "integer",
+          "default": null
+        },
+        "wideChar": {
+          "description": "Read or write UTF-16 strings instead of UTF-8.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "address",
+        "dataType",
+        "value"
+      ]
+    }
+  }
+]

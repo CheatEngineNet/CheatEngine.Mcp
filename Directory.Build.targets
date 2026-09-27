@@ -1,0 +1,63 @@
+<Project>
+  <!--
+    CEMCP001: the plugin must never ship an app-local copy of an assembly that the shared frameworks
+    (Microsoft.NETCore.App / Microsoft.AspNetCore.App) provide. Cheat Engine loads the plugin into its own
+    AssemblyLoadContext through its deps.json; ASP.NET Core loads into the default context. An app-local copy would give
+    two identities to the same type (for example IServiceCollection). The fix is a direct FrameworkReference and no direct
+    PackageReference to framework packages (NU1510), never a removal: a removal leaves deps.json entries without files.
+    The check compares copy-local assemblies with the targeting packs' reference assemblies, so it neither flags packages
+    that no shared framework contains (Microsoft.Extensions.AI.*, DependencyModel) nor misses System.* copies. The
+    framework names are captured as soon as the targeting packs resolve: package conflict resolution later removes a
+    framework reference whenever a newer package assembly wins, which is exactly the copy this guard must catch. The check
+    runs after ResolveReferences, once ReferenceCopyLocalPaths holds package, project and conflict-resolved assets.
+
+    CEMCP004: the Client plugin deployment copies only the top-level files of the plugin output, so an asset that
+    deps.json places in a subdirectory (runtimes/<rid>/..., culture satellites) would be missing from the plugin folder.
+  -->
+  <Target Name="_CeMcpCaptureSharedFrameworkNames"
+          AfterTargets="ResolveTargetingPackAssets"
+          Condition="'$(CheatEngineClientPluginProject)' == 'true' and '$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <_CeMcpFrameworkName Include="@(Reference->'%(Filename)')" Condition="'%(Reference.FrameworkReferenceName)' != ''"/>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="CeMcpVerifyNoSharedFrameworkCopies"
+          AfterTargets="ResolveReferences"
+          BeforeTargets="GenerateBuildDependencyFile;CopyFilesToOutputDirectory"
+          Condition="'$(CheatEngineClientPluginProject)' == 'true' and '$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <_CeMcpLocalName Include="@(ReferenceCopyLocalPaths->'%(Filename)')" Condition="'%(ReferenceCopyLocalPaths.Extension)' == '.dll'"/>
+      <_CeMcpLocalOnly Include="@(_CeMcpLocalName)" Exclude="@(_CeMcpFrameworkName)"/>
+      <_CeMcpSharedFrameworkCopy Include="@(_CeMcpLocalName)" Exclude="@(_CeMcpLocalOnly)"/>
+      <_CeMcpNestedCopy Include="@(ReferenceCopyLocalPaths)" Condition="'%(ReferenceCopyLocalPaths.DestinationSubDirectory)' != ''"/>
+    </ItemGroup>
+    <Error Code="CEMCP001"
+           Condition="'@(_CeMcpFrameworkName)' == ''"
+           Text="The shared-framework reference names were not captured, so app-local framework copies cannot be detected."/>
+    <Error Code="CEMCP001"
+           Condition="'@(_CeMcpSharedFrameworkCopy)' != ''"
+           Text="The plugin would ship app-local copies of shared-framework assemblies: @(_CeMcpSharedFrameworkCopy, ', '). Keep the direct FrameworkReference to Microsoft.AspNetCore.App and remove any direct Microsoft.Extensions.*/Microsoft.AspNetCore.* PackageReference."/>
+    <Error Code="CEMCP004"
+           Condition="'@(_CeMcpNestedCopy)' != ''"
+           Text="The Client plugin deployment copies only top-level files, so these dependency assets would be missing from the plugin folder: @(_CeMcpNestedCopy->'%(DestinationSubDirectory)%(Filename)%(Extension)', ', ')."/>
+  </Target>
+
+  <!--
+    CEMCP002: exactly the plugin project (the one setting McpPluginProject) carries the Client plugin profile.
+    CEMCP003: only that profile may reference CheatEngine.SDK directly; its build assets generate the plugin entry point,
+    enable dynamic loading and copy the native Lua bridge, which must never happen in a library.
+    Both guards key on properties, never on project or assembly names, so renames cannot bypass them.
+  -->
+  <Target Name="CeMcpVerifyPluginProfile" BeforeTargets="PrepareForBuild">
+    <Error Code="CEMCP002"
+           Condition="'$(CheatEngineClientPluginProject)' == 'true' and '$(McpPluginProject)' != 'true'"
+           Text="CheatEngineClientPluginProject is reserved for the plugin project, which sets McpPluginProject."/>
+    <Error Code="CEMCP002"
+           Condition="'$(McpPluginProject)' == 'true' and '$(CheatEngineClientPluginProject)' != 'true'"
+           Text="The plugin project must set CheatEngineClientPluginProject=true so the Client plugin profile is validated."/>
+    <Error Code="CEMCP003"
+           Condition="'$(CheatEngineClientPluginProject)' != 'true' and '@(PackageReference->WithMetadataValue('Identity', 'CheatEngine.SDK'))' != ''"
+           Text="Only the plugin project may reference CheatEngine.SDK directly; libraries receive its compile assets through CheatEngine.Client."/>
+  </Target>
+</Project>

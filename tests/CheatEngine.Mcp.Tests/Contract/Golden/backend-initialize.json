@@ -1,0 +1,12 @@
+{
+  "protocolVersion": "2025-06-18",
+  "serverInfo": {
+    "name": "CheatEngine.Mcp",
+    "version": "2.0.0.0"
+  },
+  "capabilities": {
+    "logging": {},
+    "tools": {}
+  },
+  "instructions": null
+}
