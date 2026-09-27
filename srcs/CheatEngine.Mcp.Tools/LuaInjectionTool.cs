@@ -37,7 +37,7 @@ public sealed class LuaInjectionTool(ICheatEngineClient client)
 		int timeoutMilliseconds = 30_000)
 	{
 		if (string.IsNullOrWhiteSpace(assemblyPath) || string.IsNullOrWhiteSpace(className) ||
-		    string.IsNullOrWhiteSpace(methodName) || timeoutMilliseconds is < 0 or > 300_000)
+			string.IsNullOrWhiteSpace(methodName) || timeoutMilliseconds is < 0 or > 300_000)
 		{
 			return ToolExecution.Error(
 				"assemblyPath, className, and methodName are required; timeoutMilliseconds must be between 0 and 300000.");

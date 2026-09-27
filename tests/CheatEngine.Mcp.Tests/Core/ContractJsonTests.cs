@@ -35,7 +35,7 @@ public sealed class ContractJsonTests
 	{
 		Type[] enums = typeof(ToolError).Assembly.GetTypes()
 			.Where(static type => type.IsEnum && type.IsPublic &&
-			                      type.Namespace is "CheatEngine.Mcp.Core.Contract" or "CheatEngine.Mcp.Core.Values")
+								  type.Namespace is "CheatEngine.Mcp.Core.Contract" or "CheatEngine.Mcp.Core.Values")
 			.ToArray();
 
 		Assert.Equal(4, enums.Length);
@@ -141,10 +141,14 @@ public sealed class ContractJsonTests
 	[Fact]
 	public void TryRead_SuccessOrForeignError_ReturnsFalse()
 	{
-		CallToolResult success = new() { Content = [new TextContentBlock { Text = """{"error":{}}""" }] };
+		CallToolResult success = new()
+		{
+			Content = [new TextContentBlock { Text = """{"error":{}}""" }]
+		};
 		CallToolResult sdkError = new()
 		{
-			IsError = true, Content = [new TextContentBlock { Text = "An error occurred invoking 'x'." }]
+			IsError = true,
+			Content = [new TextContentBlock { Text = "An error occurred invoking 'x'." }]
 		};
 		CallToolResult twoBlocks = new()
 		{

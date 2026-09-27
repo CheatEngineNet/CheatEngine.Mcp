@@ -37,7 +37,10 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 					.WaitAsync(McpTimeout, TestContext.Current.CancellationToken))
 				.Select(tool => tool.Name).Order(StringComparer.Ordinal).ToArray();
 			Assert.Equal(expectedToolNames, actualToolNames);
-			sandbox.Record("gateway_tool_discovery", new { count = actualToolNames.Length });
+			sandbox.Record("gateway_tool_discovery", new
+			{
+				count = actualToolNames.Length
+			});
 
 			step = "gateway instance discovery";
 			JsonArray instances = (await GatewayCallAsync(gateway, "instance_list"))["instances"]!.AsArray();
@@ -81,7 +84,11 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			JsonNode runtimeB = await SuccessfulCallAsync(instanceB, "get_runtime_info");
 			Assert.True(runtimeA["epoch"]!.GetValue<long>() > 0);
 			Assert.True(runtimeB["epoch"]!.GetValue<long>() > 0);
-			sandbox.Record("runtime", new { A = runtimeA.DeepClone(), B = runtimeB.DeepClone() });
+			sandbox.Record("runtime", new
+			{
+				A = runtimeA.DeepClone(),
+				B = runtimeB.DeepClone()
+			});
 
 			step = "instance A target attach";
 			await OpenTargetAsync(instanceA, sandbox.HostA);
@@ -158,13 +165,21 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 				await instanceB.CallToolAsync("get_plugin_version"));
 			AssertMemoryValue(await ReadMemoryAsync(instanceA, sandbox.HostA.TargetAddress), 20260931);
 			sandbox.Record("instance_b_unavailable_instance_a_healthy",
-				new { AInstanceId = sandbox.HostA.InstanceId, BInstanceId = sandbox.HostB.InstanceId });
+				new
+				{
+					AInstanceId = sandbox.HostA.InstanceId,
+					BInstanceId = sandbox.HostB.InstanceId
+				});
 
 			scenarioCompleted = true;
 		}
 		catch (Exception exception)
 		{
-			sandbox.Record("failure", new { step, exception = exception.ToString() });
+			sandbox.Record("failure", new
+			{
+				step,
+				exception = exception.ToString()
+			});
 			throw;
 		}
 		finally
@@ -197,7 +212,10 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			if (cleanupFailures.Count > 0)
 			{
 				sandbox.Record("cleanup_failure",
-					new { errors = cleanupFailures.Select(exception => exception.ToString()).ToArray() });
+					new
+					{
+						errors = cleanupFailures.Select(exception => exception.ToString()).ToArray()
+					});
 				if (scenarioCompleted)
 				{
 					Assert.Fail(
@@ -215,13 +233,13 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 	private static async Task AssertDisassemblyAsync(LiveSandboxSession sandbox, ILiveMcpToolClient instance)
 	{
 		const string allocationName = "disassembly-probe";
-		JsonNode allocated = await SuccessfulCallAsync(instance, "allocate_memory",
+		JsonNode allocated = await SuccessfulCallAsync(instance, "memory_allocate",
 			new Dictionary<string, object?> { ["name"] = allocationName, ["size"] = 64 });
 		try
 		{
 			string address = allocated["address"]!.GetValue<string>();
-			await SuccessfulCallAsync(instance, "write_memory",
-				new Dictionary<string, object?> { ["address"] = address, ["dataType"] = "bytes", ["value"] = "90 C3" });
+			await SuccessfulCallAsync(instance, "memory_write",
+				new Dictionary<string, object?> { ["address"] = address, ["valueType"] = "bytes", ["value"] = "90 C3" });
 			JsonNode single = await SuccessfulCallAsync(instance, "disassemble",
 				new Dictionary<string, object?> { ["address"] = address });
 			Assert.Equal("nop", single["opcode"]!.GetValue<string>().Trim(), true);
@@ -236,11 +254,15 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			Assert.Equal("nop", instructions[0]!["opcode"]!.GetValue<string>().Trim(), true);
 			Assert.Equal("ret", instructions[1]!["opcode"]!.GetValue<string>().Trim(), true);
 			Assert.Equal("C3", instructions[1]!["bytes"]!.GetValue<string>());
-			sandbox.Record("disassembly_columns", new { single = single.DeepClone(), range = range.DeepClone() });
+			sandbox.Record("disassembly_columns", new
+			{
+				single = single.DeepClone(),
+				range = range.DeepClone()
+			});
 		}
 		finally
 		{
-			await SuccessfulCallAsync(instance, "free_memory",
+			await SuccessfulCallAsync(instance, "memory_free",
 				new Dictionary<string, object?> { ["name"] = allocationName });
 		}
 	}
@@ -253,7 +275,11 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 		await WaitForMainScanAsync(instanceA);
 		JsonNode main = await SuccessfulCallAsync(instanceA, "get_memory_scan_results");
 		string[] visible = await sandbox.ScanUiAsync("A", "snapshot");
-		sandbox.Record("main_scan_first", new { response = main.DeepClone(), ui = visible });
+		sandbox.Record("main_scan_first", new
+		{
+			response = main.DeepClone(),
+			ui = visible
+		});
 		Assert.Equal("main", main["scannerName"]!.GetValue<string>());
 		Assert.Equal("ui", main["mode"]!.GetValue<string>());
 		Assert.Equal(1, main["count"]!.GetValue<int>());
@@ -267,21 +293,25 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 		JsonNode independentOne = await SuccessfulCallAsync(instanceA, "memory_scan",
 			new Dictionary<string, object?>
 			{
-				["scannerName"] = "independent-one", ["valueType"] = "int32", ["value"] = "20260927"
+				["scannerName"] = "independent-one",
+				["valueType"] = "int32",
+				["value"] = "20260927"
 			});
 		JsonNode independentTwo = await SuccessfulCallAsync(instanceA, "memory_scan",
 			new Dictionary<string, object?>
 			{
-				["scannerName"] = "independent-two", ["valueType"] = "int32", ["value"] = "20260927"
+				["scannerName"] = "independent-two",
+				["valueType"] = "int32",
+				["value"] = "20260927"
 			});
 		Assert.Equal(visible, await sandbox.ScanUiAsync("A", "snapshot"));
 		JsonNode listed = await SuccessfulCallAsync(instanceA, "list_memory_scanners");
 		Assert.Equal(3, listed["scanners"]!.AsArray().Count);
 		foreach ((string name, string mode, JsonNode expected) in new[]
-		         {
-			         ("main", "ui", main), ("independent-one", "independent", independentOne),
-			         ("independent-two", "independent", independentTwo)
-		         })
+				 {
+					 ("main", "ui", main), ("independent-one", "independent", independentOne),
+					 ("independent-two", "independent", independentTwo)
+				 })
 		{
 			JsonNode scanner = Assert.Single(listed["scanners"]!.AsArray(),
 				scanner => scanner!["scannerName"]!.GetValue<string>() == name)!;
@@ -440,24 +470,30 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 
 	private static Task<JsonNode> ReadMemoryAsync(ILiveMcpToolClient client, string address)
 	{
-		return SuccessfulCallAsync(client, "read_memory",
-			new Dictionary<string, object?> { ["address"] = address, ["dataType"] = "int32" });
+		return SuccessfulCallAsync(client, "memory_read",
+			new Dictionary<string, object?> { ["address"] = address, ["valueType"] = "int32" });
 	}
 
 	private static Task<JsonNode> WriteMemoryAsync(ILiveMcpToolClient client, string address, int value)
 	{
-		return SuccessfulCallAsync(client, "write_memory",
+		return SuccessfulCallAsync(client, "memory_write",
 			new Dictionary<string, object?>
 			{
 				["address"] = address,
-				["dataType"] = "int32",
+				["valueType"] = "int32",
 				["value"] = value.ToString(CultureInfo.InvariantCulture)
 			});
 	}
 
 	private static void AssertMemoryValue(JsonNode result, int expected)
 	{
-		Assert.Equal(expected, result["value"]!.GetValue<int>());
+		Assert.Equal(expected, MemoryValue(result));
+	}
+
+	// memory_read returns target values as text.
+	private static int MemoryValue(JsonNode result)
+	{
+		return int.Parse(result["value"]!.GetValue<string>(), NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture);
 	}
 
 	private static async Task AssertEventuallyMemoryValueAsync(ILiveMcpToolClient client, string address, int expected)
@@ -467,7 +503,7 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 		do
 		{
 			JsonNode result = await ReadMemoryAsync(client, address);
-			observed = result["value"]!.GetValue<int>();
+			observed = MemoryValue(result);
 			if (observed == expected)
 			{
 				return;

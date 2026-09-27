@@ -43,14 +43,14 @@ internal sealed partial class McpStatusIndicator(
 	internal static string Describe(string state, string instanceName, PluginLog log, string? endpoint = null)
 	{
 		return $"CheatEngine.Mcp: {state}\n\nInstance: {instanceName}\n"
-		       + (endpoint is null ? string.Empty : $"Listening at: {endpoint}\n")
-		       + $"\n{state switch
-		       {
-			       "Enabled" => "The CE backend is ready for MCP requests. Your AI client connects through CheatEngine.Mcp.Gateway.exe.",
-			       "Disabled" => "This CE instance is no longer accepting MCP requests. Enable the plugin in Edit > Settings > Plugins to start it again.",
-			       "Start failed" => "The MCP server could not start. Check the log for the startup error, then enable the plugin again.",
-			       _ => "The MCP server is starting."
-		       }}\n\nLog: {log.LogFilePath}";
+			   + (endpoint is null ? string.Empty : $"Listening at: {endpoint}\n")
+			   + $"\n{state switch
+			   {
+				   "Enabled" => "The CE backend is ready for MCP requests. Your AI client connects through CheatEngine.Mcp.Gateway.exe.",
+				   "Disabled" => "This CE instance is no longer accepting MCP requests. Enable the plugin in Edit > Settings > Plugins to start it again.",
+				   "Start failed" => "The MCP server could not start. Check the log for the startup error, then enable the plugin again.",
+				   _ => "The MCP server is starting."
+			   }}\n\nLog: {log.LogFilePath}";
 	}
 
 	[LoggerMessage(Level = LogLevel.Information, Message = "MCP status indicator: {State}.")]

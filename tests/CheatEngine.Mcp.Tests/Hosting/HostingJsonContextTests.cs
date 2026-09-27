@@ -92,7 +92,11 @@ public sealed class HostingJsonContextTests
 				Descriptor.ProcessStartUtcTicks,
 				Descriptor.PluginVersion
 			}, reflection);
-		string list = JsonSerializer.Serialize(new { instances = entries, discoveryIncomplete = true }, reflection);
+		string list = JsonSerializer.Serialize(new
+		{
+			instances = entries,
+			discoveryIncomplete = true
+		}, reflection);
 
 		Assert.Equal(DescriptorJson, descriptor);
 		Assert.Equal(IdentityJson, identity);

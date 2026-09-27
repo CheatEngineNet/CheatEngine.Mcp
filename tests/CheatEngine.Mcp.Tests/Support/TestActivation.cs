@@ -41,7 +41,8 @@ internal sealed class TestActivation : IDisposable
 		services.TryAddEnumerable(ServiceDescriptor.Scoped<ICheatEngineClientModule, McpServerModule>());
 		_provider = services.BuildServiceProvider(new ServiceProviderOptions
 		{
-			ValidateOnBuild = true, ValidateScopes = true
+			ValidateOnBuild = true,
+			ValidateScopes = true
 		});
 		_scope = _provider.CreateScope();
 	}

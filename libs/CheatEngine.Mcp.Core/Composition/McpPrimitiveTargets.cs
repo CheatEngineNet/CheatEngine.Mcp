@@ -47,10 +47,10 @@ public sealed class McpPrimitiveTargets
 		foreach (CheatEngineMcpPrimitive primitive in manifest.Primitives)
 		{
 			MethodInfo[] methods = primitive.Type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic |
-			                                                 BindingFlags.Instance | BindingFlags.Static);
+															 BindingFlags.Instance | BindingFlags.Static);
 			gated |= methods.Any(static method => method.IsDefined(typeof(RequiresFeatureAttribute), false));
 			if (!targets.ContainsKey(primitive.Type) && methods.Any(static method =>
-				    !method.IsStatic && CheatEngineMcpServerBuilderExtensions.IsPrimitiveMethod(method)))
+					!method.IsStatic && CheatEngineMcpServerBuilderExtensions.IsPrimitiveMethod(method)))
 			{
 				targets.Add(primitive.Type, services.GetRequiredService(primitive.Type));
 			}

@@ -41,7 +41,10 @@ public sealed class InstancePublication : IDisposable
 			throw new InvalidOperationException("The activation is already published.");
 		}
 
-		Descriptor = Descriptor with { Endpoint = new Uri(endpoint).AbsoluteUri };
+		Descriptor = Descriptor with
+		{
+			Endpoint = new Uri(endpoint).AbsoluteUri
+		};
 		_publishedPath = _registry.Publish(Descriptor);
 	}
 }

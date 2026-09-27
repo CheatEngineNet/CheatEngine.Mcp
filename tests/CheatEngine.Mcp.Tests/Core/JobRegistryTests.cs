@@ -58,6 +58,32 @@ public sealed class JobRegistryTests
 	}
 
 	[Fact]
+	public void StartManaged_BeforeRunThrows_RemovesTheUnstartedJob()
+	{
+		StateTestHarness harness = new();
+		int workRuns = 0;
+
+		InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+			harness.Jobs.StartManaged<long>("probe", TimeSpan.FromSeconds(60), 8,
+				(_, _) =>
+				{
+					Interlocked.Increment(ref workRuns);
+					return Task.CompletedTask;
+				},
+				job =>
+				{
+					Assert.Equal(1, harness.Jobs.Count);
+					Assert.Equal(1, harness.Resources.Count);
+					throw new InvalidOperationException(job.Id);
+				}));
+
+		Assert.StartsWith($"probe-{harness.Jobs.Namespace}-", exception.Message, StringComparison.Ordinal);
+		Assert.Equal(0, workRuns);
+		Assert.Equal(0, harness.Jobs.Count);
+		Assert.Equal(0, harness.Resources.Count);
+	}
+
+	[Fact]
 	public async Task Get_JobIds_ClassifyMalformedMismatchedForeignAndUnknownIds()
 	{
 		StateTestHarness harness = new();

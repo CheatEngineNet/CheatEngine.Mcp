@@ -248,7 +248,16 @@ public sealed class McpConfigurationTests
 		using SettingsFixture fixture = new();
 		fixture.CopyBundledDefaults();
 		fixture.WriteUserSettings(
-			JsonSerializer.Serialize(new { Mcp = new { Logging = new { MinimumLevel = value } } }));
+			JsonSerializer.Serialize(new
+			{
+				Mcp = new
+				{
+					Logging = new
+					{
+						MinimumLevel = value
+					}
+				}
+			}));
 
 		Assert.Equal(expected, fixture.Load().Logging.MinimumLevel);
 	}

@@ -20,8 +20,8 @@ internal sealed class LiveMcpClient : IAsyncDisposable, ILiveMcpToolClient
 	}
 
 	public string NegotiatedProtocolVersion => client.NegotiatedProtocolVersion
-	                                           ?? throw new InvalidOperationException(
-		                                           "The MCP client did not report a negotiated protocol version.");
+											   ?? throw new InvalidOperationException(
+												   "The MCP client did not report a negotiated protocol version.");
 
 	public ValueTask DisposeAsync()
 	{

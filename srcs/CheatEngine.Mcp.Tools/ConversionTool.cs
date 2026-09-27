@@ -30,7 +30,11 @@ public sealed class ConversionTool
 				_ => throw new ArgumentException("Conversion type must be md5, ansitoutf8, or utf8toansi.",
 					nameof(conversionType))
 			};
-			return new { success = true, result };
+			return new
+			{
+				success = true,
+				result
+			};
 		}
 		catch (Exception exception)
 		{

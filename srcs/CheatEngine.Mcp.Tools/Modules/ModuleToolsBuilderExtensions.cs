@@ -6,16 +6,19 @@ public static class ModuleToolsBuilderExtensions
 	extension(ICheatEngineMcpBuilder builder)
 	{
 		/// <summary>
-		///     Declares the <c>module_*</c> tool containers and their JSON metadata. None is declared yet; the legacy tools
-		///     this domain replaces are still declared by <c>AddTools()</c>.
+		///     Declares the <c>module_*</c> tool containers and their JSON metadata: <see cref="ModuleTools" />
+		///     (<c>module_list</c>, <c>module_get</c>), <see cref="ModuleExportTools" /> (<c>module_list_exports</c>) and
+		///     <see cref="ModulePatchTools" /> (<c>module_find_patches</c>).
 		/// </summary>
 		/// <returns>The same builder.</returns>
 		public ICheatEngineMcpBuilder AddModuleTools()
 		{
 			ArgumentNullException.ThrowIfNull(builder);
-			// B5 adds AddJsonTypeInfoResolver(ModuleJsonContext.Default) and one AddToolType<...>() per container
-			// here, then removes the legacy lines it replaces from AddTools().
-			return builder;
+			return builder
+				.AddJsonTypeInfoResolver(ModuleJsonContext.Default)
+				.AddToolType<ModuleTools>()
+				.AddToolType<ModuleExportTools>()
+				.AddToolType<ModulePatchTools>();
 		}
 	}
 }

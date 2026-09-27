@@ -19,7 +19,9 @@ public sealed class PrimitiveCompositionTests
 		McpPrimitiveCatalog catalog = McpPrimitiveCatalog.Create(manifest);
 
 		Assert.Equal("composition_probe", Assert.Single(catalog.Tools).Name);
-		Assert.Equal("cheatengine://probe", Assert.Single(catalog.Resources).UriTemplate);
+		Assert.Equal("cheatengine://instance/probe", Assert.Single(catalog.Resources).Uri);
+		Assert.Equal(McpPrimitiveRouting.Instance, Assert.Single(catalog.InstanceResources).Routing);
+		Assert.Empty(catalog.ResourceTemplates);
 		Assert.Equal("probe_prompt", Assert.Single(catalog.Prompts).Name);
 	}
 
@@ -53,10 +55,11 @@ public sealed class PrimitiveCompositionTests
 		new CheatEngineMcpBuilder(activation, CheatEngineMcpMode.Backend).AddToolType<CountingTool>();
 		activation.AddOptions<CheatEngineMcpPrimitiveOptions>();
 		using (ServiceProvider root =
-		       activation.BuildServiceProvider(new ServiceProviderOptions
-		       {
-			       ValidateOnBuild = true, ValidateScopes = true
-		       }))
+			   activation.BuildServiceProvider(new ServiceProviderOptions
+			   {
+				   ValidateOnBuild = true,
+				   ValidateScopes = true
+			   }))
 		{
 			CheatEngineMcpPrimitiveOptions manifest =
 				root.GetRequiredService<IOptions<CheatEngineMcpPrimitiveOptions>>().Value;
@@ -68,10 +71,11 @@ public sealed class PrimitiveCompositionTests
 				transport.AddLogging();
 				transport.AddMcpServer().WithCheatEnginePrimitives(manifest, McpPrimitiveBinding.FromTargets(targets));
 				using (ServiceProvider host =
-				       transport.BuildServiceProvider(new ServiceProviderOptions
-				       {
-					       ValidateOnBuild = true, ValidateScopes = true
-				       }))
+					   transport.BuildServiceProvider(new ServiceProviderOptions
+					   {
+						   ValidateOnBuild = true,
+						   ValidateScopes = true
+					   }))
 				{
 					Assert.Equal(2, host.GetServices<McpServerTool>().Count());
 					Assert.Null(host.GetService<CountingTool>());
@@ -124,7 +128,8 @@ public sealed class PrimitiveCompositionTests
 			throw new InvalidOperationException("Catalog composition must not construct primitive types.");
 		}
 
-		[McpServerResource(UriTemplate = "cheatengine://probe", Name = "probe", MimeType = "text/plain")]
+		[McpServerResource(UriTemplate = "cheatengine://instance/probe", Name = "probe", Title = "Probe",
+			MimeType = "application/json")]
 		[Description("Probe resource.")]
 		public string Read()
 		{
@@ -142,11 +147,17 @@ public sealed class PrimitiveCompositionTests
 			throw new InvalidOperationException("Catalog composition must not construct primitive types.");
 		}
 
-		[McpServerPrompt(Name = "probe_prompt")]
+		// Prompts are static (Local): the catalog never needs, and never builds, an instance for them.
+		[McpServerPrompt(Name = "probe_prompt", Title = "Probe prompt")]
 		[Description("Probe prompt.")]
-		public string Prompt([Description("A topic.")] string topic)
+		public static string Prompt([Description("A topic.")] string topic)
 		{
-			return _marker + topic;
+			return "probe:" + topic;
+		}
+
+		internal string Marker()
+		{
+			return _marker;
 		}
 	}
 

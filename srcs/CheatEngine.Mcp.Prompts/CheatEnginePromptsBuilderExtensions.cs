@@ -6,14 +6,15 @@ public static class CheatEnginePromptsBuilderExtensions
 	extension(ICheatEngineMcpBuilder builder)
 	{
 		/// <summary>
-		///     Declares the server instructions (<see cref="McpServerInstructions" />) and every Cheat Engine prompt
-		///     container. No prompt is declared yet.
+		///     Declares the server instructions (<see cref="McpServerInstructions" />) and the 22 guided workflow prompts
+		///     (<see cref="CheatEngineWorkflowPrompts" />), which are Local: every backend and the gateway serve them.
 		/// </summary>
 		/// <returns>The same builder.</returns>
 		public ICheatEngineMcpBuilder AddPrompts()
 		{
 			ArgumentNullException.ThrowIfNull(builder);
-			return builder.SetServerInstructions(McpServerInstructions.Gateway, McpServerInstructions.Backend);
+			return builder.SetServerInstructions(McpServerInstructions.Gateway, McpServerInstructions.Backend)
+				.AddPromptType<CheatEngineWorkflowPrompts>();
 		}
 	}
 }

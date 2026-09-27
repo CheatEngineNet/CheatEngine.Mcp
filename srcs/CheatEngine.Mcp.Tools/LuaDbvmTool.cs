@@ -93,7 +93,7 @@ public sealed class LuaDbvmTool(ICheatEngineClient client)
 		string hexadecimalBytes)
 	{
 		if (string.IsNullOrWhiteSpace(address) || string.IsNullOrWhiteSpace(hexadecimalBytes) ||
-		    hexadecimalBytes.Length > MaximumBytes * 3)
+			hexadecimalBytes.Length > MaximumBytes * 3)
 		{
 			return ToolExecution.Error("address and hexadecimalBytes are required.");
 		}
@@ -119,7 +119,7 @@ public sealed class LuaDbvmTool(ICheatEngineClient client)
 		int durationMilliseconds = 100)
 	{
 		if (string.IsNullOrWhiteSpace(address) || byteSize is < 1 or > 4096 || internalEntryCount is < 1 or > 4096 ||
-		    (options & ~0x0F) != 0 || durationMilliseconds is < 1 or > 5000)
+			(options & ~0x0F) != 0 || durationMilliseconds is < 1 or > 5000)
 		{
 			return ToolExecution.Error(
 				"address is required, byteSize must be between 1 and 4096, internalEntryCount must be between 1 and 4096, and options may use only bits 0 through 3.");

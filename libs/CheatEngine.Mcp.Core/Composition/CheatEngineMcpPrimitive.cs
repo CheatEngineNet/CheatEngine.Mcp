@@ -13,6 +13,6 @@ public sealed record CheatEngineMcpPrimitive(
 {
 	/// <summary>The members reflected to discover primitive methods and construct instance targets.</summary>
 	internal const DynamicallyAccessedMemberTypes Members = DynamicallyAccessedMemberTypes.PublicMethods
-	                                                        | DynamicallyAccessedMemberTypes.NonPublicMethods |
-	                                                        DynamicallyAccessedMemberTypes.PublicConstructors;
+															| DynamicallyAccessedMemberTypes.NonPublicMethods |
+															DynamicallyAccessedMemberTypes.PublicConstructors;
 }

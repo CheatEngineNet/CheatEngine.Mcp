@@ -83,7 +83,8 @@ internal sealed class TestMcpPipeline : IAsyncDisposable
 		services.AddMcpServer().WithCheatEnginePrimitives(manifest, binding, strictJson);
 		ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
 		{
-			ValidateOnBuild = true, ValidateScopes = true
+			ValidateOnBuild = true,
+			ValidateScopes = true
 		});
 		CancellationTokenSource stop = new();
 		try

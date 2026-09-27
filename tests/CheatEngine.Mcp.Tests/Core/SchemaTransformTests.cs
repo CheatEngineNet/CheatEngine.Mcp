@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 
 using Microsoft.Extensions.AI;
 
@@ -37,10 +38,44 @@ public sealed class SchemaTransformTests
 			"Schema still contains ulong.MaxValue, which breaks signed-64-bit schema consumers.");
 	}
 
+	[Fact]
+	public void SchemaTransform_NullableMembers_AreNotRequired()
+	{
+		// Nulls are omitted on the wire, so a nullable member can never be required.
+		JsonNode schema = CreateTypeSchema(typeof(NullableMembers));
+
+		JsonArray required = Assert.IsType<JsonArray>(schema["required"]);
+		Assert.Equal(["name"], required.Select(static member => member!.GetValue<string>()));
+	}
+
+	[Fact]
+	public void SchemaTransform_AllNullableMembers_DropsTheRequiredList()
+	{
+		JsonNode schema = CreateTypeSchema(typeof(OnlyNullableMembers));
+
+		Assert.Null(schema["required"]);
+	}
+
+	[Fact]
+	public void SchemaTransform_NullableEnum_ListsNoNullValue()
+	{
+		JsonNode schema = CreateTypeSchema(typeof(NullableMembers));
+
+		JsonNode kind = schema["properties"]!["kind"]!;
+		Assert.Equal("string", kind["type"]!.GetValue<string>());
+		Assert.DoesNotContain(kind["enum"]!.AsArray(), static value => value is null);
+	}
+
+	private static JsonNode CreateTypeSchema(Type type)
+	{
+		JsonElement schema = AIJsonUtilities.CreateJsonSchema(type, inferenceOptions: SchemaTransform.SchemaCreateOptions);
+		return JsonNode.Parse(schema.GetRawText()) ?? throw new InvalidOperationException("Generated schema was empty.");
+	}
+
 	private static MethodInfo GetSampleMethod(string name)
 	{
 		return typeof(SchemaSamples).GetMethod(name, BindingFlags.Public | BindingFlags.Static)
-		       ?? throw new InvalidOperationException($"Missing sample method {name}.");
+			   ?? throw new InvalidOperationException($"Missing sample method {name}.");
 	}
 
 	private static JsonNode CreateFunctionSchema(MethodInfo method, AIJsonSchemaCreateOptions options)
@@ -53,7 +88,7 @@ public sealed class SchemaTransformTests
 			options);
 
 		return JsonNode.Parse(schema.GetRawText())
-		       ?? throw new InvalidOperationException("Generated schema was empty.");
+			   ?? throw new InvalidOperationException("Generated schema was empty.");
 	}
 
 	private static void AssertContainsNullableTypeArray(JsonNode? node)
@@ -125,4 +160,15 @@ public sealed class SchemaTransformTests
 		{
 		}
 	}
+
+	[JsonConverter(typeof(JsonStringEnumConverter<SampleKind>))]
+	private enum SampleKind
+	{
+		First,
+		Second
+	}
+
+	private sealed record NullableMembers(string Name, string? Note, int? Count, SampleKind? Kind);
+
+	private sealed record OnlyNullableMembers(string? Note, long? Size);
 }

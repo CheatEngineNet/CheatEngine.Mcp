@@ -90,7 +90,10 @@ public sealed class LuaJob<TItem> : McpJob, ILuaStateBacked
 			items[index] = ReadItem(page.Items[index], operation);
 		}
 
-		return new JobPoll<TItem>(page.Job with { CreatedUtc = CreatedUtc }, items, page.FirstSequence,
+		return new JobPoll<TItem>(page.Job with
+		{
+			CreatedUtc = CreatedUtc
+		}, items, page.FirstSequence,
 			page.NextAfterSequence, page.More, page.Dropped);
 	}
 
@@ -164,7 +167,10 @@ public sealed class LuaJob<TItem> : McpJob, ILuaStateBacked
 		}
 
 		Observe(observed.State, observed.CleanupError);
-		return observed with { CreatedUtc = CreatedUtc };
+		return observed with
+		{
+			CreatedUtc = CreatedUtc
+		};
 	}
 
 	/// <inheritdoc />

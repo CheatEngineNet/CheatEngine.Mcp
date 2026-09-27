@@ -287,8 +287,17 @@ internal static class LuaDebuggerScripts
 			Dictionary<string, object?> result =
 				(Dictionary<string, object?>) LuaToolRuntime.Execute(client, operation, body, arguments)!;
 			return result.TryGetValue("error", out object? error)
-				? new { success = false, error, result }
-				: new { success = true, result };
+				? new
+				{
+					success = false,
+					error,
+					result
+				}
+				: new
+				{
+					success = true,
+					result
+				};
 		});
 	}
 }

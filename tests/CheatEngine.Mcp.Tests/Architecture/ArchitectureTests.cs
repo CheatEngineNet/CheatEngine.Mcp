@@ -59,10 +59,10 @@ public sealed class ArchitectureTests
 		Assembly subject = Product.Single(candidate => candidate.GetName().Name == assembly);
 		string[] disallowed = subject.GetReferencedAssemblies().Select(static reference => reference.Name!)
 			.Where(static name => name.StartsWith("CheatEngine.", StringComparison.Ordinal)
-			                      || name.StartsWith("NLog", StringComparison.Ordinal))
+								  || name.StartsWith("NLog", StringComparison.Ordinal))
 			.Where(name => !allowed.Any(layer => name == layer
-			                                     || (!layer.StartsWith("CheatEngine.Mcp.", StringComparison.Ordinal)
-			                                         && name.StartsWith(layer + ".", StringComparison.Ordinal))))
+												 || (!layer.StartsWith("CheatEngine.Mcp.", StringComparison.Ordinal)
+													 && name.StartsWith(layer + ".", StringComparison.Ordinal))))
 			.ToArray();
 		Assert.Empty(disallowed);
 	}
@@ -106,7 +106,7 @@ public sealed class ArchitectureTests
 		string[] mutable = Product.SelectMany(static assembly => assembly.GetTypes())
 			.Where(static type => !type.IsDefined(typeof(CompilerGeneratedAttribute), false))
 			.SelectMany(static type => type.GetFields(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic
-			                                          | BindingFlags.DeclaredOnly))
+													  | BindingFlags.DeclaredOnly))
 			.Where(static field => field is { IsLiteral: false, IsInitOnly: false })
 			.Select(static field => $"{field.DeclaringType!.FullName}.{field.Name}")
 			.ToArray();
@@ -155,8 +155,8 @@ public sealed class ArchitectureTests
 		IEnumerable<string> files = SourceFiles("srcs", "libs", "tests", "eng", "skills", ".github")
 			.Concat(Directory.EnumerateFiles(RepositoryPaths.Root, "*.*", SearchOption.TopDirectoryOnly))
 			.Where(file => !string.Equals(file, self, StringComparison.OrdinalIgnoreCase)
-			               && Path.GetExtension(file) is ".cs" or ".csproj" or ".props" or ".targets" or ".ps1"
-				               or ".md" or ".json" or ".yml" or ".slnx" or ".pubxml");
+						   && Path.GetExtension(file) is ".cs" or ".csproj" or ".props" or ".targets" or ".ps1"
+							   or ".md" or ".json" or ".yml" or ".slnx" or ".pubxml");
 		Assert.Empty(files.Where(file => File.ReadAllText(file).Contains(trace, StringComparison.Ordinal))
 			.Select(Relative));
 	}
@@ -182,10 +182,10 @@ public sealed class ArchitectureTests
 			.Where(Directory.Exists)
 			.SelectMany(static root => Directory.EnumerateFiles(root, "*.*", SearchOption.AllDirectories))
 			.Where(static file => !file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}",
-				                      StringComparison.OrdinalIgnoreCase)
-			                      && !file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}",
-				                      StringComparison.OrdinalIgnoreCase)
-			                      && !file.EndsWith("packages.lock.json", StringComparison.OrdinalIgnoreCase))
+									  StringComparison.OrdinalIgnoreCase)
+								  && !file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}",
+									  StringComparison.OrdinalIgnoreCase)
+								  && !file.EndsWith("packages.lock.json", StringComparison.OrdinalIgnoreCase))
 			.Where(static file => Path.GetExtension(file) is not ".dll" and not ".exe" and not ".pdb");
 	}
 

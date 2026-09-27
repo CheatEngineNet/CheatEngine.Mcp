@@ -18,7 +18,9 @@ public static class ToolErrorResults
 	{
 		return new CallToolResult
 		{
-			IsError = true, Content = [new TextContentBlock { Text = Serialize(error) }], StructuredContent = null
+			IsError = true,
+			Content = [new TextContentBlock { Text = Serialize(error) }],
+			StructuredContent = null
 		};
 	}
 

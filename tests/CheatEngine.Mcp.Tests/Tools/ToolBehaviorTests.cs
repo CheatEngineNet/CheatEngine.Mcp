@@ -18,41 +18,6 @@ namespace CheatEngine.Mcp.Tests.Tools;
 public sealed class ToolBehaviorTests
 {
 	[Fact]
-	public void MemoryTool_ReadMemory_Int32_RoutesTypedReadThroughClient()
-	{
-		Address expectedAddress = new(0x1234);
-		IMemoryClient memory = ClientTestDouble.Create<IMemoryClient>((method, _) => method.Name == "ReadPrimitive"
-			? 1337
-			: throw new NotSupportedException(method.Name));
-		MemoryTool tool = new(CreateClient(memory, expectedAddress));
-
-		object result = tool.ReadMemory("game.exe+1234", "int32");
-
-		ToolResultAssert.IsSuccess(result);
-		ToolResultAssert.HasPropertyValue(result, "value", 1337);
-	}
-
-	[Fact]
-	public void MemoryTool_ReadMemory_BytesWithoutBound_RefusesBeforeClientRead()
-	{
-		MemoryTool tool = new(CreateClient());
-
-		object result = tool.ReadMemory("unused", "bytes");
-
-		ToolResultAssert.IsFailure(result, "byteCount must be between 1 and 1048576.");
-	}
-
-	[Fact]
-	public void ScanTool_AobScan_OverClientLimit_RefusesBeforeScan()
-	{
-		ScanTool tool = new(CreateClient());
-
-		object result = tool.AobScan("90", 65_536);
-
-		ToolResultAssert.IsFailure(result, "maximumResults must be between 1 and 65535.");
-	}
-
-	[Fact]
 	public void ScanTool_MemoryScanThenReset_ReleasesOwnedSession()
 	{
 		int[] releases = [0];
@@ -73,19 +38,6 @@ public sealed class ToolBehaviorTests
 		ToolResultAssert.IsSuccess(tool.ResetMemoryScan("health"));
 
 		Assert.True(releases[0] == 1, "Reset must release the Client-owned value-scan session.");
-	}
-
-	[Fact]
-	public void PointerTool_ReadPointerChain_EmptyOffsets_RefusesBeforeResolution()
-	{
-		IMemoryClient memory = ClientTestDouble.Create<IMemoryClient>((method, _) =>
-			throw new XunitException($"Empty offsets unexpectedly called {method.Name}."));
-		PointerTool tool = new(CreateClient(memory));
-
-		object result = tool.ReadPointerChain("unused", []);
-
-		Assert.False(ToolResultAssert.GetProperty<bool>(result, "success"));
-		Assert.Contains("at least one offset", ToolResultAssert.GetProperty<string>(result, "error"));
 	}
 
 	[Fact]

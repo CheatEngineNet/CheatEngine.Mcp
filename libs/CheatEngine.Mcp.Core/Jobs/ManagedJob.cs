@@ -127,7 +127,9 @@ public sealed class ManagedJob<TItem> : McpJob
 		(long buffered, long total, long dropped, long? done, long? all) = _writer.Counters();
 		return Status(State, now, buffered, total, dropped) with
 		{
-			ProgressDone = done, ProgressTotal = all, Error = Error
+			ProgressDone = done,
+			ProgressTotal = all,
+			Error = Error
 		};
 	}
 
@@ -194,7 +196,7 @@ public sealed class ManagedJob<TItem> : McpJob
 				error = exception.Error.Message;
 			}
 			catch (CheatEngineToolException exception) when (exception.Error.Kind is ToolErrorKind.Cancelled &&
-			                                                 token.IsCancellationRequested)
+															 token.IsCancellationRequested)
 			{
 				final = Interrupted();
 			}
@@ -209,7 +211,7 @@ public sealed class ManagedJob<TItem> : McpJob
 				error = exception.Error.Message;
 			}
 			catch (CheatEngineClientException exception) when (exception.Failure.Kind is
-				                                                   CheatEngineFailureKind.ActivationExpired)
+																   CheatEngineFailureKind.ActivationExpired)
 			{
 				final = JobState.Cancelled;
 				error = ActivationEndedMessage;
@@ -244,7 +246,7 @@ public sealed class ManagedJob<TItem> : McpJob
 	{
 		Interlocked.CompareExchange(ref _stopReason, reason, NoStop);
 		if (Interlocked.CompareExchange(ref _state, (int) JobState.Stopping, (int) JobState.Running) ==
-		    (int) JobState.Running)
+			(int) JobState.Running)
 		{
 			_ = _cancellation.CancelAsync();
 		}

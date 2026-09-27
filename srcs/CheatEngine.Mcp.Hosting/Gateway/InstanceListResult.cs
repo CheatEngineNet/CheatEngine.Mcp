@@ -11,6 +11,6 @@ internal sealed record InstanceListResult(
 	[property: Description("The instances whose backend confirmed its registry identity, ordered by name.")]
 	InstanceListEntry[] Instances,
 	[property: Description("True when discovery stopped at its 10 s budget; call " + CheatEngineToolNames.InstanceList +
-	                       " again before "
-	                       + "concluding that an instance is missing.")]
+						   " again before "
+						   + "concluding that an instance is missing.")]
 	bool DiscoveryIncomplete);

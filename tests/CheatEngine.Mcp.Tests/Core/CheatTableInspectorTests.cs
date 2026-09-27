@@ -121,7 +121,7 @@ public sealed class CheatTableInspectorTests
 		Assert.Equal(expected, string.Join(",", inspection.Requirements.Features));
 		Assert.Equal((2, 2), (inspection.RecordCount, inspection.AssemblerScriptCount));
 		foreach (McpFeature feature in
-		         inspection.Requirements.Features.Where(static f => f != McpFeature.AutoAssembler))
+				 inspection.Requirements.Features.Where(static f => f != McpFeature.AutoAssembler))
 		{
 			Assert.StartsWith("an Auto Assembler script of the table ", inspection.Requirements.ReasonFor(feature),
 				StringComparison.Ordinal);

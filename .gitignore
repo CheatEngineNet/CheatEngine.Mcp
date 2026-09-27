@@ -387,3 +387,6 @@ celua.txt
 # Claude Code
 .claude/settings.local.json
 .claude/worktrees/
+
+# JetBrains Rider (per-user IDE state)
+.idea/

@@ -78,7 +78,8 @@ public sealed class FileOptionsTests : IDisposable
 		using TestActivation activation = new(ClientTestDouble.Client(),
 			new Dictionary<string, string?>
 			{
-				["Mcp:InstanceDirectory"] = registry, ["Mcp:Files:AllowedRoots:0"] = root
+				["Mcp:InstanceDirectory"] = registry,
+				["Mcp:Files:AllowedRoots:0"] = root
 			});
 
 		McpFilePaths paths = activation.Services.GetRequiredService<McpFilePaths>();

@@ -10,16 +10,17 @@ using ModelContextProtocol.Protocol;
 namespace CheatEngine.Mcp.Core.Composition;
 
 /// <summary>
-///     The reviewed naming and metadata rules of the v2 tool contract. They are pure, so the startup validator and the
-///     contract tests share them.
+///     The reviewed naming and metadata rules of the v2 tool, resource and prompt contract. They are pure, so the startup
+///     validator and the contract tests share them.
 /// </summary>
 /// <remarks>
 ///     A tool without an output schema is a legacy tool: it only has to leave the routing argument to the gateway. The
 ///     rest applies to every tool that publishes an output schema, which every v2 tool does: its name is one of the frozen
 ///     <see cref="CheatEngineToolNames" />, and a backend tool publishes its <see cref="McpDispatchClass" /> in
-///     <c>_meta</c>. Prompt and resource rules join this class with the first prompts and resources.
+///     <c>_meta</c>. Resources and prompts follow <see cref="McpResourceUris" /> and the routing rule of
+///     <see cref="McpPrimitiveRouting" />; see <c>McpContractRules.Primitives.cs</c>.
 /// </remarks>
-internal static class McpContractRules
+internal static partial class McpContractRules
 {
 	internal const int MaxToolNameLength = 40;
 	internal const int MaxTitleLength = 60;
@@ -63,7 +64,7 @@ internal static class McpContractRules
 			}
 
 			if (!IsLegacy(tool) && !string.IsNullOrWhiteSpace(tool.Title) &&
-			    !titles.TryAdd(tool.Title, tool.Name))
+				!titles.TryAdd(tool.Title, tool.Name))
 			{
 				yield return $"Tool '{tool.Name}' repeats the title '{tool.Title}' of '{titles[tool.Title]}'.";
 			}
@@ -108,7 +109,7 @@ internal static class McpContractRules
 
 		ValidateAnnotations(failures, name, tool.Annotations);
 		if (tool.OutputSchema is not { } output || output.ValueKind != JsonValueKind.Object ||
-		    !output.TryGetProperty("type", out JsonElement outputType) || !IsObjectType(outputType))
+			!output.TryGetProperty("type", out JsonElement outputType) || !IsObjectType(outputType))
 		{
 			failures.Add($"Tool '{name}' must publish an output schema of type object.");
 		}
@@ -162,7 +163,7 @@ internal static class McpContractRules
 	{
 		// Only a JSON string can carry the class; any other node is as wrong as a missing key.
 		string? dispatchClass = meta?[McpDispatchClass.MetaKey] is JsonValue value &&
-		                        value.TryGetValue(out string? text)
+								value.TryGetValue(out string? text)
 			? text
 			: null;
 		if (!McpDispatchClass.IsDefined(dispatchClass))
@@ -195,10 +196,10 @@ internal static class McpContractRules
 	private static void ValidateAnnotations(List<string> failures, string name, ToolAnnotations? annotations)
 	{
 		if (annotations is not
-		    {
-			    ReadOnlyHint: { } readOnly, DestructiveHint: { } destructive, IdempotentHint: { } idempotent,
-			    OpenWorldHint: not null
-		    })
+			{
+				ReadOnlyHint: { } readOnly, DestructiveHint: { } destructive, IdempotentHint: { } idempotent,
+				OpenWorldHint: not null
+			})
 		{
 			failures.Add(
 				$"Tool '{name}' must set ReadOnly, Destructive, Idempotent and OpenWorld explicitly.");
@@ -225,7 +226,7 @@ internal static class McpContractRules
 	private static void ValidateInputSchema(List<string> failures, string name, JsonElement schema)
 	{
 		if (schema.ValueKind != JsonValueKind.Object || !schema.TryGetProperty("type", out JsonElement type) ||
-		    !IsObjectType(type))
+			!IsObjectType(type))
 		{
 			failures.Add($"Tool '{name}' must publish an input schema of type object.");
 			return;
@@ -233,21 +234,21 @@ internal static class McpContractRules
 
 		HashSet<string> declared = new(StringComparer.Ordinal);
 		if (schema.TryGetProperty("properties", out JsonElement properties) &&
-		    properties.ValueKind == JsonValueKind.Object)
+			properties.ValueKind == JsonValueKind.Object)
 		{
 			foreach (JsonProperty property in properties.EnumerateObject())
 			{
 				declared.Add(property.Name);
 				if (property.Value.ValueKind != JsonValueKind.Object ||
-				    !property.Value.EnumerateObject().Any(static keyword => keyword.Name != "description"))
+					!property.Value.EnumerateObject().Any(static keyword => keyword.Name != "description"))
 				{
 					failures.Add($"Tool '{name}' parameter '{property.Name}' has an empty schema.");
 				}
 
 				if (property.Value.ValueKind != JsonValueKind.Object ||
-				    !property.Value.TryGetProperty("description", out JsonElement description) ||
-				    description.ValueKind != JsonValueKind.String ||
-				    string.IsNullOrWhiteSpace(description.GetString()))
+					!property.Value.TryGetProperty("description", out JsonElement description) ||
+					description.ValueKind != JsonValueKind.String ||
+					string.IsNullOrWhiteSpace(description.GetString()))
 				{
 					failures.Add($"Tool '{name}' parameter '{property.Name}' has no description.");
 				}
@@ -274,8 +275,8 @@ internal static class McpContractRules
 	private static bool HasRoutingArgument(JsonElement schema)
 	{
 		if (schema.ValueKind != JsonValueKind.Object ||
-		    !schema.TryGetProperty("properties", out JsonElement properties) ||
-		    properties.ValueKind != JsonValueKind.Object)
+			!schema.TryGetProperty("properties", out JsonElement properties) ||
+			properties.ValueKind != JsonValueKind.Object)
 		{
 			return false;
 		}
@@ -323,7 +324,8 @@ internal static class McpContractRules
 
 	/// <summary>
 	///     A sentence-case title starts with an uppercase letter; any later capitalized word is an acronym (two or more
-	///     capitals or digits, such as AOB, DBVM or PDB), a dotted name such as .NET, or a reviewed proper noun.
+	///     capitals or digits, such as AOB, DBVM or PDB, optionally plural such as NOPs), a dotted name such as .NET, or a
+	///     reviewed proper noun.
 	/// </summary>
 	internal static bool IsSentenceCase(string title)
 	{
@@ -341,7 +343,9 @@ internal static class McpContractRules
 				continue;
 			}
 
-			bool acronym = word.Length > 1 && word.All(static character =>
+			// A plural acronym such as NOPs keeps its lowercase s.
+			string stem = word.Length > 2 && word[^1] == 's' ? word[..^1] : word;
+			bool acronym = stem.Length > 1 && stem.All(static character =>
 				char.IsUpper(character) || char.IsDigit(character) || character is '-' or '/');
 			if (!acronym && !ProperNouns.Contains(word))
 			{

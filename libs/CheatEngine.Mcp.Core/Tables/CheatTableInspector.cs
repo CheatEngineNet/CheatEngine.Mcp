@@ -287,7 +287,7 @@ public static class CheatTableInspector
 	{
 		ReadOnlySpan<char> trimmed = value.AsSpan().Trim();
 		return !trimmed.Equals("0", StringComparison.Ordinal) &&
-		       !trimmed.Equals("false", StringComparison.OrdinalIgnoreCase);
+			   !trimmed.Equals("false", StringComparison.OrdinalIgnoreCase);
 	}
 
 	private static bool Is(string actual, string expected)

@@ -84,7 +84,11 @@ public static class ToolExecution
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	public static object Error(string error)
 	{
-		return new { success = false, error };
+		return new
+		{
+			success = false,
+			error
+		};
 	}
 
 	/// <summary>Transition only: creates a legacy unsuccessful result that keeps the Client failure classification.</summary>
@@ -152,7 +156,7 @@ public static class ToolExecution
 			throw;
 		}
 		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested &&
-		                                         !stopping.IsCancellationRequested)
+												 !stopping.IsCancellationRequested)
 		{
 			// The SDK never answers a cancelled request; the dispatch facade logs one that had started.
 			throw;

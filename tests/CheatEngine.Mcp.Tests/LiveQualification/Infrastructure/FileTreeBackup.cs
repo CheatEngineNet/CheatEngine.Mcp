@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Runtime.Versioning;
 using System.Text;
 using System.Text.Json;
@@ -81,7 +81,7 @@ internal static class FileTreeBackup
 
 		FileTreeSnapshot restored = Capture(directory);
 		if (restored.Exists != expected.Exists ||
-		    !restored.Entries.SequenceEqual(expected.Entries, StringComparer.Ordinal))
+			!restored.Entries.SequenceEqual(expected.Entries, StringComparer.Ordinal))
 		{
 			throw new InvalidOperationException($"'{directory}' differs from its backup after the restore.");
 		}

@@ -17,7 +17,10 @@ namespace CheatEngine.Mcp.Tests.Contract;
 public sealed class ContractSnapshotTests
 {
 	private static readonly JsonSerializerOptions SnapshotOptions =
-		new(McpJsonUtilities.DefaultOptions) { WriteIndented = true };
+		new(McpJsonUtilities.DefaultOptions)
+		{
+			WriteIndented = true
+		};
 
 	[Fact]
 	public void GatewayCatalog_CurrentBuild_MatchesGoldenSnapshot()
@@ -51,6 +54,8 @@ public sealed class ContractSnapshotTests
 			GoldenFile.AssertMatches("backend-tools.json",
 				SerializeTools(tools.Select(static tool => tool.ProtocolTool)));
 			GoldenFile.AssertMatches("backend-initialize.json", SerializeInitialize(client));
+			GoldenFile.AssertMatches("backend-resources.json", await SerializeResourcesAsync(client));
+			GoldenFile.AssertMatches("backend-prompts.json", await SerializePromptsAsync(client));
 		}
 		finally
 		{
@@ -118,6 +123,23 @@ public sealed class ContractSnapshotTests
 			GoldenFile.AssertMatches("gateway-tools.json",
 				SerializeTools(tools.Select(static tool => tool.ProtocolTool)));
 			GoldenFile.AssertMatches("gateway-initialize.json", SerializeInitialize(client));
+			GoldenFile.AssertMatches("gateway-resources.json", await SerializeResourcesAsync(client));
+			GoldenFile.AssertMatches("gateway-prompts.json", await SerializePromptsAsync(client));
+
+			// The executable serves the embedded knowledge itself: a document, a workflow body and a rendered prompt.
+			ReadResourceResult safety = await client.ReadResourceAsync("cheatengine://docs/safety",
+				cancellationToken: TestContext.Current.CancellationToken);
+			Assert.StartsWith("# Safety and responsible use",
+				Assert.IsType<TextResourceContents>(Assert.Single(safety.Contents)).Text, StringComparison.Ordinal);
+			ReadResourceResult body = await client.ReadResourceAsync("cheatengine://docs/workflows/nop-patch",
+				cancellationToken: TestContext.Current.CancellationToken);
+			Assert.StartsWith("# Replace code with NOPs",
+				Assert.IsType<TextResourceContents>(Assert.Single(body.Contents)).Text, StringComparison.Ordinal);
+			GetPromptResult prompt = await client.GetPromptAsync("speedhack",
+				new Dictionary<string, object?> { ["speed"] = "0.5" },
+				cancellationToken: TestContext.Current.CancellationToken);
+			Assert.Contains("`0.5`", Assert.IsType<TextContentBlock>(prompt.Messages[0].Content).Text,
+				StringComparison.Ordinal);
 		}
 		finally
 		{
@@ -139,8 +161,8 @@ public sealed class ContractSnapshotTests
 		string[] files = Directory.EnumerateFiles(pluginOutput)
 			.Select(static path => Path.GetFileName(path))
 			.Where(static name => name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
-			                      || name.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ||
-			                      name.EndsWith(".pdb", StringComparison.OrdinalIgnoreCase))
+								  || name.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ||
+								  name.EndsWith(".pdb", StringComparison.OrdinalIgnoreCase))
 			.Order(StringComparer.Ordinal).ToArray();
 		GoldenFile.AssertMatches("plugin-files.txt", string.Join('\n', files));
 	}
@@ -195,6 +217,35 @@ public sealed class ContractSnapshotTests
 	{
 		return JsonSerializer.Serialize(tools.OrderBy(static tool => tool.Name, StringComparer.Ordinal).ToArray(),
 			SnapshotOptions);
+	}
+
+	/// <summary>
+	///     The resources and resource templates of one host, ordered by URI: the SDK lists its collections in hash order,
+	///     which differs between processes.
+	/// </summary>
+	private static async Task<string> SerializeResourcesAsync(McpClient client)
+	{
+		IList<McpClientResource> resources =
+			await client.ListResourcesAsync(cancellationToken: TestContext.Current.CancellationToken);
+		IList<McpClientResourceTemplate> templates =
+			await client.ListResourceTemplatesAsync(cancellationToken: TestContext.Current.CancellationToken);
+		return JsonSerializer.Serialize(new JsonObject
+		{
+			["resources"] = JsonSerializer.SerializeToNode(
+				resources.Select(static resource => resource.ProtocolResource)
+					.OrderBy(static resource => resource.Uri, StringComparer.Ordinal).ToArray(), SnapshotOptions),
+			["resourceTemplates"] = JsonSerializer.SerializeToNode(
+				templates.Select(static template => template.ProtocolResourceTemplate)
+					.OrderBy(static template => template.UriTemplate, StringComparer.Ordinal).ToArray(), SnapshotOptions)
+		}, SnapshotOptions);
+	}
+
+	private static async Task<string> SerializePromptsAsync(McpClient client)
+	{
+		IList<McpClientPrompt> prompts =
+			await client.ListPromptsAsync(cancellationToken: TestContext.Current.CancellationToken);
+		return JsonSerializer.Serialize(prompts.Select(static prompt => prompt.ProtocolPrompt)
+			.OrderBy(static prompt => prompt.Name, StringComparer.Ordinal).ToArray(), SnapshotOptions);
 	}
 
 	private static string SerializeInitialize(McpClient client)

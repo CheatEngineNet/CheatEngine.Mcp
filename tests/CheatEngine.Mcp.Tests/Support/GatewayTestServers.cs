@@ -55,8 +55,9 @@ internal sealed class GatewayTestHost : IAsyncDisposable
 	/// <param name="callTimeout">The per-call timeout; the production default when omitted.</param>
 	/// <param name="logs">A provider that receives every gateway log line at <paramref name="minimumLevel" />.</param>
 	/// <param name="minimumLevel">The gateway's minimum log level.</param>
+	/// <param name="extraPrimitives">Primitives composed after the production ones, such as a routed resource probe.</param>
 	internal static async Task<GatewayTestHost> StartAsync(TimeSpan? callTimeout = null, ILoggerProvider? logs = null,
-		LogLevel minimumLevel = LogLevel.Information)
+		LogLevel minimumLevel = LogLevel.Information, IEnumerable<CheatEngineMcpPrimitive>? extraPrimitives = null)
 	{
 		string directory = Path.Combine(Path.GetTempPath(), $"CheatEngine.Mcp.Gateway.{Guid.NewGuid():N}");
 		WebApplicationBuilder builder = WebApplication.CreateBuilder(new WebApplicationOptions { Args = [] });
@@ -73,10 +74,12 @@ internal sealed class GatewayTestHost : IAsyncDisposable
 		builder.Logging.AddTokenSafeFloor();
 		builder.Services.Configure<CheatEngineMcpPrimitiveOptions>(manifest =>
 		{
-			foreach (CheatEngineMcpPrimitive primitive in TestComposition.GatewayManifest.Primitives)
+			foreach (CheatEngineMcpPrimitive primitive in TestComposition.GatewayManifest.Primitives
+						 .Concat(extraPrimitives ?? []))
 			{
 				manifest.Add(primitive);
 			}
+
 		});
 		WebApplication application = builder.Build();
 		application.Urls.Add(LoopbackEndpoints.NewEndpoint());
@@ -118,6 +121,7 @@ internal sealed class FakeBackend : IAsyncDisposable
 	private readonly TaskCompletionSource _forwarded = new(TaskCreationOptions.RunContinuationsAsynchronously);
 	private readonly InstanceRegistry _registry;
 	private int _forwardedCalls;
+	private int _identityProbes;
 	private int _initializeRequests;
 	private string? _recordPath;
 
@@ -189,6 +193,25 @@ internal sealed class FakeBackend : IAsyncDisposable
 		set;
 	}
 
+	/// <summary>The backend URI of every forwarded <c>resources/read</c>, in arrival order.</summary>
+	internal ConcurrentQueue<string> ReadUris
+	{
+		get;
+	} = new();
+
+	/// <summary>How many times <c>/instance</c> was probed.</summary>
+	internal int IdentityProbeCount => Volatile.Read(ref _identityProbes);
+
+	/// <summary>
+	///     Replaces the default read result: the backend URI as JSON plus a nested <c>cheatengine://instance/…</c>
+	///     content. It may throw, as a failing backend resource would.
+	/// </summary>
+	internal Func<string, ReadResourceResult>? RespondToRead
+	{
+		get;
+		set;
+	}
+
 	public async ValueTask DisposeAsync()
 	{
 		Withdraw();
@@ -228,12 +251,13 @@ internal sealed class FakeBackend : IAsyncDisposable
 			}))
 			.WithListToolsHandler(static (_, _) => ValueTask.FromResult(new ListToolsResult { Tools = [] }))
 			.WithCallToolHandler((context, cancellationToken) => backend!.ForwardAsync(context.Params!,
-				cancellationToken));
+				cancellationToken))
+			.WithReadResourceHandler((context, _) => ValueTask.FromResult(backend!.Read(context.Params!.Uri)));
 		WebApplication application = builder.Build();
 		application.Use(async (context, next) =>
 		{
 			if (!string.Equals(context.Request.Headers.Authorization, $"Bearer {backend!.Descriptor.AccessToken}",
-				    StringComparison.Ordinal))
+					StringComparison.Ordinal))
 			{
 				context.Response.StatusCode = StatusCodes.Status401Unauthorized;
 				return;
@@ -241,14 +265,20 @@ internal sealed class FakeBackend : IAsyncDisposable
 
 			await next(context);
 		});
-		application.MapGet("/instance", context => context.Response.WriteAsJsonAsync(
-			InstanceIdentity.From(backend!.ReportedIdentity), HostingJsonContext.Default.InstanceIdentity,
-			cancellationToken: context.RequestAborted));
+		application.MapGet("/instance", context =>
+		{
+			Interlocked.Increment(ref backend!._identityProbes);
+			return context.Response.WriteAsJsonAsync(InstanceIdentity.From(backend.ReportedIdentity),
+				HostingJsonContext.Default.InstanceIdentity, cancellationToken: context.RequestAborted);
+		});
 		application.MapMcp();
 		application.Urls.Add(LoopbackEndpoints.NewEndpoint());
 		backend = new FakeBackend(application, registry, descriptor);
 		await application.StartAsync(TestContext.Current.CancellationToken);
-		backend.Descriptor = descriptor with { Endpoint = new Uri(application.Urls.Single()).AbsoluteUri };
+		backend.Descriptor = descriptor with
+		{
+			Endpoint = new Uri(application.Urls.Single()).AbsoluteUri
+		};
 		backend.ReportedIdentity = backend.Descriptor;
 		backend._recordPath = registry.Publish(backend.Descriptor);
 		return backend;
@@ -258,7 +288,10 @@ internal sealed class FakeBackend : IAsyncDisposable
 	internal void RepublishWithNewToken()
 	{
 		Withdraw();
-		Descriptor = Descriptor with { AccessToken = RandomNumberGenerator.GetHexString(64) };
+		Descriptor = Descriptor with
+		{
+			AccessToken = RandomNumberGenerator.GetHexString(64)
+		};
 		_recordPath = _registry.Publish(Descriptor);
 	}
 
@@ -280,6 +313,34 @@ internal sealed class FakeBackend : IAsyncDisposable
 		{
 			File.Delete(path);
 		}
+	}
+
+	private ReadResourceResult Read(string uri)
+	{
+		ReadUris.Enqueue(uri);
+		if (RespondToRead is { } respond)
+		{
+			return respond(uri);
+		}
+
+		return new ReadResourceResult
+		{
+			Contents =
+			[
+				new TextResourceContents
+				{
+					Uri = uri,
+					MimeType = "application/json",
+					Text = new JsonObject { ["backend"] = Descriptor.InstanceId, ["uri"] = uri }.ToJsonString()
+				},
+				new TextResourceContents
+				{
+					Uri = "cheatengine://instance/probes/nested",
+					MimeType = "application/json",
+					Text = "{}"
+				}
+			]
+		};
 	}
 
 	private async ValueTask<CallToolResult> ForwardAsync(CallToolRequestParams request,
@@ -329,7 +390,11 @@ internal sealed class FakeBackend : IAsyncDisposable
 			}
 		}
 
-		JsonObject payload = new() { ["backend"] = Descriptor.InstanceId, ["arguments"] = arguments };
+		JsonObject payload = new()
+		{
+			["backend"] = Descriptor.InstanceId,
+			["arguments"] = arguments
+		};
 		using JsonDocument document = JsonDocument.Parse(payload.ToJsonString());
 		return new CallToolResult
 		{

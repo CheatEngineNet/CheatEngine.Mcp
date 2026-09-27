@@ -115,8 +115,8 @@ public sealed class LuaToolRuntimeTests
 		MethodInfo[] methods = typeof(CheatEngineToolsBuilderExtensions).Assembly
 			.GetTypes()
 			.Where(type => type.Namespace == typeof(CheatEngineToolsBuilderExtensions).Namespace &&
-			               type.Name.StartsWith("Lua", StringComparison.Ordinal) &&
-			               type.GetCustomAttribute<McpServerToolTypeAttribute>() is not null)
+						   type.Name.StartsWith("Lua", StringComparison.Ordinal) &&
+						   type.GetCustomAttribute<McpServerToolTypeAttribute>() is not null)
 			.SelectMany(type =>
 				type.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly))
 			.Where(method => method.GetCustomAttribute<McpServerToolAttribute>() is not null)

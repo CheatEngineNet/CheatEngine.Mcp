@@ -63,7 +63,7 @@ internal static class McpPluginServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
 		McpFileOptions options = configuration.GetSection(McpFileOptions.SectionName).Get<McpFileOptions>()
-		                         ?? new McpFileOptions();
+								 ?? new McpFileOptions();
 		return new McpFileOptionsValidator().ThrowIfInvalid(options);
 	}
 }

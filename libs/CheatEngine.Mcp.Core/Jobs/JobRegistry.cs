@@ -223,18 +223,33 @@ public sealed class JobRegistry : IDisposable
 	/// <param name="timeToLive">The lifetime, from <see cref="ResolveTimeToLive" />.</param>
 	/// <param name="bufferLimit">The retained items, from <see cref="ResolveBufferLimit" />.</param>
 	/// <param name="work">The work; it reports through the writer and observes the token.</param>
+	/// <param name="beforeRun">
+	///     Runs after the job is registered and before its work is queued. It can publish the job to a dependent state
+	///     holder; when it throws, the unstarted job is removed again.
+	/// </param>
 	/// <returns>The registered, running job.</returns>
 	/// <exception cref="CheatEngineToolException">
 	///     <c>busy</c> with <c>not_started</c> when <see cref="MaxJobs" /> jobs are
 	///     retained.
 	/// </exception>
 	public ManagedJob<TItem> StartManaged<TItem>(string kind, TimeSpan timeToLive, int bufferLimit,
-		Func<JobWriter<TItem>, CancellationToken, Task> work)
+		Func<JobWriter<TItem>, CancellationToken, Task> work, Action<ManagedJob<TItem>>? beforeRun = null)
 	{
 		ArgumentNullException.ThrowIfNull(work);
 		JobStart reserved = Reserve(kind, timeToLive, bufferLimit);
 		ManagedJob<TItem> job = new(reserved, _time);
 		Register(job);
+		try
+		{
+			beforeRun?.Invoke(job);
+		}
+		catch
+		{
+			// The job has an identity only internally: no caller saw it because its work never started.
+			Remove(job, tombstone: false);
+			throw;
+		}
+
 		job.Run(work, OnManagedJobEnded, _dispatch.Client.Stopping);
 		return job;
 	}
@@ -293,7 +308,7 @@ public sealed class JobRegistry : IDisposable
 		bool alreadyReleased = outcome.Kind is ResourceReleaseKind.AlreadyReleased
 			or ResourceReleaseKind.ExternallyRemoved;
 		if (outcome.Kind is ResourceReleaseKind.StopPending && !_dispatch.Client.Dispatcher.IsMainThread &&
-		    job.Completion.Wait(StopGracePeriod))
+			job.Completion.Wait(StopGracePeriod))
 		{
 			outcome = job.Release(cancellationToken);
 			if (outcome.Kind is ResourceReleaseKind.AlreadyReleased)
@@ -396,7 +411,7 @@ public sealed class JobRegistry : IDisposable
 		lock (_lock)
 		{
 			if (_jobs.TryGetValue(jobId, out McpJob? job) && !job.IsEnded &&
-			    _time.GetUtcNow() < job.ExpiresUtc)
+				_time.GetUtcNow() < job.ExpiresUtc)
 			{
 				return job;
 			}
@@ -487,7 +502,7 @@ public sealed class JobRegistry : IDisposable
 		lock (_lock)
 		{
 			foreach (KeyValuePair<string, DateTimeOffset> tombstone in _stopped.Where(pair => now >= pair.Value)
-				         .ToArray())
+						 .ToArray())
 			{
 				_stopped.Remove(tombstone.Key);
 			}

@@ -25,14 +25,15 @@ public sealed class GatewayServerTests
 		IList<McpClientTool> tools =
 			await client.ListToolsAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-		Assert.Equal(142, tools.Count);
+		// The exact catalog is pinned by the gateway-tools golden; here the live listing must match the composition.
+		Assert.Equal(TestComposition.GatewayTools.Select(static tool => tool.Name), tools.Select(static tool => tool.Name));
 		Assert.Equal(GatewayToolCatalog.InstanceListToolName, tools[0].Name);
-		Assert.Equal(141, tools.Count(tool => tool.Name != GatewayToolCatalog.InstanceListToolName));
+		Assert.Single(tools, static tool => tool.Name == GatewayToolCatalog.InstanceListToolName);
 		foreach (string name in new[]
-		         {
-			         "memory_scan", "next_memory_scan", "get_memory_scan_results", "reset_memory_scan",
-			         "get_memory_scan_status"
-		         })
+				 {
+					 "memory_scan", "next_memory_scan", "get_memory_scan_results", "reset_memory_scan",
+					 "get_memory_scan_status"
+				 })
 		{
 			Tool tool = Assert.Single(TestComposition.GatewayTools, tool => tool.Name == name);
 			Assert.Equal("main",
@@ -313,7 +314,10 @@ public sealed class GatewayServerTests
 		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync();
 		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "stale");
 		await using McpClient client = await gateway.ConnectAsync();
-		backend.ReportedIdentity = backend.Descriptor with { ActivationId = Guid.NewGuid() };
+		backend.ReportedIdentity = backend.Descriptor with
+		{
+			ActivationId = Guid.NewGuid()
+		};
 
 		CallToolResult result = await client.CallToolAsync("get_plugin_version", backend.RoutedArguments(),
 			cancellationToken: TestContext.Current.CancellationToken);

@@ -58,9 +58,9 @@ public static class CheatEngineMcpJson
 		}
 
 		foreach (IJsonTypeInfoResolver resolver in strict
-			         ? Flatten(options.TypeInfoResolverChain).Where(static resolver =>
-				         resolver is not DefaultJsonTypeInfoResolver)
-			         : options.TypeInfoResolverChain)
+					 ? Flatten(options.TypeInfoResolverChain).Where(static resolver =>
+						 resolver is not DefaultJsonTypeInfoResolver)
+					 : options.TypeInfoResolverChain)
 		{
 			chain.Add(resolver);
 		}

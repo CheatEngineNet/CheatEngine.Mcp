@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net.Http.Json;
 using System.Text.Json;
 
@@ -9,7 +10,7 @@ namespace CheatEngine.Mcp.Hosting.Gateway;
 ///     Confirms, over one authenticated loopback GET, that the backend behind a registry record is the activation the
 ///     record names. The gateway runs it before every routed call and for every <c>instance_list</c> candidate.
 /// </summary>
-internal sealed class InstanceIdentityVerifier : IDisposable
+internal sealed class InstanceIdentityVerifier(TimeProvider time) : IDisposable
 {
 	// An identity body is a few hundred bytes; a larger reply is not an identity.
 	private const int MaximumResponseBytes = 64 * 1024;
@@ -17,11 +18,46 @@ internal sealed class InstanceIdentityVerifier : IDisposable
 	/// <summary>How long one identity check may take.</summary>
 	internal static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
 
+	/// <summary>
+	///     How long a successful identity remains useful to completion. Entries older than this are removed on the next
+	///     successful verification, even when no completion request arrives.
+	/// </summary>
+	internal static readonly TimeSpan VerificationWindow = TimeSpan.FromSeconds(10);
+
 	private readonly HttpClient _http = BackendHttp.CreateClient(MaximumResponseBytes);
+
+	// Instance id to the timestamp of its last successful verification; ids only, never a record or a token.
+	private readonly ConcurrentDictionary<string, long> _verified = new(StringComparer.Ordinal);
 
 	public void Dispose()
 	{
 		_http.Dispose();
+	}
+
+	/// <summary>
+	///     The instance ids whose identity was confirmed within <paramref name="window" />, ordered; the gateway completes
+	///     <c>instanceId</c> from them without probing any backend.
+	/// </summary>
+	/// <param name="window">How recent a verification must be.</param>
+	/// <returns>The ids, never names, endpoints or tokens.</returns>
+	internal IReadOnlyList<string> RecentlyVerified(TimeSpan window)
+	{
+		long now = time.GetTimestamp();
+		List<string> recent = [];
+		foreach ((string instanceId, long verifiedAt) in _verified)
+		{
+			if (time.GetElapsedTime(verifiedAt, now) <= window)
+			{
+				recent.Add(instanceId);
+			}
+			else
+			{
+				_verified.TryRemove(new KeyValuePair<string, long>(instanceId, verifiedAt));
+			}
+		}
+
+		recent.Sort(StringComparer.Ordinal);
+		return recent;
 	}
 
 	/// <summary>Verifies the backend's identity against its registry record.</summary>
@@ -31,6 +67,34 @@ internal sealed class InstanceIdentityVerifier : IDisposable
 	internal async Task VerifyAsync(InstanceDescriptor instance, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(instance);
+		try
+		{
+			await VerifyCoreAsync(instance, cancellationToken).ConfigureAwait(false);
+		}
+		catch (InstanceUnavailableException)
+		{
+			_verified.TryRemove(instance.InstanceId, out _);
+			throw;
+		}
+
+		long verifiedAt = time.GetTimestamp();
+		_verified[instance.InstanceId] = verifiedAt;
+		PruneExpired(verifiedAt);
+	}
+
+	private void PruneExpired(long now)
+	{
+		foreach ((string instanceId, long verifiedAt) in _verified)
+		{
+			if (time.GetElapsedTime(verifiedAt, now) > VerificationWindow)
+			{
+				_verified.TryRemove(new KeyValuePair<string, long>(instanceId, verifiedAt));
+			}
+		}
+	}
+
+	private async Task VerifyCoreAsync(InstanceDescriptor instance, CancellationToken cancellationToken)
+	{
 		using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		timeout.CancelAfter(Timeout);
 		InstanceIdentity? identity;

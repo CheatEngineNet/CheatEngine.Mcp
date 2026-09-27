@@ -26,11 +26,18 @@ internal static class GatewayRoutingServiceCollectionExtensions
 			services.TryAddSingleton<InstanceIdentityVerifier>();
 			services.TryAddSingleton<BackendConnectionPool>();
 			services.TryAddSingleton<GatewayInstanceTool>();
+			services.TryAddSingleton<GatewayBackendConnector>();
+			services.TryAddSingleton<GatewayPrimitiveCatalog>();
 			services.TryAddSingleton<GatewayToolCatalog>();
+			services.TryAddSingleton<GatewayResourceCatalog>();
 			services.TryAddSingleton<GatewayRouter>();
+			services.TryAddSingleton<GatewayResourceRouter>();
+			services.TryAddSingleton<GatewayCompletionRouter>();
 			services.AddOptions<CheatEngineMcpPrimitiveOptions>();
 			services.TryAddEnumerable(ServiceDescriptor
 				.Singleton<IConfigureOptions<McpServerOptions>, GatewayServerOptionsSetup>());
+			services.TryAddEnumerable(ServiceDescriptor
+				.Singleton<IPostConfigureOptions<McpServerOptions>, GatewayLocalPrimitivesSetup>());
 			return services;
 		}
 	}

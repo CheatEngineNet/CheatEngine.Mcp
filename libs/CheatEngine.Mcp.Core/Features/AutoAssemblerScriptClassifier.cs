@@ -159,8 +159,8 @@ public static class AutoAssemblerScriptClassifier
 		long budget = (2L * script.Length) + 4096;
 		complete = true;
 		for (int index = script.IndexOf('(', StringComparison.Ordinal);
-		     index >= 0;
-		     index = script.IndexOf('(', index + 1))
+			 index >= 0;
+			 index = script.IndexOf('(', index + 1))
 		{
 			int end = index;
 			while (end > 0 && script[end - 1] is ' ' or '\t')
@@ -186,7 +186,7 @@ public static class AutoAssemblerScriptClassifier
 			}
 
 			if (!name.Equals("define", StringComparison.OrdinalIgnoreCase) ||
-			    !reader.TryRead(index, out Range defined, out Range value))
+				!reader.TryRead(index, out Range defined, out Range value))
 			{
 				continue;
 			}
@@ -236,8 +236,8 @@ public static class AutoAssemblerScriptClassifier
 		FrozenSet<string>.AlternateLookup<ReadOnlySpan<char>> plain =
 			PlainDirectives.GetAlternateLookup<ReadOnlySpan<char>>();
 		for (int index = script.IndexOf("{$", StringComparison.Ordinal);
-		     index >= 0;
-		     index = script.IndexOf("{$", index + 2, StringComparison.Ordinal))
+			 index >= 0;
+			 index = script.IndexOf("{$", index + 2, StringComparison.Ordinal))
 		{
 			int start = index + 2;
 			int end = start;
@@ -265,7 +265,7 @@ public static class AutoAssemblerScriptClassifier
 					$"{subject} has a {{$luacode}} block, which injects the Lua client library into the target");
 			}
 			else if (name.Equals("c", StringComparison.OrdinalIgnoreCase) ||
-			         name.Equals("ccode", StringComparison.OrdinalIgnoreCase))
+					 name.Equals("ccode", StringComparison.OrdinalIgnoreCase))
 			{
 				requirements.Add(McpFeature.TargetCodeExecution,
 					$"{subject} has a {{$c}} or {{$ccode}} block, which compiles C code into the target");
@@ -337,7 +337,7 @@ public static class AutoAssemblerScriptClassifier
 	private static bool IsNumberedHook(string name)
 	{
 		return name.Length > 4 && name.StartsWith("hook", StringComparison.OrdinalIgnoreCase) &&
-		       IsDecimal(name.AsSpan(4));
+			   IsDecimal(name.AsSpan(4));
 	}
 
 	/// <summary>A plain decimal number before a parenthesis is text, such as <c>+123 (note)</c>, not a command.</summary>

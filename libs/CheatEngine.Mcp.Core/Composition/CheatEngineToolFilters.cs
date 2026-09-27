@@ -122,8 +122,8 @@ internal static partial class CheatEngineToolFilters
 		return (context, cancellationToken) =>
 		{
 			if (context.MatchedPrimitive is McpServerTool tool &&
-			    context.Params is { Arguments: { Count: > 0 } arguments } parameters &&
-			    ToolArgumentNormalizer.Normalize(tool.ProtocolTool.InputSchema, arguments) is { } normalized)
+				context.Params is { Arguments: { Count: > 0 } arguments } parameters &&
+				ToolArgumentNormalizer.Normalize(tool.ProtocolTool.InputSchema, arguments) is { } normalized)
 			{
 				parameters.Arguments = normalized;
 			}
@@ -154,9 +154,46 @@ internal static partial class CheatEngineToolFilters
 				throw;
 			}
 			catch (Exception exception) when (exception is CheatEngineToolException or CheatEngineClientException
-				                                  or CheatEngineOperationCanceledException)
+												  or CheatEngineOperationCanceledException or ArgumentException
+												  or FormatException)
 			{
-				throw CreateResourceException(Classify(exception), context.Server.NegotiatedProtocolVersion, exception);
+				// The SDK binds template variables before the body runs, so its ArgumentException and a conversion's
+				// FormatException are invalid arguments; a resource body is read-only, so nothing has started.
+				ToolError error = exception is FormatException
+					? new ToolError(ToolErrorKind.InvalidArgument, exception.Message, null, ToolHostEffect.NotStarted,
+						false)
+					: Classify(exception);
+				throw McpResourceErrors.Create(error, context.Server.NegotiatedProtocolVersion, exception);
+			}
+		};
+	}
+
+	/// <summary>
+	///     Turns an invalid prompt request into a JSON-RPC <c>-32602</c> error with the contract fields in
+	///     <see cref="Exception.Data" />: a missing or malformed argument (the SDK's <see cref="ArgumentException" />, a
+	///     <see cref="JsonException" /> or a <see cref="CheatEngineToolException" />). Prompts only render text, so nothing
+	///     has started.
+	/// </summary>
+	/// <param name="next">The rest of the pipeline.</param>
+	/// <returns>The wrapped handler.</returns>
+	internal static McpRequestHandler<GetPromptRequestParams, GetPromptResult> MapPromptErrors(
+		McpRequestHandler<GetPromptRequestParams, GetPromptResult> next)
+	{
+		ArgumentNullException.ThrowIfNull(next);
+		return async (context, cancellationToken) =>
+		{
+			try
+			{
+				return await next(context, cancellationToken).ConfigureAwait(false);
+			}
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+			{
+				throw;
+			}
+			catch (Exception exception) when (exception is CheatEngineToolException or ArgumentException
+												  or JsonException)
+			{
+				throw McpResourceErrors.CreateInvalidParams(Classify(exception), exception);
 			}
 		};
 	}
@@ -184,15 +221,7 @@ internal static partial class CheatEngineToolFilters
 	/// <returns>The error code.</returns>
 	internal static McpErrorCode ResourceErrorCode(ToolErrorKind kind, string? negotiatedProtocolVersion)
 	{
-		return kind switch
-		{
-			ToolErrorKind.InvalidArgument => McpErrorCode.InvalidParams,
-			ToolErrorKind.NotFound => negotiatedProtocolVersion is not null &&
-			                          StringComparer.Ordinal.Compare(negotiatedProtocolVersion, "2026-07-28") >= 0
-				? McpErrorCode.InvalidParams
-				: McpErrorCode.ResourceNotFound,
-			_ => McpErrorCode.InternalError
-		};
+		return McpResourceErrors.Code(kind, negotiatedProtocolVersion);
 	}
 
 	private static void Require(McpFeatureGate? gate, McpFeature feature, string toolName)
@@ -205,37 +234,6 @@ internal static partial class CheatEngineToolFilters
 		}
 
 		gate.Require(feature, toolName);
-	}
-
-	private static McpProtocolException CreateResourceException(ToolError error, string? negotiatedProtocolVersion,
-		Exception exception)
-	{
-		McpProtocolException protocol = new(error.Message, exception,
-			ResourceErrorCode(error.Kind, negotiatedProtocolVersion));
-		protocol.Data["kind"] = ContractName(error.Kind);
-		if (error.Operation is not null)
-		{
-			protocol.Data["operation"] = error.Operation;
-		}
-
-		protocol.Data["hostEffect"] = ContractName(error.HostEffect);
-		protocol.Data["retryable"] = error.Retryable;
-		if (error.Hint is not null)
-		{
-			protocol.Data["hint"] = error.Hint;
-		}
-
-		return protocol;
-	}
-
-	private static string ContractName(ToolErrorKind kind)
-	{
-		return JsonSerializer.SerializeToElement(kind, CoreJsonContext.Default.ToolErrorKind).GetString()!;
-	}
-
-	private static string ContractName(ToolHostEffect effect)
-	{
-		return JsonSerializer.SerializeToElement(effect, CoreJsonContext.Default.ToolHostEffect).GetString()!;
 	}
 
 	private static ILogger CreateLogger(RequestContext<CallToolRequestParams> context)

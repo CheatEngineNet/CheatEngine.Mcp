@@ -29,7 +29,8 @@ public sealed class McpModuleLifecycleTests
 		using TestActivation activation = new(client,
 			new Dictionary<string, string?>
 			{
-				["Mcp:InstanceName"] = "lifecycle", ["Mcp:InstanceDirectory"] = instances
+				["Mcp:InstanceName"] = "lifecycle",
+				["Mcp:InstanceDirectory"] = instances
 			});
 		McpServerModule module = activation.Module;
 		InstanceRegistry registry = new(instances);
@@ -58,7 +59,7 @@ public sealed class McpModuleLifecycleTests
 			module.OnDisabling(client);
 			Assert.Empty(registry.ReadActive(TestContext.Current.CancellationToken));
 			using (HttpResponseMessage stopping =
-			       await http.GetAsync(published.Endpoint, TestContext.Current.CancellationToken))
+				   await http.GetAsync(published.Endpoint, TestContext.Current.CancellationToken))
 			{
 				Assert.Equal(HttpStatusCode.ServiceUnavailable, stopping.StatusCode);
 			}
@@ -92,7 +93,8 @@ public sealed class McpModuleLifecycleTests
 		using TestActivation activation = new(client,
 			new Dictionary<string, string?>
 			{
-				["Mcp:InstanceName"] = "stopping", ["Mcp:InstanceDirectory"] = instances
+				["Mcp:InstanceName"] = "stopping",
+				["Mcp:InstanceDirectory"] = instances
 			});
 		McpServerModule module = activation.Module;
 		InstanceRegistry registry = new(instances);

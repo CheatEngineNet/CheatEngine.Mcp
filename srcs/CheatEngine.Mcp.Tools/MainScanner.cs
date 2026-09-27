@@ -163,7 +163,7 @@ internal static class MainScanner
 		params object?[] arguments)
 	{
 		return LuaToolRuntime.Execute(client, operation, source, arguments) ??
-		       throw new InvalidOperationException("The main scanner returned no result.");
+			   throw new InvalidOperationException("The main scanner returned no result.");
 	}
 
 	internal static string TypeName(ValueScanValueType type)

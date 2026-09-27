@@ -61,7 +61,7 @@ internal static class CheatEngineInstallation
 		}
 
 		foreach ((string target, string expected) in profile.TargetSha256.OrderBy(static pair => pair.Key,
-			         StringComparer.Ordinal))
+					 StringComparer.Ordinal))
 		{
 			string path = Path.Combine(directory, target);
 			if (!File.Exists(path))

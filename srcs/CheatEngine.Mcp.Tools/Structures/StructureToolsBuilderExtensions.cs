@@ -6,16 +6,19 @@ public static class StructureToolsBuilderExtensions
 	extension(ICheatEngineMcpBuilder builder)
 	{
 		/// <summary>
-		///     Declares the <c>structure_*</c> tool containers and their JSON metadata. None is declared yet; the legacy tools
-		///     this domain replaces are still declared by <c>AddTools()</c>.
+		///     Declares the <c>structure_*</c> tool containers and their JSON metadata. Structures are Cheat Engine's global
+		///     state, so the domain registers no activation service of its own.
 		/// </summary>
 		/// <returns>The same builder.</returns>
 		public ICheatEngineMcpBuilder AddStructureTools()
 		{
 			ArgumentNullException.ThrowIfNull(builder);
-			// B9 adds AddJsonTypeInfoResolver(StructureJsonContext.Default) and one AddToolType<...>() per container
-			// here, then removes the legacy lines it replaces from AddTools().
-			return builder;
+			return builder
+				.AddJsonTypeInfoResolver(StructuresJsonContext.Default)
+				.AddToolType<StructureTools>()
+				.AddToolType<StructureElementTools>()
+				.AddToolType<StructureValueTools>()
+				.AddToolType<StructureCompareTools>();
 		}
 	}
 }

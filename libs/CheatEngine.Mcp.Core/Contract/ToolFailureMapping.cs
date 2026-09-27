@@ -64,7 +64,7 @@ public static class ToolFailureMapping
 	public static bool IsRetryable(ToolErrorKind kind, ToolHostEffect effect)
 	{
 		return kind is ToolErrorKind.Busy or ToolErrorKind.Cancelled
-		       && effect is ToolHostEffect.NotStarted or ToolHostEffect.NotApplied;
+			   && effect is ToolHostEffect.NotStarted or ToolHostEffect.NotApplied;
 	}
 
 	private static (ToolErrorKind Kind, string? Hint) Classify(CheatEngineFailureKind kind, bool activationStopping)

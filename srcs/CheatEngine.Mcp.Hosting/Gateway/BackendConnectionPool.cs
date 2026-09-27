@@ -193,9 +193,9 @@ internal sealed partial class BackendConnectionPool : IAsyncDisposable, IDisposa
 		lock (_gate)
 		{
 			foreach (BackendConnection connection in _connections.Values
-				         .Where(candidate =>
-					         string.Equals(candidate.Key.InstanceId, instanceId, StringComparison.Ordinal))
-				         .ToArray())
+						 .Where(candidate =>
+							 string.Equals(candidate.Key.InstanceId, instanceId, StringComparison.Ordinal))
+						 .ToArray())
 			{
 				RemoveLocked(connection, reason);
 			}
@@ -232,7 +232,7 @@ internal sealed partial class BackendConnectionPool : IAsyncDisposable, IDisposa
 
 		connection.Evicted = true;
 		if (_connections.TryGetValue(connection.Key, out BackendConnection? pooled) &&
-		    ReferenceEquals(pooled, connection))
+			ReferenceEquals(pooled, connection))
 		{
 			_connections.Remove(connection.Key);
 		}

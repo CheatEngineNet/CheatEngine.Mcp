@@ -119,7 +119,7 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 					IReadOnlyList<string> differences = CheatEngineInstallation.Compare(_fingerprint,
 						CheatEngineInstallation.Fingerprint(_source, _profile));
 					bool unchanged = differences.Count == 0 &&
-					                 _runtimeHash == HashIfExists(Path.Combine(_source, "ce.runtimeconfig.json"));
+									 _runtimeHash == HashIfExists(Path.Combine(_source, "ce.runtimeconfig.json"));
 					_report["sourceInstallationUnchanged"] = unchanged;
 					if (!unchanged)
 					{
@@ -220,7 +220,11 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 			host.Stopped = targetStopped;
 		}
 
-		Record($"host_{name}_stopped", new { host.Public.ProcessId, host.Public.TargetProcessId });
+		Record($"host_{name}_stopped", new
+		{
+			host.Public.ProcessId,
+			host.Public.TargetProcessId
+		});
 		if (failures.Count != 0)
 		{
 			throw new AggregateException($"Live host {name} did not stop cleanly.", failures);
@@ -232,7 +236,7 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 		string repository = inputs.RepositoryRoot;
 		_source = inputs.CheatEngineDirectory;
 		if (LiveQualificationOptIn.IsSameOrBelow(_layout.RunRoot, _source)
-		    || LiveQualificationOptIn.IsSameOrBelow(_source, _layout.RunRoot))
+			|| LiveQualificationOptIn.IsSameOrBelow(_source, _layout.RunRoot))
 		{
 			throw new InvalidOperationException("The CE installation and live-run directory must be separate.");
 		}
@@ -240,7 +244,7 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 		string hostPath = Path.Combine(_source, "cheatengine-x86_64.exe");
 		ExecutableFacts facts = PortableExecutableInspector.Instance.Describe(hostPath);
 		if (facts.Machine != "Amd64" || !Version.TryParse(facts.FileVersion, out Version? version) ||
-		    version < new Version(7, 7))
+			version < new Version(7, 7))
 		{
 			throw new InvalidOperationException("Live smoke tests require Cheat Engine 7.7 or later, x64.");
 		}
@@ -364,7 +368,7 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 			ProcessStartInfo targetStart = CreateStartInfo(targetPath);
 			targetStart.ArgumentList.Add(targetManifest);
 			target = Process.Start(targetStart) ??
-			         throw new InvalidOperationException($"Disposable target {name} did not start.");
+					 throw new InvalidOperationException($"Disposable target {name} did not start.");
 			owned = new OwnedHost(null, target, stopPath, targetManifest,
 				new LiveSandboxHost(name, 0, target.Id, string.Empty, pluginPath, string.Empty, string.Empty));
 			_hosts.Add(name, owned);
@@ -384,13 +388,25 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 			hostStart.Environment["MCP_INSTANCE_DIRECTORY"] = InstanceDirectory;
 			hostStart.Environment["MCP_INSTANCE_NAME"] = $"Live Qualification {name}";
 			host = Process.Start(hostStart) ??
-			       throw new InvalidOperationException($"Private CE host {name} did not start.");
+				   throw new InvalidOperationException($"Private CE host {name} did not start.");
 			owned.Process = host;
 			_debugOutput!.Buffer.Track(host.Id);
-			owned.Public = owned.Public with { ProcessId = host.Id, TargetAddress = targetAddress };
+			owned.Public = owned.Public with
+			{
+				ProcessId = host.Id,
+				TargetAddress = targetAddress
+			};
 			InstanceDescriptor descriptor = await WaitForInstanceAsync(owned, TimeSpan.FromSeconds(45));
-			owned.Public = owned.Public with { InstanceId = descriptor.InstanceId, Endpoint = descriptor.Endpoint };
-			Record($"target_{name}", new { processId = target.Id, address = targetAddress });
+			owned.Public = owned.Public with
+			{
+				InstanceId = descriptor.InstanceId,
+				Endpoint = descriptor.Endpoint
+			};
+			Record($"target_{name}", new
+			{
+				processId = target.Id,
+				address = targetAddress
+			});
 		}
 		catch (Exception exception)
 		{
@@ -433,11 +449,11 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 	{
 		string[] pluginFiles = RelativeFiles(pluginDirectory);
 		if (!pluginFiles.SequenceEqual(RelativeFiles(pluginSource), StringComparer.Ordinal)
-		    || !new[]
-		    {
-			    PluginFileName, "CheatEngine.Mcp.Plugin.deps.json", "CheatEngine.Mcp.Plugin.runtimeconfig.json",
-			    "cheatengine-sdk-lua-bridge.dll"
-		    }.All(file => pluginFiles.Contains(file, StringComparer.Ordinal)))
+			|| !new[]
+			{
+				PluginFileName, "CheatEngine.Mcp.Plugin.deps.json", "CheatEngine.Mcp.Plugin.runtimeconfig.json",
+				"cheatengine-sdk-lua-bridge.dll"
+			}.All(file => pluginFiles.Contains(file, StringComparer.Ordinal)))
 		{
 			throw new InvalidOperationException($"Live host {name} did not stage exactly the published plugin folder.");
 		}
@@ -451,7 +467,11 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 				"Live qualification staged files beyond the self-contained gateway executable.");
 		}
 
-		Record($"distribution_{name}", new { pluginFiles, gatewayFiles });
+		Record($"distribution_{name}", new
+		{
+			pluginFiles,
+			gatewayFiles
+		});
 	}
 
 	private static string[] RelativeFiles(string directory)
@@ -474,7 +494,7 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 	private async Task<InstanceDescriptor> WaitForInstanceAsync(OwnedHost host, TimeSpan timeout)
 	{
 		Process process = host.Process ??
-		                  throw new InvalidOperationException($"CE host {host.Public.Name} did not start.");
+						  throw new InvalidOperationException($"CE host {host.Public.Name} did not start.");
 		InstanceRegistry registry = new(InstanceDirectory);
 		Stopwatch elapsed = Stopwatch.StartNew();
 		while (elapsed.Elapsed < timeout)
@@ -504,7 +524,11 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 	{
 		_report[name] = evidence;
 		File.AppendAllText(_layout.ReceiptsPath,
-			JsonSerializer.Serialize(new { name, evidence }) + Environment.NewLine);
+			JsonSerializer.Serialize(new
+			{
+				name,
+				evidence
+			}) + Environment.NewLine);
 	}
 
 	public void MarkPassed()
@@ -561,12 +585,16 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 				$"MCP menu status evidence for host {name} is incomplete: expected enabled and disabled indicators.");
 		}
 
-		Record($"mcp_status_{name}", new { enabledIndicator, disabledIndicator });
+		Record($"mcp_status_{name}", new
+		{
+			enabledIndicator,
+			disabledIndicator
+		});
 		string log = File.ReadAllText(debugPath);
 		bool enabled = log.Contains("[CheatEngine.SDK.Hosting] Information: Plugin ", StringComparison.Ordinal)
-		               && log.Contains(" enabled (epoch ", StringComparison.Ordinal);
+					   && log.Contains(" enabled (epoch ", StringComparison.Ordinal);
 		bool disabled = log.Contains("[CheatEngine.SDK.Hosting] Information: Plugin ", StringComparison.Ordinal)
-		                && log.Contains(" disabled.", StringComparison.Ordinal);
+						&& log.Contains(" disabled.", StringComparison.Ordinal);
 		if (!enabled || !disabled)
 		{
 			throw new InvalidOperationException(
@@ -587,7 +615,11 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 				$"SDK lifecycle evidence for host {name} reported deactivation failure marker '{failure}'.");
 		}
 
-		Record($"sdk_lifecycle_{name}", new { enabled, disabled });
+		Record($"sdk_lifecycle_{name}", new
+		{
+			enabled,
+			disabled
+		});
 	}
 
 	internal async Task<string[]> ScanUiAsync(string name, string action)
@@ -751,8 +783,8 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 	private void RequireInsideRun(string path)
 	{
 		if (!LiveQualificationOptIn.IsSameOrBelow(path, _layout.RunDirectory)
-		    || Path.GetFullPath(path)
-			    .Equals(Path.GetFullPath(_layout.RunDirectory), StringComparison.OrdinalIgnoreCase))
+			|| Path.GetFullPath(path)
+				.Equals(Path.GetFullPath(_layout.RunDirectory), StringComparison.OrdinalIgnoreCase))
 		{
 			throw new InvalidOperationException("A sandbox file operation escaped the current run directory.");
 		}
@@ -798,9 +830,9 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 			using (process)
 			{
 				if (process.ProcessName.StartsWith("cheatengine-", StringComparison.OrdinalIgnoreCase)
-				    || process.ProcessName.Equals("cheatengine", StringComparison.OrdinalIgnoreCase)
-				    || process.ProcessName.Equals("Cheat Engine", StringComparison.OrdinalIgnoreCase)
-				    || process.ProcessName.StartsWith("gtutorial", StringComparison.OrdinalIgnoreCase))
+					|| process.ProcessName.Equals("cheatengine", StringComparison.OrdinalIgnoreCase)
+					|| process.ProcessName.Equals("Cheat Engine", StringComparison.OrdinalIgnoreCase)
+					|| process.ProcessName.StartsWith("gtutorial", StringComparison.OrdinalIgnoreCase))
 				{
 					throw new InvalidOperationException(
 						$"Close {process.ProcessName} (PID {process.Id}) before live tests; it will not be stopped automatically.");
@@ -812,8 +844,8 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 	internal static string FindRepository()
 	{
 		for (DirectoryInfo? directory = new(AppContext.BaseDirectory);
-		     directory is not null;
-		     directory = directory.Parent)
+			 directory is not null;
+			 directory = directory.Parent)
 		{
 			if (File.Exists(Path.Combine(directory.FullName, "CheatEngine.Mcp.slnx")))
 			{

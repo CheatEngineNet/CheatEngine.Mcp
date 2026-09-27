@@ -75,17 +75,22 @@ public sealed class ContractProbeTool
 	[Description("A legacy tool that reports its result in band.")]
 	public static object Legacy([Description("A value echoed back.")] int value)
 	{
-		return new { success = true, value };
+		return new
+		{
+			success = true,
+			value
+		};
 	}
 }
 
-/// <summary>A static probe resource whose URI selects the failure it raises.</summary>
+/// <summary>A static (Local) probe resource whose URI selects the failure it raises.</summary>
 [McpServerResourceType]
 public sealed class ContractProbeResource
 {
-	internal const string UriPrefix = "cheatengine://probe/";
+	internal const string UriPrefix = "cheatengine://docs/probes/";
 
-	[McpServerResource(UriTemplate = UriPrefix + "{kind}", Name = "probe_resource", MimeType = "text/plain")]
+	[McpServerResource(UriTemplate = UriPrefix + "{kind}", Name = "probe_resource", Title = "Probe resource",
+		MimeType = "text/markdown")]
 	[Description("Reads a probe resource or raises the failure its kind names.")]
 	public static string Read([Description("The failure kind, or ok.")] string kind)
 	{

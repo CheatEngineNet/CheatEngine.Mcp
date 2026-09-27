@@ -33,15 +33,15 @@ internal static class ToolArgumentNormalizer
 		IDictionary<string, JsonElement> arguments)
 	{
 		if (inputSchema.ValueKind != JsonValueKind.Object ||
-		    !inputSchema.TryGetProperty("properties", out JsonElement properties) ||
-		    properties.ValueKind != JsonValueKind.Object)
+			!inputSchema.TryGetProperty("properties", out JsonElement properties) ||
+			properties.ValueKind != JsonValueKind.Object)
 		{
 			return null;
 		}
 
 		HashSet<string> required = new(StringComparer.Ordinal);
 		if (inputSchema.TryGetProperty("required", out JsonElement requiredNames) &&
-		    requiredNames.ValueKind == JsonValueKind.Array)
+			requiredNames.ValueKind == JsonValueKind.Array)
 		{
 			foreach (JsonElement name in requiredNames.EnumerateArray())
 			{
@@ -56,7 +56,7 @@ internal static class ToolArgumentNormalizer
 		foreach ((string name, JsonElement value) in arguments)
 		{
 			if (!properties.TryGetProperty(name, out JsonElement property) ||
-			    property.ValueKind != JsonValueKind.Object)
+				property.ValueKind != JsonValueKind.Object)
 			{
 				continue;
 			}
@@ -67,7 +67,7 @@ internal static class ToolArgumentNormalizer
 				normalized.Remove(name);
 			}
 			else if (value.ValueKind == JsonValueKind.String && TryRepairString(property, value.GetString()!,
-				         out JsonElement repaired))
+						 out JsonElement repaired))
 			{
 				normalized ??= new Dictionary<string, JsonElement>(arguments, StringComparer.Ordinal);
 				normalized[name] = repaired;

@@ -5,15 +5,13 @@ using System.Text.Json.Serialization.Metadata;
 
 using CheatEngine.Mcp.Core.Contract;
 
-using Microsoft.Extensions.Options;
-
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 
 namespace CheatEngine.Mcp.Hosting.Gateway;
 
 /// <summary>The gateway's tool list: <c>instance_list</c>, then the composed backend tools with a routing argument.</summary>
-internal sealed class GatewayToolCatalog(IOptions<CheatEngineMcpPrimitiveOptions> manifest)
+internal sealed class GatewayToolCatalog(GatewayPrimitiveCatalog primitives)
 {
 	/// <summary>The gateway-local discovery tool.</summary>
 	internal const string InstanceListToolName = GatewayInstanceTool.Name;
@@ -24,7 +22,7 @@ internal sealed class GatewayToolCatalog(IOptions<CheatEngineMcpPrimitiveOptions
 	/// <summary>The routing argument's description, repeated in every routed tool, so it stays short.</summary>
 	internal const string InstanceIdDescription = $"Instance id from {CheatEngineToolNames.InstanceList}.";
 
-	private readonly Lazy<Listing> _listing = new(() => new Listing(Create(manifest.Value)));
+	private readonly Lazy<Listing> _listing = new(() => new Listing(Create(primitives.Catalog)));
 
 	/// <summary>Every tool, <c>instance_list</c> first.</summary>
 	internal IReadOnlyList<Tool> Tools => _listing.Value.Tools;
@@ -42,8 +40,16 @@ internal sealed class GatewayToolCatalog(IOptions<CheatEngineMcpPrimitiveOptions
 	/// <returns><c>instance_list</c>, then the backend tools in name order.</returns>
 	internal static IReadOnlyList<Tool> Create(CheatEngineMcpPrimitiveOptions manifest)
 	{
+		return Create(McpPrimitiveCatalog.Create(manifest));
+	}
+
+	/// <summary>Builds the listing from a schema-only catalog.</summary>
+	/// <param name="catalog">The routed composition's catalog.</param>
+	/// <returns><c>instance_list</c>, then the backend tools in name order.</returns>
+	internal static IReadOnlyList<Tool> Create(McpPrimitiveCatalog catalog)
+	{
 		List<Tool> tools = [GatewayInstanceTool.CreateProtocolTool()];
-		tools.AddRange(McpPrimitiveCatalog.Create(manifest).Tools.Select(AddRoutingArgument));
+		tools.AddRange(catalog.Tools.Select(AddRoutingArgument));
 		return tools;
 	}
 
@@ -80,7 +86,7 @@ internal sealed class GatewayToolCatalog(IOptions<CheatEngineMcpPrimitiveOptions
 			foreach (JsonNode? value in declaredRequired)
 			{
 				if (value is not JsonValue name || !name.TryGetValue(out string? text) ||
-				    !string.Equals(text, InstanceIdArgumentName, StringComparison.Ordinal))
+					!string.Equals(text, InstanceIdArgumentName, StringComparison.Ordinal))
 				{
 					required.Add(value?.DeepClone());
 				}

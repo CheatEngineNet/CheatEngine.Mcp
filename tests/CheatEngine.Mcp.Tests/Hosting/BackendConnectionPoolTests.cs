@@ -116,8 +116,14 @@ public sealed class BackendConnectionPoolTests : IAsyncDisposable
 
 		Assert.Equal("FFE054FE7AE0CB6DC65C3AF9B61D5209F439851DB43D0BA5997337DF154668EB", key.TokenHash);
 		Assert.DoesNotContain(record.AccessToken, key.ToString(), StringComparison.Ordinal);
-		Assert.NotEqual(key, BackendConnectionKey.From(record with { AccessToken = new string('b', 64) }));
-		Assert.NotEqual(key, BackendConnectionKey.From(record with { Endpoint = "http://127.0.0.1:40002/" }));
+		Assert.NotEqual(key, BackendConnectionKey.From(record with
+		{
+			AccessToken = new string('b', 64)
+		}));
+		Assert.NotEqual(key, BackendConnectionKey.From(record with
+		{
+			Endpoint = "http://127.0.0.1:40002/"
+		}));
 	}
 
 	private BackendConnectionPool CreatePool(int capacity = BackendConnectionPool.DefaultCapacity)

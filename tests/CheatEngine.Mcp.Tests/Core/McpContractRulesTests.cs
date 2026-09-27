@@ -258,7 +258,8 @@ public sealed class McpContractRulesTests
 	{
 		Tool legacy = new()
 		{
-			Name = "LegacyName", InputSchema = Parse("""{"type":"object","properties":{"x":{"type":"integer"}}}""")
+			Name = "LegacyName",
+			InputSchema = Parse("""{"type":"object","properties":{"x":{"type":"integer"}}}""")
 		};
 		Tool routed = new()
 		{

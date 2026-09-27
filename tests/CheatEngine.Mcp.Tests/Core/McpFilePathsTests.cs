@@ -261,6 +261,42 @@ public sealed class McpFilePathsTests : IDisposable
 	}
 
 	[Fact]
+	public void BeginWrite_HeldDirectoryChain_PreventsAncestorSwapAndCommitsBelowTheOpenedParent()
+	{
+		string ancestor = _scratch.CreateFolder("write-ancestor");
+		string root = _scratch.CreateFolder("write-ancestor\\root");
+		string parent = _scratch.CreateFolder("write-ancestor\\root\\nested");
+		string path = Path.Combine(parent, "dump.bin");
+		McpFilePaths paths = Create(root);
+
+		using (McpFileWrite write = paths.BeginWrite(path, Tool, overwrite: false))
+		{
+			Assert.Throws<IOException>(() => Directory.Move(ancestor, ancestor + "-moved"));
+			write.Stream.Write([1, 2, 3]);
+			write.Commit();
+		}
+
+		Assert.Equal([1, 2, 3], File.ReadAllBytes(path));
+	}
+
+	[Fact]
+	public void BeginWrite_AbsentDestination_CreatesAndCommitsTheTemporaryFile()
+	{
+		string root = _scratch.CreateFolder("write-root");
+		string path = Path.Combine(root, "new.bin");
+		McpFilePaths paths = Create(root);
+
+		using (McpFileWrite write = paths.BeginWrite(path, Tool, overwrite: false))
+		{
+			Assert.False(File.Exists(path));
+			write.Stream.Write([1, 2, 3]);
+			write.Commit();
+		}
+
+		Assert.Equal([1, 2, 3], File.ReadAllBytes(path));
+	}
+
+	[Fact]
 	public void AllowedRoots_AreNormalizedWithoutTrailingSeparatorExceptADriveRoot()
 	{
 		string root = _scratch.CreateFolder("root");
@@ -292,7 +328,10 @@ public sealed class McpFilePathsTests : IDisposable
 	[InlineData("C:\\ROOTS\\", "Mcp:Files:AllowedRoots:1 repeats an earlier root.")]
 	public void Validator_InvalidRoot_NamesItsIndex(string root, string message)
 	{
-		McpFileOptions options = new() { AllowedRoots = ["C:\\roots", root] };
+		McpFileOptions options = new()
+		{
+			AllowedRoots = ["C:\\roots", root]
+		};
 
 		ValidateOptionsResult result = new McpFileOptionsValidator().Validate(Options.DefaultName, options);
 
@@ -329,7 +368,7 @@ public sealed class McpFilePathsTests : IDisposable
 			Assert.Throws<IOException>(() => File.Move(file, file + ".moved"));
 			// Cheat Engine's loader shares everything (fmShareDenyNone) or denies writers (fmShareDenyWrite): both read.
 			using (FileStream denyNone = new(file, FileMode.Open, FileAccess.Read,
-				       FileShare.ReadWrite | FileShare.Delete))
+					   FileShare.ReadWrite | FileShare.Delete))
 			{
 				Assert.Equal('<', denyNone.ReadByte());
 			}

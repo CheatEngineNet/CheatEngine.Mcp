@@ -35,7 +35,8 @@ public static class CheatEngineMcpGatewayExtensions
 				{
 					server.ServerInfo = new Implementation
 					{
-						Name = "CheatEngine.Mcp.Gateway", Version = version ?? "2.0.0"
+						Name = "CheatEngine.Mcp.Gateway",
+						Version = version ?? "2.0.0"
 					};
 				})
 				.WithStdioServerTransport();

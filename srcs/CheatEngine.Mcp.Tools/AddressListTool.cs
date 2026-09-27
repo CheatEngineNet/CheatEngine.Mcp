@@ -36,7 +36,12 @@ public sealed class AddressListTool
 
 			AddressTableSnapshot table = _client.Tables.GetSnapshot(new MemoryRecordCollectionRequest(maximumRecords));
 			object[] records = [.. table.Records.Select(ToResponse)];
-			return new { success = true, count = records.Length, records };
+			return new
+			{
+				success = true,
+				count = records.Length,
+				records
+			};
 		});
 	}
 
@@ -55,7 +60,11 @@ public sealed class AddressListTool
 		{
 			MemoryRecordSnapshot record =
 				_client.Tables.Create(new MemoryRecordDefinition(description, address, value, variableType));
-			return new { success = true, record = ToResponse(record) };
+			return new
+			{
+				success = true,
+				record = ToResponse(record)
+			};
 		});
 	}
 
@@ -81,7 +90,11 @@ public sealed class AddressListTool
 					? _client.Tables.GetRecord(recordId)
 					: _client.Tables.Update(recordId,
 						new MemoryRecordUpdate(description, address, value, variableType));
-			return new { success = true, record = ToResponse(record) };
+			return new
+			{
+				success = true,
+				record = ToResponse(record)
+			};
 		});
 	}
 
@@ -96,7 +109,11 @@ public sealed class AddressListTool
 		return ToolExecution.Run(_client, () =>
 		{
 			MemoryRecordSnapshot record = _client.Tables.SetActive(new MemoryRecordId(id), active);
-			return new { success = true, record = ToResponse(record) };
+			return new
+			{
+				success = true,
+				record = ToResponse(record)
+			};
 		});
 	}
 
@@ -107,7 +124,10 @@ public sealed class AddressListTool
 		return ToolExecution.Run(_client, () =>
 		{
 			_client.Tables.Delete(new MemoryRecordId(id));
-			return new { success = true };
+			return new
+			{
+				success = true
+			};
 		});
 	}
 

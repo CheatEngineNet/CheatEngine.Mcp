@@ -1,7 +1,6 @@
 using System.Text.Json;
 
 using CheatEngine.Mcp.Core.Contract;
-using CheatEngine.Mcp.Hosting.Discovery;
 
 using Microsoft.Extensions.Logging;
 
@@ -14,13 +13,12 @@ namespace CheatEngine.Mcp.Hosting.Gateway;
 /// <summary>Routes each tool call to the one verified Cheat Engine instance its instanceId names, and never elsewhere.</summary>
 /// <remarks>
 ///     Each call re-reads the registry, verifies the backend identity, leases the pooled client of that exact record
-///     and forwards once. Any failure evicts the client and is reported in the v2 error envelope; nothing is re-sent.
+///     (<see cref="GatewayBackendConnector" />) and forwards once. Any failure evicts the client and is reported in the v2
+///     error envelope; nothing is re-sent.
 /// </remarks>
 internal sealed partial class GatewayRouter(
 	GatewayOptions options,
-	InstanceRegistry registry,
-	InstanceIdentityVerifier verifier,
-	BackendConnectionPool pool,
+	GatewayBackendConnector connector,
 	GatewayInstanceTool instances,
 	GatewayToolCatalog catalog,
 	ILogger<GatewayRouter> logger)
@@ -32,7 +30,9 @@ internal sealed partial class GatewayRouter(
 	{
 		return ValueTask.FromResult(new ListToolsResult
 		{
-			Tools = catalog.Tools.ToList(), TimeToLive = CatalogTimeToLive, CacheScope = CacheScope.Private
+			Tools = catalog.Tools.ToList(),
+			TimeToLive = CatalogTimeToLive,
+			CacheScope = CacheScope.Private
 		});
 	}
 
@@ -40,8 +40,8 @@ internal sealed partial class GatewayRouter(
 		CancellationToken cancellationToken)
 	{
 		CallToolRequestParams request = context.Params
-		                                ?? throw new McpProtocolException("tools/call requires params.",
-			                                McpErrorCode.InvalidParams);
+										?? throw new McpProtocolException("tools/call requires params.",
+											McpErrorCode.InvalidParams);
 		if (string.Equals(request.Name, GatewayToolCatalog.InstanceListToolName, StringComparison.Ordinal))
 		{
 			return await instances.CallAsync(cancellationToken).ConfigureAwait(false);
@@ -53,39 +53,23 @@ internal sealed partial class GatewayRouter(
 		}
 
 		if (request.Arguments is null
-		    || !request.Arguments.TryGetValue(GatewayToolCatalog.InstanceIdArgumentName, out JsonElement routing)
-		    || routing.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(routing.GetString()))
+			|| !request.Arguments.TryGetValue(GatewayToolCatalog.InstanceIdArgumentName, out JsonElement routing)
+			|| routing.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(routing.GetString()))
 		{
 			return GatewayErrors.MissingInstanceId(request.Name);
 		}
 
 		string instanceId = routing.GetString()!;
-		// Re-read on every call: a withdrawn or republished record must never reach an old client.
-		InstanceDescriptor[] records = registry.ReadActive(cancellationToken)
-			.Where(candidate => string.Equals(candidate.InstanceId, instanceId, StringComparison.Ordinal)).ToArray();
-		if (records is not [InstanceDescriptor instance])
-		{
-			pool.Evict(instanceId, "no single active record");
-			return GatewayErrors.UnknownInstance(request.Name, instanceId);
-		}
-
-		try
-		{
-			await verifier.VerifyAsync(instance, cancellationToken).ConfigureAwait(false);
-		}
-		catch (InstanceUnavailableException exception)
-		{
-			pool.Evict(instanceId, "identity check failed");
-			LogUnavailable(logger, instanceId, request.Name, exception.Message);
-			return GatewayErrors.Unavailable(request.Name, instanceId, exception.Message, ToolHostEffect.NotStarted);
-		}
-
 		BackendConnectionPool.BackendLease lease;
 		try
 		{
-			lease = await pool.RentAsync(instance, cancellationToken).ConfigureAwait(false);
+			lease = await connector.ConnectAsync(instanceId, cancellationToken).ConfigureAwait(false);
 		}
-		catch (InstanceUnavailableException exception)
+		catch (GatewayRoutingException exception) when (exception.UnknownInstance)
+		{
+			return GatewayErrors.UnknownInstance(request.Name, instanceId);
+		}
+		catch (GatewayRoutingException exception)
 		{
 			LogUnavailable(logger, instanceId, request.Name, exception.Message);
 			return GatewayErrors.Unavailable(request.Name, instanceId, exception.Message, ToolHostEffect.NotStarted);
@@ -116,8 +100,11 @@ internal sealed partial class GatewayRouter(
 		deadline.CancelAfter(options.CallTimeout);
 		try
 		{
-			// A backend result, including its own isError result, passes through unchanged.
-			return await lease.Client.CallToolAsync(forwarded, deadline.Token).ConfigureAwait(false);
+			// A backend result, including its own isError result, passes through unchanged, except that links to the
+			// backend's live resources gain the instance prefix so the upstream client can read them through here.
+			CallToolResult result = await lease.Client.CallToolAsync(forwarded, deadline.Token).ConfigureAwait(false);
+			RewriteResourceUris(result.Content, instanceId);
+			return result;
 		}
 		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
@@ -146,6 +133,25 @@ internal sealed partial class GatewayRouter(
 				: $"The connection failed while forwarding the call ({exception.GetType().Name}).";
 			LogUnavailable(logger, instanceId, request.Name, reason);
 			return GatewayErrors.Unavailable(request.Name, instanceId, reason, effect);
+		}
+	}
+
+	/// <summary>Rewrites the backend live URIs of resource links and embedded resources to their gateway form.</summary>
+	/// <param name="content">A backend result's content blocks.</param>
+	/// <param name="instanceId">The instance that produced them.</param>
+	internal static void RewriteResourceUris(IList<ContentBlock>? content, string instanceId)
+	{
+		foreach (ContentBlock block in content ?? [])
+		{
+			switch (block)
+			{
+				case ResourceLinkBlock link:
+					link.Uri = McpResourceUris.RewriteContentUri(link.Uri, instanceId);
+					break;
+				case EmbeddedResourceBlock { Resource: { } embedded }:
+					embedded.Uri = McpResourceUris.RewriteContentUri(embedded.Uri, instanceId);
+					break;
+			}
 		}
 	}
 

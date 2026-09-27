@@ -50,7 +50,7 @@ internal static class ClientTestDouble
 		{
 			"get_Stopping" => stopping,
 			_ when method.Name.StartsWith("get_", StringComparison.Ordinal) &&
-			       values.TryGetValue(method.Name[4..], out object? value) => value,
+				   values.TryGetValue(method.Name[4..], out object? value) => value,
 			_ => throw new NotSupportedException($"No client double value was configured for {method.Name}.")
 		});
 	}

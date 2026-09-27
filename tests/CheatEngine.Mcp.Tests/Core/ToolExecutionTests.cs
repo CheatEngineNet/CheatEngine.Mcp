@@ -105,7 +105,10 @@ public sealed class ToolExecutionTests
 		object result = ToolExecution.Run(client, () =>
 		{
 			called = true;
-			return new { success = true };
+			return new
+			{
+				success = true
+			};
 		});
 		Assert.False(called);
 		ToolResultAssert.HasPropertyValue(result, "success", false);

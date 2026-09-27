@@ -85,6 +85,6 @@ public sealed class TargetTransitionGuards
 	private static bool IsRefusal(ToolError error)
 	{
 		return error.Kind is ToolErrorKind.Busy or ToolErrorKind.InvalidState
-		       && error.HostEffect is ToolHostEffect.NotStarted;
+			   && error.HostEffect is ToolHostEffect.NotStarted;
 	}
 }

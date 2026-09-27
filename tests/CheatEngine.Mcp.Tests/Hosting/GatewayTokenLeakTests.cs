@@ -78,18 +78,18 @@ public sealed class GatewayTokenLeakTests
 
 		// Trace really was on: the backend dumped MCP messages, and the gateway logged its own Debug diagnostics.
 		Assert.Contains(backendLogs.Entries, static entry => entry.Level == LogLevel.Trace
-		                                                     && entry.Category.StartsWith("ModelContextProtocol",
-			                                                     StringComparison.Ordinal));
+															 && entry.Category.StartsWith("ModelContextProtocol",
+																 StringComparison.Ordinal));
 		Assert.Contains(gatewayLogs.Entries, static entry => entry.Level == LogLevel.Debug
-		                                                     && entry.Category.StartsWith(
-			                                                     "CheatEngine.Mcp.Hosting.Gateway",
-			                                                     StringComparison.Ordinal));
+															 && entry.Category.StartsWith(
+																 "CheatEngine.Mcp.Hosting.Gateway",
+																 StringComparison.Ordinal));
 		Assert.Contains(clientLogs.Entries, static entry => entry.Level == LogLevel.Trace);
 		// The gateway's floor held its token-handling framework categories at Information or above.
 		Assert.DoesNotContain(gatewayLogs.Entries, static entry => entry.Level < LogLevel.Information
-		                                                           && TokenSafeLogging.GuardedCategories.Any(guarded =>
-			                                                           entry.Category.StartsWith(guarded,
-				                                                           StringComparison.Ordinal)));
+																   && TokenSafeLogging.GuardedCategories.Any(guarded =>
+																	   entry.Category.StartsWith(guarded,
+																		   StringComparison.Ordinal)));
 		string[] tokens = [publication.Descriptor.AccessToken, forged.AccessToken];
 		CapturedLog[] everything = [.. gatewayLogs.Entries, .. backendLogs.Entries, .. clientLogs.Entries];
 		foreach (string token in tokens)
@@ -110,8 +110,8 @@ public sealed class GatewayTokenLeakTests
 
 		Assert.DoesNotContain(record.AccessToken, printed, StringComparison.OrdinalIgnoreCase);
 		Assert.Equal("InstanceDescriptor { InstanceId = ce-1-00000000000000000000000000000001, Name = printed, " +
-		             "ActivationId = 00000000-0000-0000-0000-000000000001, ProcessId = 1, ProcessStartUtcTicks = 2, " +
-		             "Endpoint = http://127.0.0.1:40001/, AccessToken = [redacted], PluginVersion = 2.0.0 }", printed);
+					 "ActivationId = 00000000-0000-0000-0000-000000000001, ProcessId = 1, ProcessStartUtcTicks = 2, " +
+					 "Endpoint = http://127.0.0.1:40001/, AccessToken = [redacted], PluginVersion = 2.0.0 }", printed);
 	}
 
 	private static async Task<CallToolResult> CallAsync(McpClient client, List<string> observed, string tool,

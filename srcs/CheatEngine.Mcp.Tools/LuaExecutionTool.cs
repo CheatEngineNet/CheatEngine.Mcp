@@ -37,7 +37,11 @@ public sealed class LuaExecutionTool
 		return ToolExecution.Run(_client, () =>
 		{
 			_unsafeLua.Execute(new LuaScript(script, chunkName));
-			return new { success = true, message = "Executed successfully." };
+			return new
+			{
+				success = true,
+				message = "Executed successfully."
+			};
 		});
 	}
 }

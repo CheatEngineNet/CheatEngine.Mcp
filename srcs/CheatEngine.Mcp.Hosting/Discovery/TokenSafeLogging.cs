@@ -47,13 +47,13 @@ internal static class TokenSafeLogging
 		// gets its own guarded rules; otherwise a provider's default could still reach a guarded category.
 		LogLevel fallback = DefaultLevel(rules, null) ?? options.MinLevel;
 		foreach (string? provider in rules.Select(static rule => rule.ProviderName).Prepend(null)
-			         .Distinct(StringComparer.Ordinal).ToArray())
+					 .Distinct(StringComparer.Ordinal).ToArray())
 		{
 			LogLevel level = Max(DefaultLevel(rules, provider) ?? fallback, LogLevel.Information);
 			foreach (string category in GuardedCategories)
 			{
 				if (!rules.Any(rule => string.Equals(rule.ProviderName, provider, StringComparison.Ordinal)
-				                       && string.Equals(rule.CategoryName, category, StringComparison.Ordinal)))
+									   && string.Equals(rule.CategoryName, category, StringComparison.Ordinal)))
 				{
 					rules.Add(new LoggerFilterRule(provider, category, level, null));
 				}
@@ -70,7 +70,7 @@ internal static class TokenSafeLogging
 	private static LogLevel? DefaultLevel(IList<LoggerFilterRule> rules, string? provider)
 	{
 		return rules.LastOrDefault(rule => rule.CategoryName is null
-		                                   && string.Equals(rule.ProviderName, provider, StringComparison.Ordinal))
+										   && string.Equals(rule.ProviderName, provider, StringComparison.Ordinal))
 			?.LogLevel;
 	}
 

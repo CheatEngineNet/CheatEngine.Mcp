@@ -9,7 +9,8 @@ namespace CheatEngine.Mcp.Core.Files;
 
 /// <summary>
 ///     The activation's host-file policy: every tool that reads or writes a file on the Cheat Engine host passes its path
-///     here first, before any Client call, and uses only the normalized path it returns.
+///     here first, before any Client call. A write calls <see cref="BeginWrite" /> so the host operation itself stays
+///     below handles for the approved directories.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -96,6 +97,10 @@ public sealed class McpFilePaths
 	///     Checks a file the tool will create or overwrite: the read rules, plus a root under
 	///     <see cref="McpFileOptions.AllowedRoots" />, and the path must not name a root or an existing directory.
 	/// </summary>
+	/// <remarks>
+	///     This method validates text and the current filesystem view only. A tool that creates or replaces a file calls
+	///     <see cref="BeginWrite" /> and uses its transaction, rather than opening the returned text path again.
+	/// </remarks>
 	/// <param name="path">The caller's path.</param>
 	/// <param name="operation">The tool or operation, reported in the error.</param>
 	/// <param name="parameter">The tool parameter that carried the path, named in the error.</param>
@@ -128,6 +133,48 @@ public sealed class McpFilePaths
 		}
 
 		return full;
+	}
+
+	/// <summary>
+	///     Starts a write below handles for every directory from the volume root to the destination parent. The handles
+	///     reject delete sharing, and each relative lookup refuses reparse points; use the returned transaction rather
+	///     than reopening <see cref="McpFileWrite.FullPath" /> by its textual path.
+	/// </summary>
+	/// <param name="path">The caller's requested destination.</param>
+	/// <param name="operation">The tool or operation, reported in errors.</param>
+	/// <param name="overwrite">Whether <see cref="McpFileWrite.Commit" /> may replace a file that already exists.</param>
+	/// <param name="parameter">The tool parameter that carried the path.</param>
+	/// <returns>An exclusively held temporary stream and its anchored commit operation.</returns>
+	/// <exception cref="CheatEngineToolException">The path is disallowed or an existing destination is not replaceable.</exception>
+	/// <exception cref="IOException">Windows could not safely create the temporary file.</exception>
+	public McpFileWrite BeginWrite(string? path, string operation, bool overwrite, string parameter = "path")
+	{
+		string full = RequireWrite(path, operation, parameter);
+		string root = _roots.First(root => full.StartsWith(root, StringComparison.OrdinalIgnoreCase));
+		string relative = full[root.Length..];
+		string[] segments = relative.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
+		string name = segments[^1];
+		List<SafeFileHandle> directories = OpenWriteDirectories(root, segments.AsSpan(..^1), operation, parameter);
+		try
+		{
+			if (!overwrite && WindowsAnchoredFiles.EntryExists(directories[^1], name))
+			{
+				throw CheatEngineToolException.InvalidArgument(parameter, "already exists; set overwrite to replace it.");
+			}
+
+			return new McpFileWrite(full, directories, name, overwrite);
+		}
+		catch (WindowsFileException exception) when (exception.Status == WindowsAnchoredFiles.StatusReparsePointEncountered)
+		{
+			DisposeDirectories(directories);
+			throw Refuse(operation, parameter, "could not be verified without following a reparse point.",
+				"Use the real location of the file, without symbolic links, junctions or short names.");
+		}
+		catch
+		{
+			DisposeDirectories(directories);
+			throw;
+		}
 	}
 
 	/// <summary>
@@ -205,7 +252,7 @@ public sealed class McpFilePaths
 			full = Path.GetFullPath(path!);
 		}
 		catch (Exception exception) when (exception is ArgumentException or NotSupportedException or
-			                                  PathTooLongException)
+											  PathTooLongException)
 		{
 			throw Refuse(operation, parameter, "is not a valid path.", McpPathRules.FormHint);
 		}
@@ -237,13 +284,68 @@ public sealed class McpFilePaths
 		return full;
 	}
 
+	private static List<SafeFileHandle> OpenWriteDirectories(string root, ReadOnlySpan<string> relativeDirectories,
+		string operation, string parameter)
+	{
+		List<SafeFileHandle> directories = [];
+		try
+		{
+			string volumeRoot = Path.GetPathRoot(root)!;
+			SafeFileHandle current = WindowsAnchoredFiles.OpenVolumeRoot(volumeRoot);
+			directories.Add(current);
+			foreach (string segment in PathSegments(root, volumeRoot))
+			{
+				current = WindowsAnchoredFiles.OpenDirectory(current, segment);
+				directories.Add(current);
+			}
+
+			foreach (string segment in relativeDirectories)
+			{
+				current = WindowsAnchoredFiles.OpenDirectory(current, segment);
+				directories.Add(current);
+			}
+
+			return directories;
+		}
+		catch (WindowsFileException exception) when (exception.Status is WindowsAnchoredFiles.StatusObjectNameNotFound or
+			WindowsAnchoredFiles.StatusObjectPathNotFound)
+		{
+			DisposeDirectories(directories);
+			throw Refuse(operation, parameter, "names a folder that does not exist.", null);
+		}
+		catch (WindowsFileException exception) when (exception.Status == WindowsAnchoredFiles.StatusReparsePointEncountered)
+		{
+			DisposeDirectories(directories);
+			throw Refuse(operation, parameter, "could not be verified without following a reparse point.",
+				"Use the real location of the file, without symbolic links, junctions or short names.");
+		}
+		catch
+		{
+			DisposeDirectories(directories);
+			throw;
+		}
+	}
+
+	private static string[] PathSegments(string full, string root)
+	{
+		return full[root.Length..].Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
+	}
+
+	private static void DisposeDirectories(List<SafeFileHandle> directories)
+	{
+		for (int index = directories.Count - 1; index >= 0; index--)
+		{
+			directories[index].Dispose();
+		}
+	}
+
 	/// <summary>Walks the existing part of a normalized path from its drive root, refusing links and short names.</summary>
 	private static string? FindLinkProblem(string full)
 	{
 		string root = Path.GetPathRoot(full)!;
 		string current = root;
 		foreach (string segment in full[root.Length..].Split(Path.DirectorySeparatorChar,
-			         StringSplitOptions.RemoveEmptyEntries))
+					 StringSplitOptions.RemoveEmptyEntries))
 		{
 			string parent = current;
 			current = Path.Join(current, segment);
@@ -286,7 +388,9 @@ public sealed class McpFilePaths
 	{
 		EnumerationOptions options = new()
 		{
-			AttributesToSkip = 0, IgnoreInaccessible = true, RecurseSubdirectories = false
+			AttributesToSkip = 0,
+			IgnoreInaccessible = true,
+			RecurseSubdirectories = false
 		};
 		try
 		{
@@ -304,14 +408,14 @@ public sealed class McpFilePaths
 	{
 		string resolved = Path.GetPathRoot(full)!;
 		foreach (string segment in full[resolved.Length..].Split(Path.DirectorySeparatorChar,
-			         StringSplitOptions.RemoveEmptyEntries))
+					 StringSplitOptions.RemoveEmptyEntries))
 		{
 			resolved = Path.Join(resolved, segment);
 			try
 			{
 				DirectoryInfo directory = new(resolved);
 				if (directory.Exists && (directory.Attributes & FileAttributes.ReparsePoint) != 0 &&
-				    directory.ResolveLinkTarget(true) is { } target)
+					directory.ResolveLinkTarget(true) is { } target)
 				{
 					resolved = Path.GetFullPath(target.FullName);
 				}

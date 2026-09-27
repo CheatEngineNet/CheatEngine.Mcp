@@ -276,7 +276,7 @@ public static class McpValueCodec
 	private static float ParseSingle(string? text, string parameter)
 	{
 		if (!float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out float value) ||
-		    (float.IsInfinity(value) && !NamesInfinity(text)))
+			(float.IsInfinity(value) && !NamesInfinity(text)))
 		{
 			throw CheatEngineToolException.InvalidArgument(parameter,
 				$"'{text}' is not a float value; use invariant text such as 1.5, -2E-3, NaN, Infinity or -Infinity.");
@@ -288,7 +288,7 @@ public static class McpValueCodec
 	private static double ParseDouble(string? text, string parameter)
 	{
 		if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double value) ||
-		    (double.IsInfinity(value) && !NamesInfinity(text)))
+			(double.IsInfinity(value) && !NamesInfinity(text)))
 		{
 			throw CheatEngineToolException.InvalidArgument(parameter,
 				$"'{text}' is not a double value; use invariant text such as 1.5, -2E-3, NaN, Infinity or -Infinity.");
@@ -311,7 +311,7 @@ public static class McpValueCodec
 	private static bool NamesInfinity(string? text)
 	{
 		return text is not null &&
-		       text.Trim().TrimStart('+', '-').Equals("Infinity", StringComparison.OrdinalIgnoreCase);
+			   text.Trim().TrimStart('+', '-').Equals("Infinity", StringComparison.OrdinalIgnoreCase);
 	}
 
 	private static bool IsDecimal(ReadOnlySpan<char> text)

@@ -69,7 +69,7 @@ internal static class LiveQualificationOptIn
 		string fullPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
 		string fullDirectory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));
 		return string.Equals(fullPath, fullDirectory, StringComparison.OrdinalIgnoreCase)
-		       || fullPath.StartsWith(fullDirectory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+			   || fullPath.StartsWith(fullDirectory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
 	}
 
 	private static LiveQualificationDecision Refuse(string reason)

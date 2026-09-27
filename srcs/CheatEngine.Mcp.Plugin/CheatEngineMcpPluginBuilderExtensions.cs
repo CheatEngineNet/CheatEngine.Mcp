@@ -78,6 +78,6 @@ internal static class CheatEngineMcpPluginBuilderExtensions
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
 		return configuration.GetSection(McpFeatureOptions.SectionName).Get<McpFeatureOptions>()
-		       ?? new McpFeatureOptions();
+			   ?? new McpFeatureOptions();
 	}
 }

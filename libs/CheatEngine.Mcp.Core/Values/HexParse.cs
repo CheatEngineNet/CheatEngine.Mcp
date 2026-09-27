@@ -76,8 +76,8 @@ public static class HexParse
 
 		span = WithoutHexPrefix(span);
 		if (span.IsEmpty || span.Length > 16 || !IsHex(span) ||
-		    !ulong.TryParse(span, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out ulong magnitude) ||
-		    magnitude > (negative ? 1UL << 63 : long.MaxValue))
+			!ulong.TryParse(span, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out ulong magnitude) ||
+			magnitude > (negative ? 1UL << 63 : long.MaxValue))
 		{
 			throw CheatEngineToolException.InvalidArgument(parameter,
 				"must be a signed hexadecimal offset such as 1C, -8 or 0x10.");
@@ -125,7 +125,7 @@ public static class HexParse
 		ReadOnlySpan<char> span = WithoutHexPrefix((text ?? string.Empty).AsSpan().Trim());
 		value = 0;
 		return !span.IsEmpty && span.Length <= 16 && IsHex(span) &&
-		       ulong.TryParse(span, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out value);
+			   ulong.TryParse(span, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out value);
 	}
 
 	internal static ReadOnlySpan<char> WithoutHexPrefix(ReadOnlySpan<char> text)

@@ -51,7 +51,12 @@ public sealed class AssemblyTool
 				current = new Address(checked(instruction.Address.Value + (ulong) instruction.Length));
 			}
 
-			return new { success = true, count = instructions.Count, instructions };
+			return new
+			{
+				success = true,
+				count = instructions.Count,
+				instructions
+			};
 		});
 	}
 
@@ -67,7 +72,7 @@ public sealed class AssemblyTool
 		{
 			Address target = ToolExecution.Address(_client, address);
 			if (string.IsNullOrWhiteSpace(requestType) ||
-			    string.Equals(requestType, "disassemble", StringComparison.OrdinalIgnoreCase))
+				string.Equals(requestType, "disassemble", StringComparison.OrdinalIgnoreCase))
 			{
 				AssemblyInstructionSnapshot instruction = DisassembleSnapshot(target, _client.Stopping);
 				return new
@@ -94,24 +99,6 @@ public sealed class AssemblyTool
 			}
 
 			return ToolExecution.Error("Request type must be disassemble or get-instruction-size.");
-		});
-	}
-
-	[McpServerTool(Name = "resolve_address")]
-	[Description("Resolve a target-process symbol expression, such as game.exe+10.")]
-	public object ResolveAddress(
-		[Description("Target-process symbol expression.")]
-		string addressString,
-		[Description("Use Cheat Engine shallow symbol resolution.")]
-		bool shallow = false)
-	{
-		return ToolExecution.Run(_client, () =>
-		{
-			ArgumentException.ThrowIfNullOrWhiteSpace(addressString);
-			Address address = _client.Inspection.ResolveAddress(
-				new SymbolExpression(addressString),
-				shallow ? AddressResolutionMode.Shallow : AddressResolutionMode.Default);
-			return new { success = true, address = $"0x{address.Value:X}" };
 		});
 	}
 

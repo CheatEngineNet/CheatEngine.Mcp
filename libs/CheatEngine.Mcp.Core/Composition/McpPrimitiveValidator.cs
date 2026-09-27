@@ -1,3 +1,5 @@
+using CheatEngine.Mcp.Core.Contract;
+
 using Microsoft.Extensions.Options;
 
 using ModelContextProtocol.Server;
@@ -5,9 +7,9 @@ using ModelContextProtocol.Server;
 namespace CheatEngine.Mcp.Core.Composition;
 
 /// <summary>
-///     Fails server startup on duplicate primitive identifiers, which the MCP SDK would otherwise drop silently, and on
+///     Fails server startup on duplicate primitive identifiers, which the MCP SDK would otherwise drop silently, on
 ///     tools that break the v2 contract rules (<see cref="McpContractRules" />), including a v2 name outside the frozen
-///     catalog and a missing dispatch class.
+///     catalog and a missing dispatch class, and on resources or prompts outside the URI grammar and routing rules.
 /// </summary>
 /// <remarks>
 ///     Transition rule: a tool without an output schema is a legacy tool and only gets the duplicate check and the
@@ -26,14 +28,19 @@ internal sealed class McpPrimitiveValidator(
 		AddDuplicates(failures, "resource",
 			resources.Select(static resource => resource.ProtocolResourceTemplate.UriTemplate));
 		failures.AddRange(McpContractRules.ValidateTools(tools.Select(static tool => tool.ProtocolTool), false));
+		failures.AddRange(McpContractRules.ValidateResources(resources));
+		// A prompt must not reuse a v2 tool name; a legacy tool leaves with the transition, so it is not compared.
+		failures.AddRange(McpContractRules.ValidatePrompts(prompts,
+			tools.Select(static tool => tool.ProtocolTool).Where(static tool => !McpContractRules.IsLegacy(tool))
+				.Select(static tool => tool.Name).Concat(CheatEngineToolNames.All)));
 		return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
 	}
 
 	private static void AddDuplicates(List<string> failures, string kind, IEnumerable<string> identifiers)
 	{
 		foreach (IGrouping<string, string> duplicate in identifiers
-			         .GroupBy(static identifier => identifier, StringComparer.Ordinal)
-			         .Where(static group => group.Count() > 1))
+					 .GroupBy(static identifier => identifier, StringComparer.Ordinal)
+					 .Where(static group => group.Count() > 1))
 		{
 			failures.Add($"Duplicate MCP {kind} '{duplicate.Key}' would be dropped silently.");
 		}

@@ -61,7 +61,10 @@ public sealed class InstanceRegistryTests : IDisposable
 	{
 		InstanceRegistry registry = new(_directory);
 		using InstancePublication publication = new(registry, "bad-endpoint");
-		WriteRecord(publication.Descriptor with { Endpoint = endpoint });
+		WriteRecord(publication.Descriptor with
+		{
+			Endpoint = endpoint
+		});
 		Assert.Empty(registry.ReadActive(TestContext.Current.CancellationToken));
 	}
 

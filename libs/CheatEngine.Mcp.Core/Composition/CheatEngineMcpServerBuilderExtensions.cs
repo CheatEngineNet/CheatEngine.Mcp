@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -8,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
+using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
 namespace CheatEngine.Mcp.Core.Composition;
@@ -59,6 +61,7 @@ public static class CheatEngineMcpServerBuilderExtensions
 				filters.AddCallToolFilter(next => CheatEngineToolFilters.EnforceFeatures(next, binding));
 				filters.AddCallToolFilter(CheatEngineToolFilters.NormalizeArguments);
 				filters.AddReadResourceFilter(CheatEngineToolFilters.MapResourceErrors);
+				filters.AddGetPromptFilter(CheatEngineToolFilters.MapPromptErrors);
 			});
 			server.Services.AddOptions<McpServerOptions>().ValidateOnStart();
 			server.Services.TryAddEnumerable(ServiceDescriptor
@@ -70,8 +73,8 @@ public static class CheatEngineMcpServerBuilderExtensions
 	internal static bool IsPrimitiveMethod(MethodInfo method)
 	{
 		return method.GetCustomAttribute<McpServerToolAttribute>() is not null
-		       || method.GetCustomAttribute<McpServerResourceAttribute>() is not null
-		       || method.GetCustomAttribute<McpServerPromptAttribute>() is not null;
+			   || method.GetCustomAttribute<McpServerResourceAttribute>() is not null
+			   || method.GetCustomAttribute<McpServerPromptAttribute>() is not null;
 	}
 
 	private static void Register(IServiceCollection services, CheatEngineMcpPrimitive primitive, MethodInfo method,
@@ -124,32 +127,70 @@ public static class CheatEngineMcpServerBuilderExtensions
 			: new JsonObject { [McpFeatureGate.RequiresMetaKey] = new JsonArray(requires) };
 	}
 
-	private static McpServerResource CreateResource(IServiceProvider services, Type type, MethodInfo method,
+	/// <summary>
+	///     Creates a resource with the composition's options and its routing marker. A Local concrete resource (a static
+	///     method without parameters) is pure by contract, so it is read once here to publish its <c>size</c>.
+	/// </summary>
+	internal static McpServerResource CreateResource(IServiceProvider services, Type type, MethodInfo method,
 		McpPrimitiveBinding binding, JsonSerializerOptions json)
 	{
 		McpServerResourceCreateOptions options = new()
 		{
-			Services = services, SerializerOptions = json, SchemaCreateOptions = SchemaTransform.SchemaCreateOptions
+			Services = services,
+			SerializerOptions = json,
+			SchemaCreateOptions = SchemaTransform.SchemaCreateOptions,
+			Metadata = McpPrimitiveOrigin.CreateMetadata(CheatEngineMcpPrimitiveKind.Resource, method)
 		};
-		return method.IsStatic || binding.Targets is not null
+		McpServerResource resource = method.IsStatic || binding.Targets is not null
 			? McpServerResource.Create(method, Target(binding, type, method), options)
 			: McpServerResource.Create(method, static _ => throw SchemaOnly(), options);
+		PublishSize(resource, method);
+		return resource;
 	}
 
-	private static McpServerPrompt CreatePrompt(IServiceProvider services, Type type, MethodInfo method,
+	/// <summary>Creates a prompt with the composition's options and its routing marker.</summary>
+	internal static McpServerPrompt CreatePrompt(IServiceProvider services, Type type, MethodInfo method,
 		McpPrimitiveBinding binding, JsonSerializerOptions json)
 	{
 		McpServerPromptCreateOptions options = new()
 		{
-			Services = services, SerializerOptions = json, SchemaCreateOptions = SchemaTransform.SchemaCreateOptions
+			Services = services,
+			SerializerOptions = json,
+			SchemaCreateOptions = SchemaTransform.SchemaCreateOptions,
+			Metadata = McpPrimitiveOrigin.CreateMetadata(CheatEngineMcpPrimitiveKind.Prompt, method)
 		};
 		return method.IsStatic || binding.Targets is not null
 			? McpServerPrompt.Create(method, Target(binding, type, method), options)
 			: McpServerPrompt.Create(method, static _ => throw SchemaOnly(), options);
 	}
 
+	/// <summary>
+	///     Publishes the UTF-8 size of a Local concrete resource. Only a static method without parameters qualifies; its
+	///     result must be a string or a <see cref="ReadResourceResult" /> of text or blob contents.
+	/// </summary>
+	private static void PublishSize(McpServerResource resource, MethodInfo method)
+	{
+		if (!method.IsStatic || resource.IsTemplated || method.GetParameters().Length != 0 ||
+			resource.ProtocolResource is not { Size: null } protocol)
+		{
+			return;
+		}
+
+		protocol.Size = method.Invoke(null, BindingFlags.DoNotWrapExceptions, null, null, null) switch
+		{
+			string text => Encoding.UTF8.GetByteCount(text),
+			ReadResourceResult result => result.Contents.Sum(static contents => contents switch
+			{
+				TextResourceContents text => Encoding.UTF8.GetByteCount(text.Text),
+				BlobResourceContents blob => (long) blob.DecodedData.Length,
+				_ => 0L
+			}),
+			_ => null
+		};
+	}
+
 	// The instance overloads borrow the activation-owned target; the factory overloads would dispose it after each call.
-	private static object? Target(McpPrimitiveBinding binding, Type type, MethodInfo method)
+	internal static object? Target(McpPrimitiveBinding binding, Type type, MethodInfo method)
 	{
 		return method.IsStatic ? null : binding.Targets!.Get(type);
 	}

@@ -14,10 +14,18 @@ The MCP transport, independent of any concrete primitive.
   pooled backend client per verified record (`BackendConnectionPool`, 32 entries, 5-minute idle lifetime, backend hop
   pinned to protocol 2025-06-18), forwards only W3C trace context from `_meta` (`GatewayMeta`), bounds each call with
   `--call-timeout-seconds`/`MCP_GATEWAY_CALL_TIMEOUT_SECONDS` (45 s by default) and reports its own failures in the v2
-  error envelope. A backend's own result passes through unchanged; nothing is ever re-sent.
+  error envelope. A backend's own result passes through unchanged, except that `cheatengine://instance/...` resource
+  links gain the instance prefix; nothing is ever re-sent.
+  Resources and prompts: the Local documents, workflow template and prompts are served by the gateway itself
+  (`GatewayLocalPrimitivesSetup` over `McpLocalPrimitives`). `GatewayResourceRouter` adds `cheatengine://instances` (the
+  instance list, never tokens) and the gateway form `cheatengine://instances/{instanceId}/...` of every backend live
+  resource: a read is a prefix swap, refused without contacting any backend when the path is unknown, verified like a
+  tool call through `GatewayBackendConnector`, and its content URIs are rewritten back. `GatewayCompletionRouter`
+  completes `instanceId` from the identities verified in the last 10 s, ids only.
 
 Both hosts advertise the `initialize` instructions the composition declared in the Core manifest: the backend its
-`BackendInstructions`, the gateway its `GatewayInstructions`.
+`BackendInstructions`, the gateway its `GatewayInstructions`. The backend serves every composed resource and prompt
+through `WithCheatEnginePrimitives`, like the tools.
 
 **Depends on:** Core, ASP.NET Core, `ModelContextProtocol.AspNetCore`. Never Tools, Resources, Prompts, the Client, NLog
 or Cheat Engine UI: it sees primitives only through the Core manifest and borrows their instances.

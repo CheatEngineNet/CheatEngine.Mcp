@@ -39,7 +39,9 @@ internal sealed class LuaStateResource(McpStateLedger ledger, TargetResourceDesc
 		Active => descriptor,
 		Failed => descriptor with
 		{
-			State = TargetResourceState.CleanupFailed, CleanupError = _cleanupError, RequiresManualRecovery = true
+			State = TargetResourceState.CleanupFailed,
+			CleanupError = _cleanupError,
+			RequiresManualRecovery = true
 		},
 		_ => descriptor with { State = TargetResourceState.Ended }
 	};

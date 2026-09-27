@@ -6,7 +6,14 @@
   },
   "capabilities": {
     "logging": {},
-    "tools": {}
+    "prompts": {
+      "listChanged": true
+    },
+    "resources": {
+      "listChanged": true
+    },
+    "tools": {},
+    "completions": {}
   },
   "instructions": "Controls local Cheat Engine 7.7 instances through one gateway. Call instance_list first and pass its instanceId to every other tool; there is no default instance and no fallback. Orient with runtime_get_overview, then process_list and process_attach; call runtime_release_resources before switching processes. Address inputs are Cheat Engine expressions such as game.exe\u002B1A2B or 7FF6A1B2C3D0. Outputs use uppercase hex addresses without 0x, spaced hex bytes, and strings for 64-bit integers and memory values; pointer offsets follow dereference order. Lists page with offset and limit. Long operations are jobs: *_start_* tools return a jobId; poll it with afterSequence and stop it with runtime_stop_job. Failures set isError and carry error.kind, hostEffect and hint. Never repeat a mutation after a timeout or when hostEffect is started or unknown; inspect state first. Server settings can disable some tools (capability_disabled)."
 }

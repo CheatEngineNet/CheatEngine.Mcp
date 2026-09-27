@@ -65,7 +65,11 @@ public static class LuaToolRuntime
 		return ToolExecution.Run(client, () =>
 		{
 			object? result = Execute(client, operation, body, arguments);
-			return new { success = true, result };
+			return new
+			{
+				success = true,
+				result
+			};
 		});
 	}
 
@@ -213,7 +217,7 @@ public static class LuaToolRuntime
 	{
 		// Only implementation-owned global names are accepted here, never Lua expressions supplied by callers.
 		if (string.IsNullOrEmpty(function) ||
-		    function.Any(character => !char.IsAsciiLetterOrDigit(character) && character != '_'))
+			function.Any(character => !char.IsAsciiLetterOrDigit(character) && character != '_'))
 		{
 			return ToolExecution.Error("Invalid Lua function name.");
 		}
@@ -315,7 +319,7 @@ public static class LuaToolRuntime
 		foreach (TEnum candidate in Enum.GetValues<TEnum>())
 		{
 			if (string.Equals(JsonNamingPolicy.SnakeCaseLower.ConvertName(candidate.ToString()), token,
-				    StringComparison.Ordinal))
+					StringComparison.Ordinal))
 			{
 				value = candidate;
 				return true;
@@ -575,11 +579,11 @@ public static class LuaToolRuntime
 
 			_tables.Remove(identity);
 			bool packed = values.TryGetValue("n", out object? count) && count is long length &&
-			              length is >= 0 and <= MaximumItems && numericKeys == values.Count - 1;
+						  length is >= 0 and <= MaximumItems && numericKeys == values.Count - 1;
 			int arrayLength = packed ? (int) (long) count! : values.Count;
 			// Fixed tool bodies use empty tables as lists. Object results always have named fields.
 			if (packed || (numericKeys == values.Count && Enumerable.Range(1, arrayLength)
-				    .All(i => values.ContainsKey(i.ToString(CultureInfo.InvariantCulture)))))
+					.All(i => values.ContainsKey(i.ToString(CultureInfo.InvariantCulture)))))
 			{
 				object?[] array = new object?[arrayLength];
 				for (int i = 0; i < array.Length; i++)

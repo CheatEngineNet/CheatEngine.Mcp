@@ -59,9 +59,9 @@ internal sealed class CheatEngineRegistryGuard : ICheatEngineUserStateGuard
 		string registryText = RegistrySnapshot.Serialize(registry);
 		File.WriteAllText(layout.RegistryBackupPath, registryText, new UTF8Encoding(false));
 		if (!string.Equals(
-			    RegistrySnapshot.Serialize(RegistrySnapshot.Parse(File.ReadAllText(layout.RegistryBackupPath))),
-			    registryText,
-			    StringComparison.Ordinal))
+				RegistrySnapshot.Serialize(RegistrySnapshot.Parse(File.ReadAllText(layout.RegistryBackupPath))),
+				registryText,
+				StringComparison.Ordinal))
 		{
 			throw new InvalidOperationException("The registry backup does not read back equal to the key.");
 		}
@@ -112,8 +112,8 @@ internal sealed class CheatEngineRegistryGuard : ICheatEngineUserStateGuard
 
 		Marker marker = Marker.Read(markerPath);
 		if (!string.Equals(marker.RegistrySubKey, _locations.RegistrySubKey, StringComparison.OrdinalIgnoreCase) ||
-		    !string.Equals(Path.GetFullPath(marker.AppDataDirectory), Path.GetFullPath(_locations.AppDataDirectory),
-			    StringComparison.OrdinalIgnoreCase))
+			!string.Equals(Path.GetFullPath(marker.AppDataDirectory), Path.GetFullPath(_locations.AppDataDirectory),
+				StringComparison.OrdinalIgnoreCase))
 		{
 			throw new InvalidOperationException(
 				$"The restore marker '{markerPath}' names another user state than this guard; restore it by hand.");
@@ -124,8 +124,8 @@ internal sealed class CheatEngineRegistryGuard : ICheatEngineUserStateGuard
 			RestoreFromMarker(marker, markerPath);
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
-			                                  or InvalidOperationException
-			                                  or InvalidDataException or JsonException)
+											  or InvalidOperationException
+											  or InvalidDataException or JsonException)
 		{
 			throw new InvalidOperationException(
 				$"Run {marker.RunId} ended without restoring the Cheat Engine user state, and restoring its backup failed now; " +
@@ -209,7 +209,7 @@ internal sealed class CheatEngineRegistryGuard : ICheatEngineUserStateGuard
 		private static string Text(JsonElement root, string name)
 		{
 			return root.GetProperty(name).GetString() ??
-			       throw new InvalidDataException($"The restore marker has no '{name}'.");
+				   throw new InvalidDataException($"The restore marker has no '{name}'.");
 		}
 	}
 

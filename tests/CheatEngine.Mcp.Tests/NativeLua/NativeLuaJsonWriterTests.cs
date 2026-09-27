@@ -97,9 +97,9 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 		using RuntimeScope scope = CreateScope();
 
 		foreach (string source in new[]
-		         {
-			         "return 0/0", "return 1/0", "return {-1/0}", "return {deep = {value = 0/0}}"
-		         })
+				 {
+					 "return 0/0", "return 1/0", "return {-1/0}", "return {deep = {value = 0/0}}"
+				 })
 		{
 			LuaJsonException exception = Assert.Throws<LuaJsonException>(() => CopyJson(source));
 			Assert.Equal(LuaJsonViolation.Contract, exception.Violation);

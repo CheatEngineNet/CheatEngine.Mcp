@@ -24,7 +24,7 @@ public sealed class LuaDebuggerCaptureTool(ICheatEngineClient client)
 		int lifetimeSeconds = 60)
 	{
 		if (string.IsNullOrWhiteSpace(address) || size is not 1 and not 2 and not 4 and not 8 ||
-		    maximumHits is < 1 or > 1024 || lifetimeSeconds is < 1 or > 300)
+			maximumHits is < 1 or > 1024 || lifetimeSeconds is < 1 or > 300)
 		{
 			return ToolExecution.Error(
 				"address is required, size must be 1, 2, 4, or 8, maximumHits must be between 1 and 1024, and lifetimeSeconds must be between 1 and 300.");

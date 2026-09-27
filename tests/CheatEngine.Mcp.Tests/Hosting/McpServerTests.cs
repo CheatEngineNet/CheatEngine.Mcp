@@ -55,7 +55,10 @@ public sealed class McpServerTests
 	{
 		string directory = Path.Combine(Path.GetTempPath(), $"CheatEngine.Mcp.Tests-{Guid.NewGuid():N}");
 		using PluginLog log = new(directory);
-		McpBackendOptions options = new() { Port = FreePort() };
+		McpBackendOptions options = new()
+		{
+			Port = FreePort()
+		};
 		using TestActivation activation = new(ClientTestDouble.Client());
 		McpBackendHost server = CreateHost(activation, options, log);
 		try
@@ -105,7 +108,10 @@ public sealed class McpServerTests
 			Assert.Equal(string.Empty, AppContext.BaseDirectory);
 
 			log = new PluginLog(directory);
-			McpBackendOptions options = new() { Port = FreePort() };
+			McpBackendOptions options = new()
+			{
+				Port = FreePort()
+			};
 			server = CreateHost(activation, options, log);
 			await server.StartAsync();
 			await using LiveMcpClient client =
@@ -184,7 +190,10 @@ public sealed class McpServerTests
 		{
 			RuntimeLocation = Path.Combine(directory, "CheatEngine.Mcp.Plugin.dll")
 		};
-		McpBackendOptions options = new() { Port = port };
+		McpBackendOptions options = new()
+		{
+			Port = port
+		};
 		using TestActivation activation = new(ClientTestDouble.Client());
 		PluginLog log = new(directory);
 		McpBackendHost server = new(options, log, runtime, activation.Manifest, activation.Targets,
@@ -231,7 +240,10 @@ public sealed class McpServerTests
 				: throw new XunitException($"Unexpected value-scanner call: {method.Name}."));
 		string directory = Path.Combine(Path.GetTempPath(), $"CheatEngine.Mcp.Tests-{Guid.NewGuid():N}");
 		using PluginLog log = new(directory);
-		McpBackendOptions options = new() { Port = FreePort() };
+		McpBackendOptions options = new()
+		{
+			Port = FreePort()
+		};
 		using TestActivation activation =
 			new(ClientTestDouble.Client((nameof(ICheatEngineClient.ValueScans), scanner)));
 		McpBackendHost server = CreateHost(activation, options, log);
@@ -239,12 +251,14 @@ public sealed class McpServerTests
 		{
 			await server.StartAsync();
 			await using (LiveMcpClient firstClient =
-			             await LiveMcpClient.ConnectAsync(options.BaseUrl, TestContext.Current.CancellationToken))
+						 await LiveMcpClient.ConnectAsync(options.BaseUrl, TestContext.Current.CancellationToken))
 			{
 				await AssertSuccessfulCallAsync(firstClient, "memory_scan",
 					new Dictionary<string, object?>
 					{
-						["scannerName"] = "reset-me", ["valueType"] = "int32", ["value"] = "10"
+						["scannerName"] = "reset-me",
+						["valueType"] = "int32",
+						["value"] = "10"
 					});
 				JsonNode? results = await firstClient.CallToolAsync("get_memory_scan_results",
 					new Dictionary<string, object?> { ["scannerName"] = "reset-me" });
@@ -254,7 +268,7 @@ public sealed class McpServerTests
 
 			Assert.Equal(0, resetSession.ReleaseCalls);
 			await using (LiveMcpClient reconnectingClient =
-			             await LiveMcpClient.ConnectAsync(options.BaseUrl, TestContext.Current.CancellationToken))
+						 await LiveMcpClient.ConnectAsync(options.BaseUrl, TestContext.Current.CancellationToken))
 			{
 				await AssertSuccessfulCallAsync(reconnectingClient, "next_memory_scan",
 					new Dictionary<string, object?> { ["scannerName"] = "reset-me", ["value"] = "11" });
@@ -268,7 +282,9 @@ public sealed class McpServerTests
 				await AssertSuccessfulCallAsync(reconnectingClient, "memory_scan",
 					new Dictionary<string, object?>
 					{
-						["scannerName"] = "release-on-shutdown", ["valueType"] = "int32", ["value"] = "20"
+						["scannerName"] = "release-on-shutdown",
+						["valueType"] = "int32",
+						["value"] = "20"
 					});
 			}
 
@@ -296,7 +312,10 @@ public sealed class McpServerTests
 	{
 		using TcpListener listener = new(IPAddress.Loopback, 0);
 		listener.Start();
-		McpBackendOptions options = new() { Port = ((IPEndPoint) listener.LocalEndpoint).Port };
+		McpBackendOptions options = new()
+		{
+			Port = ((IPEndPoint) listener.LocalEndpoint).Port
+		};
 		string directory = Path.Combine(Path.GetTempPath(), $"CheatEngine.Mcp.Tests-{Guid.NewGuid():N}");
 		using PluginLog log = new(directory);
 		using TestActivation activation = new(ClientTestDouble.Client());

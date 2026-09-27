@@ -42,7 +42,11 @@ public sealed class LuaDebuggerTool(ICheatEngineClient client, LuaDebuggerCaptur
 			_lastProcessId = (long) result["processId"]!;
 			_lastRequestedInterface = debuggerInterface;
 			_lastActualInterface = (long) result["debuggerInterface"]!;
-			return new { success = true, result };
+			return new
+			{
+				success = true,
+				result
+			};
 		});
 	}
 
@@ -58,7 +62,11 @@ public sealed class LuaDebuggerTool(ICheatEngineClient client, LuaDebuggerCaptur
 			_lastProcessId = null;
 			_lastRequestedInterface = null;
 			_lastActualInterface = null;
-			return new { success = true, result };
+			return new
+			{
+				success = true,
+				result
+			};
 		});
 	}
 
@@ -167,8 +175,8 @@ public sealed class LuaDebuggerTool(ICheatEngineClient client, LuaDebuggerCaptur
 	{
 		string normalized = register?.ToUpperInvariant() ?? string.Empty;
 		if (normalized is not ("EAX" or "EBX" or "ECX" or "EDX" or "ESI" or "EDI" or "EBP" or "ESP" or "EIP" or "RAX"
-		    or "RBX" or "RCX" or "RDX" or "RSI" or "RDI" or "RBP" or "RSP" or "RIP" or "R8" or "R9" or "R10" or "R11"
-		    or "R12" or "R13" or "R14" or "R15" or "EFLAGS"))
+			or "RBX" or "RCX" or "RDX" or "RSI" or "RDI" or "RBP" or "RSP" or "RIP" or "R8" or "R9" or "R10" or "R11"
+			or "R12" or "R13" or "R14" or "R15" or "EFLAGS"))
 		{
 			return ToolExecution.Error("register must name a supported general-purpose register.");
 		}
@@ -235,7 +243,7 @@ public sealed class LuaDebuggerTool(ICheatEngineClient client, LuaDebuggerCaptur
 			}
 
 			string identity = processId.ToString(CultureInfo.InvariantCulture) + ":" +
-			                  process.StartTime.ToUniversalTime().Ticks.ToString(CultureInfo.InvariantCulture);
+							  process.StartTime.ToUniversalTime().Ticks.ToString(CultureInfo.InvariantCulture);
 			return (processId, identity);
 		}
 		catch (ArgumentException)

@@ -51,9 +51,9 @@ public sealed partial class ServerInstructionsTests
 	public void Composition_BothHosts_DeclareThePromptsInstructions()
 	{
 		foreach (CheatEngineMcpPrimitiveOptions manifest in new[]
-		         {
-			         TestComposition.BackendManifest, TestComposition.GatewayManifest
-		         })
+				 {
+					 TestComposition.BackendManifest, TestComposition.GatewayManifest
+				 })
 		{
 			Assert.Equal(McpServerInstructions.Gateway, manifest.GatewayInstructions);
 			Assert.Equal(McpServerInstructions.Backend, manifest.BackendInstructions);

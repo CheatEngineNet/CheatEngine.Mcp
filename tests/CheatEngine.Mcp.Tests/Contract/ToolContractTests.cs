@@ -66,7 +66,7 @@ public sealed class ToolContractTests
 		return GetToolTypes()
 			.SelectMany(type =>
 				type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static |
-				                BindingFlags.Instance))
+								BindingFlags.Instance))
 			.Select(method => new { Method = method, Attribute = method.GetCustomAttribute<McpServerToolAttribute>() })
 			.Where(method => method.Attribute is not null)
 			.Select(method => new ToolMethod(method.Method, method.Attribute?.Name ?? string.Empty))

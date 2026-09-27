@@ -117,7 +117,7 @@ public sealed partial class ToolDispatch
 			return ToolExecution.Run(Client, body, probe, cancellationToken);
 		}
 		catch (CheatEngineToolException exception) when (exception.Error.Kind is ToolErrorKind.Internal &&
-		                                                 exception.InnerException is { } fault)
+														 exception.InnerException is { } fault)
 		{
 			LogUnexpectedFault(_logger, operation, fault);
 			throw;

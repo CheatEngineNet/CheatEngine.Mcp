@@ -57,14 +57,14 @@ internal sealed class PluginLoggerProvider : ILoggerProvider
 		}
 
 		bool transport = IsCategoryOf(category, "Microsoft.AspNetCore")
-		                 || IsCategoryOf(category, "System.Net.Http")
-		                 || IsCategoryOf(category, "ModelContextProtocol");
+						 || IsCategoryOf(category, "System.Net.Http")
+						 || IsCategoryOf(category, "ModelContextProtocol");
 		return transport ? LogLevel.Information : configured;
 	}
 
 	private static bool IsCategoryOf(string category, string root)
 	{
 		return category.StartsWith(root, StringComparison.Ordinal)
-		       && (category.Length == root.Length || category[root.Length] == '.');
+			   && (category.Length == root.Length || category[root.Length] == '.');
 	}
 }

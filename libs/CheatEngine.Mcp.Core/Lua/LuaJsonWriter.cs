@@ -41,7 +41,8 @@ internal sealed class LuaJsonWriter
 	private static readonly JsonWriterOptions WriterOptions = new()
 	{
 		// The buffer is an intermediate copy that is deserialized at once, never embedded in HTML.
-		Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping, MaxDepth = MaximumDepth + 1
+		Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+		MaxDepth = MaximumDepth + 1
 	};
 
 	private readonly LuaOpaqueValueHandling _opaque;

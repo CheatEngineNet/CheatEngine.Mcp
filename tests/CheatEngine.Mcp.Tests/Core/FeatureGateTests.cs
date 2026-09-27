@@ -118,7 +118,8 @@ public sealed class FeatureGateTests
 	{
 		McpFeatureGate gate = new(Options.Create(new McpFeatureOptions
 		{
-			EnableAutoAssembler = false, EnableKernelAccess = false
+			EnableAutoAssembler = false,
+			EnableKernelAccess = false
 		}));
 
 		Assert.True(gate.IsEnabled(McpFeature.UnsafeLua));
@@ -230,7 +231,8 @@ public sealed class FeatureGateTests
 			activation.AddOptions<CheatEngineMcpPrimitiveOptions>();
 			ServiceProvider root = activation.BuildServiceProvider(new ServiceProviderOptions
 			{
-				ValidateOnBuild = true, ValidateScopes = true
+				ValidateOnBuild = true,
+				ValidateScopes = true
 			});
 			AsyncServiceScope scope = root.CreateAsyncScope();
 			CheatEngineMcpPrimitiveOptions manifest =

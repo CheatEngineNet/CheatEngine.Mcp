@@ -27,8 +27,8 @@ internal sealed class GatewayInstanceTool(InstanceRegistry registry, InstanceIde
 	[McpServerTool(Name = Name, Title = "List Cheat Engine instances", ReadOnly = true, Destructive = false,
 		Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[Description("Lists the local Cheat Engine instances whose MCP plugin is enabled and verified. Call it first: "
-	             + "every other tool needs one returned instanceId, and there is no default instance. Names may repeat; "
-	             + "route by instanceId. An instanceId changes whenever the plugin is enabled again or CE restarts.")]
+				 + "every other tool needs one returned instanceId, and there is no default instance. Names may repeat; "
+				 + "route by instanceId. An instanceId changes whenever the plugin is enabled again or CE restarts.")]
 	public async Task<InstanceListResult> ListAsync(CancellationToken cancellationToken)
 	{
 		InstanceListEntry?[] discovered = [];
@@ -42,7 +42,8 @@ internal sealed class GatewayInstanceTool(InstanceRegistry registry, InstanceIde
 			await Parallel.ForEachAsync(Enumerable.Range(0, instances.Length),
 				new ParallelOptions
 				{
-					MaxDegreeOfParallelism = MaximumParallelProbes, CancellationToken = deadline.Token
+					MaxDegreeOfParallelism = MaximumParallelProbes,
+					CancellationToken = deadline.Token
 				},
 				async (index, token) =>
 				{
@@ -50,7 +51,7 @@ internal sealed class GatewayInstanceTool(InstanceRegistry registry, InstanceIde
 				}).ConfigureAwait(false);
 		}
 		catch (OperationCanceledException) when (deadline.IsCancellationRequested &&
-		                                         !cancellationToken.IsCancellationRequested)
+												 !cancellationToken.IsCancellationRequested)
 		{
 			// Return the candidates verified within the budget; never imply that a partial list is complete.
 			discoveryIncomplete = true;
@@ -66,7 +67,8 @@ internal sealed class GatewayInstanceTool(InstanceRegistry registry, InstanceIde
 	{
 		McpServerToolCreateOptions options = new()
 		{
-			SerializerOptions = CreateSerializerOptions(), SchemaCreateOptions = SchemaTransform.SchemaCreateOptions
+			SerializerOptions = CreateSerializerOptions(),
+			SchemaCreateOptions = SchemaTransform.SchemaCreateOptions
 		};
 		// Schema only: the router calls ListAsync on its own instance, so this factory never runs.
 		return McpServerTool.Create(typeof(GatewayInstanceTool).GetMethod(nameof(ListAsync))!,
@@ -83,7 +85,8 @@ internal sealed class GatewayInstanceTool(InstanceRegistry registry, InstanceIde
 		JsonElement payload = JsonSerializer.SerializeToElement(result, HostingJsonContext.Default.InstanceListResult);
 		return new CallToolResult
 		{
-			StructuredContent = payload, Content = [new TextContentBlock { Text = payload.GetRawText() }]
+			StructuredContent = payload,
+			Content = [new TextContentBlock { Text = payload.GetRawText() }]
 		};
 	}
 

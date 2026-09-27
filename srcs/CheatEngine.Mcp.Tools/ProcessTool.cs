@@ -63,9 +63,16 @@ public sealed class ProcessTool
 				new LocalProcessEnumerationRequest(maximumResults, nameContains));
 			object[] processes = result.Processes.Select(process => (object) new
 			{
-				processId = process.Id.Value, processName = process.Name, executablePath = process.ExecutablePath
+				processId = process.Id.Value,
+				processName = process.Name,
+				executablePath = process.ExecutablePath
 			}).ToArray();
-			return new { success = true, processes, truncated = result.IsTruncated };
+			return new
+			{
+				success = true,
+				processes,
+				truncated = result.IsTruncated
+			};
 		});
 	}
 
@@ -88,7 +95,12 @@ public sealed class ProcessTool
 				{
 					// A reselection keeps every resource; it only forgets and reports those that already ended.
 					_targetResources?.ReportEndedResources(_client.Stopping);
-					return new { success = true, processId = current.Id.Value, processName = current.Name };
+					return new
+					{
+						success = true,
+						processId = current.Id.Value,
+						processName = current.Name
+					};
 				}
 
 				currentProcessId = current.Id.Value;
@@ -101,7 +113,12 @@ public sealed class ProcessTool
 			ProcessSnapshot snapshot = requestedProcessId > 0
 				? _client.Processes.Attach(new TargetProcessId(requestedProcessId))
 				: _client.Processes.AttachExactName(process);
-			return new { success = true, processId = snapshot.Id.Value, processName = snapshot.Name };
+			return new
+			{
+				success = true,
+				processId = snapshot.Id.Value,
+				processName = snapshot.Name
+			};
 		});
 	}
 
@@ -118,7 +135,11 @@ public sealed class ProcessTool
 					return ToolExecution.Failure(failure);
 				}
 
-				return new { success = true, isOpen = false };
+				return new
+				{
+					success = true,
+					isOpen = false
+				};
 			}
 
 			return new

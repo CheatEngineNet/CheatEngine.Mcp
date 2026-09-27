@@ -13,8 +13,13 @@ internal static class BackendHttp
 		// Redirects and proxies would let a response or the environment send the bearer token somewhere else.
 		HttpClient client = new(new SocketsHttpHandler
 		{
-			AllowAutoRedirect = false, UseProxy = false, PooledConnectionIdleTimeout = TimeSpan.FromSeconds(30)
-		}) { Timeout = Timeout.InfiniteTimeSpan };
+			AllowAutoRedirect = false,
+			UseProxy = false,
+			PooledConnectionIdleTimeout = TimeSpan.FromSeconds(30)
+		})
+		{
+			Timeout = Timeout.InfiniteTimeSpan
+		};
 		if (maximumResponseBytes is { } limit)
 		{
 			client.MaxResponseContentBufferSize = limit;

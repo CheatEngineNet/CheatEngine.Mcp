@@ -105,8 +105,8 @@ internal static class RegistrySnapshot
 		{
 			RegistryValueKind kind = key.GetValueKind(valueName);
 			object data = key.GetValue(valueName, null, RegistryValueOptions.DoNotExpandEnvironmentNames)
-			              ?? throw new InvalidOperationException(
-				              $"The value '{valueName}' of {key.Name} vanished while it was read.");
+						  ?? throw new InvalidOperationException(
+							  $"The value '{valueName}' of {key.Name} vanished while it was read.");
 			values.Add(new RegistryValueSnapshot(valueName, kind, kind switch
 			{
 				RegistryValueKind.String or RegistryValueKind.ExpandString => (string) data,
@@ -123,8 +123,8 @@ internal static class RegistrySnapshot
 		foreach (string child in key.GetSubKeyNames().Order(StringComparer.OrdinalIgnoreCase))
 		{
 			using RegistryKey subKey = key.OpenSubKey(child, false)
-			                           ?? throw new InvalidOperationException(
-				                           $"The subkey '{child}' of {key.Name} vanished while it was read.");
+									   ?? throw new InvalidOperationException(
+										   $"The subkey '{child}' of {key.Name} vanished while it was read.");
 			keys.Add(CaptureKey(subKey, child));
 		}
 

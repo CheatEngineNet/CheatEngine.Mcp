@@ -56,7 +56,7 @@ internal static class McpPathRules
 		}
 
 		if (!Path.IsPathFullyQualified(path) || path is not [_, ':', '\\' or '/', ..] ||
-		    !char.IsAsciiLetter(path[0]))
+			!char.IsAsciiLetter(path[0]))
 		{
 			return "must be an absolute path with a drive letter.";
 		}

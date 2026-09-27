@@ -2,21 +2,15 @@
 # Generated from the backend tools/list and the gateway's instance_list; legacy marks a pre-v2 tool.
 add_code_reference | legacy | legacy | legacy | -
 add_memory_record | legacy | legacy | legacy | -
-add_structure_element | legacy | legacy | legacy | -
-allocate_memory | legacy | legacy | legacy | -
 analyze_code_range | legacy | legacy | legacy | -
-aob_scan | legacy | legacy | legacy | -
-aob_scan_unique | legacy | legacy | legacy | -
+aob_find | Find byte patterns | true,false,true,false | host_scan | -
+aob_generate_signature | Generate an AOB signature | true,false,true,false | host_scan | -
 assemble | legacy | legacy | legacy | -
 auto_assemble | legacy | legacy | legacy | -
 auto_assemble_check | legacy | legacy | legacy | -
-autoguess_structure | legacy | legacy | legacy | -
 clear_code_analysis | legacy | legacy | legacy | -
-compare_memory | legacy | legacy | legacy | -
 convert_string | legacy | legacy | legacy | -
-copy_memory | legacy | legacy | legacy | -
 create_process | legacy | legacy | legacy | -
-create_structure | legacy | legacy | legacy | -
 dbk_control_registers | legacy | legacy | legacy | -
 dbk_physical_address | legacy | legacy | legacy | -
 dbk_status | legacy | legacy | legacy | -
@@ -47,40 +41,24 @@ debugger_stop_capture | legacy | legacy | legacy | -
 debugger_stop_step_trace | legacy | legacy | legacy | -
 delete_code_reference | legacy | legacy | legacy | -
 delete_memory_record | legacy | legacy | legacy | -
-delete_pointer_map | legacy | legacy | legacy | -
-delete_structure | legacy | legacy | legacy | -
 disassemble | legacy | legacy | legacy | -
 disassemble_bytes | legacy | legacy | legacy | -
 disassemble_range | legacy | legacy | legacy | -
-dump_memory | legacy | legacy | legacy | -
-enum_memory_regions | legacy | legacy | legacy | -
-enum_module_sections | legacy | legacy | legacy | -
-enum_modules | legacy | legacy | legacy | -
-enum_registered_symbols | legacy | legacy | legacy | -
 execute_local_code | legacy | legacy | legacy | -
 execute_lua | legacy | legacy | legacy | -
 execute_remote_code | legacy | legacy | legacy | -
-fill_structure_from_dotnet | legacy | legacy | legacy | -
 find_memory_records_by_description | legacy | legacy | legacy | -
-free_memory | legacy | legacy | legacy | -
-full_access_memory | legacy | legacy | legacy | -
 generate_api_hook_script | legacy | legacy | legacy | -
-generate_pointer_map | legacy | legacy | legacy | -
 get_address_list | legacy | legacy | legacy | -
 get_code_references | legacy | legacy | legacy | -
 get_comment | legacy | legacy | legacy | -
 get_current_process | legacy | legacy | legacy | -
 get_function_range | legacy | legacy | legacy | -
-get_memory_protection | legacy | legacy | legacy | -
 get_memory_record_details | legacy | legacy | legacy | -
-get_memory_region | legacy | legacy | legacy | -
 get_memory_scan_results | legacy | legacy | legacy | -
 get_memory_scan_status | legacy | legacy | legacy | -
-get_module_preference | legacy | legacy | legacy | -
-get_name_from_address | legacy | legacy | legacy | -
 get_opened_file_size | legacy | legacy | legacy | -
 get_plugin_version | legacy | legacy | legacy | -
-get_pointer_scan_results | legacy | legacy | legacy | -
 get_pointer_size | legacy | legacy | legacy | -
 get_previous_opcodes | legacy | legacy | legacy | -
 get_process_list | legacy | legacy | legacy | -
@@ -90,55 +68,76 @@ get_referenced_strings | legacy | legacy | legacy | -
 get_runtime_info | legacy | legacy | legacy | -
 get_selected_memory_record | legacy | legacy | legacy | -
 get_speedhack_speed | legacy | legacy | legacy | -
-get_structure | legacy | legacy | legacy | -
-get_structure_element_value | legacy | legacy | legacy | -
-get_structure_elements | legacy | legacy | legacy | -
-get_symbol_info | legacy | legacy | legacy | -
-get_symbols_loading_state | legacy | legacy | legacy | -
 get_thread_list | legacy | legacy | legacy | -
-hash_memory | legacy | legacy | legacy | -
 inject_dotnet_library | legacy | legacy | legacy | -
 inject_library | legacy | legacy | legacy | -
 instance_list | List Cheat Engine instances | true,false,true,false | gateway | -
 is_jump_destination | legacy | legacy | legacy | -
 list_memory_scanners | legacy | legacy | legacy | -
-list_pointer_maps | legacy | legacy | legacy | -
-list_structures | legacy | legacy | legacy | -
 load_cheat_table | legacy | legacy | legacy | -
-load_new_symbols | legacy | legacy | legacy | -
-lookup_rtti_class_name | legacy | legacy | legacy | -
+memory_allocate | Allocate memory | false,false,false,false | short | -
+memory_compare | Compare memory | true,false,true,false | short | -
+memory_copy | Copy memory | false,true,false,false | short | -
+memory_dump_to_file | Dump memory to a file | false,false,true,true | short | -
+memory_free | Free memory | false,true,true,false | short | -
+memory_get_address_info | Describe addresses | true,false,true,false | short | -
+memory_hash | Hash memory | true,false,true,false | short | -
+memory_list_regions | List memory regions | true,false,true,false | short | -
+memory_read | Read memory | true,false,true,false | short | -
+memory_read_batch | Read many addresses | true,false,true,false | short | -
 memory_scan | legacy | legacy | legacy | -
+memory_set_protection | Set memory protection | false,true,false,false | short | -
+memory_write | Write memory | false,true,false,false | short | -
+memory_write_batch | Write many addresses | false,true,false,false | short | -
+module_find_patches | Find module patches | true,false,true,true | short | -
+module_get | Get module details | true,false,true,false | short | -
+module_list | List modules | true,false,true,false | short | -
+module_list_exports | List module exports | true,false,true,false | short | -
 next_memory_scan | legacy | legacy | legacy | -
 open_file_as_process | legacy | legacy | legacy | -
 open_process | legacy | legacy | legacy | -
 pause_process | legacy | legacy | legacy | -
-pointer_scan | legacy | legacy | legacy | -
-read_memory | legacy | legacy | legacy | -
-read_pointer_chain | legacy | legacy | legacy | -
-register_symbol | legacy | legacy | legacy | -
-reinitialize_dotnet_symbols | legacy | legacy | legacy | -
-reinitialize_symbols | legacy | legacy | legacy | -
+pointer_create_map | Create a pointer map | false,false,false,false | short | -
+pointer_delete_map | Delete a pointer map | false,true,true,false | short | -
+pointer_delete_scan | Delete a pointer scan | false,true,true,false | short | -
+pointer_find_paths | Find pointer paths | false,false,false,false | short | -
+pointer_find_references | Find pointer references | true,false,true,false | host_scan | -
+pointer_list_maps | List pointer maps | true,false,true,false | short | -
+pointer_list_paths | List pointer paths | true,false,true,false | short | -
+pointer_list_scans | List pointer scans | true,false,true,false | short | -
+pointer_read_chain | Read a pointer chain | true,false,true,false | short | -
+pointer_rescan_paths | Rescan pointer paths | false,true,false,false | short | -
 release_target_resources | legacy | legacy | legacy | -
-remove_structure_element | legacy | legacy | legacy | -
-rescan_pointer_scan | legacy | legacy | legacy | -
 reset_memory_scan | legacy | legacy | legacy | -
-reset_pointer_scan | legacy | legacy | legacy | -
-resolve_address | legacy | legacy | legacy | -
 resume_process | legacy | legacy | legacy | -
 save_cheat_table | legacy | legacy | legacy | -
 save_opened_file | legacy | legacy | legacy | -
 select_memory_record | legacy | legacy | legacy | -
 set_comment | legacy | legacy | legacy | -
-set_memory_protection | legacy | legacy | legacy | -
 set_memory_record_active | legacy | legacy | legacy | -
 set_memory_record_offsets | legacy | legacy | legacy | -
 set_memory_record_script | legacy | legacy | legacy | -
-set_module_preference | legacy | legacy | legacy | -
 set_pointer_size | legacy | legacy | legacy | -
 set_speedhack_speed | legacy | legacy | legacy | -
-set_structure_element_value | legacy | legacy | legacy | -
-unregister_symbol | legacy | legacy | legacy | -
+structure_add_elements | Add structure elements | false,false,false,false | short | -
+structure_autoguess | Auto-guess a structure | false,true,false,false | short | -
+structure_compare | Compare structure instances | true,false,true,false | short | -
+structure_create | Create a structure | false,false,false,false | short | -
+structure_delete | Delete a structure | false,true,true,false | short | -
+structure_fill_from_dotnet | Fill a structure from .NET | false,true,false,false | blocking_native | -
+structure_get | Get a structure | true,false,true,false | short | -
+structure_get_pdb_layout | Get a PDB structure layout | true,false,true,false | short | -
+structure_list | List structures | true,false,true,false | short | -
+structure_read | Read structure values | true,false,true,false | short | -
+structure_remove_elements | Remove structure elements | false,true,true,false | short | -
+structure_update_elements | Update structure elements | false,true,true,false | short | -
+structure_write_element | Write a structure element | false,true,true,false | short | -
+symbol_add_module | Load symbols from a file | false,false,true,true | blocking_native | -
+symbol_get_module_preference | Get module preference | true,false,true,false | short | -
+symbol_list_registered | List registered symbols | true,false,true,false | short | -
+symbol_register | Register a symbol | false,false,false,false | short | -
+symbol_reload | Reload symbols | false,false,true,false | short | -
+symbol_resolve | Resolve addresses and names | true,false,true,false | short | -
+symbol_set_module_preference | Set module preference | false,true,true,false | short | -
+symbol_unregister | Unregister a symbol | false,true,true,false | short | -
 update_memory_record | legacy | legacy | legacy | -
-update_structure_element | legacy | legacy | legacy | -
-wait_for_symbols | legacy | legacy | legacy | -
-write_memory | legacy | legacy | legacy | -

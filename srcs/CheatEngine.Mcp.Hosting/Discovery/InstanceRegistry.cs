@@ -47,9 +47,9 @@ public sealed class InstanceRegistry(string directory)
 				InstanceDescriptor? instance =
 					JsonSerializer.Deserialize(file, HostingJsonContext.Default.InstanceDescriptor);
 				if (instance is not null && IsValid(instance)
-				                         && string.Equals(Path.GetFileNameWithoutExtension(path),
-					                         instance.ActivationId.ToString("N"), StringComparison.Ordinal)
-				                         && IsProcessAlive(instance))
+										 && string.Equals(Path.GetFileNameWithoutExtension(path),
+											 instance.ActivationId.ToString("N"), StringComparison.Ordinal)
+										 && IsProcessAlive(instance))
 				{
 					instances.Add(instance);
 				}
@@ -102,14 +102,14 @@ public sealed class InstanceRegistry(string directory)
 	internal static bool IsValid(InstanceDescriptor instance)
 	{
 		return instance.ActivationId != Guid.Empty && instance.ProcessId > 0 && instance.ProcessStartUtcTicks > 0
-		       && instance.InstanceId == $"ce-{instance.ProcessId}-{instance.ActivationId:N}"
-		       && !string.IsNullOrWhiteSpace(instance.Name) && instance.Name.Length <= 128
-		       && instance.AccessToken is { Length: 64 } && instance.AccessToken.All(char.IsAsciiHexDigit)
-		       && !string.IsNullOrWhiteSpace(instance.PluginVersion)
-		       && Uri.TryCreate(instance.Endpoint, UriKind.Absolute, out Uri? endpoint)
-		       && endpoint.Scheme == Uri.UriSchemeHttp && endpoint.Host == "127.0.0.1" && endpoint.Port > 0
-		       && endpoint.AbsolutePath == "/" && endpoint.Query.Length == 0 && endpoint.Fragment.Length == 0
-		       && endpoint.UserInfo.Length == 0;
+			   && instance.InstanceId == $"ce-{instance.ProcessId}-{instance.ActivationId:N}"
+			   && !string.IsNullOrWhiteSpace(instance.Name) && instance.Name.Length <= 128
+			   && instance.AccessToken is { Length: 64 } && instance.AccessToken.All(char.IsAsciiHexDigit)
+			   && !string.IsNullOrWhiteSpace(instance.PluginVersion)
+			   && Uri.TryCreate(instance.Endpoint, UriKind.Absolute, out Uri? endpoint)
+			   && endpoint.Scheme == Uri.UriSchemeHttp && endpoint.Host == "127.0.0.1" && endpoint.Port > 0
+			   && endpoint.AbsolutePath == "/" && endpoint.Query.Length == 0 && endpoint.Fragment.Length == 0
+			   && endpoint.UserInfo.Length == 0;
 	}
 
 	private static bool IsProcessAlive(InstanceDescriptor instance)

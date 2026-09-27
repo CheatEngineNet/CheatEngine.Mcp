@@ -119,7 +119,7 @@ public sealed class GatewayOptions
 		}
 
 		return int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out int seconds)
-		       && seconds is >= MinimumCallTimeoutSeconds and <= MaximumCallTimeoutSeconds
+			   && seconds is >= MinimumCallTimeoutSeconds and <= MaximumCallTimeoutSeconds
 			? TimeSpan.FromSeconds(seconds)
 			: throw new ArgumentException(
 				$"{source} must be a whole number of seconds from {MinimumCallTimeoutSeconds} to " +

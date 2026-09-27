@@ -1,0 +1,391 @@
+[
+  {
+    "name": "aob_injection",
+    "title": "Write an AOB code injection",
+    "description": "Run custom code at an instruction found by signature: template, check, apply, verify and release.",
+    "arguments": [
+      {
+        "name": "instructionAddress",
+        "description": "The address of the instruction to hook. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": true
+      },
+      {
+        "name": "goal",
+        "description": "What the injected code must achieve, such as double the damage dealt.",
+        "required": true
+      },
+      {
+        "name": "template",
+        "description": "The script template: aob (default), full or code.",
+        "required": false
+      },
+      {
+        "name": "symbolName",
+        "description": "The symbol name of the injection point, such as damageHook.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "attach_and_orient",
+    "title": "Attach to a target and get oriented",
+    "description": "Start of a session: check versions and gates, attach to the authorized process, classify its runtime (native, Mono, IL2CPP, .NET) and suggest the next workflow.",
+    "arguments": [
+      {
+        "name": "process",
+        "description": "The target process name or PID; omit it to choose from the process list.",
+        "required": false
+      },
+      {
+        "name": "goal",
+        "description": "What the user wants to achieve, such as infinite health.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "build_robust_table",
+    "title": "Build a robust cheat table",
+    "description": "Turn the address list into a table that survives restarts and updates, test it and save it.",
+    "arguments": [
+      {
+        "name": "tablePath",
+        "description": "The absolute .CT path to save, under an allowed table root.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "ce_tutorial_walkthrough",
+    "title": "Cheat Engine tutorial walkthrough",
+    "description": "Coach one step of CE\u0027s tutorial or gtutorial with the matching workflow; a safe way to learn or to smoke-test a setup.",
+    "arguments": [
+      {
+        "name": "step",
+        "description": "The step to coach: 1 to 9 for tutorial, 1 to 3 for gtutorial.",
+        "required": true
+      },
+      {
+        "name": "tutorial",
+        "description": "tutorial (default, Tutorial-x86_64.exe) or gtutorial (gtutorial-x86_64.exe).",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "cleanup_session",
+    "title": "Clean up this session",
+    "description": "End of session or before a target switch: stop jobs, restore and release everything in a safe order and report what remains.",
+    "arguments": [
+      {
+        "name": "keepAddressList",
+        "description": "yes (default) keeps the address-list records; no deletes the records this session created, after asking.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "dissect_structure",
+    "title": "Dissect a structure",
+    "description": "Name the fields around a base address: RTTI, .NET or PDB layouts or autoguess, then comparison with other instances.",
+    "arguments": [
+      {
+        "name": "baseAddress",
+        "description": "The object\u0027s base address. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": true
+      },
+      {
+        "name": "size",
+        "description": "How many bytes to dissect, as a decimal number (default 256).",
+        "required": false
+      },
+      {
+        "name": "compareWith",
+        "description": "Other instances\u0027 base addresses, separated by commas, to compare with.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "dotnet_recon",
+    "title": "Explore a .NET game",
+    "description": ".NET types, fields, statics and instances through CE\u0027s out-of-process .NET collector.",
+    "arguments": [
+      {
+        "name": "typeName",
+        "description": "The type to find, such as Game.Player.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "find_float_value",
+    "title": "Find a floating-point value",
+    "description": "Floats, doubles, percentages and positions: range scans around the displayed value, then neighbouring fields.",
+    "arguments": [
+      {
+        "name": "displayedValue",
+        "description": "The value the game shows, such as 87.3 or 75%; omit it for a bar without a number.",
+        "required": false
+      },
+      {
+        "name": "description",
+        "description": "What the value is, such as the player\u0027s X position.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "find_known_value",
+    "title": "Find a known value",
+    "description": "The value is shown as a number: exact first and next scans, verification one candidate at a time, then a record.",
+    "arguments": [
+      {
+        "name": "currentValue",
+        "description": "The number the game shows now, such as 100 or 87.5.",
+        "required": true
+      },
+      {
+        "name": "valueType",
+        "description": "The value type: auto (default), int8, uint8, int16, uint16, int32, uint32, int64, uint64, float, double, string or wstring.",
+        "required": false
+      },
+      {
+        "name": "description",
+        "description": "What the value is, such as player health.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "find_unknown_value",
+    "title": "Find an unknown value",
+    "description": "Only a bar or a change is visible: an unknown first scan, then increased, decreased, changed and unchanged scans.",
+    "arguments": [
+      {
+        "name": "valueType",
+        "description": "The value type: auto (default), int32, float or double.",
+        "required": false
+      },
+      {
+        "name": "description",
+        "description": "What the value is, such as the stamina bar.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "find_writer",
+    "title": "Find what writes or accesses an address",
+    "description": "Which instructions write or read an address: a debugger capture job, disassembly and module offsets.",
+    "arguments": [
+      {
+        "name": "address",
+        "description": "The address of the value. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": true
+      },
+      {
+        "name": "trigger",
+        "description": "write (default) captures writers; access also captures readers.",
+        "required": false
+      },
+      {
+        "name": "size",
+        "description": "The value size in bytes: 1, 2, 4 (default) or 8.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "freeze_value",
+    "title": "Freeze a value",
+    "description": "Hold a value constant with an address-list record, verify that the freeze holds and undo it.",
+    "arguments": [
+      {
+        "name": "address",
+        "description": "The address of the value. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": true
+      },
+      {
+        "name": "valueType",
+        "description": "The value type: int8, uint8, int16, uint16, int32, uint32, int64, uint64, float, double, string, wstring or bytes.",
+        "required": true
+      },
+      {
+        "name": "value",
+        "description": "The value to hold; omit it to hold the current value.",
+        "required": false
+      },
+      {
+        "name": "description",
+        "description": "The record description, such as Infinite health.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "injection_copy_base",
+    "title": "Capture a base pointer by injection",
+    "description": "Copy the object base an instruction uses into a registered symbol, so records can use [symbol]\u002Boffset.",
+    "arguments": [
+      {
+        "name": "instructionAddress",
+        "description": "The address of an instruction that handles only the player. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": true
+      },
+      {
+        "name": "symbolName",
+        "description": "The symbol that receives the base (default playerBase).",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "make_aob_signature",
+    "title": "Make a unique AOB signature",
+    "description": "A byte pattern that finds an instruction exactly once in its module, with wildcards over bytes that change between builds.",
+    "arguments": [
+      {
+        "name": "address",
+        "description": "The address of the instruction. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": true
+      },
+      {
+        "name": "module",
+        "description": "The module to search, such as game.exe; omit it for the module that contains the address.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "manual_pointer_chain",
+    "title": "Build a pointer chain manually",
+    "description": "Walk back from a writer to a static base, one level at a time, and verify the chain after a restart.",
+    "arguments": [
+      {
+        "name": "address",
+        "description": "The dynamic address of the value. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": true
+      },
+      {
+        "name": "maxLevels",
+        "description": "The most pointer levels to walk: 1 to 8 (default 4).",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "nop_patch",
+    "title": "Replace code with NOPs",
+    "description": "Disable an instruction reversibly with a tracked NOP patch, verify it and release it.",
+    "arguments": [
+      {
+        "name": "instructionAddress",
+        "description": "The address of the instruction. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": true
+      }
+    ]
+  },
+  {
+    "name": "pointer_scan",
+    "title": "Find a static pointer with the pointer scanner",
+    "description": "Pointer map, path scan and rescans across restarts to find a static path to a value.",
+    "arguments": [
+      {
+        "name": "address",
+        "description": "The dynamic address of the value. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": true
+      },
+      {
+        "name": "maxDepth",
+        "description": "The deepest path to search: 1 to 8 (default 5).",
+        "required": false
+      },
+      {
+        "name": "maxOffset",
+        "description": "The largest offset per level, as a decimal number (default 4096).",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "repair_after_update",
+    "title": "Repair a table after a game update",
+    "description": "A game update broke a record: find the new code, rebuild the signature and offsets, test and save a new table.",
+    "arguments": [
+      {
+        "name": "recordDescription",
+        "description": "The description of the broken record, such as Infinite ammo.",
+        "required": false
+      },
+      {
+        "name": "tablePath",
+        "description": "The absolute .CT path of the table, when it is not loaded yet.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "shared_code_filter",
+    "title": "Filter shared code by entity",
+    "description": "One instruction serves the player and enemies: find a field that tells them apart and filter the injection on it.",
+    "arguments": [
+      {
+        "name": "instructionAddress",
+        "description": "The address of the shared instruction. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": true
+      },
+      {
+        "name": "playerAddress",
+        "description": "The player\u0027s value address, when known. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "speedhack",
+    "title": "Change game speed",
+    "description": "Change the game speed with CE\u0027s speedhack, verify it and restore the previous speed.",
+    "arguments": [
+      {
+        "name": "speed",
+        "description": "The speed multiplier between 0.01 and 1000, such as 0.5 or 2.",
+        "required": true
+      }
+    ]
+  },
+  {
+    "name": "trace_logic",
+    "title": "Trace the logic of an instruction",
+    "description": "Find the comparison and branch that decide an outcome by reading and tracing the code.",
+    "arguments": [
+      {
+        "name": "address",
+        "description": "The address where the logic starts. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": true
+      },
+      {
+        "name": "question",
+        "description": "The question to answer, such as why the player dies at zero shield.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "unity_mono_recon",
+    "title": "Explore a Unity (Mono) game",
+    "description": "Unity Mono classes, fields, statics and methods through CE\u0027s Mono data collector, after explicit consent.",
+    "arguments": [
+      {
+        "name": "className",
+        "description": "The class to find, such as PlayerController.",
+        "required": false
+      },
+      {
+        "name": "fieldName",
+        "description": "The field to find, such as health.",
+        "required": false
+      }
+    ]
+  }
+]

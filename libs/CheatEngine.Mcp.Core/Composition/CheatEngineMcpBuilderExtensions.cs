@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using System.Text.Json.Serialization.Metadata;
 
 using CheatEngine.Mcp.Core.Execution;
@@ -107,7 +108,7 @@ public static class CheatEngineMcpBuilderExtensions
 		/// <returns>The same builder.</returns>
 		public ICheatEngineMcpBuilder AddResourceType<
 			[DynamicallyAccessedMembers(CheatEngineMcpPrimitive.Members)]
-			TResource>()
+		TResource>()
 			where TResource : class
 		{
 			return builder.AddPrimitive(CheatEngineMcpPrimitiveKind.Resource, typeof(TResource));
@@ -118,7 +119,7 @@ public static class CheatEngineMcpBuilderExtensions
 		/// <returns>The same builder.</returns>
 		public ICheatEngineMcpBuilder AddPromptType<
 			[DynamicallyAccessedMembers(CheatEngineMcpPrimitive.Members)]
-			TPrompt>()
+		TPrompt>()
 			where TPrompt : class
 		{
 			return builder.AddPrimitive(CheatEngineMcpPrimitiveKind.Prompt, typeof(TPrompt));
@@ -129,9 +130,12 @@ public static class CheatEngineMcpBuilderExtensions
 			Type type)
 		{
 			ArgumentNullException.ThrowIfNull(builder);
-			if (builder.Mode is CheatEngineMcpMode.Backend)
+			if (builder.Mode is CheatEngineMcpMode.Backend && type
+					.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+					.Any(CheatEngineMcpServerBuilderExtensions.IsPrimitiveMethod))
 			{
-				// One instance per activation scope, validated by Client Hosting and disposed after its lease drain.
+				// One instance per activation scope, validated by Client Hosting and disposed after its lease drain. A
+				// container of static (Local) primitives only, such as the documents and prompts, is never constructed.
 				builder.Services.TryAddScoped(type);
 			}
 

@@ -167,8 +167,8 @@ public sealed class TargetResources : ITargetTransitionGuard
 		McpStateLedger ledger = Ledger ?? throw new InvalidOperationException(
 			"Recorded Lua state needs the activation's state ledger.");
 		if (!McpStateIds.TryParse(id, out string parsedKind, out string parsedNamespace) ||
-		    !string.Equals(parsedKind, kind, StringComparison.Ordinal) ||
-		    !string.Equals(parsedNamespace, Namespace, StringComparison.Ordinal))
+			!string.Equals(parsedKind, kind, StringComparison.Ordinal) ||
+			!string.Equals(parsedNamespace, Namespace, StringComparison.Ordinal))
 		{
 			throw new ArgumentException("The id must be an id of this activation for the same kind.", nameof(id));
 		}
@@ -192,7 +192,7 @@ public sealed class TargetResources : ITargetTransitionGuard
 		lock (_lock)
 		{
 			if (_entries.Exists(entry => ReferenceEquals(entry.Resource, resource) ||
-			                             string.Equals(entry.Id, id, StringComparison.Ordinal)))
+										 string.Equals(entry.Id, id, StringComparison.Ordinal)))
 			{
 				throw new InvalidOperationException($"The resource {id} is already tracked.");
 			}
@@ -481,8 +481,8 @@ public sealed class TargetResources : ITargetTransitionGuard
 		HashSet<string> managed = [.. entries.Select(static entry => entry.Id)];
 		return snapshot.Entries
 			.Where(entry => entry.HoldsHostState &&
-			                !(string.Equals(entry.Namespace, Namespace, StringComparison.Ordinal) &&
-			                  managed.Contains(entry.Id)))
+							!(string.Equals(entry.Namespace, Namespace, StringComparison.Ordinal) &&
+							  managed.Contains(entry.Id)))
 			.Select(Ledger.Describe);
 	}
 

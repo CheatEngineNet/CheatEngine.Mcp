@@ -18,10 +18,10 @@ public sealed class TokenSafeLoggingTests
 		ILoggerFactory loggers = services.GetRequiredService<ILoggerFactory>();
 
 		foreach (string category in new[]
-		         {
-			         "ModelContextProtocol.Server.McpServer", "ModelContextProtocol.Client.HttpClientTransport",
-			         "Microsoft.AspNetCore.Server.Kestrel", "System.Net.Http.HttpClient.Default"
-		         })
+				 {
+					 "ModelContextProtocol.Server.McpServer", "ModelContextProtocol.Client.HttpClientTransport",
+					 "Microsoft.AspNetCore.Server.Kestrel", "System.Net.Http.HttpClient.Default"
+				 })
 		{
 			ILogger logger = loggers.CreateLogger(category);
 			Assert.False(logger.IsEnabled(LogLevel.Debug), category);

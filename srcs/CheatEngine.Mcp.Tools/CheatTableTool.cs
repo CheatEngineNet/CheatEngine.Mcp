@@ -30,7 +30,12 @@ public sealed class CheatTableTool
 		{
 			TrustedTableFile file = new(filename);
 			_client.Tables.LoadTrustedTable(new TableLoadRequest(file, merge));
-			return new { success = true, filename = file.FullPath, merge };
+			return new
+			{
+				success = true,
+				filename = file.FullPath,
+				merge
+			};
 		});
 	}
 
@@ -44,7 +49,11 @@ public sealed class CheatTableTool
 		{
 			TrustedTableFile file = new(filename);
 			_client.Tables.SaveTable(new TableSaveRequest(file));
-			return new { success = true, filename = file.FullPath };
+			return new
+			{
+				success = true,
+				filename = file.FullPath
+			};
 		});
 	}
 }

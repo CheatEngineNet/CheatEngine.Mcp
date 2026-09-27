@@ -16,7 +16,6 @@ public sealed class ScanTool : IDisposable
 {
 	private const int MaximumScanners = 32;
 	private const int MaximumScannerNameLength = 256;
-	private const int MaximumAobBytes = 64 * 1024;
 	private const int MaximumScanValueCharacters = 1024 * 1024;
 	private readonly ICheatEngineClient _client;
 	private readonly Dictionary<string, IValueScanSession> _sessions = new(StringComparer.Ordinal);
@@ -48,89 +47,6 @@ public sealed class ScanTool : IDisposable
 				RemoveSession(name);
 			}
 		}
-	}
-
-	[McpServerTool(Name = "aob_scan")]
-	[Description("Run a bounded AOB scan using CheatEngine.Client.")]
-	public object AobScan([Description("Hexadecimal bytes and ?? wildcard tokens.")] string pattern,
-		[Description("Maximum copied matches (1-65535).")]
-		int maximumResults = 1000,
-		[Description("Optional module name that bounds the scan.")]
-		string? moduleName = null,
-		[Description("Optional inclusive first match address; requires endAddress.")]
-		string? startAddress = null,
-		[Description("Optional inclusive last match address; requires startAddress.")]
-		string? endAddress = null)
-	{
-		return ToolExecution.Run(_client, () =>
-		{
-			if (maximumResults is < 1 or > 65_535)
-			{
-				return ToolExecution.Error("maximumResults must be between 1 and 65535.");
-			}
-
-			if (pattern.Length > MaximumAobBytes * 3)
-			{
-				return ToolExecution.Error("pattern must not exceed 65536 bytes.");
-			}
-
-			if (startAddress is null != endAddress is null)
-			{
-				return ToolExecution.Error("startAddress and endAddress must be supplied together.");
-			}
-
-			ModuleName? module = string.IsNullOrWhiteSpace(moduleName) ? null : new ModuleName(moduleName);
-			AobScanRange? range = startAddress is null
-				? null
-				: new AobScanRange(ToolExecution.Address(_client, startAddress),
-					ToolExecution.Address(_client, endAddress!));
-			AobPattern parsedPattern = new(pattern);
-			if (parsedPattern.ByteLength > MaximumAobBytes)
-			{
-				return ToolExecution.Error("pattern must not exceed 65536 bytes.");
-			}
-
-			AobScanResult result =
-				_client.Patterns.Scan(new AobScanRequest(parsedPattern, maximumResults, module, range));
-			string[] addresses = result.Matches.Select(address => $"0x{address.Value:X}").ToArray();
-			return new { success = true, addresses, truncated = result.IsTruncated };
-		});
-	}
-
-	[McpServerTool(Name = "aob_scan_unique")]
-	[Description("Find at most one AOB match; truncated results are not proof of uniqueness.")]
-	public object AobScanUnique([Description("Hexadecimal bytes and ?? wildcard tokens.")] string pattern,
-		[Description("Optional module name that bounds the scan.")]
-		string? moduleName = null)
-	{
-		return ToolExecution.Run(_client, () =>
-		{
-			if (pattern.Length > MaximumAobBytes * 3)
-			{
-				return ToolExecution.Error("pattern must not exceed 65536 bytes.");
-			}
-
-			ModuleName? module = string.IsNullOrWhiteSpace(moduleName) ? null : new ModuleName(moduleName);
-			AobPattern parsedPattern = new(pattern);
-			if (parsedPattern.ByteLength > MaximumAobBytes)
-			{
-				return ToolExecution.Error("pattern must not exceed 65536 bytes.");
-			}
-
-			AobScanResult result = _client.Patterns.Scan(new AobScanRequest(parsedPattern, 2, module));
-			if (result.IsTruncated || result.Matches.Length > 1)
-			{
-				return ToolExecution.Error("The AOB pattern is not proven unique.");
-			}
-
-			Address? address = result.Matches.Length == 0 ? null : result.Matches[0];
-			return new
-			{
-				success = true,
-				found = address.HasValue,
-				address = address is { } value ? $"0x{value.Value:X}" : null
-			};
-		});
 	}
 
 	[McpServerTool(Name = "memory_scan")]
@@ -234,7 +150,7 @@ public sealed class ScanTool : IDisposable
 			}
 
 			if (!_sessions.TryGetValue(scannerName, out IValueScanSession? session) ||
-			    !_valueTypes.TryGetValue(scannerName, out ValueScanValueType type))
+				!_valueTypes.TryGetValue(scannerName, out ValueScanValueType type))
 			{
 				return ToolExecution.Error("No scan exists with that scannerName.");
 			}
@@ -290,7 +206,11 @@ public sealed class ScanTool : IDisposable
 
 			ValueScanPage page = session.Read(new ValueScanReadRequest(startIndex, maximumResults));
 			object[] results = page.Matches.Select(match =>
-				(object) new { address = $"0x{match.Address.Value:X}", value = match.ValueText }).ToArray();
+				(object) new
+				{
+					address = $"0x{match.Address.Value:X}",
+					value = match.ValueText
+				}).ToArray();
 			return new
 			{
 				success = true,
@@ -374,7 +294,11 @@ public sealed class ScanTool : IDisposable
 		{
 			List<object> scanners = [MainScanner.Status(_client)];
 			scanners.AddRange(_sessions.Select(pair => ScanSummary(pair.Key, pair.Value)));
-			return new { success = true, scanners };
+			return new
+			{
+				success = true,
+				scanners
+			};
 		});
 	}
 

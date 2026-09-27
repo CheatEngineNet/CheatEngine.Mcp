@@ -32,7 +32,10 @@ public sealed class TargetResourceTool(ICheatEngineClient client, TargetResource
 			}
 
 			return result.IsComplete
-				? new { success = true }
+				? new
+				{
+					success = true
+				}
 				: ToolExecution.Error(
 					$"{result.Remaining.Count} resource(s) still hold host state and need manual recovery or an acknowledgement.");
 		});

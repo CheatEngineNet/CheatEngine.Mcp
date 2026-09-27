@@ -121,7 +121,8 @@ internal sealed partial class McpBackendHost(
 			{
 				server.ServerInfo = new Implementation
 				{
-					Name = options.ServerName, Version = runtime.Version ?? "2.0.0"
+					Name = options.ServerName,
+					Version = runtime.Version ?? "2.0.0"
 				};
 				server.ServerInstructions = manifest.BackendInstructions;
 			})
@@ -141,8 +142,8 @@ internal sealed partial class McpBackendHost(
 			}
 
 			if (publication is not null && !CryptographicOperations.FixedTimeEquals(
-				    Encoding.UTF8.GetBytes(context.Request.Headers.Authorization.ToString()),
-				    Encoding.UTF8.GetBytes("Bearer " + publication.Descriptor.AccessToken)))
+					Encoding.UTF8.GetBytes(context.Request.Headers.Authorization.ToString()),
+					Encoding.UTF8.GetBytes("Bearer " + publication.Descriptor.AccessToken)))
 			{
 				context.Response.StatusCode = StatusCodes.Status401Unauthorized;
 				return;

@@ -1,4 +1,4 @@
-﻿using System.Runtime.Versioning;
+using System.Runtime.Versioning;
 
 namespace CheatEngine.Mcp.Tests.LiveQualification.Infrastructure;
 
@@ -30,9 +30,9 @@ internal sealed record CheatEngineUserStateLocations(string RegistrySubKey, stri
 		ArgumentNullException.ThrowIfNull(subKey);
 		string[] segments = subKey.Split('\\');
 		bool scratch = segments.Length == 3 &&
-		               string.Equals(string.Join('\\', segments[..2]), ScratchRegistryParent,
-			               StringComparison.OrdinalIgnoreCase) &&
-		               Guid.TryParseExact(segments[2], "N", out _);
+					   string.Equals(string.Join('\\', segments[..2]), ScratchRegistryParent,
+						   StringComparison.OrdinalIgnoreCase) &&
+					   Guid.TryParseExact(segments[2], "N", out _);
 		if (!scratch && !string.Equals(subKey, CheatEngineRegistrySubKey, StringComparison.OrdinalIgnoreCase))
 		{
 			throw new ArgumentException(
