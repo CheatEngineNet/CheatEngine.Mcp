@@ -60,4 +60,28 @@
            Condition="'$(CheatEngineClientPluginProject)' != 'true' and '@(PackageReference->WithMetadataValue('Identity', 'CheatEngine.SDK'))' != ''"
            Text="Only the plugin project may reference CheatEngine.SDK directly; libraries receive its compile assets through CheatEngine.Client."/>
   </Target>
+
+  <!--
+    CEMCP005: every product project (libs/, srcs/) keeps IsAotCompatible, so an AOT-, trim- or single-file-unsafe API is
+    a build error. Only a project with a FrameworkReference to Microsoft.AspNetCore.App may turn off
+    VerifyReferenceAotCompatibility or VerifyReferenceTrimCompatibility: the ASP.NET Core 10 shared-framework assemblies
+    carry no IsAotCompatible/IsTrimmable metadata (IL3058, IL2125) although ASP.NET Core supports Native AOT. The
+    framework reference is an item, so it is evaluated inside the target.
+    CEMCP006: the plugin (McpPluginProject) is the framework-dependent folder CE loads through hostfxr: never Native AOT,
+    self-contained, single-file, trimmed or ReadyToRun, and its symbols stay embedded (no .pdb in the plugin folder).
+  -->
+  <Target Name="CeMcpVerifyAotProfile" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <_CeMcpUsesAspNetCore Condition="'@(FrameworkReference->WithMetadataValue('Identity', 'Microsoft.AspNetCore.App'))' != ''">true</_CeMcpUsesAspNetCore>
+    </PropertyGroup>
+    <Error Code="CEMCP005"
+           Condition="'$(CeMcpProductProject)' == 'true' and '$(IsAotCompatible)' != 'true'"
+           Text="$(MSBuildProjectName) is a product project and must keep IsAotCompatible=true."/>
+    <Error Code="CEMCP005"
+           Condition="'$(CeMcpProductProject)' == 'true' and ('$(VerifyReferenceAotCompatibility)' != 'true' or '$(VerifyReferenceTrimCompatibility)' != 'true') and '$(_CeMcpUsesAspNetCore)' != 'true'"
+           Text="$(MSBuildProjectName) must keep VerifyReferenceAotCompatibility and VerifyReferenceTrimCompatibility; only a project with a FrameworkReference to Microsoft.AspNetCore.App may turn them off."/>
+    <Error Code="CEMCP006"
+           Condition="'$(McpPluginProject)' == 'true' and ('$(PublishAot)' == 'true' or '$(SelfContained)' == 'true' or '$(PublishSingleFile)' == 'true' or '$(PublishTrimmed)' == 'true' or '$(PublishReadyToRun)' == 'true' or '$(DebugType)' != 'embedded')"
+           Text="The plugin is the framework-dependent folder CE loads through hostfxr: remove PublishAot, SelfContained, PublishSingleFile, PublishTrimmed and PublishReadyToRun, and keep DebugType=embedded."/>
+  </Target>
 </Project>

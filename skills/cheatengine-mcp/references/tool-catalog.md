@@ -1,296 +1,447 @@
 # Tool catalog
 
-Tools use CheatEngine.Client high-level APIs where available. `Lua*Tool` containers cover additional documented CE APIs through fixed protected Client Lua operations. Capabilities depend on the loaded CE build and selected target. Use the running MCP schema for exact parameter types, bounds, and defaults.
+The v2 contract (2.0.0) freezes **170 tool names**: `instance_list` on the gateway and **169 Cheat Engine tools** in 21
+domains. The names below are final; each domain's tools land as its implementation is completed. Until then the
+gateway still lists the legacy tools at the end of this page, and the running MCP schema stays the authority for what an
+instance serves and for every parameter, bound and default.
 
-`execute_lua`, Client Auto Assembler patches, and dedicated mutation tools are enabled by default. Lua and Auto Assembler can be explicitly disabled in configuration; those flags are not a sandbox. Errors after an operation starts may leave changes in the host. Inspect `hostEffect` and recovery information before retrying.
+Every Cheat Engine tool takes the string `instanceId` returned by `instance_list`; there is no default instance. A v2
+tool returns one JSON object (`structuredContent`, repeated as text). A failure sets `isError` and carries
+`error.kind`, `hostEffect` and `hint`; never repeat a mutation whose `hostEffect` is `started` or `unknown`. Tools named
+`*_start_*` return a `jobId`: poll it with the matching `*_poll_*` tool and `afterSequence`, stop it with
+`runtime_stop_job`. Release owned resources with `runtime_release_resources` before switching processes.
 
-The Client owns independent named scan/allocation/symbol/patch leases. The reserved `main` scanner is borrowed from the visible CE tab; its results survive plugin disable. Omit `scannerName` to use main, or pass another name for an independent scan. Use `release_target_resources` before switching targets. CE-owned structures, breakpoints, comments, address-list changes, debugger state, and injected code can outlive the plugin; remove/stop them explicitly.
+**Gate** names the setting a tool needs, all enabled by default and none of them a sandbox: **UL**
+`Mcp:EnableUnsafeLua`, **AA** `Mcp:EnableAutoAssembler`, **TCE** `Mcp:EnableTargetCodeExecution`, **KA**
+`Mcp:EnableKernelAccess`. A disabled gate refuses the call with `capability_disabled` before anything runs. **→**
+marks a gate that applies only to some arguments or content, such as a debugger interface, an Auto Assembler record or
+a cheat table that would load Lua or attach Mono.
 
-The gateway exposes **142 tools**: `list_instances` plus **141 CE tools**. Every CE tool requires the additional string `instanceId` from discovery. The tables below list tool names and purposes; use live schemas for all remaining parameters. Resource IDs and names are scoped to that instance and activation.
+## gateway (1)
 
-## Gateway
+| Tool | Gate | Purpose |
+| --- | --- | --- |
+| `instance_list` |  | Discover the verified local instances; call it first. |
 
-| Tool | Purpose |
+## runtime (6)
+
+| Tool | Gate | Purpose |
+| --- | --- | --- |
+| `runtime_get_info` |  | Plugin, Cheat Engine and Client versions, enabled settings, dispatch statistics and limits. |
+| `runtime_get_overview` |  | Orientation: attached process, debugger, scanners, owned resources, speedhack, symbol loading and running jobs. |
+| `runtime_list_resources` |  | Page the resources this activation owns, including orphaned MCP state. |
+| `runtime_release_resources` |  | Release owned resources newest first; stops at the first incomplete release. |
+| `runtime_list_jobs` |  | Page running and retained jobs with their state and expiry. |
+| `runtime_stop_job` |  | Stop any job and drop its buffered results; repeating the stop is harmless. |
+
+## process (9)
+
+| Tool | Gate | Purpose |
+| --- | --- | --- |
+| `process_list` |  | Page local processes, optionally with window titles. |
+| `process_attach` | →TCE | Attach Cheat Engine to a process by ID or exact name. |
+| `process_get_current` |  | Describe the attached process: identity, architecture, pointer size and pause state. |
+| `process_create` | TCE | Launch an executable and attach to it. |
+| `process_open_file` | →TCE | Open a file through Cheat Engine's file-as-process interface. |
+| `process_save_file` |  | Save the opened file-as-process target under the allowed write roots. |
+| `process_set_paused` |  | Pause or resume the attached process. |
+| `process_list_threads` |  | Page the target's thread IDs. |
+| `process_set_pointer_size` |  | Set Cheat Engine's target pointer size to 4 or 8 bytes. |
+
+## memory (13)
+
+| Tool | Gate | Purpose |
+| --- | --- | --- |
+| `memory_read` |  | Read a typed value, an array, bytes or a string at one address. |
+| `memory_read_batch` |  | Read up to 1024 typed addresses in one call; per-item errors stay in band. |
+| `memory_write` |  | Write a typed value, bytes or a string, with read-back verification. |
+| `memory_write_batch` |  | Write up to 1024 typed values; a failure reports the completed prefix. |
+| `memory_get_address_info` |  | Describe up to 256 addresses: symbol, module, section, region and optional RTTI class. |
+| `memory_list_regions` |  | Page the target's memory regions with address, module and protection filters. |
+| `memory_set_protection` |  | Change the read, write and execute protection of a range. |
+| `memory_allocate` |  | Allocate named target memory owned by this activation. |
+| `memory_free` |  | Free a named allocation. |
+| `memory_copy` |  | Copy a bounded range inside the target. |
+| `memory_compare` |  | Compare two target ranges and list the differences. |
+| `memory_hash` |  | Hash a target range with MD5, SHA-1 or SHA-256. |
+| `memory_dump_to_file` |  | Dump a target range to a file under the allowed write roots. |
+
+## scan (8)
+
+| Tool | Gate | Purpose |
+| --- | --- | --- |
+| `scan_first` |  | Start a first value scan on the visible main scanner or a named independent one. |
+| `scan_next` |  | Narrow a scanner's results with a next scan. |
+| `scan_get_status` |  | Read a scanner's state, progress and result count. |
+| `scan_list_results` |  | Page a scanner's results. |
+| `scan_list_scanners` |  | List the main scanner and the independent scanners. |
+| `scan_reset` |  | Reset a scanner for a new first scan. |
+| `scan_delete` |  | Release a named independent scanner. |
+| `scan_stop` |  | Stop a running main scan. |
+
+## aob (2)
+
+| Tool | Gate | Purpose |
+| --- | --- | --- |
+| `aob_find` |  | Find up to 8 byte patterns with wildcards, filtered by module, range, protection and alignment. |
+| `aob_generate_signature` |  | Generate and verify a unique AOB signature for an address. |
+
+## pointer (10)
+
+| Tool | Gate | Purpose |
+| --- | --- | --- |
+| `pointer_read_chain` |  | Follow a pointer chain hop by hop and read the final value. |
+| `pointer_find_references` |  | Find addresses that point at or just below a target. |
+| `pointer_create_map` |  | Start a job that captures a pointer map. |
+| `pointer_list_maps` |  | List pointer maps with their capture progress. |
+| `pointer_delete_map` |  | Delete a pointer map and cancel its capture. |
+| `pointer_find_paths` |  | Start a job that searches a pointer map for paths to a target. |
+| `pointer_rescan_paths` |  | Filter stored paths against a new map or live memory. |
+| `pointer_list_paths` |  | Page stored pointer paths; offsets are in dereference order. |
+| `pointer_list_scans` |  | List stored pointer-path scans. |
+| `pointer_delete_scan` |  | Delete a stored pointer-path scan. |
+
+## module (4)
+
+| Tool | Gate | Purpose |
+| --- | --- | --- |
+| `module_list` |  | Page the target's modules. |
+| `module_get` |  | Read one module's sections and PE header fields. |
+| `module_list_exports` |  | Page a module's exports. |
+| `module_find_patches` |  | Compare a module's code in memory with its file on disk. |
+
+## symbol (8)
+
+| Tool | Gate | Purpose |
+| --- | --- | --- |
+| `symbol_resolve` |  | Resolve up to 256 expressions to addresses and addresses to names. |
+| `symbol_register` |  | Register a named symbol owned by this activation. |
+| `symbol_unregister` |  | Unregister a symbol this activation registered. |
+| `symbol_list_registered` |  | Page registered symbols, marking the ones MCP owns. |
+| `symbol_get_module_preference` |  | Read the module precedence of symbol lookup. |
+| `symbol_set_module_preference` |  | Set the module precedence of symbol lookup. |
+| `symbol_reload` |  | Reload symbols for new modules, all modules or .NET; never waits. |
+| `symbol_add_module` |  | Load symbols for a module from a file. |
+
+## speedhack (2)
+
+| Tool | Gate | Purpose |
+| --- | --- | --- |
+| `speedhack_get_state` |  | Read the speedhack speed and whether its hooks are installed. |
+| `speedhack_set_speed` | TCE | Set the speedhack speed; the first use injects the speedhack. |
+
+## util (2)
+
+| Tool | Gate | Purpose |
+| --- | --- | --- |
+| `util_convert_value` |  | Convert a value between value types, byte orders and encodings. |
+| `util_calculate` |  | Evaluate an integer expression with 64-bit wraparound. |
+
+## code (13)
+
+| Tool | Gate | Purpose |
+| --- | --- | --- |
+| `code_disassemble` |  | Disassemble instructions at an address, optionally with predecessors. |
+| `code_decode` |  | Decode instruction fields: prefix, mnemonic, operands and control-flow flags. |
+| `code_disassemble_bytes` |  | Disassemble raw bytes without reading target memory. |
+| `code_get_function` |  | Estimate the function bounds around an address. |
+| `code_start_dissect` |  | Start a code dissection job over a module or range. |
+| `code_start_search` |  | Start a code search job by text, references or RIP-relative operands. |
+| `code_poll_job` |  | Poll a dissection or search job's progress and hits. |
+| `code_find_references` |  | Page the code references to an address from the dissection data. |
+| `code_find_strings` |  | Page the referenced strings from the dissection data. |
+| `code_list_functions` |  | Page the functions found by the dissector. |
+| `code_clear_dissect` |  | Clear Cheat Engine's dissection data. |
+| `code_get_comments` |  | Read Memory View comments and headers for up to 256 addresses. |
+| `code_set_comment` |  | Set or clear a Memory View comment or header. |
+
+## asm (8)
+
+| Tool | Gate | Purpose |
+| --- | --- | --- |
+| `asm_assemble` |  | Assemble instructions to bytes without writing them. |
+| `asm_check` | AA | Check an Auto Assembler script without applying it. |
+| `asm_apply` | AA | Apply an Auto Assembler script and keep its patch for release. |
+| `asm_apply_code_patch` | AA | Apply a reversible byte, instruction or NOP patch. |
+| `asm_release_patch` |  | Release a patch, running its disable section once. |
+| `asm_list_patches` |  | List the patches this activation owns. |
+| `asm_generate_injection` |  | Generate a code, AOB or full injection template. |
+| `asm_generate_api_hook` |  | Generate an API hook template with enable and disable sections. |
+
+## record (12)
+
+| Tool | Gate | Purpose |
+| --- | --- | --- |
+| `record_list` |  | Page address-list records with their hierarchy. |
+| `record_get` |  | Read up to 64 records in detail. |
+| `record_find` |  | Find records by description, address, value type or state. |
+| `record_get_selected` |  | Read the selected record or records. |
+| `record_select` |  | Select a record in the address list. |
+| `record_create` | →AA | Create up to 256 value, script or group records; rolled back on failure. |
+| `record_update` |  | Update up to 256 records; offsets are in dereference order. |
+| `record_set_active` | →AA | Activate (freeze) or deactivate records. |
+| `record_delete` |  | Delete records and their children. |
+| `record_move` |  | Move records under another parent or to the root. |
+| `record_group` |  | Group records under a new header. |
+| `record_set_script` | →AA | Replace an Auto Assembler record's script. |
+
+## table (3)
+
+| Tool | Gate | Purpose |
+| --- | --- | --- |
+| `table_load` | →UL/AA/TCE | Load a cheat table from the allowed roots after inspecting it. |
+| `table_save` |  | Save the address list as a cheat table. |
+| `table_list_files` |  | Page cheat table files under the allowed roots. |
+
+## structure (13)
+
+| Tool | Gate | Purpose |
+| --- | --- | --- |
+| `structure_list` |  | Page Structure Dissect definitions. |
+| `structure_get` |  | Read a structure's elements. |
+| `structure_create` |  | Create a structure from elements, a clone or a PDB type. |
+| `structure_delete` |  | Delete a structure. |
+| `structure_add_elements` |  | Add elements to a structure. |
+| `structure_update_elements` |  | Update structure elements. |
+| `structure_remove_elements` |  | Remove structure elements. |
+| `structure_autoguess` |  | Let Cheat Engine guess a structure's fields from memory. |
+| `structure_fill_from_dotnet` |  | Fill a structure from a .NET object's layout. |
+| `structure_get_pdb_layout` |  | Read a PDB type's field layout. |
+| `structure_read` |  | Read structure values at up to 16 addresses. |
+| `structure_write_element` |  | Write one structure element's value. |
+| `structure_compare` |  | Compare structure instances to find the fields that tell them apart. |
+
+## debugger (18)
+
+| Tool | Gate | Purpose |
+| --- | --- | --- |
+| `debugger_attach` | →KA/TCE | Attach a debugger interface. |
+| `debugger_detach` |  | Detach the debugger. |
+| `debugger_get_status` |  | Read the debugger state. |
+| `debugger_break_thread` |  | Ask a thread to break. |
+| `debugger_set_breakpoint` |  | Set an execute, access or write breakpoint. |
+| `debugger_delete_breakpoint` |  | Delete a breakpoint. |
+| `debugger_list_breakpoints` |  | Page the breakpoints. |
+| `debugger_continue` |  | Continue from a break. |
+| `debugger_step` |  | Step into or over one instruction. |
+| `debugger_get_context` |  | Read the broken thread's registers, optionally with FPU and XMM state. |
+| `debugger_set_register` |  | Write one register of the broken thread. |
+| `debugger_set_thread_ignored` |  | Add or remove a thread from the break-ignore list. |
+| `debugger_get_stack_trace` |  | Read a heuristic stack trace of the broken thread. |
+| `debugger_start_capture` |  | Start a job that records the instructions accessing an address. |
+| `debugger_poll_capture` |  | Poll a capture job's hits. |
+| `debugger_start_trace` |  | Start a step-trace job from an address. |
+| `debugger_poll_trace` |  | Poll a trace job's steps. |
+| `debugger_run_to` |  | Run until an address through a one-shot breakpoint. |
+
+## exec (6)
+
+| Tool | Gate | Purpose |
+| --- | --- | --- |
+| `exec_inject_library` | TCE | Inject a native DLL into the target. |
+| `exec_inject_dotnet` | TCE | Inject a .NET assembly and call a static method, waiting at most 30 s. |
+| `exec_call_remote` | TCE | Call a target function with typed arguments, waiting at most 10 s. |
+| `exec_call_method` | TCE | Call a target instance method, waiting at most 10 s. |
+| `exec_call_local` | TCE | Call a function inside Cheat Engine's own process. |
+| `exec_compile_c` | TCE | Compile C source into target memory. |
+
+## dotnet (9)
+
+| Tool | Gate | Purpose |
+| --- | --- | --- |
+| `dotnet_get_status` |  | Report whether the .NET data collector is available and attached. |
+| `dotnet_list_domains` |  | List .NET application domains. |
+| `dotnet_list_modules` |  | Page a domain's .NET modules. |
+| `dotnet_list_types` |  | Page a module's .NET types. |
+| `dotnet_get_type` |  | Read a .NET type's fields. |
+| `dotnet_list_methods` |  | Page a .NET type's methods. |
+| `dotnet_get_object` |  | Inspect the .NET object at an address. |
+| `dotnet_start_instance_search` |  | Start a job that finds instances of a .NET type. |
+| `dotnet_poll_instance_search` |  | Poll a .NET instance search. |
+
+## mono (14)
+
+| Tool | Gate | Purpose |
+| --- | --- | --- |
+| `mono_attach` | TCE | Inject Cheat Engine's Mono data collector into the target. |
+| `mono_detach` |  | Detach the Mono data collector. |
+| `mono_get_status` |  | Read the Mono data collector's state. |
+| `mono_list_assemblies` |  | Page Mono assemblies. |
+| `mono_list_classes` |  | Page an image's Mono classes. |
+| `mono_find_class` |  | Find a Mono class by namespace and name. |
+| `mono_list_fields` |  | List a Mono class's fields. |
+| `mono_list_methods` |  | Page a Mono class's methods. |
+| `mono_find_method` |  | Find a Mono method. |
+| `mono_get_static_field_address` |  | Read a Mono class's static field base address. |
+| `mono_compile_method` | TCE | JIT-compile a Mono method. |
+| `mono_invoke_method` | TCE | Invoke a Mono method. |
+| `mono_start_instance_search` |  | Start a job that finds instances of a Mono class. |
+| `mono_poll_instance_search` |  | Poll a Mono instance search. |
+
+## kernel (7)
+
+| Tool | Gate | Purpose |
+| --- | --- | --- |
+| `kernel_get_status` | KA | Read the DBK and DBVM state and control registers. |
+| `kernel_initialize_dbvm` | KA | Initialize DBVM; may prompt and can destabilize the host. |
+| `kernel_translate_address` | KA | Translate a virtual address to a physical one. |
+| `kernel_read_physical` | KA | Read physical memory through DBVM. |
+| `kernel_write_physical` | KA | Write physical memory through DBVM. |
+| `kernel_start_watch` | KA | Start a DBVM watch job. |
+| `kernel_poll_watch` | KA | Poll a DBVM watch job's events. |
+
+## lua (2)
+
+| Tool | Gate | Purpose |
+| --- | --- | --- |
+| `lua_execute` | UL | Execute Lua source and return bounded values. |
+| `lua_find_api` |  | Search the local celua.txt Lua API reference. |
+
+## Legacy tools (removed by 2.0.0)
+
+These pre-v2 tools are still served while their domain is migrated; each disappears when its replacement lands.
+They keep the old contract: a `success` field in band, no output schema and no annotations.
+
+| Tool | Replaced by |
 | --- | --- |
-| `list_instances` | Discover responsive local plugins by immutable instance ID, display name, CE process ID, and plugin version. No arguments. |
-
-## AddressListTool
-
-| Tool | Purpose |
-| --- | --- |
-| `add_memory_record` | Add a typed top-level memory record to the Cheat Engine address list. |
-| `delete_memory_record` | Delete one memory record by Client-issued record ID. |
-| `get_address_list` | Copy the current top-level Cheat Engine address list. |
-| `set_memory_record_active` | Activate or deactivate one memory record by Client-issued record ID. |
-| `update_memory_record` | Update one memory record by Client-issued record ID. |
-
-## AdvancedMemoryTool
-
-| Tool | Purpose |
-| --- | --- |
-| `allocate_memory` | Allocate target memory owned by a named Client lease. |
-| `free_memory` | Release a named target-memory allocation lease. |
-
-## AssemblyTool
-
-| Tool | Purpose |
-| --- | --- |
-| `disassemble` | Disassemble one instruction or obtain its exact length at a target address. |
-| `disassemble_range` | Disassemble a bounded sequence of target instructions using the Client's typed assembly API. |
-| `resolve_address` | Resolve a target-process symbol expression, such as game.exe+10. |
-
-## AutoAssemblyTool
-
-| Tool | Purpose |
-| --- | --- |
-| `assemble` | Assemble one target instruction into bytes through the Client instruction capability. |
-| `auto_assemble` | Apply an Auto Assembler patch and retain its Client lease, or release a previously returned patch ID. |
-| `auto_assemble_check` | Check an Auto Assembler [ENABLE] section without applying a patch. |
-
-## CheatTableTool
-
-| Tool | Purpose |
-| --- | --- |
-| `load_cheat_table` | Load a trusted absolute Cheat Engine table path. The Client enforces configured table roots. |
-| `save_cheat_table` | Save the current table to a trusted absolute Cheat Engine table path. |
-
-## ConversionTool
-
-| Tool | Purpose |
-| --- | --- |
-| `convert_string` | Convert text with a managed MD5 digest or explicit UTF-8 and ANSI byte round trips. |
-
-## LuaCodeTool
-
-| Tool | Purpose |
-| --- | --- |
-| `add_code_reference` | Add a persistent reference to Cheat Engine's code-dissection data. |
-| `analyze_code_range` | Run Cheat Engine's code dissector on one bounded target-memory range. |
-| `clear_code_analysis` | Clear Cheat Engine's current code-dissection data and references. |
-| `delete_code_reference` | Remove one source-to-destination code reference. |
-| `disassemble_bytes` | Disassemble a bounded hexadecimal byte sequence without reading target memory. |
-| `get_code_references` | Read copied references to an address from Cheat Engine's current code dissector data. |
-| `get_comment` | Read the persistent user-defined Memory View comment at a target address. |
-| `get_function_range` | Return Cheat Engine's estimated function boundaries for a target address. |
-| `get_previous_opcodes` | Return a bounded predecessor-instruction walk before one target address. |
-| `get_referenced_functions` | List bounded function addresses referenced by the current code dissector data. |
-| `get_referenced_strings` | Read a bounded copied list of strings referenced by current code dissector data. |
-| `is_jump_destination` | Check whether an address is a jump destination within a bounded code range. |
-| `set_comment` | Set a persistent user-defined Memory View comment at a target address. |
-
-## LuaDbvmTool
-
-| Tool | Purpose |
-| --- | --- |
-| `dbk_control_registers` | Read copied CR0, CR3, and CR4 values through DBK. |
-| `dbk_physical_address` | Resolve a target virtual address to its physical address through DBK. |
-| `dbk_status` | Report whether DBK is already initialized; this query does not initialize it. |
-| `dbvm_cr4` | Read DBVM's real CR4 value. |
-| `dbvm_initialize` | Initialize DBVM. Offloading the operating system is advanced and can destabilize the host. |
-| `dbvm_read_physical` | Read a bounded physical-memory range through DBVM. |
-| `dbvm_status` | Report whether DBVM is already initialized; this query does not initialize it. |
-| `dbvm_watch` | Capture a DBVM watch for up to five seconds and disable it before returning up to 1024 copied events. |
-| `dbvm_watch_log` | Retrieve a bounded copied DBVM watch log. |
-| `dbvm_watch_stop` | Disable a DBVM watch by identifier. |
-| `dbvm_write_physical` | Write a bounded hexadecimal byte sequence to physical memory through DBVM. |
-
-## LuaDebuggerCaptureTool
-
-| Tool | Purpose |
-| --- | --- |
-| `debugger_poll_capture` | Read buffered breakpoint hits in FIFO order without waiting; clear removes only the returned hits. |
-| `debugger_start_capture` | Find instructions accessing or writing an address using a pollable breakpoint capture. Hits contain trap IP, thread ID and registers. Automatically expires; poll results within 30 seconds of expiry. |
-| `debugger_stop_capture` | Remove the owned capture breakpoint, timer, and results. Cleanup failures retain the ID for retry. |
-
-## LuaDebuggerTool
-
-| Tool | Purpose |
-| --- | --- |
-| `debugger_add_breakpoint` | Create an execute, access, or write breakpoint. It persists until removed or debugger detachment. |
-| `debugger_break_thread` | Request that Cheat Engine break a target thread; stopping can be asynchronous. |
-| `debugger_breakpoints` | Return a bounded copied list of breakpoint addresses. |
-| `debugger_context` | Read copied current registers; the debugger must be broken for meaningful values. |
-| `debugger_continue` | Continue, step into, or step over from the current broken context. |
-| `debugger_detach` | Unpause and detach the debugger while preserving the current target selection. |
-| `debugger_ignore_thread` | Add or remove a target thread from Cheat Engine's breakpoint-ignore list. |
-| `debugger_remove_breakpoint` | Remove the breakpoint containing the supplied address. |
-| `debugger_set_register` | Set one general-purpose register in the currently broken debugger context, then write the context back before continuation. |
-| `debugger_start` | Attach the selected debugger interface. A repeated request is idempotent. Interface changes require explicit detach; targets previously using VEH must restart before reattachment. |
-| `debugger_status` | Read copied debugger state and active interface. |
-
-## LuaDebuggerTraceTool
-
-| Tool | Purpose |
-| --- | --- |
-| `debugger_poll_step_trace` | Copy collected trace contexts without waiting or consuming them. |
-| `debugger_start_step_trace` | Break at an address and single-step one thread for a bounded number of contexts, then leave it stopped. Requires no existing breakpoints or global breakpoint hook. Results expire 30 seconds after completion or timeout. |
-| `debugger_stop_step_trace` | Remove the owned trace breakpoint, hook, timer and results. Does not resume a stopped thread; cleanup failures retain the ID for retry. |
-
-## LuaExecutionTool
-
-| Tool | Purpose |
-| --- | --- |
-| `execute_lua` | Execute trusted Lua through the Client capability, enabled by default. Prefer typed MCP tools whenever possible. |
-
-## LuaInjectionTool
-
-| Tool | Purpose |
-| --- | --- |
-| `execute_local_code` | Execute a one-parameter stdcall function inside Cheat Engine and return its copied result. |
-| `execute_remote_code` | Execute a one-parameter stdcall function in the selected target and return its copied result. |
-| `generate_api_hook_script` | Generate a Cheat Engine Auto Assembler API-hook script without applying it. |
-| `inject_dotnet_library` | Inject a managed assembly and invoke its static entry point in the selected target. |
-| `inject_library` | Inject a native DLL or library into the selected target. Cheat Engine must report true for success. |
-
-## LuaMemoryTool
-
-| Tool | Purpose |
-| --- | --- |
-| `compare_memory` | Compare two bounded memory ranges through Cheat Engine Lua. |
-| `copy_memory` | Copy a bounded memory range using Cheat Engine's target or local copy route. |
-| `dump_memory` | Write a bounded target-memory range to an explicit file through a temporary Cheat Engine memory stream. |
-| `full_access_memory` | Make a bounded target range writable and executable through Cheat Engine Lua. |
-| `get_memory_protection` | Read the target memory protection flags reported by Cheat Engine Lua. |
-| `hash_memory` | Compute Cheat Engine's MD5 hash for a bounded target memory range. |
-| `set_memory_protection` | Set target range read, write, and execute protection through Cheat Engine Lua. |
-
-## LuaProcessTool
-
-| Tool | Purpose |
-| --- | --- |
-| `create_process` | Launch and open a process through Cheat Engine. This starts an external executable. |
-| `get_opened_file_size` | Get the size of the currently opened file-as-process target. |
-| `get_pointer_size` | Get Cheat Engine's configured target pointer size. |
-| `get_process_state` | Get the currently opened target process ID, pause state, and age. |
-| `get_speedhack_speed` | Get Cheat Engine's last configured speedhack speed. |
-| `get_thread_list` | List target thread IDs reported by Cheat Engine, capped at 4096 entries. |
-| `open_file_as_process` | Open a file through Cheat Engine's process-like memory interface. |
-| `pause_process` | Pause the currently opened Cheat Engine target process. |
-| `resume_process` | Resume the currently opened Cheat Engine target process. |
-| `save_opened_file` | Save the open file-as-process target, optionally to an explicit filename. |
-| `set_pointer_size` | Set Cheat Engine's configured target pointer size to 4 or 8 bytes. |
-| `set_speedhack_speed` | Enable Cheat Engine speedhack and set a finite positive target speed. |
-
-## LuaStructureTool
-
-| Tool | Purpose |
-| --- | --- |
-| `add_structure_element` | Append one Structure Dissect element with validated primitive fields. |
-| `autoguess_structure` | Ask Cheat Engine to infer Structure Dissect fields from a bounded target range. |
-| `create_structure` | Create a persistent global Structure Dissect definition. Delete it explicitly with delete_structure. |
-| `delete_structure` | Remove a persistent global Structure Dissect definition by name. |
-| `fill_structure_from_dotnet` | Fill an existing Structure Dissect definition using the layout of a target .NET object. |
-| `get_structure` | Get one global or internal Structure Dissect definition by its case-sensitive name. |
-| `get_structure_element_value` | Read one Structure Dissect element value from a target base address. |
-| `list_structures` | List up to 1024 global Cheat Engine Structure Dissect definitions. |
-| `remove_structure_element` | Remove one Structure Dissect element by zero-based index. |
-| `set_structure_element_value` | Write a value interpreted by a Structure Dissect element into the selected target. |
-| `update_structure_element` | Change selected fields of one Structure Dissect element by zero-based index. |
-
-## LuaSymbolsTool
-
-| Tool | Purpose |
-| --- | --- |
-| `get_module_preference` | Get Cheat Engine's symbol lookup module-precedence list, capped at 1024 entries. |
-| `get_structure_elements` | Get PDB-backed structure elements by name, capped at 4096 entries. |
-| `get_symbols_loading_state` | Get whether Cheat Engine reports all symbols loaded. |
-| `load_new_symbols` | Ask Cheat Engine to scan for loaded modules and add their symbols. |
-| `lookup_rtti_class_name` | Resolve a likely RTTI class name for a target address, returning found=false when unavailable. |
-| `reinitialize_dotnet_symbols` | Reinitialize the .NET symbol list for an optional module. |
-| `reinitialize_symbols` | Reinitialize Cheat Engine's symbol handler. |
-| `set_module_preference` | Put one extensionless module name first in Cheat Engine symbol lookup precedence. |
-| `wait_for_symbols` | Wait for one Cheat Engine symbol-loading stage. |
-
-## LuaTableTool
-
-| Tool | Purpose |
-| --- | --- |
-| `find_memory_records_by_description` | Find up to 1024 current address-list records matching an exact description. |
-| `get_memory_record_details` | Read pointer offsets and script text for one current Cheat Engine memory-record ID. |
-| `get_selected_memory_record` | Read the currently selected Cheat Engine address-list record with pointer-offset details. |
-| `select_memory_record` | Select one current Cheat Engine address-list record by ID. |
-| `set_memory_record_offsets` | Replace a memory record's pointer offsets. Offsets are Cheat Engine internal order, index zero nearest the final value. |
-| `set_memory_record_script` | Set a bounded Auto Assembler script on a memory record. The record persists it in the cheat table. |
-
-## MemoryTool
-
-| Tool | Purpose |
-| --- | --- |
-| `read_memory` | Read typed target memory through CheatEngine.Client. |
-| `write_memory` | Write typed target memory through CheatEngine.Client. |
-
-## MemoryViewTool
-
-| Tool | Purpose |
-| --- | --- |
-| `enum_memory_regions` | Copy a bounded target memory-region map. |
-| `get_memory_region` | Get copied metadata for the region containing an address. |
-
-## PointerScanTool
-
-| Tool | Purpose |
-| --- | --- |
-| `delete_pointer_map` | Delete an MCP pointer snapshot. Existing copied scan paths remain usable. |
-| `generate_pointer_map` | Capture a bounded pointer snapshot with Client memory APIs. Maps live until deleted or plugin disable; they are not CE .scandata files. Inspect incomplete before relying on absence. |
-| `get_pointer_scan_results` | Page stored pointer chains. Offsets are in dereference order; CE's address-list offset order is reversed. |
-| `list_pointer_maps` | List bounded MCP-owned snapshots and their capture completeness. |
-| `pointer_scan` | Find pointer chains in a captured map using nonnegative offsets. Results and traversal are bounded; module-relative roots support later rebasing. |
-| `rescan_pointer_scan` | Filter existing paths against a new map or live Client pointer-chain reads. Module roots rebase; absolute roots remain absolute. Unresolved paths are retained and counted; interrupted scans keep original results. |
-| `reset_pointer_scan` | Release an MCP-owned pointer result list. |
-
-## PointerTool
-
-| Tool | Purpose |
-| --- | --- |
-| `read_pointer_chain` | Resolve a bounded pointer chain using the target pointer width. |
-
-## ProcessTool
-
-| Tool | Purpose |
-| --- | --- |
-| `get_current_process` | Get the process currently selected in Cheat Engine. |
-| `get_plugin_version` | Get the loaded plugin version and assembly path; `runtimeLocation` is the same loaded plugin assembly. |
-| `get_process_list` | List a bounded set of local processes. |
-| `open_process` | Attach Cheat Engine to a process ID or exact process name. |
-
-## RuntimeTool
-
-| Tool | Purpose |
-| --- | --- |
-| `get_runtime_info` | Read the active Client epoch, host version and capability evidence before using optional features. |
-
-## ScanTool
-
-| Tool | Purpose |
-| --- | --- |
-| `aob_scan` | Run a bounded AOB scan using CheatEngine.Client. |
-| `aob_scan_unique` | Find at most one AOB match; truncated results are not proof of uniqueness. |
-| `get_memory_scan_results` | Read a bounded page from main's visible CE found list (including manual scans), or an independent Client session. |
-| `get_memory_scan_status` | Poll main's UI state or inspect a named independent session. |
-| `list_memory_scanners` | List main (the visible CE scan tab) and up to 32 independent Client sessions. |
-| `memory_scan` | Start main's visible UI scan by default, or an independent Client scan by name. Reset explicitly before another first scan. |
-| `next_memory_scan` | Narrow main's visible scan or an independent named scan with the same comparison API. |
-| `reset_memory_scan` | Clear main through CE's New Scan action, or release one independent named session. Refuses a running main scan. |
-
-## SymbolRegistryTool
-
-| Tool | Purpose |
-| --- | --- |
-| `enum_registered_symbols` | List symbols currently owned by this MCP server. |
-| `register_symbol` | Register a Client-owned target symbol. The server releases it on disable. |
-| `unregister_symbol` | Release a symbol that this MCP server registered in the current activation. |
-
-## SymbolTool
-
-| Tool | Purpose |
-| --- | --- |
-| `enum_module_sections` | Copy a bounded section list for one target module through CheatEngine.Client. |
-| `enum_modules` | Copy a bounded module list from the selected target. |
-| `get_name_from_address` | Resolve the best Cheat Engine name for an address. |
-| `get_symbol_info` | Get copied metadata for one Cheat Engine symbol expression. |
-
-## TargetResourceTool
-
-| Tool | Purpose |
-| --- | --- |
-| `release_target_resources` | Release owned scans, symbols, allocations and patches in reverse creation order before switching processes. Stops at the first incomplete release. |
+| `add_code_reference` | removed |
+| `add_memory_record` | `record_create` |
+| `add_structure_element` | `structure_add_elements` |
+| `allocate_memory` | `memory_allocate` |
+| `analyze_code_range` | `code_start_dissect` |
+| `aob_scan` | `aob_find` |
+| `aob_scan_unique` | `aob_find` |
+| `assemble` | `asm_assemble` |
+| `auto_assemble` | `asm_apply`, `asm_release_patch` |
+| `auto_assemble_check` | `asm_check` |
+| `autoguess_structure` | `structure_autoguess` |
+| `clear_code_analysis` | `code_clear_dissect` |
+| `compare_memory` | `memory_compare` |
+| `convert_string` | removed |
+| `copy_memory` | `memory_copy` |
+| `create_process` | `process_create` |
+| `create_structure` | `structure_create` |
+| `dbk_control_registers` | `kernel_get_status` |
+| `dbk_physical_address` | `kernel_translate_address` |
+| `dbk_status` | `kernel_get_status` |
+| `dbvm_cr4` | `kernel_get_status` |
+| `dbvm_initialize` | `kernel_initialize_dbvm` |
+| `dbvm_read_physical` | `kernel_read_physical` |
+| `dbvm_status` | `kernel_get_status` |
+| `dbvm_watch` | `kernel_start_watch` |
+| `dbvm_watch_log` | `kernel_poll_watch` |
+| `dbvm_watch_stop` | `runtime_stop_job` |
+| `dbvm_write_physical` | `kernel_write_physical` |
+| `debugger_add_breakpoint` | `debugger_set_breakpoint` |
+| `debugger_break_thread` | `debugger_break_thread` |
+| `debugger_breakpoints` | `debugger_list_breakpoints` |
+| `debugger_context` | `debugger_get_context` |
+| `debugger_continue` | `debugger_continue`, `debugger_step` |
+| `debugger_detach` | `debugger_detach` |
+| `debugger_ignore_thread` | `debugger_set_thread_ignored` |
+| `debugger_poll_capture` | `debugger_poll_capture` |
+| `debugger_poll_step_trace` | `debugger_poll_trace` |
+| `debugger_remove_breakpoint` | `debugger_delete_breakpoint` |
+| `debugger_set_register` | `debugger_set_register` |
+| `debugger_start` | `debugger_attach` |
+| `debugger_start_capture` | `debugger_start_capture` |
+| `debugger_start_step_trace` | `debugger_start_trace` |
+| `debugger_status` | `debugger_get_status` |
+| `debugger_stop_capture` | `runtime_stop_job` |
+| `debugger_stop_step_trace` | `runtime_stop_job` |
+| `delete_code_reference` | removed |
+| `delete_memory_record` | `record_delete` |
+| `delete_pointer_map` | `pointer_delete_map` |
+| `delete_structure` | `structure_delete` |
+| `disassemble` | `code_disassemble` |
+| `disassemble_bytes` | `code_disassemble_bytes` |
+| `disassemble_range` | `code_disassemble` |
+| `dump_memory` | `memory_dump_to_file` |
+| `enum_memory_regions` | `memory_list_regions` |
+| `enum_module_sections` | `module_get` |
+| `enum_modules` | `module_list` |
+| `enum_registered_symbols` | `symbol_list_registered` |
+| `execute_local_code` | `exec_call_local` |
+| `execute_lua` | `lua_execute` |
+| `execute_remote_code` | `exec_call_remote` |
+| `fill_structure_from_dotnet` | `structure_fill_from_dotnet` |
+| `find_memory_records_by_description` | `record_find` |
+| `free_memory` | `memory_free` |
+| `full_access_memory` | `memory_set_protection` |
+| `generate_api_hook_script` | `asm_generate_api_hook` |
+| `generate_pointer_map` | `pointer_create_map` |
+| `get_address_list` | `record_list` |
+| `get_code_references` | `code_find_references` |
+| `get_comment` | `code_get_comments` |
+| `get_current_process` | `process_get_current` |
+| `get_function_range` | `code_get_function` |
+| `get_memory_protection` | `memory_get_address_info` |
+| `get_memory_record_details` | `record_get` |
+| `get_memory_region` | `memory_get_address_info` |
+| `get_memory_scan_results` | `scan_list_results` |
+| `get_memory_scan_status` | `scan_get_status` |
+| `get_module_preference` | `symbol_get_module_preference` |
+| `get_name_from_address` | `symbol_resolve` |
+| `get_opened_file_size` | `process_get_current` |
+| `get_plugin_version` | `runtime_get_info` |
+| `get_pointer_scan_results` | `pointer_list_paths` |
+| `get_pointer_size` | `process_get_current` |
+| `get_previous_opcodes` | `code_disassemble` |
+| `get_process_list` | `process_list` |
+| `get_process_state` | `process_get_current` |
+| `get_referenced_functions` | `code_list_functions` |
+| `get_referenced_strings` | `code_find_strings` |
+| `get_runtime_info` | `runtime_get_info` |
+| `get_selected_memory_record` | `record_get_selected` |
+| `get_speedhack_speed` | `speedhack_get_state` |
+| `get_structure` | `structure_get` |
+| `get_structure_element_value` | `structure_read` |
+| `get_structure_elements` | `structure_get_pdb_layout` |
+| `get_symbol_info` | `symbol_resolve` |
+| `get_symbols_loading_state` | removed |
+| `get_thread_list` | `process_list_threads` |
+| `hash_memory` | `memory_hash` |
+| `inject_dotnet_library` | `exec_inject_dotnet` |
+| `inject_library` | `exec_inject_library` |
+| `is_jump_destination` | `code_get_function` |
+| `list_memory_scanners` | `scan_list_scanners` |
+| `list_pointer_maps` | `pointer_list_maps` |
+| `list_structures` | `structure_list` |
+| `load_cheat_table` | `table_load` |
+| `load_new_symbols` | `symbol_reload` |
+| `lookup_rtti_class_name` | `memory_get_address_info` |
+| `memory_scan` | `scan_first` |
+| `next_memory_scan` | `scan_next` |
+| `open_file_as_process` | `process_open_file` |
+| `open_process` | `process_attach` |
+| `pause_process` | `process_set_paused` |
+| `pointer_scan` | `pointer_find_paths` |
+| `read_memory` | `memory_read` |
+| `read_pointer_chain` | `pointer_read_chain` |
+| `register_symbol` | `symbol_register` |
+| `reinitialize_dotnet_symbols` | `symbol_reload` |
+| `reinitialize_symbols` | `symbol_reload` |
+| `release_target_resources` | `runtime_release_resources` |
+| `remove_structure_element` | `structure_remove_elements` |
+| `rescan_pointer_scan` | `pointer_rescan_paths` |
+| `reset_memory_scan` | `scan_reset`, `scan_delete` |
+| `reset_pointer_scan` | `pointer_delete_scan` |
+| `resolve_address` | `symbol_resolve` |
+| `resume_process` | `process_set_paused` |
+| `save_cheat_table` | `table_save` |
+| `save_opened_file` | `process_save_file` |
+| `select_memory_record` | `record_select` |
+| `set_comment` | `code_set_comment` |
+| `set_memory_protection` | `memory_set_protection` |
+| `set_memory_record_active` | `record_set_active` |
+| `set_memory_record_offsets` | `record_update` |
+| `set_memory_record_script` | `record_set_script` |
+| `set_module_preference` | `symbol_set_module_preference` |
+| `set_pointer_size` | `process_set_pointer_size` |
+| `set_speedhack_speed` | `speedhack_set_speed` |
+| `set_structure_element_value` | `structure_write_element` |
+| `unregister_symbol` | `symbol_unregister` |
+| `update_memory_record` | `record_update` |
+| `update_structure_element` | `structure_update_elements` |
+| `wait_for_symbols` | removed |
+| `write_memory` | `memory_write` |

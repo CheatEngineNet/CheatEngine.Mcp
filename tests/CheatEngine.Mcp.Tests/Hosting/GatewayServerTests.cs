@@ -1,15 +1,12 @@
-using System.Net;
-using System.Net.Sockets;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
+using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Tests.Support;
 
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 
+using ModelContextProtocol;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 
@@ -17,21 +14,20 @@ namespace CheatEngine.Mcp.Tests.Hosting;
 
 public sealed class GatewayServerTests
 {
+	private const string Traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+
 	[Fact]
 	public async Task ListTools_WithoutPublishedInstances_ExposesStableRoutedCatalog()
 	{
 		await using GatewayTestHost host = await GatewayTestHost.StartAsync();
-		await using McpClient client = await ConnectAsync(host.Endpoint);
+		await using McpClient client = await host.ConnectAsync();
 
 		IList<McpClientTool> tools =
 			await client.ListToolsAsync(cancellationToken: TestContext.Current.CancellationToken);
 
 		Assert.Equal(142, tools.Count);
-		Assert.Contains(tools, tool => tool.Name == GatewayToolCatalog.ListInstancesToolName);
-		Assert.Equal(141, tools.Count(tool => tool.Name != GatewayToolCatalog.ListInstancesToolName));
-		Assert.All(TestComposition.GatewayTools.Where(tool => tool.Name != GatewayToolCatalog.ListInstancesToolName),
-			tool => Assert.Contains(GatewayToolCatalog.InstanceIdArgumentName, tool.InputSchema.GetProperty("required")
-				.EnumerateArray().Select(value => value.GetString())));
+		Assert.Equal(GatewayToolCatalog.InstanceListToolName, tools[0].Name);
+		Assert.Equal(141, tools.Count(tool => tool.Name != GatewayToolCatalog.InstanceListToolName));
 		foreach (string name in new[]
 		         {
 			         "memory_scan", "next_memory_scan", "get_memory_scan_results", "reset_memory_scan",
@@ -53,9 +49,9 @@ public sealed class GatewayServerTests
 		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync();
 		await using FakeBackend first = await FakeBackend.StartAsync(gateway.Registry, "first");
 		await using FakeBackend second = await FakeBackend.StartAsync(gateway.Registry, "second");
-		await using McpClient client = await ConnectAsync(gateway.Endpoint);
+		await using McpClient client = await gateway.ConnectAsync();
 
-		JsonObject listed = await CallJsonAsync(client, GatewayToolCatalog.ListInstancesToolName,
+		JsonObject listed = await CallJsonAsync(client, GatewayToolCatalog.InstanceListToolName,
 			new Dictionary<string, object?>());
 		string listedText = listed.ToJsonString();
 		Assert.Contains(first.Descriptor.InstanceId, listedText, StringComparison.Ordinal);
@@ -91,30 +87,73 @@ public sealed class GatewayServerTests
 	}
 
 	[Fact]
-	public async Task CallTool_MissingUnknownOrStaleInstance_DoesNotForward()
+	public async Task CallTool_ReservedUpstreamMeta_IsNotForwarded()
 	{
 		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync();
-		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "only");
-		await using McpClient client = await ConnectAsync(gateway.Endpoint);
+		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "meta");
+		await using McpClient client = await gateway.ConnectAsync();
 
-		CallToolResult missing = await client.CallToolAsync("get_plugin_version", new Dictionary<string, object?>(),
-			cancellationToken: TestContext.Current.CancellationToken);
-		CallToolResult unknown = await client.CallToolAsync("get_plugin_version",
-			new Dictionary<string, object?>
+		CallToolResult result = await client.CallToolAsync(
+			new CallToolRequestParams
 			{
-				[GatewayToolCatalog.InstanceIdArgumentName] = "ce-404-00000000000000000000000000000000"
-			}, cancellationToken: TestContext.Current.CancellationToken);
-		backend.ReportedIdentity = backend.Descriptor with { ActivationId = Guid.NewGuid() };
-		CallToolResult stale = await client.CallToolAsync("get_plugin_version",
-			new Dictionary<string, object?>
-			{
-				[GatewayToolCatalog.InstanceIdArgumentName] = backend.Descriptor.InstanceId
-			}, cancellationToken: TestContext.Current.CancellationToken);
+				Name = "get_plugin_version",
+				Arguments = Arguments(backend),
+				Meta = new JsonObject
+				{
+					["io.modelcontextprotocol/related-task"] = new JsonObject { ["taskId"] = "upstream-task" },
+					["progressToken"] = "p1",
+					["traceparent"] = Traceparent,
+					["tracestate"] = "vendor=upstream",
+					["baggage"] = "session=upstream",
+					["vendor.example/secret"] = "upstream-only"
+				}
+			}, TestContext.Current.CancellationToken);
 
-		Assert.True(missing.IsError);
-		Assert.True(unknown.IsError);
-		Assert.True(stale.IsError);
-		Assert.Equal(0, backend.ForwardedCallCount);
+		Assert.NotEqual(true, result.IsError);
+		JsonObject forwarded = Assert.IsType<JsonObject>(Assert.Single(backend.ReceivedMeta));
+		Assert.Equal(["baggage", "traceparent", "tracestate"],
+			forwarded.Select(static property => property.Key).Order(StringComparer.Ordinal));
+		Assert.Equal(Traceparent, forwarded["traceparent"]!.GetValue<string>());
+		Assert.Equal("vendor=upstream", forwarded["tracestate"]!.GetValue<string>());
+		Assert.Equal("session=upstream", forwarded["baggage"]!.GetValue<string>());
+	}
+
+	[Fact]
+	public async Task CallTool_Upstream2026Client_BackendSeesNoForeignProtocolMeta()
+	{
+		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync();
+		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "july-2026");
+		await using McpClient client = await gateway.ConnectAsync("2026-07-28");
+		Assert.Equal("2026-07-28", client.NegotiatedProtocolVersion);
+
+		CallToolResult result = await client.CallToolAsync(
+			new CallToolRequestParams
+			{
+				Name = "get_plugin_version",
+				Arguments = Arguments(backend),
+				Meta = new JsonObject { ["traceparent"] = Traceparent, ["progressToken"] = "p1" }
+			}, TestContext.Current.CancellationToken);
+
+		Assert.NotEqual(true, result.IsError);
+		Assert.Equal(backend.Descriptor.InstanceId,
+			JsonNode.Parse(result.StructuredContent!.Value.GetRawText())!["backend"]!.GetValue<string>());
+		JsonObject forwarded = Assert.IsType<JsonObject>(Assert.Single(backend.ReceivedMeta));
+		Assert.Equal(["traceparent"], forwarded.Select(static property => property.Key));
+		Assert.Equal(Traceparent, forwarded["traceparent"]!.GetValue<string>());
+		// The upstream negotiation never changes the pinned backend hop.
+		Assert.Equal(["2025-06-18"], backend.InitializeProtocolVersions);
+	}
+
+	[Fact]
+	public async Task CallTool_WithoutTraceContext_ForwardsNoMeta()
+	{
+		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync();
+		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "no-meta");
+		await using McpClient client = await gateway.ConnectAsync();
+
+		await CallJsonAsync(client, "get_plugin_version", ObjectArguments(backend));
+
+		Assert.Null(Assert.Single(backend.ReceivedMeta));
 	}
 
 	[Fact]
@@ -123,39 +162,281 @@ public sealed class GatewayServerTests
 		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync();
 		await using FakeBackend selected = await FakeBackend.StartAsync(gateway.Registry, "selected");
 		await using FakeBackend other = await FakeBackend.StartAsync(gateway.Registry, "other");
-		await using McpClient client = await ConnectAsync(gateway.Endpoint);
-		selected.DelayForwarding = true;
+		await using McpClient client = await gateway.ConnectAsync();
+		selected.HangUntilCancelled = true;
 		using CancellationTokenSource cancellation = new(TimeSpan.FromSeconds(10));
 
-		Task<CallToolResult> call = client.CallToolAsync("get_plugin_version",
-			new Dictionary<string, object?>
-			{
-				[GatewayToolCatalog.InstanceIdArgumentName] = selected.Descriptor.InstanceId
-			}, cancellationToken: cancellation.Token).AsTask();
+		Task<CallToolResult> call = client.CallToolAsync("get_plugin_version", ObjectArguments(selected),
+			cancellationToken: cancellation.Token).AsTask();
 		await selected.WaitUntilForwardedAsync(TestContext.Current.CancellationToken);
-		cancellation.Cancel();
+		await cancellation.CancelAsync();
 
 		await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await call);
 		Assert.Equal(1, selected.ForwardedCallCount);
 		Assert.Equal(0, other.ForwardedCallCount);
 	}
 
-	private static async Task<McpClient> ConnectAsync(string endpoint)
+	[Fact]
+	public async Task ListTools_Result_CarriesPrivateOneHourCacheHint()
 	{
-		return await McpClient.CreateAsync(new HttpClientTransport(
-				new HttpClientTransportOptions
-				{
-					Endpoint = new Uri(endpoint),
-					Name = "CheatEngine.Mcp.Gateway.Tests",
-					TransportMode = HttpTransportMode.StreamableHttp,
-					ConnectionTimeout = TimeSpan.FromSeconds(10)
-				}),
-			new McpClientOptions
+		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync();
+		await using McpClient client = await gateway.ConnectAsync();
+
+		ListToolsResult result = await client.ListToolsAsync(new ListToolsRequestParams(),
+			TestContext.Current.CancellationToken);
+
+		Assert.Equal(TimeSpan.FromHours(1), result.TimeToLive);
+		Assert.Equal(CacheScope.Private, result.CacheScope);
+		Assert.Equal(GatewayToolCatalog.InstanceListToolName, result.Tools[0].Name);
+	}
+
+	[Fact]
+	public async Task CallTool_InstanceList_ReturnsTypedStructuredResultWithMatchingText()
+	{
+		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync();
+		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "listed");
+		await using McpClient client = await gateway.ConnectAsync();
+
+		CallToolResult result = await client.CallToolAsync(GatewayToolCatalog.InstanceListToolName,
+			new Dictionary<string, object?>(), cancellationToken: TestContext.Current.CancellationToken);
+
+		Assert.NotEqual(true, result.IsError);
+		string structured = result.StructuredContent!.Value.GetRawText();
+		Assert.Equal(structured, Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text);
+		Assert.Equal(
+			"{\"instances\":[{\"instanceId\":\"" + backend.Descriptor.InstanceId + "\",\"name\":\"listed\"," +
+			"\"processId\":" + backend.Descriptor.ProcessId + ",\"pluginVersion\":\"2.0.0\"}]," +
+			"\"discoveryIncomplete\":false}", structured);
+	}
+
+	[Fact]
+	public async Task CallTool_TwoCallsSameInstance_ReuseOneBackendHandshake()
+	{
+		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync();
+		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "pooled");
+		await using McpClient client = await gateway.ConnectAsync();
+
+		await CallJsonAsync(client, "get_plugin_version", backend.RoutedArguments());
+		await CallJsonAsync(client, "get_plugin_version", backend.RoutedArguments());
+
+		Assert.Equal(2, backend.ForwardedCallCount);
+		Assert.Equal(1, backend.InitializeCount);
+	}
+
+	[Fact]
+	public async Task CallTool_RepublishedRecord_OpensNewBackendClient()
+	{
+		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync();
+		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "republished");
+		await using McpClient client = await gateway.ConnectAsync();
+		await CallJsonAsync(client, "get_plugin_version", backend.RoutedArguments());
+
+		// Same instance and activation, new token: the old client must never be reused.
+		backend.RepublishWithNewToken();
+		await CallJsonAsync(client, "get_plugin_version", backend.RoutedArguments());
+
+		Assert.Equal(2, backend.ForwardedCallCount);
+		Assert.Equal(2, backend.InitializeCount);
+		Assert.Equal(1, gateway.Services.GetRequiredService<BackendConnectionPool>().Count);
+	}
+
+	[Fact]
+	public async Task CallTool_BackendHang_ReturnsTimeoutUnknownAndNeverRetries()
+	{
+		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync(TimeSpan.FromSeconds(1));
+		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "hanging");
+		await using McpClient client = await gateway.ConnectAsync();
+		backend.HangUntilCancelled = true;
+
+		CallToolResult result = await client.CallToolAsync("get_plugin_version", backend.RoutedArguments(),
+			cancellationToken: TestContext.Current.CancellationToken);
+
+		ToolError error = AssertEnvelope(result, ToolErrorKind.Timeout, ToolHostEffect.Unknown);
+		Assert.False(error.Retryable);
+		Assert.Equal("Do not repeat a mutation; inspect state with a read-only tool first.", error.Hint);
+		Assert.Equal("get_plugin_version", error.Operation);
+		await backend.Cancelled.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+		Assert.Equal(1, backend.ForwardedCallCount);
+
+		// The timed-out client was evicted: the next call connects again and is sent exactly once.
+		backend.HangUntilCancelled = false;
+		await CallJsonAsync(client, "get_plugin_version", backend.RoutedArguments());
+		Assert.Equal(2, backend.ForwardedCallCount);
+		Assert.Equal(2, backend.InitializeCount);
+	}
+
+	[Fact]
+	public async Task CallTool_MissingInstanceId_ReturnsInvalidArgumentEnvelope()
+	{
+		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync();
+		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "only");
+		await using McpClient client = await gateway.ConnectAsync();
+
+		CallToolResult missing = await client.CallToolAsync("get_plugin_version", new Dictionary<string, object?>(),
+			cancellationToken: TestContext.Current.CancellationToken);
+		CallToolResult numeric = await client.CallToolAsync("get_plugin_version",
+			new Dictionary<string, object?> { [GatewayToolCatalog.InstanceIdArgumentName] = 42 },
+			cancellationToken: TestContext.Current.CancellationToken);
+
+		foreach (CallToolResult result in new[] { missing, numeric })
+		{
+			ToolError error = AssertEnvelope(result, ToolErrorKind.InvalidArgument, ToolHostEffect.NotStarted);
+			Assert.Equal("get_plugin_version", error.Operation);
+			Assert.Equal(GatewayToolCatalog.InstanceIdArgumentName,
+				error.Details!.Value.GetProperty("parameter").GetString());
+		}
+
+		Assert.Equal(0, backend.ForwardedCallCount);
+	}
+
+	[Fact]
+	public async Task CallTool_UnknownInstanceId_ReturnsInstanceUnavailableNotStarted()
+	{
+		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync();
+		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "only");
+		await using McpClient client = await gateway.ConnectAsync();
+
+		CallToolResult result = await client.CallToolAsync("get_plugin_version",
+			new Dictionary<string, object?>
 			{
-				ClientInfo = new Implementation { Name = "CheatEngine.Mcp.Gateway.Tests", Version = "2.0.0" },
-				Capabilities = new ClientCapabilities(),
-				ProtocolVersion = "2025-06-18"
+				[GatewayToolCatalog.InstanceIdArgumentName] = "ce-404-00000000000000000000000000000000"
 			}, cancellationToken: TestContext.Current.CancellationToken);
+
+		ToolError error = AssertEnvelope(result, ToolErrorKind.InstanceUnavailable, ToolHostEffect.NotStarted);
+		Assert.Contains("instance_list", error.Hint, StringComparison.Ordinal);
+		Assert.Equal(0, backend.ForwardedCallCount);
+	}
+
+	[Fact]
+	public async Task CallTool_StaleIdentity_ReturnsInstanceUnavailableNotStartedAndNeverForwards()
+	{
+		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync();
+		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "stale");
+		await using McpClient client = await gateway.ConnectAsync();
+		backend.ReportedIdentity = backend.Descriptor with { ActivationId = Guid.NewGuid() };
+
+		CallToolResult result = await client.CallToolAsync("get_plugin_version", backend.RoutedArguments(),
+			cancellationToken: TestContext.Current.CancellationToken);
+
+		AssertEnvelope(result, ToolErrorKind.InstanceUnavailable, ToolHostEffect.NotStarted);
+		Assert.Equal(0, backend.ForwardedCallCount);
+		Assert.Equal(0, backend.InitializeCount);
+	}
+
+	[Fact]
+	public async Task CallTool_StoppedBackend_ReportsNotStartedAndEvictsItsClient()
+	{
+		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync();
+		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "stopped");
+		await using McpClient client = await gateway.ConnectAsync();
+		await CallJsonAsync(client, "get_plugin_version", backend.RoutedArguments());
+		await backend.StopListeningAsync();
+
+		CallToolResult result = await client.CallToolAsync("get_plugin_version", backend.RoutedArguments(),
+			cancellationToken: TestContext.Current.CancellationToken);
+
+		AssertEnvelope(result, ToolErrorKind.InstanceUnavailable, ToolHostEffect.NotStarted);
+		Assert.Equal(1, backend.ForwardedCallCount);
+		Assert.Equal(0, gateway.Services.GetRequiredService<BackendConnectionPool>().Count);
+	}
+
+	[Fact]
+	public async Task CallTool_BackendDropsConnection_ReportsUnknownEffectAndNeverRetries()
+	{
+		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync();
+		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "dropping");
+		await using McpClient client = await gateway.ConnectAsync();
+		backend.AbortConnection = true;
+
+		CallToolResult result = await client.CallToolAsync("get_plugin_version", backend.RoutedArguments(),
+			cancellationToken: TestContext.Current.CancellationToken);
+
+		ToolError error = AssertEnvelope(result, ToolErrorKind.InstanceUnavailable, ToolHostEffect.Unknown);
+		Assert.Equal("Do not repeat a mutation; inspect state with a read-only tool first.", error.Hint);
+		Assert.Equal(1, backend.ForwardedCallCount);
+		Assert.Equal(0, gateway.Services.GetRequiredService<BackendConnectionPool>().Count);
+	}
+
+	[Fact]
+	public async Task CallTool_UnknownTool_ReturnsInvalidArgumentEnvelope()
+	{
+		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync();
+		await using McpClient client = await gateway.ConnectAsync();
+
+		// The pre-2.0.0 name of instance_list is an unknown tool now.
+		CallToolResult result = await client.CallToolAsync("list_instances", new Dictionary<string, object?>(),
+			cancellationToken: TestContext.Current.CancellationToken);
+
+		AssertEnvelope(result, ToolErrorKind.InvalidArgument, ToolHostEffect.NotStarted);
+	}
+
+	[Fact]
+	public async Task CallTool_BackendErrorResult_PassesThroughUnchanged()
+	{
+		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync();
+		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "failing");
+		await using McpClient client = await gateway.ConnectAsync();
+		CallToolResult backendError = ToolErrorResults.Create(new ToolError(ToolErrorKind.NotAttached,
+			"No process is attached.", "Memory.ReadBytes", ToolHostEffect.NotStarted, false,
+			"Attach a process with process_attach."));
+		backend.Respond = () => backendError;
+
+		CallToolResult result = await client.CallToolAsync("get_plugin_version", backend.RoutedArguments(),
+			cancellationToken: TestContext.Current.CancellationToken);
+
+		Assert.True(result.IsError);
+		Assert.Null(result.StructuredContent);
+		Assert.Equal(Assert.IsType<TextContentBlock>(Assert.Single(backendError.Content)).Text,
+			Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text);
+		Assert.Equal(1, backend.InitializeCount);
+		Assert.Equal(1, gateway.Services.GetRequiredService<BackendConnectionPool>().Count);
+	}
+
+	[Fact]
+	public async Task CallTool_BackendProtocolError_PassesThroughWithItsCode()
+	{
+		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync();
+		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "protocol");
+		await using McpClient client = await gateway.ConnectAsync();
+		backend.Respond = static () => throw new McpProtocolException("Backend rejected the parameters.",
+			McpErrorCode.InvalidParams);
+
+		McpProtocolException failure = await Assert.ThrowsAsync<McpProtocolException>(async () =>
+			await client.CallToolAsync("get_plugin_version", backend.RoutedArguments(),
+				cancellationToken: TestContext.Current.CancellationToken));
+
+		Assert.Equal(McpErrorCode.InvalidParams, failure.ErrorCode);
+		Assert.Contains("Backend rejected the parameters.", failure.Message, StringComparison.Ordinal);
+		Assert.Equal(1, backend.ForwardedCallCount);
+	}
+
+	private static ToolError AssertEnvelope(CallToolResult result, ToolErrorKind kind, ToolHostEffect effect)
+	{
+		Assert.True(result.IsError);
+		Assert.Null(result.StructuredContent);
+		Assert.True(ToolErrorResults.TryRead(result, out ToolError? error),
+			"A gateway failure must carry only the {\"error\":{...}} envelope.");
+		Assert.Equal(kind, error.Kind);
+		Assert.Equal(effect, error.HostEffect);
+		Assert.False(string.IsNullOrWhiteSpace(error.Hint));
+		return error;
+	}
+
+	private static Dictionary<string, JsonElement> Arguments(FakeBackend backend)
+	{
+		return new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+		{
+			[GatewayToolCatalog.InstanceIdArgumentName] =
+				JsonElement.Parse(JsonValue.Create(backend.Descriptor.InstanceId).ToJsonString())
+		};
+	}
+
+	private static Dictionary<string, object?> ObjectArguments(FakeBackend backend)
+	{
+		return new Dictionary<string, object?>
+		{
+			[GatewayToolCatalog.InstanceIdArgumentName] = backend.Descriptor.InstanceId
+		};
 	}
 
 	private static async Task<JsonObject> CallJsonAsync(McpClient client, string name,
@@ -166,174 +447,5 @@ public sealed class GatewayServerTests
 		Assert.NotEqual(true, result.IsError);
 		Assert.True(result.StructuredContent is JsonElement);
 		return JsonNode.Parse(result.StructuredContent!.Value.GetRawText())!.AsObject();
-	}
-
-	private static string NewLoopbackEndpoint()
-	{
-		using TcpListener listener = new(IPAddress.Loopback, 0);
-		listener.Start();
-		int port = ((IPEndPoint) listener.LocalEndpoint).Port;
-		return $"http://127.0.0.1:{port}/";
-	}
-
-	private sealed class GatewayTestHost : IAsyncDisposable
-	{
-		private readonly WebApplication _application;
-		private readonly string _directory;
-
-		private GatewayTestHost(WebApplication application, string directory)
-		{
-			_application = application;
-			_directory = directory;
-			Registry = new InstanceRegistry(directory);
-		}
-
-		internal string Endpoint => _application.Urls.Single();
-
-		internal InstanceRegistry Registry
-		{
-			get;
-		}
-
-		public async ValueTask DisposeAsync()
-		{
-			await _application.StopAsync(TestContext.Current.CancellationToken);
-			await _application.DisposeAsync();
-			if (Directory.Exists(_directory))
-			{
-				Directory.Delete(_directory, true);
-			}
-		}
-
-		internal static async Task<GatewayTestHost> StartAsync()
-		{
-			string directory = Path.Combine(Path.GetTempPath(), $"CheatEngine.Mcp.Gateway.{Guid.NewGuid():N}");
-			WebApplicationBuilder builder = WebApplication.CreateBuilder(new WebApplicationOptions { Args = [] });
-			builder.Logging.ClearProviders();
-			builder.Services.AddMcpServer().WithHttpTransport(transport => transport.Stateless = true);
-			builder.Services.AddCheatEngineGatewayRouting(directory);
-			builder.Services.Configure<CheatEngineMcpPrimitiveOptions>(manifest =>
-			{
-				foreach (CheatEngineMcpPrimitive primitive in TestComposition.GatewayManifest.Primitives)
-				{
-					manifest.Add(primitive);
-				}
-			});
-			WebApplication application = builder.Build();
-			application.Urls.Add(NewLoopbackEndpoint());
-			application.MapMcp();
-			await application.StartAsync(TestContext.Current.CancellationToken);
-			return new GatewayTestHost(application, directory);
-		}
-	}
-
-	private sealed class FakeBackend : IAsyncDisposable
-	{
-		private readonly WebApplication _application;
-		private readonly TaskCompletionSource _forwarded = new(TaskCreationOptions.RunContinuationsAsynchronously);
-		private readonly InstancePublication _publication;
-
-		private FakeBackend(WebApplication application, InstancePublication publication)
-		{
-			_application = application;
-			_publication = publication;
-			ReportedIdentity = publication.Descriptor;
-		}
-
-		internal InstanceDescriptor Descriptor => _publication.Descriptor;
-
-		internal int ForwardedCallCount
-		{
-			get;
-			private set;
-		}
-
-		internal Dictionary<string, JsonElement> LastArguments
-		{
-			get;
-		} = new(StringComparer.Ordinal);
-
-		internal InstanceDescriptor ReportedIdentity
-		{
-			get;
-			set;
-		}
-
-		internal bool DelayForwarding
-		{
-			get;
-			set;
-		}
-
-		public async ValueTask DisposeAsync()
-		{
-			_publication.Dispose();
-			await _application.StopAsync(TestContext.Current.CancellationToken);
-			await _application.DisposeAsync();
-		}
-
-		internal static async Task<FakeBackend> StartAsync(InstanceRegistry registry, string name)
-		{
-			InstancePublication publication = new(registry, name);
-			WebApplicationBuilder builder = WebApplication.CreateBuilder(new WebApplicationOptions { Args = [] });
-			builder.Logging.ClearProviders();
-			FakeBackend? backend = null;
-			IMcpServerBuilder mcpServer = builder.Services.AddMcpServer()
-				.WithHttpTransport(transport => transport.Stateless = true)
-				.WithListToolsHandler(static (_, _) => ValueTask.FromResult(new ListToolsResult { Tools = [] }))
-				.WithCallToolHandler((context, cancellationToken) =>
-					backend!.ForwardAsync(context.Params, cancellationToken));
-			WebApplication application = builder.Build();
-			application.Use(async (context, next) =>
-			{
-				if (!string.Equals(context.Request.Headers.Authorization,
-					    $"Bearer {publication.Descriptor.AccessToken}", StringComparison.Ordinal))
-				{
-					context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-					return;
-				}
-
-				await next(context);
-			});
-			application.MapGet("/instance", () => Results.Json(backend!.ReportedIdentity));
-			application.MapMcp();
-			application.Urls.Add(NewLoopbackEndpoint());
-			backend = new FakeBackend(application, publication);
-			await application.StartAsync(TestContext.Current.CancellationToken);
-			publication.Publish(backend._application.Urls.Single());
-			return backend;
-		}
-
-		internal Task WaitUntilForwardedAsync(CancellationToken cancellationToken)
-		{
-			return _forwarded.Task.WaitAsync(cancellationToken);
-		}
-
-		private async ValueTask<CallToolResult> ForwardAsync(CallToolRequestParams request,
-			CancellationToken cancellationToken)
-		{
-			ForwardedCallCount++;
-			_forwarded.TrySetResult();
-			LastArguments.Clear();
-			foreach ((string key, JsonElement value) in request.Arguments ?? new Dictionary<string, JsonElement>())
-			{
-				LastArguments[key] = value;
-			}
-
-			if (DelayForwarding)
-			{
-				await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
-			}
-
-			return new CallToolResult
-			{
-				StructuredContent = JsonSerializer.SerializeToElement(new
-				{
-					backend = Descriptor.InstanceId,
-					arguments = LastArguments.ToDictionary(pair => pair.Key,
-						pair => JsonNode.Parse(pair.Value.GetRawText()))
-				})
-			};
-		}
 	}
 }

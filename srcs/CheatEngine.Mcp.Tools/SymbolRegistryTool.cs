@@ -3,6 +3,7 @@ using System.ComponentModel;
 using CheatEngine.Client;
 using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Results;
+using CheatEngine.Mcp.Core.Values;
 using CheatEngine.SDK.Engine.Values;
 
 using ModelContextProtocol.Server;
@@ -94,13 +95,13 @@ public sealed class SymbolRegistryTool : IDisposable
 				_symbols.Add(lease.Name, lease);
 			}
 
-			_targetResources?.Track(lease, () =>
+			_targetResources?.Track(lease, "symbol", () =>
 			{
 				lock (_symbolsLock)
 				{
 					_symbols.Remove(lease.Name);
 				}
-			}, new { kind = "symbol", name = lease.Name, address = $"0x{lease.Address.Value:X}" });
+			}, lease.Name, HexFormat.Address(lease.Address));
 
 			return new { success = true, name = lease.Name, address = $"0x{lease.Address.Value:X}" };
 		});

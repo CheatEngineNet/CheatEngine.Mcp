@@ -112,6 +112,9 @@ internal static class MainScanner
 	                                             return summary()
 	                                             """;
 
+	internal const string BusyTargetMessage =
+		"The main UI scanner is busy. Wait for it to finish or cancel it in Cheat Engine before switching targets.";
+
 	internal static object Status(ICheatEngineClient client)
 	{
 		return Execute(client, "main_scan_status", StatusSource);
@@ -147,10 +150,13 @@ internal static class MainScanner
 
 	internal static object? PrepareForTargetChange(ICheatEngineClient client)
 	{
-		return Execute(client, "main_scan_guard", Context + "return isBusy()") is true
-			? ToolExecution.Error(
-				"The main UI scanner is busy. Wait for it to finish or cancel it in Cheat Engine before switching targets.")
-			: null;
+		return IsBusy(client) ? ToolExecution.Error(BusyTargetMessage) : null;
+	}
+
+	/// <summary>Whether CE's visible scan is running or repeating; inside a dispatch.</summary>
+	internal static bool IsBusy(ICheatEngineClient client)
+	{
+		return Execute(client, "main_scan_guard", Context + "return isBusy()") is true;
 	}
 
 	private static object Execute(ICheatEngineClient client, string operation, string source,

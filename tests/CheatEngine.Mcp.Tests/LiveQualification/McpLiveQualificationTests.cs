@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Runtime.Versioning;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 
 using CheatEngine.Mcp.Tests.Contract;
@@ -30,7 +31,7 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 		LiveMcpInstanceClient? instanceA = null;
 		try
 		{
-			string[] expectedToolNames = ToolContractTests.GetToolNames().Append("list_instances")
+			string[] expectedToolNames = ToolContractTests.GetToolNames().Append("instance_list")
 				.Order(StringComparer.Ordinal).ToArray();
 			string[] actualToolNames = (await gateway.ListToolsAsync().AsTask()
 					.WaitAsync(McpTimeout, TestContext.Current.CancellationToken))
@@ -39,7 +40,7 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			sandbox.Record("gateway_tool_discovery", new { count = actualToolNames.Length });
 
 			step = "gateway instance discovery";
-			JsonArray instances = (await GatewayCallAsync(gateway, "list_instances"))["instances"]!.AsArray();
+			JsonArray instances = (await GatewayCallAsync(gateway, "instance_list"))["instances"]!.AsArray();
 			Assert.Equal(2, instances.Count);
 			AssertInstance(instances, sandbox.HostA);
 			AssertInstance(instances, sandbox.HostB);
@@ -385,7 +386,7 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 		DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(10);
 		do
 		{
-			JsonArray instances = (await GatewayCallAsync(gateway, "list_instances"))["instances"]!.AsArray();
+			JsonArray instances = (await GatewayCallAsync(gateway, "instance_list"))["instances"]!.AsArray();
 			if (instances.Count == 1 && instances[0]!["instanceId"]!.GetValue<string>() == remainingInstanceId)
 			{
 				return;
@@ -422,7 +423,10 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 		JsonNode? result = await client.CallToolAsync(name, arguments)
 			.WaitAsync(McpTimeout, TestContext.Current.CancellationToken);
 		Assert.NotNull(result);
-		Assert.True(result["success"]?.GetValue<bool>() == true, $"Tool '{name}' failed: {result.ToJsonString()}");
+		// v2 results carry no success flag (LiveMcpClient already throws on isError); legacy results must report true.
+		JsonNode? success = result["success"];
+		Assert.True(success is null || success.GetValueKind() == JsonValueKind.True,
+			$"Tool '{name}' failed: {result.ToJsonString()}");
 		return result;
 	}
 

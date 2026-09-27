@@ -112,9 +112,9 @@ public sealed class LuaToolRuntimeTests
 	[Fact]
 	public void LuaFallbackTools_PublicContracts_HaveUniqueNamesAndDescriptions()
 	{
-		MethodInfo[] methods = typeof(LuaCodeTool).Assembly
+		MethodInfo[] methods = typeof(CheatEngineToolsBuilderExtensions).Assembly
 			.GetTypes()
-			.Where(type => type.Namespace == typeof(LuaCodeTool).Namespace &&
+			.Where(type => type.Namespace == typeof(CheatEngineToolsBuilderExtensions).Namespace &&
 			               type.Name.StartsWith("Lua", StringComparison.Ordinal) &&
 			               type.GetCustomAttribute<McpServerToolTypeAttribute>() is not null)
 			.SelectMany(type =>

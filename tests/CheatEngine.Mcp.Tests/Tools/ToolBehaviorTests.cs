@@ -125,8 +125,10 @@ public sealed class ToolBehaviorTests
 
 		ToolResultAssert.IsSuccess(scanTool.MemoryScan("health", "int32", "100"));
 		ToolResultAssert.IsSuccess(processTool.OpenProcess("42"));
-		ToolResultAssert.IsFailure(processTool.OpenProcess("43"),
-			"Release owned target resources with release_target_resources before switching processes.");
+		object refused = processTool.OpenProcess("43");
+		Assert.False(ToolResultAssert.GetProperty<bool>(refused, "success"));
+		Assert.Contains("still hold state", ToolResultAssert.GetProperty<string>(refused, "error"),
+			StringComparison.Ordinal);
 
 		Assert.True(releases[0] == 0, "A same-PID request must retain the owned scan session.");
 	}

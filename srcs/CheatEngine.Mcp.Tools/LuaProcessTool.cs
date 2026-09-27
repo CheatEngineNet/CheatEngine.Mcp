@@ -12,18 +12,15 @@ public sealed class LuaProcessTool
 {
 	private const int MaximumPathLength = 4096;
 	private readonly ICheatEngineClient _client;
-	private readonly LuaDebuggerCaptureGuard? _debuggerGuard;
-	private readonly ScanTool? _scans;
-	private readonly TargetResources? _targetResources;
+	private readonly TargetTransitionGuards _guards;
 
-	public LuaProcessTool(ICheatEngineClient client, TargetResources? targetResources = null,
-		LuaDebuggerCaptureGuard? debuggerGuard = null, ScanTool? scans = null)
+	/// <param name="client">The activation's Client.</param>
+	/// <param name="guards">Every target-transition guard; without it, a target change is not guarded.</param>
+	public LuaProcessTool(ICheatEngineClient client, TargetTransitionGuards? guards = null)
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		_client = client;
-		_targetResources = targetResources;
-		_debuggerGuard = debuggerGuard;
-		_scans = scans;
+		_guards = guards ?? new TargetTransitionGuards([]);
 	}
 
 	[McpServerTool(Name = "create_process")]
@@ -53,12 +50,8 @@ public sealed class LuaProcessTool
 
 		return ToolExecution.Run(_client, () =>
 		{
-			object? preparation = _debuggerGuard?.PrepareForTransition() ?? _targetResources?.PrepareForTargetChange()
-				?? _scans?.PrepareForTargetChange();
-			if (preparation is not null)
-			{
-				return preparation;
-			}
+			// The new process is unknown in advance; every guard refuses as a CheatEngineToolException.
+			_guards.EnsureCanChangeTarget(new TargetTransition(null, null), _client.Stopping);
 
 			return LuaToolRuntime.Invoke(_client, "createProcess",
 				"local previous = getOpenedProcessID(); createProcess(a[1], a[2], a[3], a[4]); local processId = getOpenedProcessID(); assert(processId ~= nil and processId ~= 0 and processId ~= previous, 'createProcess did not select a new process.'); return { created = true, processId = processId }",
@@ -159,12 +152,8 @@ public sealed class LuaProcessTool
 
 		return ToolExecution.Run(_client, () =>
 		{
-			object? preparation = _debuggerGuard?.PrepareForTransition() ?? _targetResources?.PrepareForTargetChange()
-				?? _scans?.PrepareForTargetChange();
-			if (preparation is not null)
-			{
-				return preparation;
-			}
+			// The new process is unknown in advance; every guard refuses as a CheatEngineToolException.
+			_guards.EnsureCanChangeTarget(new TargetTransition(null, null), _client.Stopping);
 
 			return LuaToolRuntime.Invoke(_client, "openFileAsProcess",
 				"openFileAsProcess(a[1], a[2], a[3]); return { requestedFilename = a[1], requested64Bit = a[2], observedProcessId = getOpenedProcessID(), observedFileSize = getOpenedFileSize(), requestCompleted = true }",

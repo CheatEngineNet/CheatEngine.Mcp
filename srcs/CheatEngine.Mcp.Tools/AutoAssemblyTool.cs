@@ -184,13 +184,13 @@ public sealed class AutoAssemblyTool : IDisposable
 				_patches.Add(patchId, created);
 			}
 
-			_targetResources?.Track(created, () =>
+			_targetResources?.Track(created, "patch", () =>
 			{
 				lock (_patchesLock)
 				{
 					_patches.Remove(patchId);
 				}
-			}, new { kind = "patch", id = patchId });
+			}, created.Name);
 
 			return new
 			{

@@ -26,6 +26,14 @@ public sealed class CompositionParityTests
 	}
 
 	[Fact]
+	public void PluginAndGatewayExecutable_RegisterTheSameJsonResolvers()
+	{
+		// Schemas depend on the resolvers, so both compositions must register the same metadata in the same order.
+		Assert.Equal(TestComposition.BackendManifest.JsonResolvers.Select(static resolver => resolver.GetType()),
+			TestComposition.GatewayManifest.JsonResolvers.Select(static resolver => resolver.GetType()));
+	}
+
+	[Fact]
 	public void GatewayExecutable_InstanceDirectoryArgument_IsBound()
 	{
 		string directory = Path.Combine(Path.GetTempPath(), $"CheatEngine.Mcp.Tests-{Guid.NewGuid():N}");
@@ -49,7 +57,7 @@ public sealed class CompositionParityTests
 			.ToDictionary(static tool => tool.Name,
 				static tool => JsonSerializer.Serialize(tool, McpJsonUtilities.DefaultOptions), StringComparer.Ordinal);
 		Tool[] routed = TestComposition.GatewayTools
-			.Where(static tool => tool.Name != GatewayToolCatalog.ListInstancesToolName).ToArray();
+			.Where(static tool => tool.Name != GatewayToolCatalog.InstanceListToolName).ToArray();
 
 		Assert.Equal(backend.Keys.Order(StringComparer.Ordinal),
 			routed.Select(static tool => tool.Name).Order(StringComparer.Ordinal));

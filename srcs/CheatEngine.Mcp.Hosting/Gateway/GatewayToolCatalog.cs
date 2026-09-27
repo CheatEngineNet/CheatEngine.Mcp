@@ -1,74 +1,113 @@
+using System.Collections.Frozen;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization.Metadata;
+
+using CheatEngine.Mcp.Core.Contract;
 
 using Microsoft.Extensions.Options;
 
+using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 
 namespace CheatEngine.Mcp.Hosting.Gateway;
 
-/// <summary>The gateway's tool list: the composed backend tools with a required routing argument, plus list_instances.</summary>
+/// <summary>The gateway's tool list: <c>instance_list</c>, then the composed backend tools with a routing argument.</summary>
 internal sealed class GatewayToolCatalog(IOptions<CheatEngineMcpPrimitiveOptions> manifest)
 {
-	internal const string ListInstancesToolName = "list_instances";
+	/// <summary>The gateway-local discovery tool.</summary>
+	internal const string InstanceListToolName = GatewayInstanceTool.Name;
+
+	/// <summary>The routing argument every backend tool gains.</summary>
 	internal const string InstanceIdArgumentName = "instanceId";
 
-	private readonly Lazy<IReadOnlyList<Tool>> _tools = new(() => Create(manifest.Value));
+	/// <summary>The routing argument's description, repeated in every routed tool, so it stays short.</summary>
+	internal const string InstanceIdDescription = $"Instance id from {CheatEngineToolNames.InstanceList}.";
 
-	internal IReadOnlyList<Tool> Tools => _tools.Value;
+	private readonly Lazy<Listing> _listing = new(() => new Listing(Create(manifest.Value)));
 
+	/// <summary>Every tool, <c>instance_list</c> first.</summary>
+	internal IReadOnlyList<Tool> Tools => _listing.Value.Tools;
+
+	/// <summary>Whether a tool name is one of the routed backend tools.</summary>
+	/// <param name="name">The requested tool name.</param>
+	/// <returns><see langword="true" /> for a backend tool.</returns>
+	internal bool IsRouted(string name)
+	{
+		return _listing.Value.Routed.Contains(name);
+	}
+
+	/// <summary>Builds the listing from a manifest without constructing any primitive.</summary>
+	/// <param name="manifest">The routed composition.</param>
+	/// <returns><c>instance_list</c>, then the backend tools in name order.</returns>
 	internal static IReadOnlyList<Tool> Create(CheatEngineMcpPrimitiveOptions manifest)
 	{
-		List<Tool> tools = [CreateListInstancesTool()];
+		List<Tool> tools = [GatewayInstanceTool.CreateProtocolTool()];
 		tools.AddRange(McpPrimitiveCatalog.Create(manifest).Tools.Select(AddRoutingArgument));
 		return tools;
 	}
 
-	private static Tool CreateListInstancesTool()
+	/// <summary>
+	///     Clones a backend tool through its JSON form, so every field survives, including ones a later SDK adds, and
+	///     puts the required routing argument first in <c>properties</c> and <c>required</c>.
+	/// </summary>
+	/// <param name="tool">The backend tool.</param>
+	/// <returns>The routed tool.</returns>
+	internal static Tool AddRoutingArgument(Tool tool)
 	{
-		return new Tool
+		JsonTypeInfo<Tool> typeInfo = (JsonTypeInfo<Tool>) McpJsonUtilities.DefaultOptions.GetTypeInfo(typeof(Tool));
+		JsonObject node = JsonSerializer.SerializeToNode(tool, typeInfo)!.AsObject();
+		JsonObject schema = node["inputSchema"] as JsonObject ?? new JsonObject { ["type"] = "object" };
+		JsonObject properties = new()
 		{
-			Name = ListInstancesToolName,
-			Description =
-				"Lists responsive local Cheat Engine plugin instances that can receive routed tool calls.",
-			InputSchema = JsonSerializer.SerializeToElement(new JsonObject
+			[InstanceIdArgumentName] =
+				new JsonObject { ["type"] = "string", ["description"] = InstanceIdDescription }
+		};
+		if (schema["properties"] is JsonObject declared)
+		{
+			foreach ((string name, JsonNode? value) in declared)
 			{
-				["type"] = "object", ["properties"] = new JsonObject(), ["additionalProperties"] = false
-			})
-		};
-	}
-
-	private static Tool AddRoutingArgument(Tool tool)
-	{
-		JsonObject schema = JsonNode.Parse(tool.InputSchema.GetRawText()) as JsonObject
-		                    ?? new JsonObject { ["type"] = "object" };
-		JsonObject properties = schema["properties"] as JsonObject ?? new JsonObject();
-		properties[InstanceIdArgumentName] = new JsonObject
-		{
-			["type"] = "string",
-			["description"] =
-				"Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
-		};
-		schema["properties"] = properties;
-		JsonArray required = schema["required"] as JsonArray ?? new JsonArray();
-		if (!required.Any(value =>
-			    string.Equals(value?.GetValue<string>(), InstanceIdArgumentName, StringComparison.Ordinal)))
-		{
-			required.Add(InstanceIdArgumentName);
+				if (!string.Equals(name, InstanceIdArgumentName, StringComparison.Ordinal))
+				{
+					properties[name] = value?.DeepClone();
+				}
+			}
 		}
 
-		schema["required"] = required;
-
-		return new Tool
+		JsonArray required = new(JsonValue.Create(InstanceIdArgumentName));
+		if (schema["required"] is JsonArray declaredRequired)
 		{
-			Name = tool.Name,
-			Title = tool.Title,
-			Description = tool.Description,
-			InputSchema = JsonSerializer.SerializeToElement(schema),
-			OutputSchema = tool.OutputSchema,
-			Annotations = tool.Annotations,
-			Icons = tool.Icons,
-			Meta = tool.Meta
-		};
+			foreach (JsonNode? value in declaredRequired)
+			{
+				if (value is not JsonValue name || !name.TryGetValue(out string? text) ||
+				    !string.Equals(text, InstanceIdArgumentName, StringComparison.Ordinal))
+				{
+					required.Add(value?.DeepClone());
+				}
+			}
+		}
+
+		schema["properties"] = properties;
+		schema["required"] = required;
+		if (schema.Parent is null)
+		{
+			node["inputSchema"] = schema;
+		}
+
+		return node.Deserialize(typeInfo)!;
+	}
+
+	private sealed class Listing(IReadOnlyList<Tool> tools)
+	{
+		internal IReadOnlyList<Tool> Tools
+		{
+			get;
+		} = tools;
+
+		internal FrozenSet<string> Routed
+		{
+			get;
+		} = tools.Where(static tool => tool.Name != InstanceListToolName).Select(static tool => tool.Name)
+			.ToFrozenSet(StringComparer.Ordinal);
 	}
 }

@@ -5,12 +5,15 @@ public static class CheatEnginePromptsBuilderExtensions
 {
 	extension(ICheatEngineMcpBuilder builder)
 	{
-		/// <summary>Declares every Cheat Engine prompt container. None is declared yet.</summary>
+		/// <summary>
+		///     Declares the server instructions (<see cref="McpServerInstructions" />) and every Cheat Engine prompt
+		///     container. No prompt is declared yet.
+		/// </summary>
 		/// <returns>The same builder.</returns>
 		public ICheatEngineMcpBuilder AddPrompts()
 		{
 			ArgumentNullException.ThrowIfNull(builder);
-			return builder;
+			return builder.SetServerInstructions(McpServerInstructions.Gateway, McpServerInstructions.Backend);
 		}
 	}
 }

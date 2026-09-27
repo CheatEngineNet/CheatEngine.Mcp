@@ -1,0 +1,46 @@
+# Dependabot version updates. Security updates are enabled separately, in the repository settings.
+#
+# NuGet uses central package management: versions live in Directory.Packages.props and every project commits a
+# packages.lock.json that CI restores with --locked-mode. Dependabot may leave the lock files of projects that only
+# reference a changed project stale (NU1004); run `dotnet restore CheatEngine.Mcp.slnx --force-evaluate` on the pull
+# request branch and push the updated lock files.
+version: 2
+updates:
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      # CheatEngine.Client pins its CheatEngine.SDK range, so both move together.
+      cheatengine:
+        patterns:
+          - "CheatEngine.*"
+      # A new SDK version can change the MCP contract; review the golden files.
+      model-context-protocol:
+        patterns:
+          - "ModelContextProtocol*"
+      # Transitive pins that follow the Client and the runtime of the SDK pinned in global.json (CEMCP001).
+      runtime-pins:
+        patterns:
+          - "Microsoft.Extensions.*"
+          - "Microsoft.DiaSymReader"
+      test-platform:
+        patterns:
+          - "xunit.*"
+          - "Microsoft.Testing.*"
+    ignore:
+      # CheatEngine.Client 1.0 accepts CheatEngine.SDK 2.x only.
+      - dependency-name: "CheatEngine.SDK"
+        update-types: ["version-update:semver-major"]
+      # A new major Microsoft.Extensions.* version belongs to the next .NET release, not to net10.0.
+      - dependency-name: "Microsoft.Extensions.*"
+        update-types: ["version-update:semver-major"]
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"

@@ -8,6 +8,7 @@ namespace CheatEngine.Mcp.Core.Composition;
 public sealed record CheatEngineMcpPrimitive(
 	CheatEngineMcpPrimitiveKind Kind,
 	[property: DynamicallyAccessedMembers(CheatEngineMcpPrimitive.Members)]
+	[param: DynamicallyAccessedMembers(CheatEngineMcpPrimitive.Members)]
 	Type Type)
 {
 	/// <summary>The members reflected to discover primitive methods and construct instance targets.</summary>

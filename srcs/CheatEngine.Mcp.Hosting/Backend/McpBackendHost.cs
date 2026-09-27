@@ -29,7 +29,7 @@ internal sealed partial class McpBackendHost(
 	CancellationToken stopping,
 	InstancePublication? publication = null) : IMcpBackendHost
 {
-	private readonly IDisposable _logLease = logging.Acquire();
+	// The provider is the lease on the plugin's log sink: disposed once the web host stopped, never blocking.
 	private readonly ILoggerProvider _logProvider = logging.CreateProvider();
 	private readonly object _shutdownGate = new();
 	private WebApplication? _app;
@@ -113,7 +113,8 @@ internal sealed partial class McpBackendHost(
 		builder.Services.AddRoutingCore();
 		// Cheat Engine owns the process lifetime and Client Hosting owns the activation's.
 		builder.Services.AddSingleton<IHostLifetime, ActivationHostLifetime>();
-		builder.Logging.AddProvider(_logProvider);
+		// The web container never disposes this instance registration; StopCoreAsync does, after the host stopped.
+		builder.Logging.SetMinimumLevel(logging.MinimumLevel).AddProvider(_logProvider);
 		// The transport container holds no Client service and no primitive instance: tools are borrowed from the
 		// activation scope, so HTTP can never construct another Client activation or dispose activation state.
 		builder.Services.AddMcpServer(server =>
@@ -122,6 +123,7 @@ internal sealed partial class McpBackendHost(
 				{
 					Name = options.ServerName, Version = runtime.Version ?? "2.0.0"
 				};
+				server.ServerInstructions = manifest.BackendInstructions;
 			})
 			.WithHttpTransport(transport => transport.Stateless = true)
 			.WithCheatEnginePrimitives(manifest, McpPrimitiveBinding.FromTargets(targets));
@@ -150,15 +152,16 @@ internal sealed partial class McpBackendHost(
 		});
 		if (publication is not null)
 		{
-			app.MapGet("/instance",
-				() => new
-				{
-					publication.Descriptor.InstanceId,
-					publication.Descriptor.ActivationId,
-					publication.Descriptor.ProcessId,
-					publication.Descriptor.ProcessStartUtcTicks,
-					publication.Descriptor.PluginVersion
-				});
+			// Publishing sets only the endpoint, so the identity is fixed before the listener starts. A RequestDelegate
+			// with source-generated JSON needs neither reflection nor the Request Delegate Generator.
+			InstanceIdentity identity = InstanceIdentity.From(publication.Descriptor);
+			app.MapGet("/instance", WriteIdentityAsync);
+
+			Task WriteIdentityAsync(HttpContext context)
+			{
+				return context.Response.WriteAsJsonAsync(identity, HostingJsonContext.Default.InstanceIdentity,
+					cancellationToken: context.RequestAborted);
+			}
 		}
 
 		app.MapMcp();
@@ -174,7 +177,7 @@ internal sealed partial class McpBackendHost(
 		WebApplication? app = Interlocked.Exchange(ref _app, null);
 		if (app is null)
 		{
-			_logLease.Dispose();
+			_logProvider.Dispose();
 			return;
 		}
 
@@ -199,7 +202,7 @@ internal sealed partial class McpBackendHost(
 			}
 			finally
 			{
-				_logLease.Dispose();
+				_logProvider.Dispose();
 			}
 		}
 	}

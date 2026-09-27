@@ -75,7 +75,7 @@ public sealed class ToolContractTests
 
 	private static Type[] GetToolTypes()
 	{
-		return typeof(ProcessTool).Assembly
+		return typeof(CheatEngineToolsBuilderExtensions).Assembly
 			.GetTypes()
 			.Where(type => type.GetCustomAttribute<McpServerToolTypeAttribute>() is not null)
 			.OrderBy(type => type.FullName, StringComparer.Ordinal)

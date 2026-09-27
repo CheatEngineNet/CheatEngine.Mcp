@@ -1,10 +1,13 @@
 using System.Collections;
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 using CheatEngine.Client;
 using CheatEngine.Client.Lua;
 using CheatEngine.Client.Results;
+using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Execution;
 using CheatEngine.SDK.Lua.Calls;
 using CheatEngine.SDK.Lua.Runtime;
@@ -13,10 +16,25 @@ using CheatEngine.SDK.Lua.State;
 namespace CheatEngine.Mcp.Core.Lua;
 
 /// <summary>Confines protected Lua access to a Client-dispatched operation and copies bounded results.</summary>
+/// <remarks>
+///     <para>
+///         The v2 path (<see cref="Execute{T}" />, reached by tools through <see cref="ToolDispatch" />) builds
+///         <c>local k = {...}; local a = {...}; local mcp = ...</c> ahead of a fixed body, copies the result through
+///         <see cref="LuaJsonWriter" /> into a source-generated type, and reports failures as
+///         <see cref="CheatEngineToolException" />. The object-returning members serve the legacy tools until they
+///         migrate.
+///     </para>
+/// </remarks>
 public static class LuaToolRuntime
 {
 	internal const int MaximumStringBytes = 4 * 1024 * 1024;
 	internal const int MaximumItems = 65536;
+
+	/// <summary>The dispatch budget written into <c>k.budgetMs</c> when no configured budget is at hand.</summary>
+	internal const int DefaultBudgetMilliseconds = 100;
+
+	internal const string ContractViolationMessage =
+		"A fixed Lua script returned a result that breaks its contract; the script has already run.";
 
 	/// <summary>The only fixed script allowed on the SDK main-thread UI path: create or update the MCP status item.</summary>
 	internal const string StatusUpdateSource = """
@@ -36,7 +54,7 @@ public static class LuaToolRuntime
 	                                           return item.Caption == a[1]
 	                                           """;
 
-	/// <summary>Runs a fixed, implementation-owned Lua body through Client dispatch and wraps its bounded result.</summary>
+	/// <summary>Transition only: runs a fixed Lua body through Client dispatch and wraps its bounded result in band.</summary>
 	/// <param name="client">The activation's Client.</param>
 	/// <param name="operation">A diagnostic operation name.</param>
 	/// <param name="body">The fixed Lua body; caller data is passed only through <paramref name="arguments" />.</param>
@@ -51,7 +69,7 @@ public static class LuaToolRuntime
 		});
 	}
 
-	/// <summary>Runs a fixed Lua body inside the caller's current Client dispatch and returns the bounded copy.</summary>
+	/// <summary>Transition only: runs a fixed Lua body inside the current Client dispatch and returns the bounded copy.</summary>
 	/// <param name="client">The activation's Client.</param>
 	/// <param name="operation">A diagnostic operation name.</param>
 	/// <param name="body">The fixed Lua body; caller data is passed only through <paramref name="arguments" />.</param>
@@ -90,6 +108,107 @@ public static class LuaToolRuntime
 		return result is true;
 	}
 
+	/// <summary>
+	///     Runs a fixed, implementation-owned body inside the current Client dispatch and deserializes its bounded result.
+	///     Tools reach it through <see cref="ToolDispatch" />, which applies the feature choke point first.
+	/// </summary>
+	/// <remarks>
+	///     A result table with a top-level <c>mcp_error</c> becomes <see cref="CheatEngineToolException" /> with the declared
+	///     kind, message and hint; its host effect is <c>unknown</c> unless the script states one. A result that breaks the
+	///     copy contract is <c>internal</c> and one that exceeds a copy bound is <c>limit_exceeded</c>, both with
+	///     <c>completed</c>, because the script has already run. A Lua error is a Client failure (<c>host_refused</c>).
+	/// </remarks>
+	/// <typeparam name="T">The result type.</typeparam>
+	/// <param name="client">The activation's Client.</param>
+	/// <param name="operation">A diagnostic operation name, also reported as the error's operation.</param>
+	/// <param name="body">The fixed Lua body; caller data is passed only through <paramref name="arguments" />.</param>
+	/// <param name="resultType">The source-generated metadata of <typeparamref name="T" />.</param>
+	/// <param name="cancellationToken">The token observed before the Lua operation's admission.</param>
+	/// <param name="arguments">Values encoded into the <c>a</c> table.</param>
+	/// <returns>The deserialized result.</returns>
+	internal static T Execute<T>(ICheatEngineClient client, string operation, string body, JsonTypeInfo<T> resultType,
+		CancellationToken cancellationToken, params ReadOnlySpan<object?> arguments)
+	{
+		string source = BuildSource(body, DefaultBudgetMilliseconds, arguments);
+		return ExecuteSource(client, operation, source, resultType, new LuaJsonBufferPool(), cancellationToken);
+	}
+
+	/// <summary>Runs a script built by <see cref="BuildSource(string, int, ReadOnlySpan{object?})" /> in the current dispatch.</summary>
+	/// <typeparam name="T">The result type.</typeparam>
+	/// <param name="client">The activation's Client.</param>
+	/// <param name="operation">A diagnostic operation name, also reported as the error's operation.</param>
+	/// <param name="source">The complete script.</param>
+	/// <param name="resultType">The source-generated metadata of <typeparamref name="T" />.</param>
+	/// <param name="buffers">The caller's JSON buffer pool.</param>
+	/// <param name="cancellationToken">The token observed before the Lua operation's admission.</param>
+	/// <returns>The deserialized result.</returns>
+	internal static T ExecuteSource<T>(ICheatEngineClient client, string operation, string source,
+		JsonTypeInfo<T> resultType, LuaJsonBufferPool buffers, CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(client);
+		ArgumentException.ThrowIfNullOrWhiteSpace(operation);
+		ArgumentNullException.ThrowIfNull(source);
+		ArgumentNullException.ThrowIfNull(resultType);
+		ArgumentNullException.ThrowIfNull(buffers);
+		LuaJsonOperation<T> request = new(operation, source, resultType, buffers);
+		LuaJsonResult<T> result;
+		try
+		{
+			result = client.Lua.Execute<LuaJsonOperation<T>, LuaJsonResult<T>>(request, cancellationToken);
+		}
+		catch (LuaJsonException exception)
+		{
+			throw exception.Violation is LuaJsonViolation.Limit
+				? new CheatEngineToolException(new ToolError(ToolErrorKind.LimitExceeded, exception.Message, operation,
+					ToolHostEffect.Completed, false, ToolFailureMapping.LimitHint), exception)
+				: new CheatEngineToolException(new ToolError(ToolErrorKind.Internal, ContractViolationMessage,
+					operation, ToolHostEffect.Completed, false, CheatEngineToolException.InternalHint), exception);
+		}
+
+		return result.IsError ? throw ScriptError(operation, result.Error) : result.Value;
+	}
+
+	/// <summary>Maps a failure a fixed script declared through <c>mcp_error</c> to the contract.</summary>
+	/// <param name="operation">The Lua operation, reported as the error's operation.</param>
+	/// <param name="error">The declared failure.</param>
+	/// <returns>The exception to throw.</returns>
+	internal static CheatEngineToolException ScriptError(string operation, LuaScriptError error)
+	{
+		ArgumentNullException.ThrowIfNull(error);
+		ToolHostEffect effect = error.HostEffect is not null && TryParseContract(error.HostEffect,
+			out ToolHostEffect declared)
+			? declared
+			: ToolHostEffect.Unknown;
+		if (!TryParseContract(error.Kind, out ToolErrorKind kind))
+		{
+			return new CheatEngineToolException(new ToolError(ToolErrorKind.Internal,
+				$"A fixed Lua script declared the unknown error kind {error.Kind}: {error.Message}", operation, effect,
+				false, error.Hint ?? CheatEngineToolException.InternalHint));
+		}
+
+		return new CheatEngineToolException(new ToolError(kind, error.Message, operation, effect,
+			ToolFailureMapping.IsRetryable(kind, effect), error.Hint));
+	}
+
+	/// <summary>
+	///     Builds a v2 script: <c>local k = { budgetMs = … }; local a = { n = …, … }; local mcp = …</c> on the first line,
+	///     then the fixed body. Call it before dispatch, off Cheat Engine's main thread.
+	/// </summary>
+	/// <param name="body">The fixed body.</param>
+	/// <param name="budgetMilliseconds">The dispatch budget, exposed as <c>k.budgetMs</c> for <c>mcp.expired()</c>.</param>
+	/// <param name="arguments">Values encoded into the <c>a</c> table.</param>
+	/// <returns>The script.</returns>
+	/// <exception cref="ArgumentException">An argument has an unsupported type or exceeds a materialization bound.</exception>
+	internal static string BuildSource(string body, int budgetMilliseconds, ReadOnlySpan<object?> arguments)
+	{
+		ArgumentNullException.ThrowIfNull(body);
+		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(budgetMilliseconds);
+		StringBuilder source = new("local k = { budgetMs = ");
+		source.Append(budgetMilliseconds.ToString(CultureInfo.InvariantCulture)).Append(" }; ");
+		AppendArguments(source, arguments);
+		return source.Append(" }; ").Append(LuaPrelude.Source).Append('\n').Append(body).ToString();
+	}
+
 	internal static object Call(ICheatEngineClient client, string function, params object?[] arguments)
 	{
 		// Only implementation-owned global names are accepted here, never Lua expressions supplied by callers.
@@ -106,16 +225,20 @@ public static class LuaToolRuntime
 
 	internal static string BuildSource(string body, object?[] arguments)
 	{
-		StringBuilder source = new("local a = { n = ");
-		source.Append(arguments.Length.ToString(CultureInfo.InvariantCulture));
+		StringBuilder source = new();
+		AppendArguments(source, arguments);
+		return source.Append(" };\n").Append(body).ToString();
+	}
+
+	private static void AppendArguments(StringBuilder source, ReadOnlySpan<object?> arguments)
+	{
+		source.Append("local a = { n = ").Append(arguments.Length.ToString(CultureInfo.InvariantCulture));
 		int items = 0;
 		for (int index = 0; index < arguments.Length; index++)
 		{
 			source.Append(", [").Append((index + 1).ToString(CultureInfo.InvariantCulture)).Append("] = ");
 			AppendValue(source, arguments[index], 0, ref items);
 		}
-
-		return source.Append(" };\n").Append(body).ToString();
 	}
 
 	private static void AppendValue(StringBuilder source, object? value, int depth, ref int items)
@@ -187,6 +310,80 @@ public static class LuaToolRuntime
 		}
 	}
 
+	private static bool TryParseContract<TEnum>(string token, out TEnum value) where TEnum : struct, Enum
+	{
+		foreach (TEnum candidate in Enum.GetValues<TEnum>())
+		{
+			if (string.Equals(JsonNamingPolicy.SnakeCaseLower.ConvertName(candidate.ToString()), token,
+				    StringComparison.Ordinal))
+			{
+				value = candidate;
+				return true;
+			}
+		}
+
+		value = default;
+		return false;
+	}
+
+	/// <summary>Takes the SDK's protected Lua admission for the current thread.</summary>
+	private static bool TryAcquire(out LuaRuntimeOperation acquired, out CheatEngineFailure failure)
+	{
+		LuaAdmissionStatus admission = LuaRuntime.TryAcquireOperationWithOutcome(out acquired);
+		if (admission == LuaAdmissionStatus.Admitted)
+		{
+			failure = default;
+			return true;
+		}
+
+		CheatEngineFailureKind kind = admission switch
+		{
+			LuaAdmissionStatus.Detached or LuaAdmissionStatus.TransitionInProgress => CheatEngineFailureKind
+				.ActivationExpired,
+			LuaAdmissionStatus.ExternalStateReset => CheatEngineFailureKind.RuntimeChanged,
+			LuaAdmissionStatus.NoStateForThread or LuaAdmissionStatus.ThreadNotAdmitted =>
+				CheatEngineFailureKind.InvalidState,
+			_ => CheatEngineFailureKind.IndeterminateHostResult
+		};
+		failure = new CheatEngineFailure(kind, "Lua.Execute", $"Lua runtime admission failed: {admission}.",
+			hostEffect: CheatEngineHostEffect.NotStarted);
+		return false;
+	}
+
+	/// <summary>Compiles and runs one chunk, leaving its single result on the stack.</summary>
+	/// <param name="state">The admitted Lua state.</param>
+	/// <param name="operation">The operation, used in the chunk name.</param>
+	/// <param name="source">The chunk.</param>
+	/// <param name="effect">Advanced to <see cref="CheatEngineHostEffect.Started" /> once the chunk compiled.</param>
+	/// <param name="failure">The compile or runtime failure.</param>
+	/// <returns><see langword="true" /> when the chunk returned normally.</returns>
+	private static bool TryRun(LuaState state, string operation, string source, ref CheatEngineHostEffect effect,
+		out CheatEngineFailure failure)
+	{
+		if (!state.TryEnsureStack(64))
+		{
+			throw new InvalidOperationException("Lua could not reserve stack space for bounded result copying.");
+		}
+
+		LuaStatus status = state.TryLoad(Encoding.UTF8.GetBytes(source),
+			Encoding.UTF8.GetBytes("=CheatEngine.Mcp/" + operation));
+		if (status.IsOk)
+		{
+			effect = CheatEngineHostEffect.Started;
+			status = state.TryCall(0, 1);
+		}
+
+		if (!status.IsOk)
+		{
+			failure = new CheatEngineFailure(CheatEngineFailureKind.LuaError, "Lua.Execute",
+				LuaError.FromStack(state, status).Message, hostEffect: effect);
+			return false;
+		}
+
+		failure = default;
+		return true;
+	}
+
 	internal sealed record LuaToolOperation(string Operation, string Source) : ILuaOperation<object?>
 	{
 		public bool TryExecute(ILuaExecutionContext context, out object? result, out CheatEngineFailure failure)
@@ -201,45 +398,16 @@ public static class LuaToolRuntime
 			CheatEngineHostEffect effect = CheatEngineHostEffect.NotStarted;
 			try
 			{
-				LuaAdmissionStatus admission =
-					LuaRuntime.TryAcquireOperationWithOutcome(out LuaRuntimeOperation acquired);
-				if (admission != LuaAdmissionStatus.Admitted)
+				if (!TryAcquire(out LuaRuntimeOperation acquired, out failure))
 				{
-					CheatEngineFailureKind kind = admission switch
-					{
-						LuaAdmissionStatus.Detached or LuaAdmissionStatus.TransitionInProgress => CheatEngineFailureKind
-							.ActivationExpired,
-						LuaAdmissionStatus.ExternalStateReset => CheatEngineFailureKind.RuntimeChanged,
-						LuaAdmissionStatus.NoStateForThread or LuaAdmissionStatus.ThreadNotAdmitted =>
-							CheatEngineFailureKind.InvalidState,
-						_ => CheatEngineFailureKind.IndeterminateHostResult
-					};
-					failure = new CheatEngineFailure(kind, "Lua.Execute", $"Lua runtime admission failed: {admission}.",
-						hostEffect: effect);
 					return false;
 				}
 
 				using LuaRuntimeOperation operation = acquired;
 				LuaState state = operation.State;
 				using LuaFrame frame = new(state);
-				if (!state.TryEnsureStack(64))
+				if (!TryRun(state, Operation, Source, ref effect, out failure))
 				{
-					throw new InvalidOperationException(
-						"Lua could not reserve stack space for bounded result copying.");
-				}
-
-				LuaStatus status = state.TryLoad(Encoding.UTF8.GetBytes(Source),
-					Encoding.UTF8.GetBytes("=CheatEngine.Mcp/" + Operation));
-				if (status.IsOk)
-				{
-					effect = CheatEngineHostEffect.Started;
-					status = state.TryCall(0, 1);
-				}
-
-				if (!status.IsOk)
-				{
-					failure = new CheatEngineFailure(CheatEngineFailureKind.LuaError, "Lua.Execute",
-						LuaError.FromStack(state, status).Message, hostEffect: effect);
 					return false;
 				}
 
@@ -257,6 +425,47 @@ public static class LuaToolRuntime
 					"Lua.Execute", exception.Message, exception, effect);
 				return false;
 			}
+		}
+	}
+
+	/// <summary>
+	///     One v2 fixed script: its result is copied through <see cref="LuaJsonWriter" /> into <typeparamref name="T" />,
+	///     or its declared <c>mcp_error</c> is returned. A copy failure propagates as <see cref="LuaJsonException" />.
+	/// </summary>
+	/// <typeparam name="T">The result type.</typeparam>
+	/// <param name="Operation">A diagnostic operation name.</param>
+	/// <param name="Source">The complete script.</param>
+	/// <param name="ResultType">The source-generated metadata of <typeparamref name="T" />.</param>
+	/// <param name="Buffers">The owner's JSON buffer pool.</param>
+	internal sealed record LuaJsonOperation<T>(
+		string Operation,
+		string Source,
+		JsonTypeInfo<T> ResultType,
+		LuaJsonBufferPool Buffers) : ILuaOperation<LuaJsonResult<T>>
+	{
+		public bool TryExecute(ILuaExecutionContext context, out LuaJsonResult<T> result,
+			out CheatEngineFailure failure)
+		{
+			ArgumentNullException.ThrowIfNull(context);
+			context.ThrowIfExpired();
+			result = default;
+			if (!TryAcquire(out LuaRuntimeOperation acquired, out failure))
+			{
+				return false;
+			}
+
+			using LuaRuntimeOperation operation = acquired;
+			LuaState state = operation.State;
+			using LuaFrame frame = new(state);
+			CheatEngineHostEffect effect = CheatEngineHostEffect.NotStarted;
+			if (!TryRun(state, Operation, Source, ref effect, out failure))
+			{
+				return false;
+			}
+
+			result = LuaJsonWriter.Read(state, -1, ResultType, Buffers);
+			failure = default;
+			return true;
 		}
 	}
 

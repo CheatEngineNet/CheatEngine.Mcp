@@ -14,12 +14,18 @@ internal static class GatewayRoutingServiceCollectionExtensions
 	extension(IServiceCollection services)
 	{
 		/// <summary>Registers the transport-independent routing services and handlers.</summary>
-		/// <param name="instanceDirectory">The absolute discovery directory shared with the plugins.</param>
+		/// <param name="options">The resolved gateway options, whose instance directory the plugins share.</param>
 		/// <returns>The same collection.</returns>
-		internal IServiceCollection AddCheatEngineGatewayRouting(string instanceDirectory)
+		internal IServiceCollection AddCheatEngineGatewayRouting(GatewayOptions options)
 		{
 			ArgumentNullException.ThrowIfNull(services);
-			services.TryAddSingleton(new InstanceRegistry(instanceDirectory));
+			ArgumentNullException.ThrowIfNull(options);
+			services.TryAddSingleton(options);
+			services.TryAddSingleton(new InstanceRegistry(options.InstanceDirectory));
+			services.TryAddSingleton(TimeProvider.System);
+			services.TryAddSingleton<InstanceIdentityVerifier>();
+			services.TryAddSingleton<BackendConnectionPool>();
+			services.TryAddSingleton<GatewayInstanceTool>();
 			services.TryAddSingleton<GatewayToolCatalog>();
 			services.TryAddSingleton<GatewayRouter>();
 			services.AddOptions<CheatEngineMcpPrimitiveOptions>();

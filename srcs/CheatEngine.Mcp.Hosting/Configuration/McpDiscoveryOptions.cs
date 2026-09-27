@@ -10,9 +10,10 @@ public sealed class McpDiscoveryOptions
 	/// <summary>The configuration section that holds the MCP settings.</summary>
 	public const string SectionName = McpBackendOptions.SectionName;
 
-	/// <summary>The display name reported by <c>list_instances</c>; names may repeat across instances.</summary>
+	/// <summary>The display name reported by <c>instance_list</c>; names may repeat across instances.</summary>
 	[Required(ErrorMessage = "Mcp:InstanceName is required.")]
-	[MaxLength(128, ErrorMessage = "Mcp:InstanceName must be at most 128 characters.")]
+	// StringLength, not MaxLength: MaxLength counts collections through reflection, which trimming cannot preserve.
+	[StringLength(128, ErrorMessage = "Mcp:InstanceName must be at most 128 characters.")]
 	public string InstanceName
 	{
 		get;

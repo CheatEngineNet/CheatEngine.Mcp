@@ -1,12 +1,16 @@
 using CheatEngine.Client;
 using CheatEngine.Mcp.Hosting.Configuration;
 
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace CheatEngine.Mcp.Plugin;
 
 /// <summary>Shows this CE host's backend state in a CE-owned, session-long menu item.</summary>
-internal sealed class McpStatusIndicator(IOptions<McpDiscoveryOptions> discovery, PluginLog log)
+internal sealed partial class McpStatusIndicator(
+	IOptions<McpDiscoveryOptions> discovery,
+	PluginLog log,
+	ILogger<McpStatusIndicator> logger)
 {
 	/// <summary>Shows a state; a failure is logged, never thrown, so it cannot change the lifecycle outcome.</summary>
 	internal void Report(ICheatEngineClient client, string state, string? endpoint = null)
@@ -17,13 +21,12 @@ internal sealed class McpStatusIndicator(IOptions<McpDiscoveryOptions> discovery
 			bool updated = state == "Disabled" ? ShowDisabled(client, details) : Show(client, state, details);
 			if (updated)
 			{
-				log.Factory.GetCurrentClassLogger().Info("MCP status indicator: {0}.", state);
+				LogStatusShown(logger, state);
 			}
 		}
 		catch (Exception exception)
 		{
-			log.Factory.GetCurrentClassLogger()
-				.Warn(exception, "Could not update the MCP status indicator to {0}.", state);
+			LogStatusFailed(logger, exception, state);
 		}
 	}
 
@@ -49,4 +52,10 @@ internal sealed class McpStatusIndicator(IOptions<McpDiscoveryOptions> discovery
 			       _ => "The MCP server is starting."
 		       }}\n\nLog: {log.LogFilePath}";
 	}
+
+	[LoggerMessage(Level = LogLevel.Information, Message = "MCP status indicator: {State}.")]
+	private static partial void LogStatusShown(ILogger logger, string state);
+
+	[LoggerMessage(Level = LogLevel.Warning, Message = "Could not update the MCP status indicator to {State}.")]
+	private static partial void LogStatusFailed(ILogger logger, Exception exception, string state);
 }

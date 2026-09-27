@@ -1,0 +1,15 @@
+exec_compile_c
+exec_inject_dotnet
+exec_inject_library
+kernel_initialize_dbvm
+kernel_write_physical
+memory_dump_to_file
+module_find_patches
+mono_attach
+process_create
+process_open_file
+process_save_file
+symbol_add_module
+table_list_files
+table_load
+table_save

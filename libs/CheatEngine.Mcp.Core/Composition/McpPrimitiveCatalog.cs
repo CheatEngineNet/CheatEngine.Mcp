@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -40,16 +41,21 @@ public sealed class McpPrimitiveCatalog
 
 	/// <summary>Builds the catalog in a validated, disposable container that never registers primitive types.</summary>
 	/// <param name="manifest">The primitives a composition declared.</param>
+	/// <param name="strictJson">
+	///     Whether the serializer options keep only source-generated metadata, as the backend's must for the schemas to
+	///     match; see <see cref="CheatEngineMcpJson.CreateOptions" />.
+	/// </param>
 	/// <returns>Detached copies of the protocol metadata.</returns>
-	public static McpPrimitiveCatalog Create(CheatEngineMcpPrimitiveOptions manifest)
+	public static McpPrimitiveCatalog Create(CheatEngineMcpPrimitiveOptions manifest,
+		bool strictJson = CheatEngineMcpJson.StrictByDefault)
 	{
 		ArgumentNullException.ThrowIfNull(manifest);
 		ServiceCollection services = new();
 		services.AddLogging();
-		services.AddMcpServer().WithCheatEnginePrimitives(manifest, McpPrimitiveBinding.Catalog);
+		services.AddMcpServer().WithCheatEnginePrimitives(manifest, McpPrimitiveBinding.Catalog, strictJson);
 		using ServiceProvider provider =
 			services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
-		// Materializing the options runs the duplicate-identifier validation.
+		// Materializing the options runs the duplicate-identifier and contract validation.
 		_ = provider.GetRequiredService<IOptions<McpServerOptions>>().Value;
 		return new McpPrimitiveCatalog(
 			provider.GetServices<McpServerTool>().Select(static tool => Detach(tool.ProtocolTool))
@@ -61,9 +67,10 @@ public sealed class McpPrimitiveCatalog
 				.OrderBy(static resource => resource.UriTemplate, StringComparer.Ordinal).ToArray());
 	}
 
+	// The protocol types are in the SDK's source-generated context, so no reflection-based overload is needed.
 	private static T Detach<T>(T value)
 	{
-		return JsonSerializer.SerializeToElement(value, McpJsonUtilities.DefaultOptions)
-			.Deserialize<T>(McpJsonUtilities.DefaultOptions)!;
+		JsonTypeInfo<T> typeInfo = McpJsonUtilities.DefaultOptions.GetTypeInfo<T>();
+		return JsonSerializer.SerializeToElement(value, typeInfo).Deserialize(typeInfo)!;
 	}
 }

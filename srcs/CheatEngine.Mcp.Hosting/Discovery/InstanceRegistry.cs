@@ -2,13 +2,13 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Text.Json;
 
+using CheatEngine.Mcp.Core.Contract;
+
 namespace CheatEngine.Mcp.Hosting.Discovery;
 
 /// <summary>Discovers only live process activations with literal loopback endpoints.</summary>
 public sealed class InstanceRegistry(string directory)
 {
-	private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-
 	public static string DefaultDirectory => Path.Combine(
 		Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
 		"CheatEngine.Mcp", "instances");
@@ -44,7 +44,8 @@ public sealed class InstanceRegistry(string directory)
 					continue;
 				}
 
-				InstanceDescriptor? instance = JsonSerializer.Deserialize<InstanceDescriptor>(file, JsonOptions);
+				InstanceDescriptor? instance =
+					JsonSerializer.Deserialize(file, HostingJsonContext.Default.InstanceDescriptor);
 				if (instance is not null && IsValid(instance)
 				                         && string.Equals(Path.GetFileNameWithoutExtension(path),
 					                         instance.ActivationId.ToString("N"), StringComparison.Ordinal)
@@ -69,7 +70,7 @@ public sealed class InstanceRegistry(string directory)
 		return matching.Length == 1
 			? matching[0]
 			: throw new InvalidOperationException(
-				$"Cheat Engine instance '{instanceId}' is unavailable or ambiguous. Call list_instances again.");
+				$"Cheat Engine instance '{instanceId}' is unavailable or ambiguous. Call {CheatEngineToolNames.InstanceList} again.");
 	}
 
 	internal string Publish(InstanceDescriptor instance)
@@ -86,7 +87,7 @@ public sealed class InstanceRegistry(string directory)
 		{
 			using (FileStream file = new(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
 			{
-				JsonSerializer.Serialize(file, instance, JsonOptions);
+				JsonSerializer.Serialize(file, instance, HostingJsonContext.Default.InstanceDescriptor);
 			}
 
 			File.Move(temporaryPath, path, false);

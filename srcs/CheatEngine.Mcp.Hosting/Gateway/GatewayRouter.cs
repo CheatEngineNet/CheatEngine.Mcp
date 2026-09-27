@@ -1,218 +1,158 @@
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using System.Text.Json;
 
+using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Hosting.Discovery;
 
-using ModelContextProtocol.Client;
+using Microsoft.Extensions.Logging;
+
+using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
 namespace CheatEngine.Mcp.Hosting.Gateway;
 
-/// <summary>Routes each tool call to the one verified Cheat Engine instance its instanceId names.</summary>
-internal sealed class GatewayRouter(InstanceRegistry registry, GatewayToolCatalog catalog)
+/// <summary>Routes each tool call to the one verified Cheat Engine instance its instanceId names, and never elsewhere.</summary>
+/// <remarks>
+///     Each call re-reads the registry, verifies the backend identity, leases the pooled client of that exact record
+///     and forwards once. Any failure evicts the client and is reported in the v2 error envelope; nothing is re-sent.
+/// </remarks>
+internal sealed partial class GatewayRouter(
+	GatewayOptions options,
+	InstanceRegistry registry,
+	InstanceIdentityVerifier verifier,
+	BackendConnectionPool pool,
+	GatewayInstanceTool instances,
+	GatewayToolCatalog catalog,
+	ILogger<GatewayRouter> logger)
 {
-	private static readonly TimeSpan ConnectionTimeout = TimeSpan.FromSeconds(10);
-	private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+	/// <summary>How long clients may cache the listing: it is fixed for the life of the gateway process.</summary>
+	internal static readonly TimeSpan CatalogTimeToLive = TimeSpan.FromHours(1);
 
 	internal ValueTask<ListToolsResult> ListToolsAsync(RequestContext<ListToolsRequestParams> _, CancellationToken __)
 	{
-		return ValueTask.FromResult(new ListToolsResult { Tools = catalog.Tools.ToList() });
+		return ValueTask.FromResult(new ListToolsResult
+		{
+			Tools = catalog.Tools.ToList(), TimeToLive = CatalogTimeToLive, CacheScope = CacheScope.Private
+		});
 	}
 
 	internal async ValueTask<CallToolResult> CallToolAsync(RequestContext<CallToolRequestParams> context,
 		CancellationToken cancellationToken)
 	{
-		CallToolRequestParams request = context.Params;
-		if (string.Equals(request.Name, GatewayToolCatalog.ListInstancesToolName, StringComparison.Ordinal))
+		CallToolRequestParams request = context.Params
+		                                ?? throw new McpProtocolException("tools/call requires params.",
+			                                McpErrorCode.InvalidParams);
+		if (string.Equals(request.Name, GatewayToolCatalog.InstanceListToolName, StringComparison.Ordinal))
 		{
-			return await ListInstancesAsync(cancellationToken).ConfigureAwait(false);
+			return await instances.CallAsync(cancellationToken).ConfigureAwait(false);
 		}
 
-		if (!catalog.Tools.Any(tool => string.Equals(tool.Name, request.Name, StringComparison.Ordinal)))
+		if (!catalog.IsRouted(request.Name))
 		{
-			return Error($"Tool '{request.Name}' is not available from this gateway.");
+			return GatewayErrors.UnknownTool(request.Name);
 		}
 
-		if (request.Arguments is null || !request.Arguments.TryGetValue(GatewayToolCatalog.InstanceIdArgumentName,
-			    out JsonElement instanceIdValue) || instanceIdValue.ValueKind != JsonValueKind.String
-		    || string.IsNullOrWhiteSpace(instanceIdValue.GetString()))
+		if (request.Arguments is null
+		    || !request.Arguments.TryGetValue(GatewayToolCatalog.InstanceIdArgumentName, out JsonElement routing)
+		    || routing.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(routing.GetString()))
 		{
-			return Error("A non-empty instanceId returned by list_instances is required.");
+			return GatewayErrors.MissingInstanceId(request.Name);
 		}
 
-		InstanceDescriptor instance;
+		string instanceId = routing.GetString()!;
+		// Re-read on every call: a withdrawn or republished record must never reach an old client.
+		InstanceDescriptor[] records = registry.ReadActive(cancellationToken)
+			.Where(candidate => string.Equals(candidate.InstanceId, instanceId, StringComparison.Ordinal)).ToArray();
+		if (records is not [InstanceDescriptor instance])
+		{
+			pool.Evict(instanceId, "no single active record");
+			return GatewayErrors.UnknownInstance(request.Name, instanceId);
+		}
+
 		try
 		{
-			instance = registry.Find(instanceIdValue.GetString()!);
-			await ConfirmIdentityAsync(instance, cancellationToken).ConfigureAwait(false);
+			await verifier.VerifyAsync(instance, cancellationToken).ConfigureAwait(false);
 		}
-		catch (Exception exception) when (exception is InvalidOperationException or HttpRequestException
-			                                  or JsonException
-			                                  or TaskCanceledException && !cancellationToken.IsCancellationRequested)
+		catch (InstanceUnavailableException exception)
 		{
-			return Error($"Cheat Engine instance is unavailable: {exception.Message}");
+			pool.Evict(instanceId, "identity check failed");
+			LogUnavailable(logger, instanceId, request.Name, exception.Message);
+			return GatewayErrors.Unavailable(request.Name, instanceId, exception.Message, ToolHostEffect.NotStarted);
 		}
 
-		Dictionary<string, JsonElement> forwardedArguments = request.Arguments
-			.Where(argument =>
-				!string.Equals(argument.Key, GatewayToolCatalog.InstanceIdArgumentName, StringComparison.Ordinal))
-			.ToDictionary(argument => argument.Key, argument => argument.Value, StringComparer.Ordinal);
-		CallToolRequestParams forwardedRequest = new()
+		BackendConnectionPool.BackendLease lease;
+		try
+		{
+			lease = await pool.RentAsync(instance, cancellationToken).ConfigureAwait(false);
+		}
+		catch (InstanceUnavailableException exception)
+		{
+			LogUnavailable(logger, instanceId, request.Name, exception.Message);
+			return GatewayErrors.Unavailable(request.Name, instanceId, exception.Message, ToolHostEffect.NotStarted);
+		}
+
+		using (lease)
+		{
+			return await ForwardAsync(lease, request, instanceId, cancellationToken).ConfigureAwait(false);
+		}
+	}
+
+	private async Task<CallToolResult> ForwardAsync(BackendConnectionPool.BackendLease lease,
+		CallToolRequestParams request, string instanceId, CancellationToken cancellationToken)
+	{
+		// Only the tool's own arguments and trace context travel: the routing argument, protocol-reserved _meta, the
+		// upstream progress token and MRTR state belong to the upstream session, not to this hop.
+		CallToolRequestParams forwarded = new()
 		{
 			Name = request.Name,
-			Arguments = forwardedArguments,
-			Meta = request.Meta,
-			InputResponses = request.InputResponses,
-			RequestState = request.RequestState
+			Arguments = request.Arguments!
+				.Where(static argument => !string.Equals(argument.Key, GatewayToolCatalog.InstanceIdArgumentName,
+					StringComparison.Ordinal))
+				.ToDictionary(static argument => argument.Key, static argument => argument.Value,
+					StringComparer.Ordinal),
+			Meta = GatewayMeta.ForBackend(request.Meta)
 		};
-		try
-		{
-			await using HttpClientTransport transport = CreateTransport(instance);
-			await using McpClient client = await McpClient
-				.CreateAsync(transport, CreateClientOptions(), cancellationToken: cancellationToken)
-				.ConfigureAwait(false);
-			return await client.CallToolAsync(forwardedRequest, cancellationToken)
-				.ConfigureAwait(false);
-		}
-		catch (Exception exception) when (exception is HttpRequestException or TimeoutException or TaskCanceledException
-			                                  or ClientTransportClosedException &&
-		                                  !cancellationToken.IsCancellationRequested)
-		{
-			return Error(
-				$"Cheat Engine instance is unavailable while forwarding '{request.Name}': {exception.Message}");
-		}
-	}
-
-	private async Task<CallToolResult> ListInstancesAsync(CancellationToken cancellationToken)
-	{
-		InstanceListEntry?[] discovered = [];
-		bool discoveryIncomplete = false;
 		using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-		deadline.CancelAfter(ConnectionTimeout);
+		deadline.CancelAfter(options.CallTimeout);
 		try
 		{
-			InstanceDescriptor[] instances = registry.ReadActive(deadline.Token).ToArray();
-			discovered = new InstanceListEntry?[instances.Length];
-			await Parallel.ForEachAsync(Enumerable.Range(0, instances.Length),
-				new ParallelOptions { MaxDegreeOfParallelism = 16, CancellationToken = deadline.Token },
-				async (index, token) =>
-				{
-					discovered[index] = await ProbeInstanceAsync(instances[index], token).ConfigureAwait(false);
-				}).ConfigureAwait(false);
+			// A backend result, including its own isError result, passes through unchanged.
+			return await lease.Client.CallToolAsync(forwarded, deadline.Token).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException) when (deadline.IsCancellationRequested &&
-		                                         !cancellationToken.IsCancellationRequested)
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
-			// Return verified candidates within the discovery budget; never imply that a partial list is complete.
-			discoveryIncomplete = true;
+			// The upstream cancelled: the SDK sends no response, and the backend already saw the cancellation.
+			throw;
 		}
-
-		cancellationToken.ThrowIfCancellationRequested();
-		InstanceListEntry[] available = discovered.Where(instance => instance is not null)
-			.Select(instance => instance!).ToArray();
-		JsonElement payload =
-			JsonSerializer.SerializeToElement(new { instances = available, discoveryIncomplete }, JsonOptions);
-		string textPayload = payload.GetRawText();
-		return new CallToolResult
+		catch (OperationCanceledException) when (deadline.IsCancellationRequested)
 		{
-			StructuredContent = payload, Content = [new TextContentBlock { Text = textPayload }]
-		};
-	}
-
-	private static async Task<InstanceListEntry?> ProbeInstanceAsync(InstanceDescriptor instance,
-		CancellationToken cancellationToken)
-	{
-		try
-		{
-			await ConfirmIdentityAsync(instance, cancellationToken).ConfigureAwait(false);
-			return new InstanceListEntry(instance.InstanceId, instance.Name, instance.ProcessId,
-				instance.PluginVersion);
+			lease.Evict("call timeout");
+			LogTimeout(logger, instanceId, request.Name, options.CallTimeout.TotalSeconds);
+			return GatewayErrors.Timeout(request.Name, instanceId, options.CallTimeout);
 		}
-		catch (Exception exception) when (exception is InvalidOperationException or HttpRequestException
-			                                  or JsonException
-			                                  or TaskCanceledException && !cancellationToken.IsCancellationRequested)
+		catch (McpProtocolException)
 		{
-			// A registry record is only a candidate. Suppress unavailable instances without exposing its token.
-			return null;
+			// The backend answered with a JSON-RPC error; the upstream receives the same error.
+			throw;
+		}
+		catch (Exception exception)
+		{
+			lease.Evict("transport failure");
+			ToolHostEffect effect = exception is HttpRequestException http && BackendHttp.NeverReachedBackend(http)
+				? ToolHostEffect.NotStarted
+				: ToolHostEffect.Unknown;
+			string reason = exception is HttpRequestException failure
+				? BackendHttp.Describe(failure)
+				: $"The connection failed while forwarding the call ({exception.GetType().Name}).";
+			LogUnavailable(logger, instanceId, request.Name, reason);
+			return GatewayErrors.Unavailable(request.Name, instanceId, reason, effect);
 		}
 	}
 
-	private static async Task ConfirmIdentityAsync(InstanceDescriptor instance, CancellationToken cancellationToken)
-	{
-		using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-		timeout.CancelAfter(ConnectionTimeout);
-		using HttpClient client = CreateLocalHttpClient(new Uri(instance.Endpoint));
-		using HttpRequestMessage request = new(HttpMethod.Get, "instance");
-		request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", instance.AccessToken);
-		using HttpResponseMessage response = await client
-			.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token)
-			.ConfigureAwait(false);
-		if (!response.IsSuccessStatusCode)
-		{
-			throw new InvalidOperationException(
-				$"The instance identity endpoint returned HTTP {(int) response.StatusCode}.");
-		}
+	[LoggerMessage(Level = LogLevel.Warning, Message = "Instance {InstanceId} is unavailable for {Tool}: {Reason}")]
+	private static partial void LogUnavailable(ILogger logger, string instanceId, string tool, string reason);
 
-		InstanceIdentity? identity = await response.Content.ReadFromJsonAsync<InstanceIdentity>(timeout.Token)
-			.ConfigureAwait(false);
-		if (identity is null || identity.InstanceId != instance.InstanceId ||
-		    identity.ActivationId != instance.ActivationId
-		    || identity.ProcessId != instance.ProcessId ||
-		    identity.ProcessStartUtcTicks != instance.ProcessStartUtcTicks
-		    || identity.PluginVersion != instance.PluginVersion)
-		{
-			throw new InvalidOperationException("The instance identity did not match its active registry record.");
-		}
-	}
-
-	private static HttpClientTransport CreateTransport(InstanceDescriptor instance)
-	{
-		Uri endpoint = new(instance.Endpoint);
-		return new HttpClientTransport(
-			new HttpClientTransportOptions
-			{
-				Endpoint = endpoint,
-				Name = "CheatEngine.Mcp.Gateway",
-				TransportMode = HttpTransportMode.StreamableHttp,
-				ConnectionTimeout = ConnectionTimeout,
-				AdditionalHeaders = new Dictionary<string, string>(StringComparer.Ordinal)
-				{
-					["Authorization"] = $"Bearer {instance.AccessToken}"
-				}
-			}, CreateLocalHttpClient(endpoint), null, true);
-	}
-
-	private static HttpClient CreateLocalHttpClient(Uri endpoint)
-	{
-		return new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false, UseProxy = false })
-		{
-			BaseAddress = endpoint, Timeout = Timeout.InfiniteTimeSpan
-		};
-	}
-
-	private static McpClientOptions CreateClientOptions()
-	{
-		return new McpClientOptions
-		{
-			ClientInfo = new Implementation { Name = "CheatEngine.Mcp.Gateway", Version = "2.0.0" },
-			Capabilities = new ClientCapabilities(),
-			ProtocolVersion = "2025-06-18"
-		};
-	}
-
-	private static CallToolResult Error(string message)
-	{
-		return new CallToolResult { IsError = true, Content = [new TextContentBlock { Text = message }] };
-	}
-
-	private sealed record InstanceIdentity(
-		string InstanceId,
-		Guid ActivationId,
-		int ProcessId,
-		long ProcessStartUtcTicks,
-		string PluginVersion);
-
-	private sealed record InstanceListEntry(string InstanceId, string Name, int ProcessId, string PluginVersion);
+	[LoggerMessage(Level = LogLevel.Warning,
+		Message = "Instance {InstanceId} did not answer {Tool} within {Seconds} s; its outcome is unknown.")]
+	private static partial void LogTimeout(ILogger logger, string instanceId, string tool, double seconds);
 }

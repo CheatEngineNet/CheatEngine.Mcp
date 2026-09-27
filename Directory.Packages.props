@@ -8,8 +8,6 @@
     <PackageVersion Include="CheatEngine.SDK" Version="2.0.0"/>
     <PackageVersion Include="ModelContextProtocol" Version="2.2.0"/>
     <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="2.2.0"/>
-    <PackageVersion Include="NLog" Version="6.2.1"/>
-    <PackageVersion Include="NLog.Extensions.Logging" Version="6.2.1"/>
     <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.1"/>
     <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.11.2"/>
     <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="2.4.1"/>

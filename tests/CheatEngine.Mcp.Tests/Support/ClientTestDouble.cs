@@ -35,12 +35,20 @@ internal static class ClientTestDouble
 
 	public static ICheatEngineClient Client(params (string PropertyName, object Value)[] properties)
 	{
+		return Client(InlineDispatcher, CancellationToken.None, properties);
+	}
+
+	/// <summary>A Client double with a chosen dispatcher and stopping token.</summary>
+	public static ICheatEngineClient Client(ICheatEngineDispatcher dispatcher, CancellationToken stopping,
+		params (string PropertyName, object Value)[] properties)
+	{
+		ArgumentNullException.ThrowIfNull(dispatcher);
 		Dictionary<string, object> values = properties.ToDictionary(pair => pair.PropertyName, pair => pair.Value,
 			StringComparer.Ordinal);
-		values[nameof(ICheatEngineClient.Dispatcher)] = InlineDispatcher;
+		values[nameof(ICheatEngineClient.Dispatcher)] = dispatcher;
 		return Create<ICheatEngineClient>((method, _) => method.Name switch
 		{
-			"get_Stopping" => CancellationToken.None,
+			"get_Stopping" => stopping,
 			_ when method.Name.StartsWith("get_", StringComparison.Ordinal) &&
 			       values.TryGetValue(method.Name[4..], out object? value) => value,
 			_ => throw new NotSupportedException($"No client double value was configured for {method.Name}.")

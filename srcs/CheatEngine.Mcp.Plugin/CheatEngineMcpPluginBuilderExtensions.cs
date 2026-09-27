@@ -1,9 +1,12 @@
 using CheatEngine.Client.Hosting;
+using CheatEngine.Mcp.Core.Execution;
+using CheatEngine.Mcp.Core.Features;
+using CheatEngine.Mcp.Plugin.Logging;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-
-using NLog.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace CheatEngine.Mcp.Plugin;
 
@@ -14,17 +17,19 @@ internal static class CheatEngineMcpPluginBuilderExtensions
 	{
 		/// <summary>Registers the MCP plugin in the activation; the returned builder declares the backend's primitives.</summary>
 		/// <param name="environment">The process inputs to read.</param>
+		/// <param name="log">The plugin instance's log sink, shared by every activation of this process.</param>
 		/// <returns>The composition builder.</returns>
-		internal ICheatEngineMcpBuilder AddCheatEngineMcp(McpPluginEnvironment environment)
+		internal ICheatEngineMcpBuilder AddCheatEngineMcp(McpPluginEnvironment environment, PluginLogSink log)
 		{
 			ArgumentNullException.ThrowIfNull(builder);
 			ArgumentNullException.ThrowIfNull(environment);
+			ArgumentNullException.ThrowIfNull(log);
 			// The Client binds its own CheatEngineClient section from the same configuration.
 			builder.Configuration.AddCheatEngineMcpSettings(builder.PluginDirectory, environment);
-			McpFeatureOptions features = McpFeatureOptions.Read(builder.Configuration);
+			// Read once: this instance drives both the Client opt-ins below and the MCP feature gates.
+			McpFeatureOptions features = ReadFeatureOptions(builder.Configuration);
+			// The activation's only provider is the plugin log, which AddCheatEngineMcpServices registers.
 			builder.Logging.ClearProviders();
-			builder.Logging.AddNLog(new NLogProviderOptions { ShutdownOnDispose = false },
-				static services => services.GetRequiredService<PluginLog>().Factory);
 			if (features.EnableUnsafeLua)
 			{
 				builder.Client.EnableUnsafeLuaExecution();
@@ -36,7 +41,43 @@ internal static class CheatEngineMcpPluginBuilderExtensions
 			}
 
 			builder.Client.AddModule<McpServerModule>();
-			return builder.Services.AddCheatEngineMcpServices(builder.Configuration, environment);
+			// The Client resolves the folder CE loaded this plugin from; CE's application base directory is not it.
+			return builder.Services
+				.AddCheatEngineMcpServices(builder.Configuration, environment, log, builder.PluginDirectory)
+				.AddCheatEngineMcpExecution(builder.Configuration, features);
 		}
+	}
+
+	extension(ICheatEngineMcpBuilder mcp)
+	{
+		/// <summary>
+		///     Registers the activation's execution services with the given feature switches, as the only
+		///     <see cref="McpFeatureOptions" /> instance, and binds <see cref="McpExecutionOptions" /> from
+		///     <c>Mcp:Execution</c>.
+		/// </summary>
+		/// <param name="configuration">The activation configuration.</param>
+		/// <param name="features">The switches that already drove the Client opt-ins.</param>
+		/// <returns>The same builder.</returns>
+		internal ICheatEngineMcpBuilder AddCheatEngineMcpExecution(IConfiguration configuration,
+			McpFeatureOptions features)
+		{
+			ArgumentNullException.ThrowIfNull(mcp);
+			ArgumentNullException.ThrowIfNull(configuration);
+			ArgumentNullException.ThrowIfNull(features);
+			mcp.Services.AddSingleton(Options.Create(features));
+			mcp.Services.AddOptions<McpExecutionOptions>()
+				.Bind(configuration.GetSection(McpExecutionOptions.SectionName));
+			return mcp.AddExecutionServices();
+		}
+	}
+
+	/// <summary>Binds the feature switches from the flat keys of the <c>Mcp</c> section; absent keys stay enabled.</summary>
+	/// <param name="configuration">The activation configuration.</param>
+	/// <returns>A new options instance.</returns>
+	internal static McpFeatureOptions ReadFeatureOptions(IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(configuration);
+		return configuration.GetSection(McpFeatureOptions.SectionName).Get<McpFeatureOptions>()
+		       ?? new McpFeatureOptions();
 	}
 }

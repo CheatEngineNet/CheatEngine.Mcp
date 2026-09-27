@@ -181,8 +181,7 @@ public sealed class ScanTool : IDisposable
 
 				session = _client.ValueScans.CreateSession();
 				_sessions.Add(scannerName, session);
-				_targetResources?.Track(session, () => RemoveSession(scannerName),
-					new { kind = "scan", name = scannerName });
+				_targetResources?.Track(session, "scan", () => RemoveSession(scannerName), scannerName);
 			}
 
 			if (session.State != ValueScanSessionState.Created)

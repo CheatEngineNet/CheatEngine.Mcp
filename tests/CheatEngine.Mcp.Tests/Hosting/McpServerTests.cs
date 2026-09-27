@@ -27,17 +27,27 @@ public sealed class McpServerTests
 	[Fact]
 	public async Task Start_InvalidConfiguration_ReleasesTheLoggingLease()
 	{
+		string directory = Path.Combine(Path.GetTempPath(), $"CheatEngine.Mcp.Tests-{Guid.NewGuid():N}");
 		using TestActivation activation = new(ClientTestDouble.Client());
-		using PluginLog log = new(Path.GetTempPath());
+		using PluginLog log = new(directory);
 		McpBackendHost server = CreateHost(activation, new McpBackendOptions { Port = -1 }, log);
+		// The log's own reference and the backend's provider, which is the backend's lease.
+		Assert.Equal(2, log.Sink.References);
 		OptionsValidationException failure =
 			await Assert.ThrowsAsync<OptionsValidationException>(() => server.StartAsync());
 		Assert.Contains("Mcp:Port must be between 0 and 65535 (0 selects a free port).", failure.Message,
 			StringComparison.Ordinal);
 		Assert.False(server.IsRunning);
-		log.Dispose();
-		Assert.Throws<ObjectDisposedException>(() => log.Acquire());
+		Assert.Equal(1, log.Sink.References);
+		await TestLog.ReleaseAsync(log);
+		Assert.Equal(0, log.Sink.References);
+		Assert.Throws<ObjectDisposedException>(() => log.CreateProvider());
 		Assert.True(ReferenceEquals(server.StopAsync(), server.StopAsync()), "Repeated shutdown must share one task.");
+		Assert.Equal(0, log.Sink.References);
+		if (Directory.Exists(directory))
+		{
+			Directory.Delete(directory, true);
+		}
 	}
 
 	[Fact]
@@ -70,7 +80,7 @@ public sealed class McpServerTests
 		finally
 		{
 			await server.StopAsync();
-			log.Dispose();
+			await TestLog.ReleaseAsync(log);
 			if (Directory.Exists(directory))
 			{
 				Directory.Delete(directory, true);
@@ -117,7 +127,10 @@ public sealed class McpServerTests
 			{
 				try
 				{
-					log?.Dispose();
+					if (log is not null)
+					{
+						await TestLog.ReleaseAsync(log);
+					}
 				}
 				finally
 				{
@@ -200,7 +213,7 @@ public sealed class McpServerTests
 			}
 
 			await server.StopAsync();
-			log.Dispose();
+			await TestLog.ReleaseAsync(log);
 			Directory.Delete(directory, true);
 		}
 	}
@@ -264,7 +277,7 @@ public sealed class McpServerTests
 		finally
 		{
 			await server.StopAsync();
-			log.Dispose();
+			await TestLog.ReleaseAsync(log);
 			if (Directory.Exists(directory))
 			{
 				Directory.Delete(directory, true);
@@ -296,7 +309,7 @@ public sealed class McpServerTests
 		finally
 		{
 			await server.StopAsync();
-			log.Dispose();
+			await TestLog.ReleaseAsync(log);
 			if (Directory.Exists(directory))
 			{
 				Directory.Delete(directory, true);

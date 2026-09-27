@@ -42,6 +42,13 @@ public sealed class ArchitectureTests
 				"CheatEngine.Mcp.Core", "CheatEngine.Mcp.Hosting", "CheatEngine.Mcp.Tools", "CheatEngine.Mcp.Resources",
 				"CheatEngine.Mcp.Prompts"
 			]
+		},
+		// The composition root; its log is the plugin's own rolling file writer, never a logging library (NLog).
+		{
+			"CheatEngine.Mcp.Plugin", [
+				"CheatEngine.Mcp.Core", "CheatEngine.Mcp.Hosting", "CheatEngine.Mcp.Tools", "CheatEngine.Mcp.Resources",
+				"CheatEngine.Mcp.Prompts", "CheatEngine.Client", "CheatEngine.SDK"
+			]
 		}
 	};
 
@@ -77,6 +84,18 @@ public sealed class ArchitectureTests
 		{
 			Assert.All(subject.GetCustomAttributes<InternalsVisibleToAttribute>(),
 				attribute => Assert.Equal("CheatEngine.Mcp.Tests", attribute.AssemblyName));
+		}
+	}
+
+	[Fact]
+	public void AotAnalysis_ProductAssemblies_AreBuiltAotCompatibleAndTrimmable()
+	{
+		// CEMCP005 keeps IsAotCompatible on every product project; the SDK records it, and IsTrimmable, as metadata.
+		foreach (Assembly subject in Product)
+		{
+			AssemblyMetadataAttribute[] metadata = subject.GetCustomAttributes<AssemblyMetadataAttribute>().ToArray();
+			Assert.Contains(metadata, static attribute => attribute is { Key: "IsAotCompatible", Value: "True" });
+			Assert.Contains(metadata, static attribute => attribute is { Key: "IsTrimmable", Value: "True" });
 		}
 	}
 

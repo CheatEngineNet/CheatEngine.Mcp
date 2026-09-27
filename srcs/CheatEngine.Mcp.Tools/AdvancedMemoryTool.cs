@@ -3,6 +3,7 @@ using System.ComponentModel;
 using CheatEngine.Client;
 using CheatEngine.Client.Allocations;
 using CheatEngine.Client.Results;
+using CheatEngine.Mcp.Core.Values;
 using CheatEngine.SDK.Engine.Values;
 
 using ModelContextProtocol.Server;
@@ -98,8 +99,8 @@ public sealed class AdvancedMemoryTool : IDisposable
 			ITargetMemoryLease lease =
 				_client.Allocations.Allocate(new AllocationRequest(size, preferredAddress: preferred));
 			_allocations.Add(name, lease);
-			_targetResources?.Track(lease, () => _allocations.Remove(name),
-				new { kind = "allocation", name, address = $"0x{lease.Address.Value:X}", size = lease.Size });
+			_targetResources?.Track(lease, "allocation", () => _allocations.Remove(name), name,
+				HexFormat.Address(lease.Address), lease.Size);
 			return new { success = true, name, address = $"0x{lease.Address.Value:X}", size = lease.Size };
 		});
 	}

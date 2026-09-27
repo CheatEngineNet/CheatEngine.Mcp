@@ -120,12 +120,13 @@ public sealed partial class NativeLuaToolRuntimeTests
 			ToolResultAssert.GetProperty<string>(tool.GetMemoryScanResults(), "error"));
 		Assert.Contains("main UI scanner is busy",
 			ToolResultAssert.GetProperty<string>(tool.NextMemoryScan(value: "25"), "error"));
-		ProcessTool processes = new(client, TestRuntime.Info, scans: tool);
+		TargetTransitionGuards guards = new([new MainScannerTransitionGuard(client)]);
+		ProcessTool processes = new(client, TestRuntime.Info, guards: guards);
 		ToolResultAssert.IsFailure(processes.OpenProcess("another-process"),
 			"The main UI scanner is busy. Wait for it to finish or cancel it in Cheat Engine before switching targets.");
 		InstallStubs(
 			"created=0; files=0; createProcess=function() created=created+1; getOpenedProcessID=function() return 88 end end; openFileAsProcess=function() files=files+1 end; getOpenedFileSize=function() return 4 end");
-		LuaProcessTool luaProcesses = new(client, scans: tool);
+		LuaProcessTool luaProcesses = new(client, guards);
 		ToolResultAssert.IsFailure(luaProcesses.CreateProcess("disposable.exe"),
 			"The main UI scanner is busy. Wait for it to finish or cancel it in Cheat Engine before switching targets.");
 		ToolResultAssert.IsFailure(luaProcesses.OpenFileAsProcess("disposable.bin"),

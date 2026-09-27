@@ -1,94 +1,93 @@
 using CheatEngine.Mcp.Hosting.Backend;
+using CheatEngine.Mcp.Plugin.Logging;
 
 using Microsoft.Extensions.Logging;
 
-using NLog;
-using NLog.Config;
-using NLog.Extensions.Logging;
-using NLog.Targets;
-
-using LogLevel = NLog.LogLevel;
-
 namespace CheatEngine.Mcp.Plugin;
 
+/// <summary>An activation's view of the plugin log: one sink reference, the configured level and provider leases.</summary>
+/// <remarks>
+///     Each provider holds its own reference, so a backend still shutting down after its activation ended keeps the
+///     file open. Nothing here blocks: the last release lets the background writer drain and close the file.
+/// </remarks>
 internal sealed class PluginLog : IMcpBackendLogging, IDisposable
 {
-	private readonly object _gate = new();
-	private bool _disposed;
-	private int _references = 1;
+	private readonly string _directory;
+	private readonly Lock _gate = new();
+	private readonly PluginLogSink? _ownedSink;
+	private PluginLogReference? _reference;
 
-	internal PluginLog(string directory)
+	/// <summary>Takes one reference on the plugin's sink for an activation.</summary>
+	/// <param name="sink">The plugin instance's sink.</param>
+	/// <param name="directory">The plugin data directory.</param>
+	/// <param name="minimumLevel">The configured minimum level.</param>
+	internal PluginLog(PluginLogSink sink, string directory, LogLevel minimumLevel)
 	{
-		LogFilePath = Path.Combine(directory, $"CheatEngine.Mcp.{Environment.ProcessId}.log");
-		FileTarget target = new("plugin")
-		{
-			FileName = LogFilePath,
-			ArchiveAboveSize = 10 * 1024 * 1024,
-			MaxArchiveFiles = 5,
-			Layout = "${longdate}|${level:uppercase=true}|${logger}|${message} ${exception:format=tostring}"
-		};
-		LoggingConfiguration configuration = new();
-		configuration.AddRule(LogLevel.Info, LogLevel.Fatal, target);
-		Factory = new LogFactory { Configuration = configuration };
+		ArgumentNullException.ThrowIfNull(sink);
+		ArgumentException.ThrowIfNullOrWhiteSpace(directory);
+		Sink = sink;
+		_directory = directory;
+		MinimumLevel = minimumLevel;
+		_reference = sink.Acquire(directory);
+		LogFilePath = _reference.FilePath;
 	}
 
+	/// <summary>A log over a private sink at <see cref="LogLevel.Information" />, disposed with this log.</summary>
+	/// <param name="directory">The plugin data directory.</param>
+	internal PluginLog(string directory) : this(new PluginLogSink(), directory, LogLevel.Information, true)
+	{
+	}
+
+	private PluginLog(PluginLogSink sink, string directory, LogLevel minimumLevel, bool ownsSink)
+		: this(sink, directory, minimumLevel)
+	{
+		_ownedSink = ownsSink ? sink : null;
+	}
+
+	/// <summary>The file this log writes: <c>&lt;data directory&gt;/CheatEngine.Mcp.&lt;pid&gt;.log</c>.</summary>
 	public string LogFilePath
 	{
 		get;
 	}
 
-	public LogFactory Factory
+	/// <summary>The sink this log references.</summary>
+	internal PluginLogSink Sink
 	{
 		get;
 	}
 
+	/// <summary>Releases this log's reference, and a private sink; never waits for the writer.</summary>
 	public void Dispose()
 	{
+		PluginLogReference? reference;
 		lock (_gate)
 		{
-			if (_disposed)
-			{
-				return;
-			}
-
-			_disposed = true;
-			Release();
+			reference = _reference;
+			_reference = null;
 		}
+
+		if (reference is null)
+		{
+			return;
+		}
+
+		reference.Dispose();
+		_ownedSink?.Dispose();
 	}
 
-	public IDisposable Acquire()
+	/// <inheritdoc />
+	public LogLevel MinimumLevel
 	{
-		lock (_gate)
-		{
-			ObjectDisposedException.ThrowIf(_references == 0, this);
-			_references++;
-			return new Lease(this);
-		}
+		get;
 	}
 
+	/// <inheritdoc />
 	public ILoggerProvider CreateProvider()
 	{
-		return new NLogLoggerProvider(new NLogProviderOptions { ShutdownOnDispose = false }, Factory);
-	}
-
-	private void Release()
-	{
 		lock (_gate)
 		{
-			if (--_references == 0)
-			{
-				Factory.Dispose();
-			}
-		}
-	}
-
-	private sealed class Lease(PluginLog owner) : IDisposable
-	{
-		private PluginLog? _owner = owner;
-
-		public void Dispose()
-		{
-			Interlocked.Exchange(ref _owner, null)?.Release();
+			ObjectDisposedException.ThrowIf(_reference is null, this);
+			return new PluginLoggerProvider(Sink.Acquire(_directory), MinimumLevel);
 		}
 	}
 }

@@ -55,7 +55,38 @@ public sealed class ContractSnapshotTests
 		finally
 		{
 			await server.StopAsync();
-			log.Dispose();
+			await TestLog.ReleaseAsync(log);
+			if (Directory.Exists(directory))
+			{
+				Directory.Delete(directory, true);
+			}
+		}
+	}
+
+	/// <summary>
+	///     The gateway pins its backend hop to 2025-06-18. This guard keeps a later switch to 2026-07-28 a one-line change:
+	///     the backend already lists exactly the same tools to both versions.
+	/// </summary>
+	[Fact]
+	public async Task Backend_ToolsList_IsIdenticalFor2025And2026Clients()
+	{
+		string directory = Path.Combine(Path.GetTempPath(), $"CheatEngine.Mcp.Tests-{Guid.NewGuid():N}");
+		using TestActivation activation = new(ClientTestDouble.Client());
+		using PluginLog log = new(directory);
+		McpBackendHost server = new(new McpBackendOptions(), log, TestRuntime.Info, activation.Manifest,
+			activation.Targets, CancellationToken.None);
+		try
+		{
+			await server.StartAsync();
+			string june2025 = await ListBackendToolsAsync(server.Endpoint!, "2025-06-18");
+			string july2026 = await ListBackendToolsAsync(server.Endpoint!, "2026-07-28");
+
+			Assert.Equal(june2025, july2026);
+		}
+		finally
+		{
+			await server.StopAsync();
+			await TestLog.ReleaseAsync(log);
 			if (Directory.Exists(directory))
 			{
 				Directory.Delete(directory, true);
@@ -126,6 +157,28 @@ public sealed class ContractSnapshotTests
 		Assert.Equal("CheatEngine.Mcp.Plugin.dll", Path.GetFileName(result["runtimeLocation"]!.GetValue<string>()));
 		Assert.False(string.IsNullOrWhiteSpace(result["version"]!.GetValue<string>()));
 		Assert.False(string.IsNullOrWhiteSpace(result["location"]!.GetValue<string>()));
+	}
+
+	private static async Task<string> ListBackendToolsAsync(string endpoint, string protocolVersion)
+	{
+		await using McpClient client = await McpClient.CreateAsync(
+			new HttpClientTransport(new HttpClientTransportOptions
+			{
+				Endpoint = new Uri(endpoint),
+				Name = "CheatEngine.Mcp.ContractTests",
+				TransportMode = HttpTransportMode.StreamableHttp,
+				ConnectionTimeout = TimeSpan.FromSeconds(10)
+			}),
+			new McpClientOptions
+			{
+				ClientInfo = new Implementation { Name = "CheatEngine.Mcp.ContractTests", Version = "2.0.0" },
+				Capabilities = new ClientCapabilities(),
+				ProtocolVersion = protocolVersion
+			}, cancellationToken: TestContext.Current.CancellationToken);
+		Assert.Equal(protocolVersion, client.NegotiatedProtocolVersion);
+		IList<McpClientTool> tools =
+			await client.ListToolsAsync(cancellationToken: TestContext.Current.CancellationToken);
+		return SerializeTools(tools.Select(static tool => tool.ProtocolTool));
 	}
 
 	private static McpClientOptions CreateClientOptions()

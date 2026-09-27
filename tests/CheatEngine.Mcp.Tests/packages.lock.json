@@ -363,9 +363,7 @@
           "CheatEngine.Mcp.Resources": "[2.0.0, )",
           "CheatEngine.Mcp.Tools": "[2.0.0, )",
           "CheatEngine.SDK": "[2.0.0, )",
-          "ModelContextProtocol.AspNetCore": "[2.2.0, )",
-          "NLog": "[6.2.1, )",
-          "NLog.Extensions.Logging": "[6.2.1, )"
+          "ModelContextProtocol.AspNetCore": "[2.2.0, )"
         }
       },
       "cheatengine.mcp.prompts": {
@@ -479,23 +477,6 @@
         "contentHash": "3JelDMuFIwFzXybsh6K30G6wXu5gmqKnuRnieqgBMuR0FkqqXRv4B+NYZuPgthSyNq5UwRyvv2U2VJBE3RD3PQ==",
         "dependencies": {
           "ModelContextProtocol": "[2.2.0]"
-        }
-      },
-      "NLog": {
-        "type": "CentralTransitive",
-        "requested": "[6.2.1, )",
-        "resolved": "6.2.1",
-        "contentHash": "fTGNuJyzkgDc1TBEGXF+FMT4b6kB7gygkSN3dLei2Ziiwx/rugXA+OyyFWZ60P1G/+SzzSKiWHlQ4OklC8AgRg=="
-      },
-      "NLog.Extensions.Logging": {
-        "type": "CentralTransitive",
-        "requested": "[6.2.1, )",
-        "resolved": "6.2.1",
-        "contentHash": "VVISyXM6nU6akAK9dzit/Yy/Q050PVpW0FZM6ceSA7oZUvMtQZlE0VlNx1VUBe3Uo540/9Ee05RiKlPvyR8dUQ==",
-        "dependencies": {
-          "Microsoft.Extensions.Configuration.Abstractions": "10.0.0",
-          "Microsoft.Extensions.Logging": "10.0.0",
-          "NLog": "6.2.1"
         }
       }
     }

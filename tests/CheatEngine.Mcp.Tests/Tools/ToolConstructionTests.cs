@@ -1,8 +1,11 @@
 using System.Reflection;
 
 using CheatEngine.Client;
+using CheatEngine.Mcp.Core.Jobs;
 using CheatEngine.Mcp.Tests.Support;
 using CheatEngine.Mcp.Tools;
+
+using Microsoft.Extensions.DependencyInjection;
 
 using ModelContextProtocol.Server;
 
@@ -20,7 +23,7 @@ public sealed class ToolConstructionTests
 			accessed.Add(method.Name);
 			throw new NotSupportedException($"Tool construction must not use Client member {method.Name}.");
 		});
-		Type[] toolTypes = typeof(ProcessTool).Assembly.GetTypes()
+		Type[] toolTypes = typeof(CheatEngineToolsBuilderExtensions).Assembly.GetTypes()
 			.Where(static type => type.GetCustomAttribute<McpServerToolTypeAttribute>() is not null)
 			.OrderBy(static type => type.FullName, StringComparer.Ordinal)
 			.ToArray();
@@ -29,7 +32,10 @@ public sealed class ToolConstructionTests
 		McpPrimitiveTargets targets = activation.Targets;
 		Assert.NotNull(activation.Module);
 
-		Assert.Equal(28, toolTypes.Length);
+		// Every tool container in the assembly is composed, whichever domains have replaced their legacy tools.
+		Assert.Equal(toolTypes, TestComposition.BackendManifest.Primitives
+			.Where(static primitive => primitive.Kind == CheatEngineMcpPrimitiveKind.Tool)
+			.Select(static primitive => primitive.Type).OrderBy(static type => type.FullName, StringComparer.Ordinal));
 		Assert.All(toolTypes, type => Assert.IsType(type, targets.Get(type)));
 		activation.DisposeScope();
 		Assert.Empty(accessed);
@@ -39,18 +45,25 @@ public sealed class ToolConstructionTests
 	public void Activation_ProcessChangingTools_ReceiveEveryTargetTransitionGuard()
 	{
 		using TestActivation activation = new(ClientTestDouble.Client());
+		TargetTransitionGuards guards = activation.Services.GetRequiredService<TargetTransitionGuards>();
+
+		// Every guard is consulted: retained resources and orphans, active debugger jobs and the running main scan.
+		Assert.Equal([typeof(TargetResources), typeof(LuaDebuggerCaptureGuard), typeof(MainScannerTransitionGuard)],
+			guards.Guards.Select(static guard => guard.GetType()).ToArray());
+		Assert.Same(activation.Services.GetRequiredService<TargetResources>(), guards.Guards[0]);
+		Assert.Same(activation.Services.GetRequiredService<LuaDebuggerCaptureGuard>(), guards.Guards[1]);
+		Assert.Same(activation.Services.GetRequiredService<JobRegistry>(),
+			activation.Services.GetRequiredService<JobRegistry>());
+		Assert.Same(activation.Services.GetRequiredService<McpStateLedger>(),
+			activation.Services.GetRequiredService<TargetResources>().Ledger);
 		foreach (Type type in new[] { typeof(ProcessTool), typeof(LuaProcessTool) })
 		{
-			object tool = activation.Targets.Get(type);
-			foreach (string field in new[] { "_targetResources", "_debuggerGuard", "_scans" })
-			{
-				Assert.NotNull(type.GetField(field, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(tool));
-			}
+			Assert.Same(guards, type.GetField("_guards", BindingFlags.Instance | BindingFlags.NonPublic)!
+				.GetValue(activation.Targets.Get(type)));
 		}
 
-		// One activation shares one scan registry between the scan tools and the process transition guard.
-		Assert.Same(activation.Targets.Get(typeof(ScanTool)),
-			typeof(ProcessTool).GetField("_scans", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(
-				activation.Targets.Get(typeof(ProcessTool))));
+		Assert.Same(activation.Services.GetRequiredService<TargetResources>(),
+			typeof(ProcessTool).GetField("_targetResources", BindingFlags.Instance | BindingFlags.NonPublic)!
+				.GetValue(activation.Targets.Get(typeof(ProcessTool))));
 	}
 }

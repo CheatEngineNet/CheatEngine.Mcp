@@ -5,6 +5,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "source": {
           "description": "Source instruction address or symbol.",
           "type": "string"
@@ -21,17 +25,13 @@
           "description": "For memory references, record the target as a string.",
           "type": "boolean",
           "default": false
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "source",
         "destination",
-        "type",
-        "instanceId"
+        "type"
       ]
     }
   },
@@ -41,6 +41,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "description": {
           "description": "Display description.",
           "type": "string"
@@ -74,17 +78,13 @@
             "Grouped"
           ],
           "default": "Dword"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "description",
         "address",
-        "value",
-        "instanceId"
+        "value"
       ]
     }
   },
@@ -94,6 +94,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "structureName": {
           "description": "Case-sensitive structure name. ",
           "type": "string"
@@ -119,18 +123,14 @@
           "description": "Optional child class-name hint (up to 256 characters). ",
           "type": "string",
           "default": null
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "structureName",
         "offset",
         "name",
-        "variableType",
-        "instanceId"
+        "variableType"
       ]
     }
   },
@@ -140,6 +140,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "name": {
           "description": "Caller-owned allocation name.",
           "type": "string"
@@ -152,16 +156,12 @@
           "description": "Optional preferred target address.",
           "type": "string",
           "default": null
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "name",
-        "size",
-        "instanceId"
+        "size"
       ]
     }
   },
@@ -171,6 +171,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "Range base address or symbol expression. ",
           "type": "string"
@@ -179,15 +183,11 @@
           "description": "Range size in bytes (1-1048576). ",
           "type": "integer",
           "default": 4096
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "address",
-        "instanceId"
+        "instanceId",
+        "address"
       ]
     }
   },
@@ -197,6 +197,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "pattern": {
           "description": "Hexadecimal bytes and ?? wildcard tokens.",
           "type": "string"
@@ -220,15 +224,11 @@
           "description": "Optional inclusive last match address; requires startAddress.",
           "type": "string",
           "default": null
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "pattern",
-        "instanceId"
+        "instanceId",
+        "pattern"
       ]
     }
   },
@@ -238,6 +238,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "pattern": {
           "description": "Hexadecimal bytes and ?? wildcard tokens.",
           "type": "string"
@@ -246,15 +250,11 @@
           "description": "Optional module name that bounds the scan.",
           "type": "string",
           "default": null
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "pattern",
-        "instanceId"
+        "instanceId",
+        "pattern"
       ]
     }
   },
@@ -264,6 +264,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "instruction": {
           "description": "Assembly source for exactly one instruction.",
           "type": "string"
@@ -287,16 +291,12 @@
           "description": "Skip relative-branch reachability checks.",
           "type": "boolean",
           "default": false
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "instruction",
-        "address",
-        "instanceId"
+        "address"
       ]
     }
   },
@@ -306,6 +306,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "script": {
           "description": "Complete Auto Assembler source, required when applying a patch.",
           "type": "string",
@@ -320,10 +324,6 @@
           "description": "Optional diagnostic name for a new patch.",
           "type": "string",
           "default": null
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
@@ -337,6 +337,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "script": {
           "description": "Auto Assembler source to check.",
           "type": "string"
@@ -345,15 +349,11 @@
           "description": "Optional diagnostic name for the script.",
           "type": "string",
           "default": null
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "script",
-        "instanceId"
+        "instanceId",
+        "script"
       ]
     }
   },
@@ -363,6 +363,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "structureName": {
           "description": "Case-sensitive structure name. ",
           "type": "string"
@@ -380,16 +384,12 @@
           "description": "Maximum bytes to infer (1-1048576). ",
           "type": "integer",
           "default": 4096
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "structureName",
-        "baseAddress",
-        "instanceId"
+        "baseAddress"
       ]
     }
   },
@@ -401,7 +401,7 @@
       "properties": {
         "instanceId": {
           "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
+          "description": "Instance id from instance_list."
         }
       },
       "required": [
@@ -415,6 +415,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "firstAddress": {
           "description": "First address expression or number.",
           "type": "string"
@@ -431,17 +435,13 @@
           "description": "0 target-to-target, 1 target-to-CE, or 2 CE-to-CE.",
           "type": "integer",
           "default": 0
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "firstAddress",
         "secondAddress",
-        "size",
-        "instanceId"
+        "size"
       ]
     }
   },
@@ -451,6 +451,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "input": {
           "description": "Input text.",
           "type": "string"
@@ -458,16 +462,12 @@
         "conversionType": {
           "description": "md5, ansitoutf8, or utf8toansi.",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "input",
-        "conversionType",
-        "instanceId"
+        "conversionType"
       ]
     }
   },
@@ -477,6 +477,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "sourceAddress": {
           "description": "Source address expression or number.",
           "type": "string"
@@ -493,17 +497,13 @@
           "description": "0 target-to-target, 1 target-to-CE, 2 CE-to-target, or 3 CE-to-CE.",
           "type": "integer",
           "default": 0
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "sourceAddress",
         "size",
-        "destinationAddress",
-        "instanceId"
+        "destinationAddress"
       ]
     }
   },
@@ -513,6 +513,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "path": {
           "description": "Executable path, up to 4096 characters.",
           "type": "string"
@@ -531,15 +535,11 @@
           "description": "Break at entry point; requires debug=true.",
           "type": "boolean",
           "default": false
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "path",
-        "instanceId"
+        "instanceId",
+        "path"
       ]
     }
   },
@@ -549,6 +549,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "name": {
           "description": "Unique structure name (1-256 characters). ",
           "type": "string"
@@ -557,15 +561,11 @@
           "description": "Hide the definition from normal Structure Dissect selection. ",
           "type": "boolean",
           "default": false
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "name",
-        "instanceId"
+        "instanceId",
+        "name"
       ]
     }
   },
@@ -577,7 +577,7 @@
       "properties": {
         "instanceId": {
           "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
+          "description": "Instance id from instance_list."
         }
       },
       "required": [
@@ -591,18 +591,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "Target virtual address expression or number.",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "address",
-        "instanceId"
+        "instanceId",
+        "address"
       ]
     }
   },
@@ -614,7 +614,7 @@
       "properties": {
         "instanceId": {
           "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
+          "description": "Instance id from instance_list."
         }
       },
       "required": [
@@ -630,7 +630,7 @@
       "properties": {
         "instanceId": {
           "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
+          "description": "Instance id from instance_list."
         }
       },
       "required": [
@@ -644,6 +644,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "offloadOperatingSystem": {
           "description": "Offload the operating system when possible.",
           "type": "boolean",
@@ -653,10 +657,6 @@
           "description": "Short diagnostic reason, up to 256 characters.",
           "type": "string",
           "default": null
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
@@ -670,6 +670,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "Physical address expression or number.",
           "type": "string"
@@ -677,16 +681,12 @@
         "size": {
           "description": "Byte count from 1 through 4096.",
           "type": "integer"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "address",
-        "size",
-        "instanceId"
+        "size"
       ]
     }
   },
@@ -698,7 +698,7 @@
       "properties": {
         "instanceId": {
           "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
+          "description": "Instance id from instance_list."
         }
       },
       "required": [
@@ -712,6 +712,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "access": {
           "description": "read, write, or execute.",
           "type": "string"
@@ -739,16 +743,12 @@
           "description": "Capture duration (1-5000 milliseconds). Blocks Cheat Engine during capture.",
           "type": "integer",
           "default": 100
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "access",
-        "address",
-        "instanceId"
+        "address"
       ]
     }
   },
@@ -758,6 +758,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "id": {
           "description": "DBVM watch identifier.",
           "type": "integer"
@@ -766,15 +770,11 @@
           "description": "Maximum events from 1 through 1024.",
           "type": "integer",
           "default": 256
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "id",
-        "instanceId"
+        "instanceId",
+        "id"
       ]
     }
   },
@@ -784,18 +784,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "id": {
           "description": "Non-negative DBVM watch identifier.",
           "type": "integer"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "id",
-        "instanceId"
+        "instanceId",
+        "id"
       ]
     }
   },
@@ -805,6 +805,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "Physical address expression or number.",
           "type": "string"
@@ -812,16 +816,12 @@
         "hexadecimalBytes": {
           "description": "Whitespace- or comma-separated hexadecimal bytes.",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "address",
-        "hexadecimalBytes",
-        "instanceId"
+        "hexadecimalBytes"
       ]
     }
   },
@@ -831,6 +831,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "Target address expression or number.",
           "type": "string"
@@ -844,15 +848,11 @@
           "description": "execute, access, or write.",
           "type": "string",
           "default": "execute"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "address",
-        "instanceId"
+        "instanceId",
+        "address"
       ]
     }
   },
@@ -862,18 +862,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "threadId": {
           "description": "Target thread identifier.",
           "type": "integer"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "threadId",
-        "instanceId"
+        "instanceId",
+        "threadId"
       ]
     }
   },
@@ -883,14 +883,14 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "maximumResults": {
           "description": "Maximum entries from 1 through 1024.",
           "type": "integer",
           "default": 256
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
@@ -904,14 +904,14 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "includeExtraRegisters": {
           "description": "Include floating-point and XMM registers.",
           "type": "boolean",
           "default": false
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
@@ -925,14 +925,14 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "mode": {
           "description": "run, stepInto, or stepOver.",
           "type": "string",
           "default": "run"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
@@ -948,7 +948,7 @@
       "properties": {
         "instanceId": {
           "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
+          "description": "Instance id from instance_list."
         }
       },
       "required": [
@@ -962,6 +962,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "threadId": {
           "description": "Target thread identifier.",
           "type": "integer"
@@ -970,15 +974,11 @@
           "description": "True adds; false removes.",
           "type": "boolean",
           "default": true
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "threadId",
-        "instanceId"
+        "instanceId",
+        "threadId"
       ]
     }
   },
@@ -988,6 +988,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "captureId": {
           "description": "Capture identifier returned by debugger_start_capture.",
           "type": "string"
@@ -1001,15 +1005,11 @@
           "description": "Remove the returned hits from the buffer.",
           "type": "boolean",
           "default": true
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "captureId",
-        "instanceId"
+        "instanceId",
+        "captureId"
       ]
     }
   },
@@ -1019,18 +1019,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "traceId": {
           "description": "Identifier returned by debugger_start_step_trace.",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "traceId",
-        "instanceId"
+        "instanceId",
+        "traceId"
       ]
     }
   },
@@ -1040,18 +1040,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "Breakpoint address expression or number.",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "address",
-        "instanceId"
+        "instanceId",
+        "address"
       ]
     }
   },
@@ -1061,6 +1061,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "register": {
           "description": "Register name: EAX through EIP, RAX through R15, RIP, RSP, RBP, or EFLAGS.",
           "type": "string"
@@ -1068,16 +1072,12 @@
         "value": {
           "description": "Integer value to write.",
           "type": "integer"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "register",
-        "value",
-        "instanceId"
+        "value"
       ]
     }
   },
@@ -1087,14 +1087,14 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "debuggerInterface": {
           "description": "0 default, 1 Windows, 2 VEH, or 3 kernel.",
           "type": "integer",
           "default": 0
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
@@ -1108,6 +1108,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "Target address expression or number.",
           "type": "string"
@@ -1131,15 +1135,11 @@
           "description": "Capture lifetime in seconds, 1-300.",
           "type": "integer",
           "default": 60
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "address",
-        "instanceId"
+        "instanceId",
+        "address"
       ]
     }
   },
@@ -1149,6 +1149,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "Entry instruction address expression.",
           "type": "string"
@@ -1162,15 +1166,11 @@
           "description": "Maximum trace lifetime in seconds, 1-60.",
           "type": "integer",
           "default": 30
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "address",
-        "instanceId"
+        "instanceId",
+        "address"
       ]
     }
   },
@@ -1182,7 +1182,7 @@
       "properties": {
         "instanceId": {
           "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
+          "description": "Instance id from instance_list."
         }
       },
       "required": [
@@ -1196,18 +1196,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "captureId": {
           "description": "Capture identifier returned by debugger_start_capture.",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "captureId",
-        "instanceId"
+        "instanceId",
+        "captureId"
       ]
     }
   },
@@ -1217,18 +1217,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "traceId": {
           "description": "Identifier returned by debugger_start_step_trace.",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "traceId",
-        "instanceId"
+        "instanceId",
+        "traceId"
       ]
     }
   },
@@ -1238,6 +1238,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "source": {
           "description": "Source instruction address or symbol.",
           "type": "string"
@@ -1245,16 +1249,12 @@
         "destination": {
           "description": "Referenced address or symbol.",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "source",
-        "destination",
-        "instanceId"
+        "destination"
       ]
     }
   },
@@ -1264,18 +1264,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "id": {
           "description": "Client-issued memory-record ID.",
           "type": "integer"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "id",
-        "instanceId"
+        "instanceId",
+        "id"
       ]
     }
   },
@@ -1285,18 +1285,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "mapName": {
           "description": "Existing snapshot name.",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "mapName",
-        "instanceId"
+        "instanceId",
+        "mapName"
       ]
     }
   },
@@ -1306,18 +1306,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "name": {
           "description": "Case-sensitive structure name (1-256 characters). ",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "name",
-        "instanceId"
+        "instanceId",
+        "name"
       ]
     }
   },
@@ -1327,6 +1327,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "Target address as hexadecimal.",
           "type": "string"
@@ -1335,15 +1339,11 @@
           "description": "disassemble (default) or get-instruction-size.",
           "type": "string",
           "default": null
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "address",
-        "instanceId"
+        "instanceId",
+        "address"
       ]
     }
   },
@@ -1353,6 +1353,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "hexadecimalBytes": {
           "description": "Hexadecimal bytes, up to 1 MiB of text. ",
           "type": "string"
@@ -1361,15 +1365,11 @@
           "description": "Optional target origin expression for relative operands. ",
           "type": "string",
           "default": null
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "hexadecimalBytes",
-        "instanceId"
+        "instanceId",
+        "hexadecimalBytes"
       ]
     }
   },
@@ -1379,6 +1379,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "Start address or symbol expression.",
           "type": "string"
@@ -1387,15 +1391,11 @@
           "description": "Instruction count (1-1024).",
           "type": "integer",
           "default": 20
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "address",
-        "instanceId"
+        "instanceId",
+        "address"
       ]
     }
   },
@@ -1405,6 +1405,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "filename": {
           "description": "Destination filename, up to 4096 characters.",
           "type": "string"
@@ -1416,17 +1420,13 @@
         "size": {
           "description": "Positive byte count, up to 1048576.",
           "type": "integer"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "filename",
         "address",
-        "size",
-        "instanceId"
+        "size"
       ]
     }
   },
@@ -1436,14 +1436,14 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "maximumResults": {
           "description": "Maximum regions to copy (1-16384).",
           "type": "integer",
           "default": 4096
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
@@ -1457,6 +1457,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "module": {
           "description": "Module name, up to 256 characters.",
           "type": "string"
@@ -1465,15 +1469,11 @@
           "description": "Maximum sections to copy (1-4096).",
           "type": "integer",
           "default": 1024
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "module",
-        "instanceId"
+        "instanceId",
+        "module"
       ]
     }
   },
@@ -1483,14 +1483,14 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "maximumResults": {
           "description": "Maximum modules to copy (1-4096).",
           "type": "integer",
           "default": 1024
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
@@ -1506,7 +1506,7 @@
       "properties": {
         "instanceId": {
           "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
+          "description": "Instance id from instance_list."
         }
       },
       "required": [
@@ -1520,6 +1520,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "Cheat Engine local function address expression or number.",
           "type": "string"
@@ -1528,15 +1532,11 @@
           "description": "Integer parameter.",
           "type": "integer",
           "default": 0
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "address",
-        "instanceId"
+        "instanceId",
+        "address"
       ]
     }
   },
@@ -1546,6 +1546,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "script": {
           "description": "Trusted Lua source to execute.",
           "type": "string"
@@ -1554,15 +1558,11 @@
           "description": "Optional non-empty chunk name for Lua diagnostics.",
           "type": "string",
           "default": null
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "script",
-        "instanceId"
+        "instanceId",
+        "script"
       ]
     }
   },
@@ -1572,6 +1572,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "Target function address expression or number.",
           "type": "string"
@@ -1585,15 +1589,11 @@
           "description": "Integer parameter.",
           "type": "integer",
           "default": 0
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "address",
-        "instanceId"
+        "instanceId",
+        "address"
       ]
     }
   },
@@ -1603,6 +1603,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "structureName": {
           "description": "Case-sensitive structure name.",
           "type": "string"
@@ -1615,16 +1619,12 @@
           "description": "Rename the structure to the .NET class name.",
           "type": "boolean",
           "default": false
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "structureName",
-        "address",
-        "instanceId"
+        "address"
       ]
     }
   },
@@ -1634,6 +1634,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "description": {
           "description": "Exact record description, up to 256 characters. ",
           "type": "string"
@@ -1642,15 +1646,11 @@
           "description": "Maximum records to return (1-1024). ",
           "type": "integer",
           "default": 256
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "description",
-        "instanceId"
+        "instanceId",
+        "description"
       ]
     }
   },
@@ -1660,18 +1660,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "name": {
           "description": "The allocation name returned by allocate_memory.",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "name",
-        "instanceId"
+        "instanceId",
+        "name"
       ]
     }
   },
@@ -1681,6 +1681,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "Target address expression or number.",
           "type": "string"
@@ -1688,16 +1692,12 @@
         "size": {
           "description": "Positive range size in bytes, up to 1048576.",
           "type": "integer"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "address",
-        "size",
-        "instanceId"
+        "size"
       ]
     }
   },
@@ -1707,6 +1707,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "Hook address expression.",
           "type": "string"
@@ -1729,16 +1733,12 @@
           "description": "Generate for Cheat Engine itself.",
           "type": "boolean",
           "default": false
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "address",
-        "jumpTarget",
-        "instanceId"
+        "jumpTarget"
       ]
     }
   },
@@ -1748,6 +1748,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "mapName": {
           "description": "Unique snapshot name, 1-128 characters.",
           "type": "string"
@@ -1776,15 +1780,11 @@
           "description": "Pointer storage alignment: 1, 2, 4, or 8. Four also finds 4-aligned x64 pointers.",
           "type": "integer",
           "default": 4
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "mapName",
-        "instanceId"
+        "instanceId",
+        "mapName"
       ]
     }
   },
@@ -1794,14 +1794,14 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "maximumRecords": {
           "description": "Maximum records to materialize. The request fails if the table exceeds this bound.",
           "type": "integer",
           "default": 256
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
@@ -1815,6 +1815,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "Target address or symbol expression. ",
           "type": "string"
@@ -1823,15 +1827,11 @@
           "description": "Maximum references to return (1-1024). ",
           "type": "integer",
           "default": 256
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "address",
-        "instanceId"
+        "instanceId",
+        "address"
       ]
     }
   },
@@ -1841,18 +1841,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "Target address or symbol expression. ",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "address",
-        "instanceId"
+        "instanceId",
+        "address"
       ]
     }
   },
@@ -1864,7 +1864,7 @@
       "properties": {
         "instanceId": {
           "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
+          "description": "Instance id from instance_list."
         }
       },
       "required": [
@@ -1878,18 +1878,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "Address inside the target function. ",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "address",
-        "instanceId"
+        "instanceId",
+        "address"
       ]
     }
   },
@@ -1899,18 +1899,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "Target address expression or number.",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "address",
-        "instanceId"
+        "instanceId",
+        "address"
       ]
     }
   },
@@ -1920,18 +1920,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "id": {
           "description": "Current Cheat Engine memory-record ID. ",
           "type": "integer"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "id",
-        "instanceId"
+        "instanceId",
+        "id"
       ]
     }
   },
@@ -1941,18 +1941,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "A hexadecimal address or Cheat Engine address expression.",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "address",
-        "instanceId"
+        "instanceId",
+        "address"
       ]
     }
   },
@@ -1962,6 +1962,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "scannerName": {
           "description": "main (default) for the visible CE scan tab, or an existing independent scanner name.",
           "type": "string",
@@ -1976,10 +1980,6 @@
           "description": "Maximum copied results (1-1024).",
           "type": "integer",
           "default": 1000
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
@@ -1993,14 +1993,14 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "scannerName": {
           "description": "main (default) for the visible CE scan tab, or an existing independent scanner name.",
           "type": "string",
           "default": "main"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
@@ -2016,7 +2016,7 @@
       "properties": {
         "instanceId": {
           "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
+          "description": "Instance id from instance_list."
         }
       },
       "required": [
@@ -2030,18 +2030,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "A hexadecimal address or Cheat Engine address expression.",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "address",
-        "instanceId"
+        "instanceId",
+        "address"
       ]
     }
   },
@@ -2053,7 +2053,7 @@
       "properties": {
         "instanceId": {
           "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
+          "description": "Instance id from instance_list."
         }
       },
       "required": [
@@ -2069,7 +2069,7 @@
       "properties": {
         "instanceId": {
           "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
+          "description": "Instance id from instance_list."
         }
       },
       "required": [
@@ -2083,6 +2083,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "scannerName": {
           "description": "Existing pointer scan name.",
           "type": "string"
@@ -2096,15 +2100,11 @@
           "description": "Maximum copied paths, 1-1024.",
           "type": "integer",
           "default": 100
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "scannerName",
-        "instanceId"
+        "instanceId",
+        "scannerName"
       ]
     }
   },
@@ -2116,7 +2116,7 @@
       "properties": {
         "instanceId": {
           "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
+          "description": "Instance id from instance_list."
         }
       },
       "required": [
@@ -2130,6 +2130,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "Target address or symbol expression. ",
           "type": "string"
@@ -2138,15 +2142,11 @@
           "description": "Predecessor count (1-1024). ",
           "type": "integer",
           "default": 5
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "address",
-        "instanceId"
+        "instanceId",
+        "address"
       ]
     }
   },
@@ -2156,6 +2156,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "maximumResults": {
           "description": "Maximum copied processes (1-4096).",
           "type": "integer",
@@ -2165,10 +2169,6 @@
           "description": "Optional case-insensitive process-name substring.",
           "type": "string",
           "default": null
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
@@ -2184,7 +2184,7 @@
       "properties": {
         "instanceId": {
           "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
+          "description": "Instance id from instance_list."
         }
       },
       "required": [
@@ -2198,14 +2198,14 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "maximumResults": {
           "description": "Maximum functions to return (1-1024).",
           "type": "integer",
           "default": 256
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
@@ -2219,14 +2219,14 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "maximumResults": {
           "description": "Maximum entries to return (1-1024). ",
           "type": "integer",
           "default": 256
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
@@ -2242,7 +2242,7 @@
       "properties": {
         "instanceId": {
           "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
+          "description": "Instance id from instance_list."
         }
       },
       "required": [
@@ -2258,7 +2258,7 @@
       "properties": {
         "instanceId": {
           "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
+          "description": "Instance id from instance_list."
         }
       },
       "required": [
@@ -2274,7 +2274,7 @@
       "properties": {
         "instanceId": {
           "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
+          "description": "Instance id from instance_list."
         }
       },
       "required": [
@@ -2288,18 +2288,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "name": {
           "description": "Case-sensitive structure name (1-256 characters). ",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "name",
-        "instanceId"
+        "instanceId",
+        "name"
       ]
     }
   },
@@ -2309,6 +2309,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "structureName": {
           "description": "Case-sensitive structure name. ",
           "type": "string"
@@ -2320,17 +2324,13 @@
         "baseAddress": {
           "description": "Target base address or symbol expression. ",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "structureName",
         "index",
-        "baseAddress",
-        "instanceId"
+        "baseAddress"
       ]
     }
   },
@@ -2340,18 +2340,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "name": {
           "description": "Structure name, up to 256 characters.",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "name",
-        "instanceId"
+        "instanceId",
+        "name"
       ]
     }
   },
@@ -2361,18 +2361,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "symbolName": {
           "description": "A Cheat Engine symbol expression.",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "symbolName",
-        "instanceId"
+        "instanceId",
+        "symbolName"
       ]
     }
   },
@@ -2384,7 +2384,7 @@
       "properties": {
         "instanceId": {
           "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
+          "description": "Instance id from instance_list."
         }
       },
       "required": [
@@ -2400,7 +2400,7 @@
       "properties": {
         "instanceId": {
           "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
+          "description": "Instance id from instance_list."
         }
       },
       "required": [
@@ -2414,6 +2414,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "Target address expression or number.",
           "type": "string"
@@ -2421,16 +2425,12 @@
         "size": {
           "description": "Positive byte count, up to 1048576.",
           "type": "integer"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "address",
-        "size",
-        "instanceId"
+        "size"
       ]
     }
   },
@@ -2440,6 +2440,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "assemblyPath": {
           "description": "Absolute managed assembly path.",
           "type": "string"
@@ -2461,17 +2465,13 @@
           "description": "Timeout in milliseconds, 0 through 300000.",
           "type": "integer",
           "default": 30000
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "assemblyPath",
         "className",
-        "methodName",
-        "instanceId"
+        "methodName"
       ]
     }
   },
@@ -2481,6 +2481,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "fileName": {
           "description": "Absolute library path, up to 32767 characters.",
           "type": "string"
@@ -2489,16 +2493,72 @@
           "description": "Skip symbol reload wait after injection.",
           "type": "boolean",
           "default": false
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "fileName",
-        "instanceId"
+        "instanceId",
+        "fileName"
       ]
+    }
+  },
+  {
+    "name": "instance_list",
+    "title": "List Cheat Engine instances",
+    "description": "Lists the local Cheat Engine instances whose MCP plugin is enabled and verified. Call it first: every other tool needs one returned instanceId, and there is no default instance. Names may repeat; route by instanceId. An instanceId changes whenever the plugin is enabled again or CE restarts.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "instances": {
+          "description": "The instances whose backend confirmed its registry identity, ordered by name.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "instanceId": {
+                "description": "The id to pass as instanceId to every other tool; new on every plugin enable.",
+                "type": "string"
+              },
+              "name": {
+                "description": "The display name; names may repeat across instances.",
+                "type": "string"
+              },
+              "processId": {
+                "description": "The Cheat Engine process id, not the target\u0027s.",
+                "type": "integer"
+              },
+              "pluginVersion": {
+                "description": "The plugin version of this activation.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "instanceId",
+              "name",
+              "processId",
+              "pluginVersion"
+            ]
+          }
+        },
+        "discoveryIncomplete": {
+          "description": "True when discovery stopped at its 10 s budget; call instance_list again before concluding that an instance is missing.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "instances",
+        "discoveryIncomplete"
+      ]
+    },
+    "annotations": {
+      "title": "List Cheat Engine instances",
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
     }
   },
   {
@@ -2507,6 +2567,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "Address to test. ",
           "type": "string"
@@ -2515,25 +2579,12 @@
           "description": "Containing function or code-range size in bytes (1-1048576). ",
           "type": "integer",
           "default": 4096
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "address",
-        "instanceId"
+        "instanceId",
+        "address"
       ]
-    }
-  },
-  {
-    "name": "list_instances",
-    "description": "Lists responsive local Cheat Engine plugin instances that can receive routed tool calls.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "additionalProperties": false
     }
   },
   {
@@ -2544,7 +2595,7 @@
       "properties": {
         "instanceId": {
           "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
+          "description": "Instance id from instance_list."
         }
       },
       "required": [
@@ -2560,7 +2611,7 @@
       "properties": {
         "instanceId": {
           "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
+          "description": "Instance id from instance_list."
         }
       },
       "required": [
@@ -2574,14 +2625,14 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "maximumResults": {
           "description": "Maximum structures to return (1-1024). ",
           "type": "integer",
           "default": 256
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
@@ -2595,6 +2646,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "filename": {
           "description": "Absolute .CT or .CETRAINER path under a configured trusted table root.",
           "type": "string"
@@ -2603,15 +2658,11 @@
           "description": "Merge into the current table instead of replacing it.",
           "type": "boolean",
           "default": false
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "filename",
-        "instanceId"
+        "instanceId",
+        "filename"
       ]
     }
   },
@@ -2623,7 +2674,7 @@
       "properties": {
         "instanceId": {
           "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
+          "description": "Instance id from instance_list."
         }
       },
       "required": [
@@ -2637,18 +2688,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "Target address expression or number.",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "address",
-        "instanceId"
+        "instanceId",
+        "address"
       ]
     }
   },
@@ -2658,6 +2709,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "scannerName": {
           "description": "main (default) for the visible CE scan tab, or a unique case-sensitive name for an independent session (up to 32). The name main is reserved.",
           "type": "string",
@@ -2682,10 +2737,6 @@
           "description": "Inclusive upper value for a between comparison.",
           "type": "string",
           "default": null
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
@@ -2699,6 +2750,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "scannerName": {
           "description": "main (default) for the visible CE scan tab, or an existing independent scanner name.",
           "type": "string",
@@ -2718,10 +2773,6 @@
           "description": "Inclusive upper value for a between comparison.",
           "type": "string",
           "default": null
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
@@ -2735,6 +2786,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "filename": {
           "description": "File path, up to 4096 characters.",
           "type": "string"
@@ -2748,15 +2803,11 @@
           "description": "Optional base address expression or number.",
           "type": "string",
           "default": null
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "filename",
-        "instanceId"
+        "instanceId",
+        "filename"
       ]
     }
   },
@@ -2766,18 +2817,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "process": {
           "description": "A positive process ID or an exact process name.",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "process",
-        "instanceId"
+        "instanceId",
+        "process"
       ]
     }
   },
@@ -2789,7 +2840,7 @@
       "properties": {
         "instanceId": {
           "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
+          "description": "Instance id from instance_list."
         }
       },
       "required": [
@@ -2803,6 +2854,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "scannerName": {
           "description": "Unique scan name, 1-128 characters.",
           "type": "string"
@@ -2839,17 +2894,13 @@
           "description": "Maximum visited candidates, 1-1000000.",
           "type": "integer",
           "default": 100000
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "scannerName",
         "mapName",
-        "targetAddress",
-        "instanceId"
+        "targetAddress"
       ]
     }
   },
@@ -2859,6 +2910,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "A hexadecimal address or Cheat Engine address expression.",
           "type": "string"
@@ -2881,16 +2936,12 @@
           "description": "Read or write UTF-16 strings instead of UTF-8.",
           "type": "boolean",
           "default": false
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "address",
-        "dataType",
-        "instanceId"
+        "dataType"
       ]
     }
   },
@@ -2900,6 +2951,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "baseAddress": {
           "description": "Address containing the first pointer.",
           "type": "string"
@@ -2910,16 +2965,12 @@
           "items": {
             "type": "integer"
           }
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "baseAddress",
-        "offsets",
-        "instanceId"
+        "offsets"
       ]
     }
   },
@@ -2929,6 +2980,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "name": {
           "description": "Session-wide symbol name. Use a distinctive name to avoid collisions.",
           "type": "string"
@@ -2941,16 +2996,12 @@
           "description": "Omit the symbol when Cheat Engine saves a table.",
           "type": "boolean",
           "default": true
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "name",
-        "address",
-        "instanceId"
+        "address"
       ]
     }
   },
@@ -2960,14 +3011,14 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "module": {
           "description": "Optional module name, up to 256 characters.",
           "type": "string",
           "default": null
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
@@ -2981,14 +3032,14 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "waitUntilDone": {
           "description": "Wait for completion before returning.",
           "type": "boolean",
           "default": true
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
@@ -3004,7 +3055,7 @@
       "properties": {
         "instanceId": {
           "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
+          "description": "Instance id from instance_list."
         }
       },
       "required": [
@@ -3018,6 +3069,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "structureName": {
           "description": "Case-sensitive structure name. ",
           "type": "string"
@@ -3025,16 +3080,12 @@
         "index": {
           "description": "Zero-based element index. ",
           "type": "integer"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "structureName",
-        "index",
-        "instanceId"
+        "index"
       ]
     }
   },
@@ -3044,6 +3095,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "scannerName": {
           "description": "Existing pointer scan name.",
           "type": "string"
@@ -3056,16 +3111,12 @@
           "description": "New snapshot name, or omit to read the currently selected process.",
           "type": "string",
           "default": null
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "scannerName",
-        "targetAddress",
-        "instanceId"
+        "targetAddress"
       ]
     }
   },
@@ -3075,14 +3126,14 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "scannerName": {
           "description": "main (default) for the visible CE scan tab, or the independent scanner name to release.",
           "type": "string",
           "default": "main"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
@@ -3096,18 +3147,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "scannerName": {
           "description": "Existing scan name.",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "scannerName",
-        "instanceId"
+        "instanceId",
+        "scannerName"
       ]
     }
   },
@@ -3117,6 +3168,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "addressString": {
           "description": "Target-process symbol expression.",
           "type": "string"
@@ -3125,15 +3180,11 @@
           "description": "Use Cheat Engine shallow symbol resolution.",
           "type": "boolean",
           "default": false
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "addressString",
-        "instanceId"
+        "instanceId",
+        "addressString"
       ]
     }
   },
@@ -3145,7 +3196,7 @@
       "properties": {
         "instanceId": {
           "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
+          "description": "Instance id from instance_list."
         }
       },
       "required": [
@@ -3159,18 +3210,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "filename": {
           "description": "Absolute destination path under a configured trusted table root.",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "filename",
-        "instanceId"
+        "instanceId",
+        "filename"
       ]
     }
   },
@@ -3180,14 +3231,14 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "filename": {
           "description": "Optional destination filename, up to 4096 characters.",
           "type": "string",
           "default": null
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
@@ -3201,18 +3252,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "id": {
           "description": "Current Cheat Engine memory-record ID. ",
           "type": "integer"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "id",
-        "instanceId"
+        "instanceId",
+        "id"
       ]
     }
   },
@@ -3222,6 +3273,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "Target address or symbol expression. ",
           "type": "string"
@@ -3229,16 +3284,12 @@
         "comment": {
           "description": "Comment text, up to 1 MiB. ",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "address",
-        "comment",
-        "instanceId"
+        "comment"
       ]
     }
   },
@@ -3248,6 +3299,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "Target address expression or number.",
           "type": "string"
@@ -3270,16 +3325,12 @@
           "description": "Allow execution.",
           "type": "boolean",
           "default": false
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "address",
-        "size",
-        "instanceId"
+        "size"
       ]
     }
   },
@@ -3289,6 +3340,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "id": {
           "description": "Client-issued memory-record ID.",
           "type": "integer"
@@ -3296,16 +3351,12 @@
         "active": {
           "description": "Requested active state.",
           "type": "boolean"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "id",
-        "active",
-        "instanceId"
+        "active"
       ]
     }
   },
@@ -3315,6 +3366,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "id": {
           "description": "Current Cheat Engine memory-record ID. ",
           "type": "integer"
@@ -3325,16 +3380,12 @@
           "items": {
             "type": "integer"
           }
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "id",
-        "offsets",
-        "instanceId"
+        "offsets"
       ]
     }
   },
@@ -3344,6 +3395,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "id": {
           "description": "Current Cheat Engine memory-record ID. ",
           "type": "integer"
@@ -3351,16 +3406,12 @@
         "script": {
           "description": "Auto Assembler script text, up to 1 MiB. ",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "id",
-        "script",
-        "instanceId"
+        "script"
       ]
     }
   },
@@ -3370,18 +3421,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "module": {
           "description": "Extensionless module name, up to 256 characters.",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "module",
-        "instanceId"
+        "instanceId",
+        "module"
       ]
     }
   },
@@ -3391,18 +3442,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "size": {
           "description": "Pointer size in bytes: 4 or 8.",
           "type": "integer"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "size",
-        "instanceId"
+        "instanceId",
+        "size"
       ]
     }
   },
@@ -3412,18 +3463,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "speed": {
           "description": "Finite positive speed multiplier.",
           "type": "number"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "speed",
-        "instanceId"
+        "instanceId",
+        "speed"
       ]
     }
   },
@@ -3433,6 +3484,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "structureName": {
           "description": "Case-sensitive structure name.",
           "type": "string"
@@ -3448,18 +3503,14 @@
         "value": {
           "description": "Value in Cheat Engine\u0027s format for the element type.",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "structureName",
         "index",
         "baseAddress",
-        "value",
-        "instanceId"
+        "value"
       ]
     }
   },
@@ -3469,18 +3520,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "name": {
           "description": "Name returned by register_symbol.",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "name",
-        "instanceId"
+        "instanceId",
+        "name"
       ]
     }
   },
@@ -3490,6 +3541,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "id": {
           "description": "Client-issued memory-record ID from get_address_list or add_memory_record.",
           "type": "integer"
@@ -3531,15 +3586,11 @@
             null
           ],
           "default": null
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "id",
-        "instanceId"
+        "instanceId",
+        "id"
       ]
     }
   },
@@ -3549,6 +3600,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "structureName": {
           "description": "Case-sensitive structure name. ",
           "type": "string"
@@ -3576,16 +3631,12 @@
           "description": "Replacement byte size (0-1048576), or null to retain it. ",
           "type": "integer",
           "default": null
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "structureName",
-        "index",
-        "instanceId"
+        "index"
       ]
     }
   },
@@ -3595,18 +3646,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "stage": {
           "description": "sections, exports, dotnet, or pdb.",
           "type": "string"
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
-        "stage",
-        "instanceId"
+        "instanceId",
+        "stage"
       ]
     }
   },
@@ -3616,6 +3667,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
         "address": {
           "description": "A hexadecimal address or Cheat Engine address expression.",
           "type": "string"
@@ -3637,17 +3692,13 @@
           "description": "Read or write UTF-16 strings instead of UTF-8.",
           "type": "boolean",
           "default": false
-        },
-        "instanceId": {
-          "type": "string",
-          "description": "Exact identifier returned by list_instances for the Cheat Engine instance that must execute this operation."
         }
       },
       "required": [
+        "instanceId",
         "address",
         "dataType",
-        "value",
-        "instanceId"
+        "value"
       ]
     }
   }

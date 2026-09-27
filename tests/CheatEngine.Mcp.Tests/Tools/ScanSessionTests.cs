@@ -5,6 +5,7 @@ using System.Reflection;
 using CheatEngine.Client;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Scanning;
+using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Tests.Support;
 using CheatEngine.Mcp.Tools;
 using CheatEngine.SDK.Engine.Values;
@@ -78,13 +79,14 @@ public sealed class ScanSessionTests
 
 		ToolResultAssert.HasPropertyValue(failedReset, "success", false);
 		ToolResultAssert.IsSuccess(tool.GetMemoryScanStatus("alpha"));
-		Assert.NotNull(resources.PrepareForTargetChange());
+		Assert.Throws<CheatEngineToolException>(() =>
+			resources.EnsureCanChangeTarget(new TargetTransition(1, 2), TestContext.Current.CancellationToken));
 
 		ToolResultAssert.IsSuccess(tool.ResetMemoryScan("alpha"));
 
 		Assert.Equal(2, alpha.ReleaseCalls);
 		ToolResultAssert.IsFailure(tool.GetMemoryScanStatus("alpha"), "No scan exists with that scannerName.");
-		Assert.Null(resources.PrepareForTargetChange());
+		resources.EnsureCanChangeTarget(new TargetTransition(1, 2), TestContext.Current.CancellationToken);
 	}
 
 	[Fact]
@@ -125,6 +127,7 @@ public sealed class ScanSessionTests
 	private sealed class SessionProbe
 	{
 		private readonly Queue<LeaseReleaseKind> _releaseOutcomes;
+		private bool _released;
 		private ValueScanSessionState _state = ValueScanSessionState.Created;
 
 		public SessionProbe(string name, Address address, string result,
@@ -185,6 +188,8 @@ public sealed class ScanSessionTests
 				"GetResultCount" => 1UL,
 				"Read" => new ValueScanPage(0, 1, ImmutableArray.Create(new ValueScanMatch(Address, Result))),
 				"Release" => Release(),
+				"get_IsReleased" => _released,
+				"get_RequiresManualRecovery" => false,
 				_ => throw new XunitException($"Unexpected session call for {Name}: {method.Name}.")
 			};
 		}
@@ -206,7 +211,9 @@ public sealed class ScanSessionTests
 		{
 			ReleaseCalls++;
 			LeaseReleaseKind kind = _releaseOutcomes.Count > 0 ? _releaseOutcomes.Dequeue() : LeaseReleaseKind.Released;
-			return new LeaseReleaseOutcome(kind, CheatEngineHostEffect.Completed);
+			LeaseReleaseOutcome outcome = new(kind, CheatEngineHostEffect.Completed);
+			_released = !outcome.IsRetryable;
+			return outcome;
 		}
 	}
 }

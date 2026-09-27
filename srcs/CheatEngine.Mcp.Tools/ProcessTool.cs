@@ -13,21 +13,23 @@ namespace CheatEngine.Mcp.Tools;
 public sealed class ProcessTool
 {
 	private readonly ICheatEngineClient _client;
-	private readonly LuaDebuggerCaptureGuard? _debuggerGuard;
+	private readonly TargetTransitionGuards _guards;
 	private readonly McpRuntimeInfo _runtime;
-	private readonly ScanTool? _scans;
 	private readonly TargetResources? _targetResources;
 
+	/// <param name="client">The activation's Client.</param>
+	/// <param name="runtime">The loaded plugin identity.</param>
+	/// <param name="targetResources">The activation's resources, which report ended resources on a reselection.</param>
+	/// <param name="guards">Every target-transition guard; without it, only <paramref name="targetResources" /> guards.</param>
 	public ProcessTool(ICheatEngineClient client, McpRuntimeInfo runtime, TargetResources? targetResources = null,
-		LuaDebuggerCaptureGuard? debuggerGuard = null, ScanTool? scans = null)
+		TargetTransitionGuards? guards = null)
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		ArgumentNullException.ThrowIfNull(runtime);
 		_client = client;
 		_runtime = runtime;
 		_targetResources = targetResources;
-		_debuggerGuard = debuggerGuard;
-		_scans = scans;
+		_guards = guards ?? new TargetTransitionGuards(targetResources is null ? [] : [targetResources]);
 	}
 
 	[McpServerTool(Name = "get_plugin_version")]
@@ -78,25 +80,23 @@ public sealed class ProcessTool
 				return ToolExecution.Error("process is required.");
 			}
 
-			if (int.TryParse(process, out int requestedProcessId) && requestedProcessId > 0 &&
-			    _client.Processes.TryGetCurrentProcess(out ProcessSnapshot current, out _) &&
-			    current.Id.Value == requestedProcessId)
+			bool byId = int.TryParse(process, out int requestedProcessId) && requestedProcessId > 0;
+			int? currentProcessId = null;
+			if (byId && _client.Processes.TryGetCurrentProcess(out ProcessSnapshot current, out _))
 			{
-				object? endedResources = _targetResources?.ReportEndedResources();
-				if (endedResources is not null)
+				if (current.Id.Value == requestedProcessId)
 				{
-					return endedResources;
+					// A reselection keeps every resource; it only forgets and reports those that already ended.
+					_targetResources?.ReportEndedResources(_client.Stopping);
+					return new { success = true, processId = current.Id.Value, processName = current.Name };
 				}
 
-				return new { success = true, processId = current.Id.Value, processName = current.Name };
+				currentProcessId = current.Id.Value;
 			}
 
-			object? preparation = _debuggerGuard?.PrepareForTransition() ?? _targetResources?.PrepareForTargetChange()
-				?? _scans?.PrepareForTargetChange();
-			if (preparation is not null)
-			{
-				return preparation;
-			}
+			// Every guard refuses as a CheatEngineToolException, which this transition Run reports in band.
+			_guards.EnsureCanChangeTarget(new TargetTransition(currentProcessId, byId ? requestedProcessId : null),
+				_client.Stopping);
 
 			ProcessSnapshot snapshot = requestedProcessId > 0
 				? _client.Processes.Attach(new TargetProcessId(requestedProcessId))
