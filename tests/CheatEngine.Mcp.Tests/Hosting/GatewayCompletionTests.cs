@@ -150,6 +150,31 @@ public sealed class GatewayCompletionTests
 	}
 
 	[Fact]
+	public async Task Complete_RepublishedCredentials_AreIneligibleUntilVerifiedAgain()
+	{
+		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync(extraPrimitives: RoutedProbe);
+		await using CompletingBackend backend = await CompletingBackend.StartAsync(gateway.Registry, "republished");
+		await using McpClient client = await gateway.ConnectAsync();
+		backend.Respond = static _ => new Completion { Values = ["refreshed"] };
+		await VerifyAsync(client);
+
+		backend.RepublishWithNewToken(gateway.Registry);
+		CompleteResult instanceId = await CompleteAsync(client, Items, McpResourceUris.InstanceIdVariable, "ce-", null);
+		CompleteResult forwarded = await CompleteAsync(client, Items, "item", "re", Selecting(backend));
+
+		Assert.Empty(instanceId.Completion.Values);
+		Assert.Empty(forwarded.Completion.Values);
+		Assert.Empty(backend.Requests);
+		Assert.Equal(0, backend.InitializeCount);
+
+		await VerifyAsync(client);
+		CompleteResult refreshed = await CompleteAsync(client, Items, "item", "re", Selecting(backend));
+
+		Assert.Equal(["refreshed"], refreshed.Completion.Values);
+		Assert.Single(backend.Requests);
+	}
+
+	[Fact]
 	public async Task Complete_SlowBackend_OffersNothingWithinTheTimeoutAndKeepsThePooledConnection()
 	{
 		await using GatewayTestHost gateway =
@@ -250,21 +275,19 @@ public sealed class GatewayCompletionTests
 
 	private static Dictionary<string, string> Selecting(CompletingBackend backend)
 	{
-		return new Dictionary<string, string>
-		{
-			[McpResourceUris.InstanceIdVariable] = backend.Descriptor.InstanceId
-		};
+		return new Dictionary<string, string> { [McpResourceUris.InstanceIdVariable] = backend.Descriptor.InstanceId };
 	}
 
 	private static async Task<CompleteResult> CompleteAsync(McpClient client, string template, string argument,
 		string value, Dictionary<string, string>? context)
 	{
-		return await client.CompleteAsync(new CompleteRequestParams
-		{
-			Ref = new ResourceTemplateReference { Uri = template },
-			Argument = new Argument { Name = argument, Value = value },
-			Context = context is null ? null : new CompleteContext { Arguments = context }
-		}, Token);
+		return await client.CompleteAsync(
+			new CompleteRequestParams
+			{
+				Ref = new ResourceTemplateReference { Uri = template },
+				Argument = new Argument { Name = argument, Value = value },
+				Context = context is null ? null : new CompleteContext { Arguments = context }
+			}, Token);
 	}
 
 	/// <summary>Routed live templates the gateway completes; the gateway never constructs or invokes it.</summary>
@@ -272,6 +295,11 @@ public sealed class GatewayCompletionTests
 	public sealed class RoutedCompletionProbe : IMcpCompletionSource
 	{
 		private readonly string _json = "{}";
+
+		public McpCompletionValues ListCompletionValues(string variable, CancellationToken cancellationToken)
+		{
+			throw new InvalidOperationException("The gateway never lists a routed probe itself.");
+		}
 
 		[McpServerResource(UriTemplate = "cheatengine://instance/probe-items/{item}{?format}",
 			Name = "instance_probe_items", Title = "Probe items", MimeType = "application/json")]
@@ -290,11 +318,6 @@ public sealed class GatewayCompletionTests
 		public string ItemIds([McpCompletion(McpCompletionCost.Memory)] string item, string id)
 		{
 			return _json;
-		}
-
-		public McpCompletionValues ListCompletionValues(string variable, CancellationToken cancellationToken)
-		{
-			throw new InvalidOperationException("The gateway never lists a routed probe itself.");
 		}
 	}
 
@@ -358,6 +381,18 @@ public sealed class GatewayCompletionTests
 			await _application.StopAsync(Token);
 		}
 
+		internal void RepublishWithNewToken(InstanceRegistry registry)
+		{
+			ArgumentNullException.ThrowIfNull(registry);
+			string path = _recordPath ?? throw new InvalidOperationException("The backend is not published.");
+			File.Delete(path);
+			Descriptor = Descriptor with
+			{
+				AccessToken = RandomNumberGenerator.GetHexString(64)
+			};
+			_recordPath = registry.Publish(Descriptor);
+		}
+
 		internal static async Task<CompletingBackend> StartAsync(InstanceRegistry registry, string name)
 		{
 			using Process process = Process.GetCurrentProcess();
@@ -401,10 +436,7 @@ public sealed class GatewayCompletionTests
 			});
 			application.MapMcp();
 			application.Urls.Add(LoopbackEndpoints.NewEndpoint());
-			backend = new CompletingBackend(application)
-			{
-				Descriptor = descriptor
-			};
+			backend = new CompletingBackend(application) { Descriptor = descriptor };
 			await application.StartAsync(Token);
 			backend.Descriptor = descriptor with
 			{

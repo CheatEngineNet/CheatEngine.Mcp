@@ -84,6 +84,85 @@ public sealed class McpModuleLifecycleTests
 	}
 
 	[Fact]
+	public async Task EnableDisable_TwoActivations_ShareTheRegistryWithoutAffectingEachOther()
+	{
+		string root = Path.Combine(Path.GetTempPath(), $"CheatEngine.Mcp.Tests-{Guid.NewGuid():N}");
+		string instances = Path.Combine(root, "instances");
+		List<string> firstAccessed = [];
+		List<string> secondAccessed = [];
+		ICheatEngineClient firstClient = StrictClient(firstAccessed);
+		ICheatEngineClient secondClient = StrictClient(secondAccessed);
+		using TestActivation firstActivation = new(firstClient,
+			new Dictionary<string, string?>
+			{
+				["Mcp:InstanceName"] = "first",
+				["Mcp:InstanceDirectory"] = instances
+			});
+		using TestActivation secondActivation = new(secondClient,
+			new Dictionary<string, string?>
+			{
+				["Mcp:InstanceName"] = "second",
+				["Mcp:InstanceDirectory"] = instances
+			});
+		McpServerModule first = firstActivation.Module;
+		McpServerModule second = secondActivation.Module;
+		InstanceRegistry registry = new(instances);
+		using HttpClient http = new();
+		string? firstEndpoint = null;
+		string? secondEndpoint = null;
+		try
+		{
+			first.OnEnabled(firstClient);
+			second.OnEnabled(secondClient);
+
+			InstanceDescriptor[] published = registry.ReadActive(TestContext.Current.CancellationToken).ToArray();
+			Assert.Equal(2, published.Length);
+			InstanceDescriptor firstInstance = Assert.Single(published, instance => instance.Name == "first");
+			InstanceDescriptor secondInstance = Assert.Single(published, instance => instance.Name == "second");
+			firstEndpoint = firstInstance.Endpoint;
+			secondEndpoint = secondInstance.Endpoint;
+			Assert.NotEqual(firstInstance.InstanceId, secondInstance.InstanceId);
+			Assert.True(firstInstance.AccessToken != secondInstance.AccessToken);
+			Assert.NotEqual(firstInstance.Endpoint, secondInstance.Endpoint);
+			await AssertPublishedIdentityAsync(http, firstInstance);
+			await AssertPublishedIdentityAsync(http, secondInstance);
+
+			first.OnDisabling(firstClient);
+
+			InstanceDescriptor remaining = Assert.Single(registry.ReadActive(TestContext.Current.CancellationToken));
+			Assert.Equal(secondInstance.InstanceId, remaining.InstanceId);
+			await AssertPublishedIdentityAsync(http, remaining);
+			first.Dispose();
+			await WaitUntilStoppedAsync(http, firstEndpoint);
+		}
+		finally
+		{
+			first.OnDisabling(firstClient);
+			second.OnDisabling(secondClient);
+			first.Dispose();
+			second.Dispose();
+			if (firstEndpoint is not null)
+			{
+				await WaitUntilStoppedAsync(http, firstEndpoint);
+			}
+
+			if (secondEndpoint is not null)
+			{
+				await WaitUntilStoppedAsync(http, secondEndpoint);
+			}
+
+			if (Directory.Exists(root))
+			{
+				Directory.Delete(root, true);
+			}
+		}
+
+		Assert.Empty(registry.ReadActive(TestContext.Current.CancellationToken));
+		Assert.All(firstAccessed, member => Assert.Contains(member, AllowedClientMembers));
+		Assert.All(secondAccessed, member => Assert.Contains(member, AllowedClientMembers));
+	}
+
+	[Fact]
 	public async Task Stopping_CancelledBeforeDisabling_RefusesRequestsUntilTheRecordIsWithdrawn()
 	{
 		string root = Path.Combine(Path.GetTempPath(), $"CheatEngine.Mcp.Tests-{Guid.NewGuid():N}");
@@ -236,6 +315,64 @@ public sealed class McpModuleLifecycleTests
 		Assert.All(accessed, member => Assert.Contains(member, AllowedClientMembers));
 	}
 
+	[Fact]
+	public void Enable_SecondCall_IsRejectedBeforeCreatingAnotherBackend()
+	{
+		List<string> accessed = [];
+		ICheatEngineClient client = StrictClient(accessed);
+		using TestActivation activation = new(client);
+		StartedBackend backend = new();
+		CountingBackendFactory factory = new(backend);
+		McpServerModule module = new(factory, activation.Targets,
+			activation.Services.GetRequiredService<McpStatusIndicator>());
+		try
+		{
+			module.OnEnabled(client);
+
+			InvalidOperationException failure = Assert.Throws<InvalidOperationException>(() => module.OnEnabled(client));
+
+			Assert.Equal("The MCP server module can only be enabled once.", failure.Message);
+			Assert.Equal(1, factory.CreateCalls);
+			Assert.Equal(1, backend.StartCalls);
+		}
+		finally
+		{
+			module.Dispose();
+		}
+
+		Assert.Equal((1, 1), (backend.StopAcceptingCalls, backend.StopCalls));
+		Assert.All(accessed, member => Assert.Contains(member, AllowedClientMembers));
+	}
+
+	[Fact]
+	public async Task Disabling_DuringEnable_StopsTheBackendBeforeItCanRun()
+	{
+		List<string> accessed = [];
+		ICheatEngineClient client = StrictClient(accessed);
+		using TestActivation activation = new(client);
+		BlockingBackend backend = new();
+		McpServerModule module = new(new BlockingBackendFactory(backend), activation.Targets,
+			activation.Services.GetRequiredService<McpStatusIndicator>());
+		try
+		{
+			Task enabling = Task.Run(() => module.OnEnabled(client), TestContext.Current.CancellationToken);
+			await backend.WaitForStartAsync(TestContext.Current.CancellationToken);
+
+			module.OnDisabling(client);
+			backend.CompleteStart();
+
+			InvalidOperationException failure = await Assert.ThrowsAsync<InvalidOperationException>(() => enabling);
+			Assert.Contains("Could not start the MCP server", failure.Message, StringComparison.Ordinal);
+			Assert.Equal((1, 1), (backend.StopAcceptingCalls, backend.StopCalls));
+		}
+		finally
+		{
+			module.Dispose();
+		}
+
+		Assert.All(accessed, member => Assert.Contains(member, AllowedClientMembers));
+	}
+
 	private static ICheatEngineClient StrictClient(List<string> accessed, CancellationTokenSource? stopping = null)
 	{
 		ICheatEngineDispatcher dispatcher = ClientTestDouble.Create<ICheatEngineDispatcher>((method, _) =>
@@ -286,7 +423,44 @@ public sealed class McpModuleLifecycleTests
 		throw new TimeoutException("The disposed module left its MCP listener running.");
 	}
 
+	private static async Task AssertPublishedIdentityAsync(HttpClient http, InstanceDescriptor instance)
+	{
+		using HttpRequestMessage request = new(HttpMethod.Get, new Uri(new Uri(instance.Endpoint), "instance"));
+		request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", instance.AccessToken);
+		using HttpResponseMessage response = await http.SendAsync(request, TestContext.Current.CancellationToken);
+		Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+		JsonNode body = JsonNode.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))!;
+		Assert.Equal(instance.InstanceId, body["instanceId"]!.GetValue<string>());
+	}
+
 	private sealed class FailingBackendFactory(PartiallyStartedBackend backend) : IMcpBackendHostFactory
+	{
+		public string BaseUrl => "http://127.0.0.1:45678/";
+
+		public IMcpBackendHost Create(McpPrimitiveTargets _, CancellationToken __)
+		{
+			return backend;
+		}
+	}
+
+	private sealed class CountingBackendFactory(StartedBackend backend) : IMcpBackendHostFactory
+	{
+		public int CreateCalls
+		{
+			get;
+			private set;
+		}
+
+		public string BaseUrl => "http://127.0.0.1:45678/";
+
+		public IMcpBackendHost Create(McpPrimitiveTargets _, CancellationToken __)
+		{
+			CreateCalls++;
+			return backend;
+		}
+	}
+
+	private sealed class BlockingBackendFactory(BlockingBackend backend) : IMcpBackendHostFactory
 	{
 		public string BaseUrl => "http://127.0.0.1:45678/";
 
@@ -326,6 +500,95 @@ public sealed class McpModuleLifecycleTests
 		{
 			StopCalls++;
 			return Task.CompletedTask;
+		}
+	}
+
+	private sealed class StartedBackend : IMcpBackendHost
+	{
+		public int StartCalls
+		{
+			get;
+			private set;
+		}
+
+		public int StopAcceptingCalls
+		{
+			get;
+			private set;
+		}
+
+		public int StopCalls
+		{
+			get;
+			private set;
+		}
+
+		public string? Endpoint => "http://127.0.0.1:45678/";
+
+		public Task StartAsync()
+		{
+			StartCalls++;
+			return Task.CompletedTask;
+		}
+
+		public void StopAccepting()
+		{
+			StopAcceptingCalls++;
+		}
+
+		public Task StopAsync()
+		{
+			StopCalls++;
+			return Task.CompletedTask;
+		}
+	}
+
+	private sealed class BlockingBackend : IMcpBackendHost
+	{
+		private readonly TaskCompletionSource<object?> _start =
+			new(TaskCreationOptions.RunContinuationsAsynchronously);
+		private readonly TaskCompletionSource<object?> _startEntered =
+			new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		public int StopAcceptingCalls
+		{
+			get;
+			private set;
+		}
+
+		public int StopCalls
+		{
+			get;
+			private set;
+		}
+
+		public string? Endpoint => "http://127.0.0.1:45678/";
+
+		public void CompleteStart()
+		{
+			_start.TrySetResult(null);
+		}
+
+		public Task StartAsync()
+		{
+			_startEntered.TrySetResult(null);
+			return _start.Task;
+		}
+
+		public void StopAccepting()
+		{
+			StopAcceptingCalls++;
+		}
+
+		public Task StopAsync()
+		{
+			StopCalls++;
+			return Task.CompletedTask;
+		}
+
+		public Task<object?> WaitForStartAsync(CancellationToken cancellationToken)
+		{
+			return _startEntered.Task.WaitAsync(cancellationToken);
 		}
 	}
 }

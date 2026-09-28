@@ -31,14 +31,16 @@ internal sealed partial class McpBackendHost(
 {
 	// The provider is the lease on the plugin's log sink: disposed once the web host stopped, never blocking.
 	private readonly ILoggerProvider _logProvider = logging.CreateProvider();
-	private readonly object _shutdownGate = new();
+	private readonly object _lifecycleGate = new();
 	private WebApplication? _app;
+	private Task? _startTask;
 	private Task? _shutdownTask;
-	private bool _started;
+	private int _started;
+	private int _logProviderDisposed;
 	private int _stopping;
 
 	/// <summary>Whether the listener started and is still accepting requests.</summary>
-	public bool IsRunning => _started && Volatile.Read(ref _stopping) == 0;
+	public bool IsRunning => Volatile.Read(ref _started) != 0 && Volatile.Read(ref _stopping) == 0;
 
 	/// <summary>The transport container while the backend runs.</summary>
 	internal IServiceProvider? Services => _app?.Services;
@@ -53,40 +55,98 @@ internal sealed partial class McpBackendHost(
 	}
 
 	/// <inheritdoc />
-	public async Task StartAsync()
+	public Task StartAsync()
 	{
-		try
+		TaskCompletionSource<object?> start;
+		lock (_lifecycleGate)
 		{
-			await StartCoreAsync().ConfigureAwait(false);
+			if (_startTask is not null || _shutdownTask is not null)
+			{
+				return Task.FromException(new InvalidOperationException("The MCP server can only be started once."));
+			}
+
+			start = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+			_startTask = start.Task;
 		}
-		catch
-		{
-			await StopAsync().ConfigureAwait(false);
-			throw;
-		}
+
+		_ = StartAndCleanUpAsync(start);
+		return start.Task;
 	}
 
-	/// <inheritdoc />
 	public void StopAccepting()
 	{
-		Interlocked.Exchange(ref _stopping, 1);
-		try
+		lock (_lifecycleGate)
 		{
-			publication?.Dispose();
-		}
-		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-		{
-			LogDiscoveryWithdrawalFailed(Logger, exception.GetType().Name);
+			Interlocked.Exchange(ref _stopping, 1);
+			try
+			{
+				publication?.Dispose();
+			}
+			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+			{
+				LogDiscoveryWithdrawalFailed(Logger, exception.GetType().Name);
+			}
 		}
 	}
 
 	/// <inheritdoc />
 	public Task StopAsync()
 	{
-		lock (_shutdownGate)
+		lock (_lifecycleGate)
 		{
-			return _shutdownTask ??= StopCoreAsync();
+			StopAccepting();
+			return _shutdownTask ??= StopAfterStartAsync(_startTask);
 		}
+	}
+
+	private async Task StartAndCleanUpAsync(TaskCompletionSource<object?> start)
+	{
+		try
+		{
+			await StartCoreAsync().ConfigureAwait(false);
+			start.TrySetResult(null);
+		}
+		catch (Exception exception)
+		{
+			await CleanUpFailedStartAsync().ConfigureAwait(false);
+			if (exception is OperationCanceledException cancellation)
+			{
+				start.TrySetCanceled(cancellation.CancellationToken);
+			}
+			else
+			{
+				start.TrySetException(exception);
+			}
+		}
+	}
+
+	private async Task CleanUpFailedStartAsync()
+	{
+		try
+		{
+			await StopCoreAsync().ConfigureAwait(false);
+		}
+		catch
+		{
+			// Preserve the startup failure, which is the lifecycle error the caller can act on.
+		}
+	}
+
+	private async Task StopAfterStartAsync(Task? startTask)
+	{
+		if (startTask is not null)
+		{
+			try
+			{
+				await startTask.ConfigureAwait(false);
+			}
+			catch
+			{
+				// A failed start already releases its listener and logging lease.
+			}
+		}
+
+		await StopCoreAsync().ConfigureAwait(false);
 	}
 
 	private async Task StartCoreAsync()
@@ -167,18 +227,31 @@ internal sealed partial class McpBackendHost(
 
 		app.MapMcp();
 		await app.StartAsync(stopping).ConfigureAwait(false);
-		Endpoint = app.Urls.Single();
-		publication?.Publish(Endpoint);
-		_started = true;
+		string endpoint = app.Urls.Single();
+		lock (_lifecycleGate)
+		{
+			if (Volatile.Read(ref _stopping) != 0 || stopping.IsCancellationRequested)
+			{
+				throw new OperationCanceledException("The MCP server stopped while it was starting.", stopping);
+			}
+
+			Endpoint = endpoint;
+			publication?.Publish(endpoint);
+			Volatile.Write(ref _started, 1);
+		}
 	}
 
 	private async Task StopCoreAsync()
 	{
 		StopAccepting();
-		WebApplication? app = Interlocked.Exchange(ref _app, null);
+		WebApplication? app;
+		lock (_lifecycleGate)
+		{
+			app = Interlocked.Exchange(ref _app, null);
+		}
 		if (app is null)
 		{
-			_logProvider.Dispose();
+			DisposeLogProvider();
 			return;
 		}
 
@@ -203,8 +276,16 @@ internal sealed partial class McpBackendHost(
 			}
 			finally
 			{
-				_logProvider.Dispose();
+				DisposeLogProvider();
 			}
+		}
+	}
+
+	private void DisposeLogProvider()
+	{
+		if (Interlocked.Exchange(ref _logProviderDisposed, 1) == 0)
+		{
+			_logProvider.Dispose();
 		}
 	}
 

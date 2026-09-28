@@ -140,11 +140,7 @@ internal sealed partial class GatewayResourceRouter(
 		ReadResourceRequestParams request, string backendUri, string instanceId, string? version,
 		CancellationToken cancellationToken)
 	{
-		ReadResourceRequestParams forwarded = new()
-		{
-			Uri = backendUri,
-			Meta = GatewayMeta.ForBackend(request.Meta)
-		};
+		ReadResourceRequestParams forwarded = new() { Uri = backendUri, Meta = GatewayMeta.ForBackend(request.Meta) };
 		using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		deadline.CancelAfter(options.CallTimeout);
 		try

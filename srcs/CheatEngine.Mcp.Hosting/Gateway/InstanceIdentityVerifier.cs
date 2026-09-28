@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 
 using CheatEngine.Mcp.Hosting.Discovery;
@@ -11,9 +13,10 @@ namespace CheatEngine.Mcp.Hosting.Gateway;
 ///     record names. The gateway runs it before every routed call and for every <c>instance_list</c> candidate.
 /// </summary>
 /// <remarks>
-///     It remembers two things, ids and identities only, never a record, an endpoint or a token: when each id was last
-///     verified (<see cref="RecentlyVerified" />, which completion uses), and the identity each backend last confirmed
-///     (<see cref="IsConfirmed" />, which the resource list uses). A failed check forgets both.
+///     It remembers two things: when each id was last verified (<see cref="RecentlyVerified" />, which completion
+///     uses), and the identity plus one-way endpoint-and-token fingerprint each backend last confirmed
+///     (<see cref="IsConfirmed" />, which the resource list uses). It never retains a raw registry record, endpoint or
+///     token. A failed check forgets both.
 /// </remarks>
 internal sealed class InstanceIdentityVerifier(TimeProvider time) : IDisposable
 {
@@ -29,11 +32,11 @@ internal sealed class InstanceIdentityVerifier(TimeProvider time) : IDisposable
 	/// </summary>
 	internal static readonly TimeSpan VerificationWindow = TimeSpan.FromSeconds(10);
 
-	private readonly HttpClient _http = BackendHttp.CreateClient(MaximumResponseBytes);
-
-	// Instance id to the identity its backend last confirmed, and when; it does not expire with the window, because an
-	// activation's identity never changes while its record stays active.
+	// Instance id to the identity and redacted record fingerprint its backend last confirmed. The confirmation does not
+	// expire with the window because an activation's record remains valid until it is withdrawn or republished.
 	private readonly ConcurrentDictionary<string, Confirmation> _confirmed = new(StringComparer.Ordinal);
+
+	private readonly HttpClient _http = BackendHttp.CreateClient(MaximumResponseBytes);
 
 	// Instance id to the timestamp of its last successful verification; ids only, never a record or a token.
 	private readonly ConcurrentDictionary<string, long> _verified = new(StringComparer.Ordinal);
@@ -71,7 +74,8 @@ internal sealed class InstanceIdentityVerifier(TimeProvider time) : IDisposable
 
 	/// <summary>
 	///     Whether the backend of this record confirmed exactly its identity (id, activation, process, start time and
-	///     plugin version) and no check failed since, however long ago; it never contacts the backend.
+	///     plugin version), endpoint and token and no check failed since, however long ago; it never contacts the
+	///     backend.
 	/// </summary>
 	/// <param name="instance">An active registry record.</param>
 	/// <returns><see langword="true" /> when the last check of this id confirmed this identity.</returns>
@@ -79,7 +83,8 @@ internal sealed class InstanceIdentityVerifier(TimeProvider time) : IDisposable
 	{
 		ArgumentNullException.ThrowIfNull(instance);
 		return _confirmed.TryGetValue(instance.InstanceId, out Confirmation? confirmation) &&
-			   confirmation.Identity == InstanceIdentity.From(instance);
+			   confirmation.Identity == InstanceIdentity.From(instance) &&
+			   string.Equals(confirmation.RecordFingerprint, RecordFingerprint(instance), StringComparison.Ordinal);
 	}
 
 	/// <summary>Forgets the confirmed identity of every id whose registry record is no longer active.</summary>
@@ -120,8 +125,19 @@ internal sealed class InstanceIdentityVerifier(TimeProvider time) : IDisposable
 
 		long verifiedAt = time.GetTimestamp();
 		_verified[instance.InstanceId] = verifiedAt;
-		_confirmed[instance.InstanceId] = new Confirmation(InstanceIdentity.From(instance), verifiedAt);
+		_confirmed[instance.InstanceId] = new Confirmation(InstanceIdentity.From(instance), RecordFingerprint(instance),
+			verifiedAt);
 		PruneExpired(verifiedAt);
+	}
+
+	/// <summary>
+	///     Creates a one-way binding of the credentials and endpoint that were used for a successful identity check. The
+	///     cache therefore cannot treat a republished record as confirmed before its new endpoint and token are checked.
+	/// </summary>
+	private static string RecordFingerprint(InstanceDescriptor instance)
+	{
+		return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(instance.Endpoint + "\n" +
+			instance.AccessToken)));
 	}
 
 	private void PruneExpired(long now)
@@ -179,8 +195,9 @@ internal sealed class InstanceIdentityVerifier(TimeProvider time) : IDisposable
 		}
 	}
 
-	/// <summary>An identity a backend confirmed.</summary>
+	/// <summary>An identity and record fingerprint a backend confirmed.</summary>
 	/// <param name="Identity">The confirmed identity, which never carries the endpoint or the token.</param>
+	/// <param name="RecordFingerprint">A one-way binding of the confirmed endpoint and token.</param>
 	/// <param name="ConfirmedAt">The <see cref="TimeProvider" /> timestamp of the confirmation.</param>
-	private sealed record Confirmation(InstanceIdentity Identity, long ConfirmedAt);
+	private sealed record Confirmation(InstanceIdentity Identity, string RecordFingerprint, long ConfirmedAt);
 }

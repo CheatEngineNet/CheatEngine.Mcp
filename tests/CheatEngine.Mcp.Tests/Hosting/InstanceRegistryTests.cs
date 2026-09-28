@@ -48,6 +48,7 @@ public sealed class InstanceRegistryTests : IDisposable
 		};
 		WriteRecord(replaced);
 		Assert.Empty(registry.ReadActive(TestContext.Current.CancellationToken));
+		Assert.False(File.Exists(Path.Combine(_directory, replaced.ActivationId.ToString("N") + ".json")));
 	}
 
 	[Theory]
@@ -76,6 +77,38 @@ public sealed class InstanceRegistryTests : IDisposable
 		publication.Publish("http://127.0.0.1:40001/");
 		File.WriteAllText(Path.Combine(_directory, "broken.json"), "{broken");
 		Assert.Equal(publication.Descriptor, Assert.Single(registry.ReadActive(TestContext.Current.CancellationToken)));
+	}
+
+	[Fact]
+	public void Publication_DisposedBeforePublish_CannotCreateALateRecord()
+	{
+		InstanceRegistry registry = new(_directory);
+		using InstancePublication publication = new(registry, "disposed");
+		publication.Dispose();
+
+		Assert.Throws<ObjectDisposedException>(() => publication.Publish("http://127.0.0.1:49100/"));
+		Assert.Empty(registry.ReadActive(TestContext.Current.CancellationToken));
+	}
+
+	[Fact]
+	public void Publication_WithdrawFailure_KeepsTheRecordForARetry()
+	{
+		if (!OperatingSystem.IsWindows())
+		{
+			return;
+		}
+
+		InstanceRegistry registry = new(_directory);
+		using InstancePublication publication = new(registry, "retry-withdrawal");
+		publication.Publish("http://127.0.0.1:49100/");
+		string path = Path.Combine(_directory, publication.Descriptor.ActivationId.ToString("N") + ".json");
+		using (new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+		{
+			Assert.Throws<IOException>(publication.Dispose);
+		}
+
+		publication.Dispose();
+		Assert.False(File.Exists(path));
 	}
 
 	[Fact]

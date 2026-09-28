@@ -68,11 +68,11 @@ internal sealed partial class GatewayCompletionRouter(
 
 	private Completion CompleteInstanceId(string? value, CancellationToken cancellationToken)
 	{
-		HashSet<string> active = registry.ReadActive(cancellationToken)
-			.Select(static instance => instance.InstanceId).ToHashSet(StringComparer.Ordinal);
+		HashSet<string> activeAndConfirmed = registry.ReadActive(cancellationToken)
+			.Where(verifier.IsConfirmed).Select(static instance => instance.InstanceId).ToHashSet(StringComparer.Ordinal);
 		string prefix = value ?? string.Empty;
 		string[] matches = verifier.RecentlyVerified(IdentityWindow)
-			.Where(active.Contains)
+			.Where(activeAndConfirmed.Contains)
 			.Where(instanceId => instanceId.StartsWith(prefix, StringComparison.Ordinal)).ToArray();
 		return new Completion
 		{
@@ -104,6 +104,12 @@ internal sealed partial class GatewayCompletionRouter(
 				.ToArray();
 			if (records is not [InstanceDescriptor instance])
 			{
+				return new Completion();
+			}
+
+			if (!verifier.IsConfirmed(instance))
+			{
+				// A republished record needs a regular discovery or routed request before a completion can use it.
 				return new Completion();
 			}
 
