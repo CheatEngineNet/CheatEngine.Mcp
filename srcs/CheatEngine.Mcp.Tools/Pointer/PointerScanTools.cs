@@ -187,8 +187,7 @@ public sealed class PointerScanTools
 				"Rescan against a map of the same process architecture.");
 		}
 
-		PointerPath[] paths = scan.GetUsablePaths(out bool incomplete);
-		if (!scan.TryBeginRescan())
+		if (!scan.TryBeginRescan(out PointerPath[] paths, out bool incomplete))
 		{
 			throw CheatEngineToolException.Busy($"Another rescan of {scan.Name} is running.",
 				"Repeat the call once it ends.");
@@ -212,24 +211,19 @@ public sealed class PointerScanTools
 					if (!dropUnresolved)
 					{
 						// A missing snapshot entry or an unreadable live hop is no proof that the path is wrong.
-						kept.Add(paths[index] with
-						{
-							Verification = PointerVerification.Unresolved
-						});
+						kept.Add(paths[index] with { Verification = PointerVerification.Unresolved });
 					}
 				}
 				else if (destination == address)
 				{
 					verified++;
-					kept.Add(paths[index] with
-					{
-						Verification = match
-					});
+					kept.Add(paths[index] with { Verification = match });
 				}
 			}
 
-			bool nowIncomplete = incomplete || map?.Incomplete == true || unresolved != 0;
-			scan.Replace([.. kept], nowIncomplete);
+			bool coverageIncomplete = incomplete || map?.Incomplete == true || dropUnresolved && unresolved != 0;
+			bool nowIncomplete = coverageIncomplete || unresolved != 0;
+			scan.Replace([.. kept], coverageIncomplete);
 			return new PointerRescanResult(scan.Name, kept.Count, verified, paths.Length - kept.Count, unresolved,
 				nowIncomplete);
 		}
@@ -387,7 +381,7 @@ public sealed class PointerScanTools
 		}
 
 		if (client.Memory.TryResolvePointerChain(new PointerChainRequest(new Address(root), path.Offsets),
-				out Address destination, out CheatEngineFailure failure, cancellationToken))
+			    out Address destination, out CheatEngineFailure failure, cancellationToken))
 		{
 			return destination.ToUInt64();
 		}

@@ -13,6 +13,8 @@ internal sealed class PointerMap
 
 	private readonly PointerModule[] _byBase;
 	private readonly int[] _byValue;
+	private readonly Dictionary<PointerModule, int> _moduleIndices;
+	private readonly IReadOnlyDictionary<ulong, PointerStaticRoot>? _staticRoots;
 
 	/// <summary>Creates a map; the entries are sorted by address when they are not already.</summary>
 	/// <param name="processId">The process the map was captured from.</param>
@@ -22,8 +24,9 @@ internal sealed class PointerMap
 	/// <param name="incomplete">Whether the capture skipped memory or hit a limit.</param>
 	/// <param name="bytesRead">How many bytes were read.</param>
 	/// <param name="unreadableBytes">How many requested bytes could not be read.</param>
-	internal PointerMap(int processId, int width, PointerEntry[] entries, PointerModule[] modules, bool incomplete,
-		long bytesRead, long unreadableBytes)
+	internal PointerMap(int? processId, int width, PointerEntry[] entries, PointerModule[] modules, bool incomplete,
+		long bytesRead, long unreadableBytes, IReadOnlyDictionary<ulong, PointerStaticRoot>? staticRoots = null,
+		PointerStaticRange? staticRange = null)
 	{
 		ArgumentNullException.ThrowIfNull(entries);
 		ArgumentNullException.ThrowIfNull(modules);
@@ -44,12 +47,19 @@ internal sealed class PointerMap
 		Incomplete = incomplete;
 		BytesRead = bytesRead;
 		UnreadableBytes = unreadableBytes;
+		_staticRoots = staticRoots;
+		StaticRange = staticRange;
 		_byBase = [.. modules.OrderBy(static module => module.BaseAddress)];
+		_moduleIndices = new Dictionary<PointerModule, int>(ReferenceEqualityComparer.Instance);
+		for (int index = 0; index < modules.Length; index++)
+		{
+			_moduleIndices.Add(modules[index], index);
+		}
 		_byValue = SortByValue(entries);
 	}
 
 	/// <summary>The process the map was captured from.</summary>
-	internal int ProcessId
+	internal int? ProcessId
 	{
 		get;
 	}
@@ -89,6 +99,12 @@ internal sealed class PointerMap
 	{
 		get;
 	}
+
+	/// <summary>The optional native static-base range. Captures do not provide one.</summary>
+	internal PointerStaticRange? StaticRange { get; }
+
+	/// <summary>The entries in the order required by CE's pointer-map format.</summary>
+	internal PointerEntry EntryByValue(int index) => Entries[_byValue[index]];
 
 	/// <summary>
 	///     Adds the nonzero aligned pointers of one read to a capture. The alignment is absolute, so a chunk that starts
@@ -186,7 +202,8 @@ internal sealed class PointerMap
 				}
 
 				reversedOffsets.Add(unchecked((long) (destination - entry.Value)));
-				PointerModule? module = FindModule(entry.Address);
+				PointerStaticRoot? root = GetStaticRoot(entry.Address);
+				PointerModule? module = root is { ModuleIndex: >= 0 } ? Modules[root.Value.ModuleIndex] : null;
 				if (!options.StaticRootsOnly || module is not null)
 				{
 					long[] offsets = new long[reversedOffsets.Count];
@@ -196,7 +213,7 @@ internal sealed class PointerMap
 					}
 
 					paths.Add(new PointerPath(entry.Address, module?.Name,
-						module is null ? 0 : entry.Address - module.BaseAddress, offsets));
+						module is null ? 0 : root!.Value.Offset, offsets));
 				}
 
 				if (reversedOffsets.Count < options.MaximumDepth)
@@ -270,6 +287,11 @@ internal sealed class PointerMap
 	/// <returns>The module, or <see langword="null" />.</returns>
 	internal PointerModule? FindModule(ulong address)
 	{
+		if (_staticRoots is not null)
+		{
+			return GetStaticRoot(address) is { ModuleIndex: >= 0 } root ? Modules[root.ModuleIndex] : null;
+		}
+
 		int low = 0;
 		int high = _byBase.Length;
 		while (low < high)
@@ -286,6 +308,23 @@ internal sealed class PointerMap
 		}
 
 		return low > 0 && _byBase[low - 1].Contains(address) ? _byBase[low - 1] : null;
+	}
+
+	/// <summary>Returns the exact native root when imported, or classifies a captured module address.</summary>
+	internal PointerStaticRoot? GetStaticRoot(ulong address)
+	{
+		if (_staticRoots is not null)
+		{
+			return _staticRoots.TryGetValue(address, out PointerStaticRoot root) ? root : null;
+		}
+
+		PointerModule? module = FindModule(address);
+		if (module is null)
+		{
+			return null;
+		}
+
+		return new PointerStaticRoot(_moduleIndices[module], address - module.BaseAddress);
 	}
 
 	/// <summary>
@@ -339,7 +378,7 @@ internal sealed class PointerMap
 			.. modules.Where(module => string.Equals(module.Name, path.Module, StringComparison.OrdinalIgnoreCase))
 		];
 		if (matches.Length != 1 || path.ModuleOffset >= matches[0].Size ||
-			matches[0].BaseAddress > ulong.MaxValue - path.ModuleOffset)
+		    matches[0].BaseAddress > ulong.MaxValue - path.ModuleOffset)
 		{
 			return false;
 		}

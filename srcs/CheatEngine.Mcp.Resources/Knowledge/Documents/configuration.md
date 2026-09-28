@@ -162,21 +162,24 @@ Answer `busy` by waiting or stopping jobs; raise a limit only when the user asks
 ## Host files and tables
 
 **`Mcp:Files:AllowedRoots`** (default `[]`) lists the absolute local folders where tools may create files:
-`memory_dump_to_file(path=...)` and `process_save_file(filename=...)`. An empty list refuses every write.
+`memory_dump_to_file(path=...)`, `process_save_file(filename=...)`, `pointer_save_map(path=...)` and
+`pointer_save_scan(path=...)`. An empty list refuses every write.
 
 - The file must lie strictly inside a root and must not name a folder. The comparison ignores case and respects folder
   boundaries: `C:\root2` is not inside `C:\root`.
 - The root and every folder down to the file must already exist and be real folders, not symbolic links or junctions;
   the tools create no folders.
-- `process_save_file` never replaces a file; `memory_dump_to_file(..., overwrite=true)` may.
+- `process_save_file` never replaces a file. `memory_dump_to_file`, `pointer_save_map` and `pointer_save_scan` replace
+  one only when `overwrite=true`; their writes are committed atomically.
 - Each root is checked at enable: an absolute drive-letter path, no UNC or device path (`\\server\share`, `\\?\`,
   `\\.\`), no alternate data stream, device name or wildcard, no repeat. An invalid root fails the enable.
 
 Reads need no root but follow the same path rules: `process_create`, `process_open_file`, `memory_load_from_file`,
-`symbol_add_module`, `exec_inject_library`, `exec_inject_dotnet`, `table_load`, and `module_find_patches` for the module
-file. A path must be absolute and on a local fixed drive (not a network, removable or virtual drive); symbolic links,
-junctions and other reparse points, 8.3 short names, wildcards and segments ending in a space or a period are refused.
-The MCP data directory (settings and logs) and the instance registry are always refused, even under a root.
+`pointer_load_map`, `pointer_load_scan`, `symbol_add_module`, `exec_inject_library`, `exec_inject_dotnet`, `table_load`,
+and `module_find_patches` for the module file. A path must be absolute and on a local fixed drive (not a network,
+removable or virtual drive); symbolic links, junctions and other reparse points, 8.3 short names, wildcards and
+segments ending in a space or a period are refused. The MCP data directory (settings and logs) and the instance registry
+are always refused, even under a root.
 
 **`CheatEngineClient:AllowedTableRoots`** (default `[]`) lists the folders for `table_load`, `table_save` and
 `table_list_files`; an empty list refuses every table file. CheatEngine.Client validates the entries at enable (each

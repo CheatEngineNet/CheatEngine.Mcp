@@ -116,8 +116,12 @@ pointer_find_references | Find pointer references | true,false,true,false | host
 pointer_list_maps | List pointer maps | true,false,true,false | short | -
 pointer_list_paths | List pointer paths | true,false,true,false | short | -
 pointer_list_scans | List pointer scans | true,false,true,false | short | -
+pointer_load_map | Load pointer map | false,false,false,true | short | -
+pointer_load_scan | Load pointer scan | false,false,false,true | short | -
 pointer_read_chain | Read a pointer chain | true,false,true,false | short | -
 pointer_rescan_paths | Rescan pointer paths | false,true,false,false | short | -
+pointer_save_map | Save pointer map | false,true,false,true | short | -
+pointer_save_scan | Save pointer scan | false,true,false,true | short | -
 process_attach | Attach to a process | false,true,false,true | short | -
 process_create | Create a process | false,true,false,true | short | -
 process_get_current | Get current process | true,false,true,false | short | -

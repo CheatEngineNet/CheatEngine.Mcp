@@ -20,7 +20,7 @@ internal sealed class PointerMapSlot
 	private PointerMap? _map;
 	private long _planned;
 	private int _pointers;
-	private int _processId;
+	private int? _processId;
 	private int _reservedPointers;
 	private PointerJobState _state = PointerJobState.Running;
 	private long _unreadableBytes;
@@ -155,6 +155,32 @@ internal sealed class PointerMapSlot
 		}
 	}
 
+	/// <summary>Publishes a fully parsed native map without creating a capture job.</summary>
+	internal void LoadImportedMap(PointerMap map)
+	{
+		ArgumentNullException.ThrowIfNull(map);
+		lock (_lock)
+		{
+			if (_deleting || _job is not null || _map is not null)
+			{
+				throw CheatEngineToolException.InvalidState("The pointer map slot cannot accept an import.",
+					"Choose a new mapName and load the file again.");
+			}
+
+			_map = map;
+			_state = PointerJobState.Ready;
+			_processId = null;
+			_width = map.Width;
+			_pointers = map.Entries.Length;
+			_bytesRead = 0;
+			_unreadableBytes = 0;
+			_incomplete = true;
+			_planned = 0;
+			_attempted = 0;
+			Volatile.Write(ref _reservedPointers, map.Entries.Length);
+		}
+	}
+
 	/// <summary>
 	///     Ends a capture that was stopped before it finished: the pointers read so far stay usable and the map is built
 	///     from them on first use, so a stop never waits for the build.
@@ -227,7 +253,9 @@ internal sealed class PointerMapSlot
 				? 100
 				: (int) Math.Clamp(_attempted * 100 / _planned, 0, 100);
 			return new PointerMapInfo(Name, _job?.Id ?? string.Empty, _state, _processId, _width, _pointers,
-				_bytesRead, _unreadableBytes, _incomplete, progress, _error);
+				_bytesRead, _unreadableBytes, _incomplete, progress, _error,
+				_processId is null ? PointerCaptureCompleteness.Unknown : _incomplete
+					? PointerCaptureCompleteness.Incomplete : PointerCaptureCompleteness.Complete);
 		}
 	}
 }

@@ -8,6 +8,10 @@ lua_execute
 memory_dump_to_file
 memory_load_from_file
 module_find_patches
+pointer_load_map
+pointer_load_scan
+pointer_save_map
+pointer_save_scan
 process_attach
 process_create
 process_list

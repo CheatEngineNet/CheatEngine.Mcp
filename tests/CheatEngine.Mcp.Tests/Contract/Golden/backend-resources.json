@@ -62,7 +62,7 @@
       "uri": "cheatengine://docs/configuration",
       "description": "Every plugin and gateway setting with its default and bounds: precedence, the capability gates and what each refuses, execution limits, file and table roots, environment variables and log files.",
       "mimeType": "text/markdown",
-      "size": 22173
+      "size": 22374
     },
     {
       "name": "doc_connection_troubleshooting",
@@ -166,7 +166,7 @@
       "uri": "cheatengine://docs/pointers",
       "description": "Pointer notation and offset order, reading a chain, manual chains from a writer, pointer maps, path searches, rescans and their limits, ranking chains, storing them in records, and fallbacks.",
       "mimeType": "text/markdown",
-      "size": 24605
+      "size": 27334
     },
     {
       "name": "doc_safety",
@@ -198,7 +198,7 @@
       "uri": "cheatengine://docs/tool-map",
       "description": "Every tool by domain with its purpose, the setting (gate) it needs and its dispatch class; the running schema stays the authority for parameters and results.",
       "mimeType": "text/markdown",
-      "size": 24993
+      "size": 25382
     },
     {
       "name": "doc_troubleshooting_scans",

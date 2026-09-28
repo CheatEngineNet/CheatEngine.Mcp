@@ -13,10 +13,15 @@ Client release its resources without blocking Cheat Engine's main thread.
 
 ## Install and connect
 
-### 1. Get the deployment files
+### 1. Choose the deployment files
 
-Use the files from a build artifact, or publish them from this repository with .NET SDK **10.0.401** and PowerShell 7
-installed:
+For the published beta, download
+[**CheatEngine.Mcp-2.0.0-beta.1-win-x64.zip**](https://github.com/CheatEngineNet/CheatEngine.Mcp/releases/download/v2.0.0-beta.1/CheatEngine.Mcp-2.0.0-beta.1-win-x64.zip)
+from the [2.0.0-beta.1 prerelease](https://github.com/CheatEngineNet/CheatEngine.Mcp/releases/tag/v2.0.0-beta.1). It
+is the published Windows x64 beta for Cheat Engine 7.7; its release notes and its included README describe that archive.
+
+That archive is built from `main`, not from `feat/archi`. To use this branch's architecture and its current features,
+publish this source branch with .NET SDK **10.0.401** and PowerShell 7 installed:
 
 ```powershell
 pwsh -NoProfile -File eng/Publish.ps1
@@ -24,7 +29,7 @@ pwsh -NoProfile -File eng/Publish.ps1
 pwsh -NoProfile -File eng/Publish.ps1 -Configuration Debug
 ```
 
-Release is the default. Copy these from `artifacts/dist/release/` into a stable folder, such as
+Release is the default. Copy these branch-built files from `artifacts/dist/release/` into a stable folder, such as
 `C:\Tools\CheatEngine.Mcp`:
 
 | Deployment item                        | How it is used                                                                                                                                                                                                     |
@@ -273,9 +278,10 @@ The gates are exposure switches, not a sandbox: see
 Existing settings files with `false` values override the defaults; remove those overrides or set them to `true`, then
 disable and re-enable the plugin.
 
-`Mcp:Files:AllowedRoots` lists the folders that tools may write host files to, such as memory dumps; it is empty by
-default, which refuses every write. `CheatEngineClient:AllowedTableRoots` does the same for table load and save. Paths
-must be absolute and local, and the discovery and MCP data directories are always refused. `Mcp:Logging:MinimumLevel`
+`Mcp:Files:AllowedRoots` lists the folders that tools may write host files to, such as memory dumps and saved pointer
+maps or scans; it is empty by default, which refuses every write. `CheatEngineClient:AllowedTableRoots` does the same
+for table load and save. Paths must be absolute and local, and the discovery and MCP data directories are always
+refused. `Mcp:Logging:MinimumLevel`
 sets the plugin log level. `Mcp:Execution` holds the dispatch and job limits, such as `MaxConcurrentDispatches` (4 by
 default) and the job lifetimes (120 seconds by default, at most 300); the
 [configuration document](srcs/CheatEngine.Mcp.Resources/Knowledge/Documents/configuration.md) lists every key.

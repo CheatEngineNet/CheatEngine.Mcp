@@ -153,6 +153,38 @@ version is the [pointer scan](../Workflows/pointer-scan.md) workflow.
    record. Then free the memory with `pointer_delete_scan(scanName="hp")` and `pointer_delete_map(mapName="run1")`. A
    scan keeps its paths after its map is deleted.
 
+### Save, restart and reopen
+
+Maps and scans normally live only in the plugin activation's memory. Save the finished data before disabling the plugin,
+closing CE or changing machines; an ordinary game restart does not require this because the activation keeps its maps
+and scans across `process_attach`.
+
+1. Configure a dedicated existing folder in `Mcp:Files:AllowedRoots`, for example
+   `C:\CheatEngine\Files`. Until it is configured and the plugin is disabled and enabled again, both save tools refuse
+   to write. See [configuration](configuration.md#host-files-and-tables).
+2. When the map and scan are usable (`ready`, `stopped` or `expired`), call
+   `pointer_save_map(mapName="run1", path="C:\CheatEngine\Files\run1.scandata")` and
+   `pointer_save_scan(scanName="hp", path="C:\CheatEngine\Files\hp.json")`. The destination must be inside that
+   root. A save does not replace a file unless `overwrite=true`, and it commits the new file atomically.
+3. After the new activation starts, call `pointer_load_map` and `pointer_load_scan` with unused map and scan names.
+   Loading a map lets the server search or rescan against that snapshot without reading the target. Loading a scan
+   restores paths as `unresolved`; it never claims that a stored result is still valid.
+4. Attach the restarted game, find the value again, then call
+   `pointer_rescan_paths(scanName="<loaded scan>", target="<new address>")`. For an offline check, give it the loaded
+   or newly captured map with `mapName`; for a live check, omit `mapName` and use a target of the same pointer width.
+   Module roots rebase by module name. Confirm surviving paths live before placing one in a record.
+
+`pointer_save_map` and `pointer_load_map` exchange Cheat Engine's native version-1 `.scandata` pointer-map format.
+They do not save or resume CE's native scanner queue, and they do not use `.PTR` files. Native maps do not contain the
+source process identity or capture statistics; an imported map has unknown completeness, so an empty search is never
+proof that no path exists.
+
+`pointer_save_scan` writes MCP's version-2 JSON result format. `pointer_load_scan` accepts version 2 and legacy version
+1 JSON, and writes made again by this server use version 2. The JSON holds bounded result paths, their module-relative
+roots and whether the original search may have missed paths; it is not a Cheat Engine `.PTR` file. Its loaded paths must
+be rescanned after a restart because memory values and module layouts can have changed. A successful rescan clears the
+temporary uncertainty from imported paths, while any uncertainty from the original search remains.
+
 ### Job states and result flags
 
 A map or scan `state` is running, ready, stopped, expired, failed, target_changed or cancelled (the plugin
@@ -187,7 +219,7 @@ or found so far. If the selected process changes during a capture, the map is di
 | Roots | module images, system DLLs included (`staticRootsOnly` on) | modules except system DLLs; 2 thread stacks |
 | Negative offsets | off unless `allowNegativeOffsets` | off |
 | Loops | a path never visits the same holder twice | No looping pointers: on |
-| Storage | this plugin activation's memory, never saved | .PTR and .scandata files on disk |
+| Storage | activation memory, or explicit `.scandata` map / JSON scan saves | .PTR and .scandata files on disk |
 
 - By default a capture reads writable memory only, at 4-byte-aligned addresses, up to `maxBytes` (64 MiB; at most
   512 MiB) and `maxPointers` (1048576 by default, up to 4194304), within a job lifetime of 120 seconds (up to 300).
@@ -209,7 +241,7 @@ or found so far. If the selected process changes during a capture, the map is di
   and `debugger_detach` until you resume.
 - Stop a job with `runtime_stop_job(jobId="<jobId>")`: a stopped capture or search keeps what it had.
   `pointer_delete_map` and `pointer_delete_scan` also stop a running job, then discard its data. Maps and scans survive
-  a target switch but not a plugin disable.
+  a target switch but not a plugin disable unless saved and loaded with the pointer persistence tools.
 - There are no thread-stack roots and no "must end with offsets" filter. A value reachable only from a thread stack
   needs another method, or CE's own pointer scanner. When a writer gave you the last offset, keep the paths whose last
   `offsets` entry matches it yourself.

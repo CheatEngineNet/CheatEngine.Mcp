@@ -164,7 +164,7 @@ public static class CheatEngineToolNames
 	/// <summary>The <c>aob_find_value</c> tool.</summary>
 	public const string AobFindValue = "aob_find_value";
 
-	// pointer (10)
+	// pointer (14)
 
 	/// <summary>The <c>pointer_read_chain</c> tool.</summary>
 	public const string PointerReadChain = "pointer_read_chain";
@@ -195,6 +195,18 @@ public static class CheatEngineToolNames
 
 	/// <summary>The <c>pointer_delete_scan</c> tool.</summary>
 	public const string PointerDeleteScan = "pointer_delete_scan";
+
+	/// <summary>The <c>pointer_save_map</c> tool.</summary>
+	public const string PointerSaveMap = "pointer_save_map";
+
+	/// <summary>The <c>pointer_load_map</c> tool.</summary>
+	public const string PointerLoadMap = "pointer_load_map";
+
+	/// <summary>The <c>pointer_save_scan</c> tool.</summary>
+	public const string PointerSaveScan = "pointer_save_scan";
+
+	/// <summary>The <c>pointer_load_scan</c> tool.</summary>
+	public const string PointerLoadScan = "pointer_load_scan";
 
 	// module (5)
 
@@ -679,6 +691,10 @@ public static class CheatEngineToolNames
 		PointerListPaths,
 		PointerListScans,
 		PointerDeleteScan,
+		PointerSaveMap,
+		PointerLoadMap,
+		PointerSaveScan,
+		PointerLoadScan,
 		ModuleList,
 		ModuleGet,
 		ModuleListExports,

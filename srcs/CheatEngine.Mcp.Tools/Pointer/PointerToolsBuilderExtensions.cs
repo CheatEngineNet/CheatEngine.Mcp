@@ -2,7 +2,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace CheatEngine.Mcp.Tools.Pointer;
 
-/// <summary>The composition entry point of the <c>pointer</c> tool domain (10 tools in the v2 catalog).</summary>
+/// <summary>The composition entry point of the <c>pointer</c> tool domain (14 tools in the v2 catalog).</summary>
 public static class PointerToolsBuilderExtensions
 {
 	extension(ICheatEngineMcpBuilder builder)
@@ -25,7 +25,8 @@ public static class PointerToolsBuilderExtensions
 				.AddToolType<PointerChainTools>()
 				.AddToolType<PointerReferenceTools>()
 				.AddToolType<PointerMapTools>()
-				.AddToolType<PointerScanTools>();
+				.AddToolType<PointerScanTools>()
+				.AddToolType<PointerFileTools>();
 		}
 	}
 }

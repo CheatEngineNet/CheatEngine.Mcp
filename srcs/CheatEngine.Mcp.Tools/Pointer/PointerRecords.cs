@@ -118,11 +118,23 @@ public enum PointerJobState
 	Cancelled
 }
 
+/// <summary>Whether a map covers the intended capture; native files do not carry this information.</summary>
+[JsonConverter(typeof(ContractEnumConverter<PointerCaptureCompleteness>))]
+public enum PointerCaptureCompleteness
+{
+	/// <summary>The requested capture completed without skipped memory.</summary>
+	Complete,
+	/// <summary>The capture stopped or skipped memory.</summary>
+	Incomplete,
+	/// <summary>The file format did not preserve capture statistics.</summary>
+	Unknown
+}
+
 /// <summary>A pointer map and its capture.</summary>
 /// <param name="MapName">The map name.</param>
 /// <param name="JobId">The capture job's id.</param>
 /// <param name="State">Where the capture stands.</param>
-/// <param name="ProcessId">The captured process.</param>
+/// <param name="ProcessId">The captured process, or null for a native import.</param>
 /// <param name="PointerSize">The pointer width, 4 or 8.</param>
 /// <param name="Pointers">How many pointers are captured.</param>
 /// <param name="BytesRead">How many bytes were read.</param>
@@ -130,6 +142,7 @@ public enum PointerJobState
 /// <param name="Incomplete">Whether the capture skipped memory or stopped early.</param>
 /// <param name="ProgressPercent">How much of the planned memory was read.</param>
 /// <param name="Error">Why the capture failed or ended early.</param>
+/// <param name="CaptureCompleteness">The capture's known completeness, or unknown for native imports.</param>
 public sealed record PointerMapInfo(
 	[property: Description("The map name.")]
 	string MapName,
@@ -138,7 +151,7 @@ public sealed record PointerMapInfo(
 	[property: Description("Where the capture stands; the map is usable when ready, stopped or expired.")]
 	PointerJobState State,
 	[property: Description("The process the map was captured from.")]
-	int ProcessId,
+	int? ProcessId,
 	[property: Description("The target pointer width in bytes, 4 or 8.")]
 	int PointerSize,
 	[property: Description("How many pointers are captured.")]
@@ -152,7 +165,9 @@ public sealed record PointerMapInfo(
 	[property: Description("How much of the planned memory was read, 0 to 100.")]
 	int ProgressPercent,
 	[property: Description("Why the capture failed or ended early.")]
-	string? Error = null);
+	string? Error = null,
+	[property: Description("Complete, incomplete, or unknown when imported from a native CE file.")]
+	PointerCaptureCompleteness CaptureCompleteness = PointerCaptureCompleteness.Unknown);
 
 /// <summary>The stored pointer maps.</summary>
 /// <param name="Maps">The maps, oldest first.</param>

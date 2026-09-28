@@ -10488,13 +10488,22 @@
           "description": "Why the capture failed or ended early.",
           "type": "string",
           "default": null
+        },
+        "captureCompleteness": {
+          "description": "Complete, incomplete, or unknown when imported from a native CE file.",
+          "type": "string",
+          "enum": [
+            "complete",
+            "incomplete",
+            "unknown"
+          ],
+          "default": "unknown"
         }
       },
       "required": [
         "mapName",
         "jobId",
         "state",
-        "processId",
         "pointerSize",
         "pointers",
         "bytesRead",
@@ -10930,13 +10939,22 @@
                 "description": "Why the capture failed or ended early.",
                 "type": "string",
                 "default": null
+              },
+              "captureCompleteness": {
+                "description": "Complete, incomplete, or unknown when imported from a native CE file.",
+                "type": "string",
+                "enum": [
+                  "complete",
+                  "incomplete",
+                  "unknown"
+                ],
+                "default": "unknown"
               }
             },
             "required": [
               "mapName",
               "jobId",
               "state",
-              "processId",
               "pointerSize",
               "pointers",
               "bytesRead",
@@ -11194,6 +11212,264 @@
     }
   },
   {
+    "name": "pointer_load_map",
+    "title": "Load pointer map",
+    "description": "Imports a local CE version-1 .scandata map without attaching to its old target. The compressed file is limited to 64 MiB and at most one million pointer addresses; a malformed or oversized file leaves the store unchanged. Native capture completeness is unknown. Search it offline, then rescan paths against current memory.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "mapName": {
+          "description": "A new map name, 1 to 128 characters.",
+          "type": "string"
+        },
+        "path": {
+          "description": "Absolute local CE .scandata path.",
+          "type": "string"
+        },
+        "maximumPointers": {
+          "description": "Maximum pointer addresses accepted, 1 to 1000000.",
+          "type": "integer",
+          "default": 1000000
+        }
+      },
+      "required": [
+        "mapName",
+        "path"
+      ]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "filePath": {
+          "description": "The normalized local file path.",
+          "type": "string"
+        },
+        "format": {
+          "description": "CE.scandata.v1.",
+          "type": "string"
+        },
+        "map": {
+          "description": "The map and its capture provenance.",
+          "type": "object",
+          "properties": {
+            "mapName": {
+              "description": "The map name.",
+              "type": "string"
+            },
+            "jobId": {
+              "description": "The capture job\u0027s id, for runtime_list_jobs and runtime_stop_job.",
+              "type": "string"
+            },
+            "state": {
+              "description": "Where the capture stands; the map is usable when ready, stopped or expired.",
+              "type": "string",
+              "enum": [
+                "running",
+                "ready",
+                "stopped",
+                "expired",
+                "failed",
+                "target_changed",
+                "cancelled"
+              ]
+            },
+            "processId": {
+              "description": "The process the map was captured from.",
+              "type": "integer"
+            },
+            "pointerSize": {
+              "description": "The target pointer width in bytes, 4 or 8.",
+              "type": "integer"
+            },
+            "pointers": {
+              "description": "How many pointers are captured.",
+              "type": "integer"
+            },
+            "bytesRead": {
+              "description": "How many bytes were read.",
+              "type": "integer"
+            },
+            "unreadableBytes": {
+              "description": "How many requested bytes could not be read.",
+              "type": "integer"
+            },
+            "incomplete": {
+              "description": "Whether the capture skipped memory or stopped early; absence in the map is then no proof.",
+              "type": "boolean"
+            },
+            "progressPercent": {
+              "description": "How much of the planned memory was read, 0 to 100.",
+              "type": "integer"
+            },
+            "error": {
+              "description": "Why the capture failed or ended early.",
+              "type": "string",
+              "default": null
+            },
+            "captureCompleteness": {
+              "description": "Complete, incomplete, or unknown when imported from a native CE file.",
+              "type": "string",
+              "enum": [
+                "complete",
+                "incomplete",
+                "unknown"
+              ],
+              "default": "unknown"
+            }
+          },
+          "required": [
+            "mapName",
+            "jobId",
+            "state",
+            "pointerSize",
+            "pointers",
+            "bytesRead",
+            "unreadableBytes",
+            "incomplete",
+            "progressPercent"
+          ]
+        }
+      },
+      "required": [
+        "filePath",
+        "format",
+        "map"
+      ]
+    },
+    "annotations": {
+      "title": "Load pointer map",
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false
+    },
+    "_meta": {
+      "cheatengine/dispatchClass": "short"
+    }
+  },
+  {
+    "name": "pointer_load_scan",
+    "title": "Load pointer scan",
+    "description": "Loads bounded MCP pointer-scan JSON v1 or v2 under a new name. All restored paths start unresolved, even if they previously matched; rescan against a new map or current target before relying on them. Parsing errors leave the store unchanged.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "scanName": {
+          "description": "A new scan name, 1 to 128 characters.",
+          "type": "string"
+        },
+        "path": {
+          "description": "Absolute local MCP pointer-scan .json path.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scanName",
+        "path"
+      ]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "filePath": {
+          "description": "The normalized local file path.",
+          "type": "string"
+        },
+        "format": {
+          "description": "The MCP pointer-scan JSON format.",
+          "type": "string"
+        },
+        "scan": {
+          "description": "The scan and its retained paths.",
+          "type": "object",
+          "properties": {
+            "scanName": {
+              "description": "The scan name.",
+              "type": "string"
+            },
+            "jobId": {
+              "description": "The search job\u0027s id, for runtime_list_jobs and runtime_stop_job.",
+              "type": "string"
+            },
+            "state": {
+              "description": "Where the search stands; the paths are usable when ready, stopped or expired.",
+              "type": "string",
+              "enum": [
+                "running",
+                "ready",
+                "stopped",
+                "expired",
+                "failed",
+                "target_changed",
+                "cancelled"
+              ]
+            },
+            "mapName": {
+              "description": "The searched map.",
+              "type": "string"
+            },
+            "target": {
+              "description": "The target address, uppercase hexadecimal.",
+              "type": "string"
+            },
+            "count": {
+              "description": "How many paths are stored.",
+              "type": "integer"
+            },
+            "incomplete": {
+              "description": "Whether the paths may miss some: an incomplete map, a limit, a stop or unresolved paths.",
+              "type": "boolean"
+            },
+            "traversalLimited": {
+              "description": "Whether maxNodes or maxResults stopped the search.",
+              "type": "boolean"
+            },
+            "visitedNodes": {
+              "description": "How many candidate pointers were visited.",
+              "type": "integer"
+            },
+            "elapsedMs": {
+              "description": "How long the search ran, in milliseconds.",
+              "type": "integer"
+            },
+            "error": {
+              "description": "Why the search failed or ended early.",
+              "type": "string",
+              "default": null
+            }
+          },
+          "required": [
+            "scanName",
+            "jobId",
+            "state",
+            "mapName",
+            "target",
+            "count",
+            "incomplete",
+            "traversalLimited",
+            "visitedNodes",
+            "elapsedMs"
+          ]
+        }
+      },
+      "required": [
+        "filePath",
+        "format",
+        "scan"
+      ]
+    },
+    "annotations": {
+      "title": "Load pointer scan",
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false
+    },
+    "_meta": {
+      "cheatengine/dispatchClass": "short"
+    }
+  },
+  {
     "name": "pointer_read_chain",
     "title": "Read a pointer chain",
     "description": "Follows a pointer chain hop by hop at the target\u0027s pointer width and optionally reads the final value. Offsets are signed hexadecimal in dereference order: base game.exe\u002B1A2B30 with offsets [\u002210\u0022,\u00224C8\u0022] reads [[game.exe\u002B1A2B30]\u002B10]\u002B4C8. An unreadable hop fails with memory_read_failed and details {hopIndex, readAt}.",
@@ -11386,6 +11662,269 @@
       "destructiveHint": true,
       "idempotentHint": false,
       "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "_meta": {
+      "cheatengine/dispatchClass": "short"
+    }
+  },
+  {
+    "name": "pointer_save_map",
+    "title": "Save pointer map",
+    "description": "Exports a ready pointer map as a native CE version-1 .scandata file. The destination must be a local file below Mcp:Files:AllowedRoots. A temporary file is committed atomically; overwrite must be explicit. Native maps cannot represent capture completeness, and empty or very large maps cannot be exported.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "mapName": {
+          "description": "The retained pointer map.",
+          "type": "string"
+        },
+        "path": {
+          "description": "Absolute local .scandata path in an existing allowed write directory.",
+          "type": "string"
+        },
+        "overwrite": {
+          "description": "Replace an existing file atomically.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "mapName",
+        "path"
+      ]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "filePath": {
+          "description": "The normalized local file path.",
+          "type": "string"
+        },
+        "format": {
+          "description": "CE.scandata.v1.",
+          "type": "string"
+        },
+        "map": {
+          "description": "The map and its capture provenance.",
+          "type": "object",
+          "properties": {
+            "mapName": {
+              "description": "The map name.",
+              "type": "string"
+            },
+            "jobId": {
+              "description": "The capture job\u0027s id, for runtime_list_jobs and runtime_stop_job.",
+              "type": "string"
+            },
+            "state": {
+              "description": "Where the capture stands; the map is usable when ready, stopped or expired.",
+              "type": "string",
+              "enum": [
+                "running",
+                "ready",
+                "stopped",
+                "expired",
+                "failed",
+                "target_changed",
+                "cancelled"
+              ]
+            },
+            "processId": {
+              "description": "The process the map was captured from.",
+              "type": "integer"
+            },
+            "pointerSize": {
+              "description": "The target pointer width in bytes, 4 or 8.",
+              "type": "integer"
+            },
+            "pointers": {
+              "description": "How many pointers are captured.",
+              "type": "integer"
+            },
+            "bytesRead": {
+              "description": "How many bytes were read.",
+              "type": "integer"
+            },
+            "unreadableBytes": {
+              "description": "How many requested bytes could not be read.",
+              "type": "integer"
+            },
+            "incomplete": {
+              "description": "Whether the capture skipped memory or stopped early; absence in the map is then no proof.",
+              "type": "boolean"
+            },
+            "progressPercent": {
+              "description": "How much of the planned memory was read, 0 to 100.",
+              "type": "integer"
+            },
+            "error": {
+              "description": "Why the capture failed or ended early.",
+              "type": "string",
+              "default": null
+            },
+            "captureCompleteness": {
+              "description": "Complete, incomplete, or unknown when imported from a native CE file.",
+              "type": "string",
+              "enum": [
+                "complete",
+                "incomplete",
+                "unknown"
+              ],
+              "default": "unknown"
+            }
+          },
+          "required": [
+            "mapName",
+            "jobId",
+            "state",
+            "pointerSize",
+            "pointers",
+            "bytesRead",
+            "unreadableBytes",
+            "incomplete",
+            "progressPercent"
+          ]
+        }
+      },
+      "required": [
+        "filePath",
+        "format",
+        "map"
+      ]
+    },
+    "annotations": {
+      "title": "Save pointer map",
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false
+    },
+    "_meta": {
+      "cheatengine/dispatchClass": "short"
+    }
+  },
+  {
+    "name": "pointer_save_scan",
+    "title": "Save pointer scan",
+    "description": "Saves a completed pointer scan as MCP pointer-scan JSON v2, preserving signed offsets, root modules, map name and target. The destination must be below Mcp:Files:AllowedRoots. The file is committed atomically; overwrite must be explicit. This is not a CE .ptr file or a paused native scan queue.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "scanName": {
+          "description": "The retained pointer scan.",
+          "type": "string"
+        },
+        "path": {
+          "description": "Absolute local .json path in an existing allowed write directory.",
+          "type": "string"
+        },
+        "overwrite": {
+          "description": "Replace an existing file atomically.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "scanName",
+        "path"
+      ]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "filePath": {
+          "description": "The normalized local file path.",
+          "type": "string"
+        },
+        "format": {
+          "description": "The MCP pointer-scan JSON format.",
+          "type": "string"
+        },
+        "scan": {
+          "description": "The scan and its retained paths.",
+          "type": "object",
+          "properties": {
+            "scanName": {
+              "description": "The scan name.",
+              "type": "string"
+            },
+            "jobId": {
+              "description": "The search job\u0027s id, for runtime_list_jobs and runtime_stop_job.",
+              "type": "string"
+            },
+            "state": {
+              "description": "Where the search stands; the paths are usable when ready, stopped or expired.",
+              "type": "string",
+              "enum": [
+                "running",
+                "ready",
+                "stopped",
+                "expired",
+                "failed",
+                "target_changed",
+                "cancelled"
+              ]
+            },
+            "mapName": {
+              "description": "The searched map.",
+              "type": "string"
+            },
+            "target": {
+              "description": "The target address, uppercase hexadecimal.",
+              "type": "string"
+            },
+            "count": {
+              "description": "How many paths are stored.",
+              "type": "integer"
+            },
+            "incomplete": {
+              "description": "Whether the paths may miss some: an incomplete map, a limit, a stop or unresolved paths.",
+              "type": "boolean"
+            },
+            "traversalLimited": {
+              "description": "Whether maxNodes or maxResults stopped the search.",
+              "type": "boolean"
+            },
+            "visitedNodes": {
+              "description": "How many candidate pointers were visited.",
+              "type": "integer"
+            },
+            "elapsedMs": {
+              "description": "How long the search ran, in milliseconds.",
+              "type": "integer"
+            },
+            "error": {
+              "description": "Why the search failed or ended early.",
+              "type": "string",
+              "default": null
+            }
+          },
+          "required": [
+            "scanName",
+            "jobId",
+            "state",
+            "mapName",
+            "target",
+            "count",
+            "incomplete",
+            "traversalLimited",
+            "visitedNodes",
+            "elapsedMs"
+          ]
+        }
+      },
+      "required": [
+        "filePath",
+        "format",
+        "scan"
+      ]
+    },
+    "annotations": {
+      "title": "Save pointer scan",
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": true,
       "readOnlyHint": false
     },
     "_meta": {

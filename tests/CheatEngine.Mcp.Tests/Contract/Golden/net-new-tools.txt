@@ -43,6 +43,10 @@ mono_list_methods
 mono_poll_instance_search
 mono_start_instance_search
 pointer_list_scans
+pointer_load_map
+pointer_load_scan
+pointer_save_map
+pointer_save_scan
 record_group
 record_move
 record_set_dropdown

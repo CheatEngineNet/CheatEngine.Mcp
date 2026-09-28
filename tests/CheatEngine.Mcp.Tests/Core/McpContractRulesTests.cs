@@ -21,8 +21,7 @@ public sealed class McpContractRulesTests
 		"""{"type":"object","properties":{"address":{"description":"Address expression.","type":"string"}},"required":["address"]}""";
 
 	/// <summary>
-	///     The 186 backend tool names of the v2 catalog: the 172 reviewed names, the 13 promoted from phase 2 and
-	///     mono_get_object.
+	///     The 190 backend tool names of the v2 catalog, including four pointer file operations.
 	/// </summary>
 	public static TheoryData<string> PlanCatalogNames => new(
 		"runtime_get_info", "runtime_get_overview", "runtime_list_resources", "runtime_release_resources",
@@ -37,7 +36,7 @@ public sealed class McpContractRulesTests
 		"aob_find", "aob_generate_signature",
 		"pointer_read_chain", "pointer_find_references", "pointer_create_map", "pointer_list_maps",
 		"pointer_delete_map", "pointer_find_paths", "pointer_rescan_paths", "pointer_list_paths", "pointer_list_scans",
-		"pointer_delete_scan",
+		"pointer_delete_scan", "pointer_save_map", "pointer_load_map", "pointer_save_scan", "pointer_load_scan",
 		"module_list", "module_get", "module_list_exports", "module_find_patches",
 		"symbol_resolve", "symbol_register", "symbol_unregister", "symbol_list_registered",
 		"symbol_get_module_preference", "symbol_set_module_preference", "symbol_reload", "symbol_add_module",
@@ -78,10 +77,10 @@ public sealed class McpContractRulesTests
 		"mono_get_object");
 
 	[Fact]
-	public void PlanCatalogNames_Count_Is186()
+	public void PlanCatalogNames_Count_Is190()
 	{
-		Assert.Equal(186, PlanCatalogNames.Count);
-		Assert.Equal(186, PlanCatalogNames.Select(static row => row.Data).Distinct(StringComparer.Ordinal).Count());
+		Assert.Equal(190, PlanCatalogNames.Count);
+		Assert.Equal(190, PlanCatalogNames.Select(static row => row.Data).Distinct(StringComparer.Ordinal).Count());
 	}
 
 	[Fact]

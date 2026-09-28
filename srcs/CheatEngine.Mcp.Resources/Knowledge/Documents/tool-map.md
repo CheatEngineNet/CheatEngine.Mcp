@@ -135,6 +135,10 @@ Guide: [pointers](pointers.md). Offsets are hex strings in dereference order, th
 | `pointer_list_paths` | | Page a scan's paths, each with an address expression. |
 | `pointer_rescan_paths` | | Keep only the paths that still reach a target, as after a restart. |
 | `pointer_delete_scan` | | Delete a pointer-path scan, stopping its search. |
+| `pointer_save_map` | | Export a usable map as a native CE version-1 `.scandata` file. |
+| `pointer_load_map` | | Import a native CE version-1 `.scandata` map; capture completeness is unknown. |
+| `pointer_save_scan` | | Save result paths in MCP pointer-scan JSON version 2. |
+| `pointer_load_scan` | | Load MCP pointer-scan JSON version 2 or legacy version 1; rescan unresolved paths. |
 
 ## module
 

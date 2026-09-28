@@ -11,6 +11,8 @@ using CheatEngine.Client.Memory;
 using CheatEngine.Client.Processes;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Scanning;
+
+using CheatEngine.Mcp.Core.Files;
 using CheatEngine.Mcp.Core.Jobs;
 using CheatEngine.Mcp.Tests.Support;
 using CheatEngine.Mcp.Tools.Pointer;
@@ -105,6 +107,9 @@ internal sealed class PointerFixture : IAsyncDisposable
 		services.AddLogging();
 		services.AddSingleton<TimeProvider>(Clock);
 		services.AddSingleton(Options.Create(options ?? new McpExecutionOptions()));
+		services.AddSingleton(new McpFilePaths(new McpFileOptions(),
+			Path.Combine(Path.GetTempPath(), "ce-mcp-test-registry"),
+			Path.Combine(Path.GetTempPath(), "ce-mcp-test-data")));
 		new CheatEngineMcpBuilder(services, CheatEngineMcpMode.Backend).AddExecutionServices().AddPointerTools();
 		services.AddOptions<CheatEngineMcpPrimitiveOptions>();
 		_root = services.BuildServiceProvider(new ServiceProviderOptions
