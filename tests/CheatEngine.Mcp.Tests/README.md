@@ -1,50 +1,90 @@
 # CheatEngine.Mcp.Tests
 
-The single test project: xUnit v3 on Microsoft.Testing.Platform, configured by
-[`eng/Tests.props`](../../eng/Tests.props).
-It references every product project and builds the [live target](../CheatEngine.Mcp.LiveTarget/README.md) without
-referencing its assembly.
-The commands, the gates and the golden-file rules are in [CONTRIBUTING.md](../../CONTRIBUTING.md#build-and-test).
+`CheatEngine.Mcp.Tests` is the repository's integration and contract test project.
+It verifies the Core, Tools, Resources, Prompts, Hosting, Plugin, and Gateway projects as one published MCP system.
 
-## Layout
+The project targets .NET 10, uses xUnit v3 on Microsoft.Testing.Platform, and inherits its test-runner configuration from [`eng/Tests.props`](../../eng/Tests.props).
+It references the product projects directly and builds [CheatEngine.Mcp.LiveTarget](../CheatEngine.Mcp.LiveTarget/README.md) without referencing that executable's assembly.
 
-- `Core/`, `Tools/`, `Resources/`, `Prompts/`, `Hosting/`, `Plugin/`: tests that mirror the product projects.
-  `Resources/` checks the knowledge documents (`KnowledgeResourceTests`), the knowledge lints against the served
-  contract (`KnowledgeLintTests`), the tool map (`ToolMapDocumentTests`), and the live resources and their completion
-  (`LiveResourceTests`, `LiveCompletionTests`); `Prompts/` checks the workflow prompts against the knowledge base;
-  `Hosting/` covers the backend host and the gateway, including its resource list and `list_changed`, completion
-  forwarding and error correlation.
-- `Architecture/`: the project graph, composition and repository rules.
-- `Contract/`: golden snapshots under `Contract/Golden`, composition parity, tool contract, output schemas, server
-  instructions and third-party notices.
-- `NativeLua/`: fixed Lua scripts against a real Lua 5.3 DLL (`Category=NativeLua`).
-- `LiveQualification/`: the two-instance live scenario (`Category=LiveQualification`); `Infrastructure/` holds helpers
-  adapted from CheatEngine.Client, with provenance in its `NOTICE.md` and the MIT License text in
-  [`THIRD-PARTY-NOTICES.md`](../../THIRD-PARTY-NOTICES.md#mit-license).
-- `Support/`: doubles and harnesses such as `ClientTestDouble`, `TestActivation`, `TestMcpPipeline`, `GatewayTestHost`,
-  `FakeBackend` and `GoldenFile`.
+## Run the tests
 
-## Run
-
-From the repository root:
+Use the SDK pinned by [`global.json`](../../global.json).
+Run the normal portable suite from the repository root:
 
 ```powershell
 dotnet test --solution CheatEngine.Mcp.slnx --no-restore --no-build --filter-not-trait Category=LiveQualification --filter-not-trait Category=NativeLua --fail-skips on
 ```
 
-- NativeLua: set `CHEATENGINE_MCP_LUA53_PATH` to a Lua 5.3 x64 DLL, then run
-  `dotnet test --project tests/CheatEngine.Mcp.Tests --filter-trait Category=NativeLua`; the tests fail, rather than
-  skip, without it.
-- Live qualification: only on a maintainer's request, announced, with Cheat Engine closed;
-  see [Live qualification](../../CONTRIBUTING.md#live-qualification).
-- Golden files: regenerate only for an intended contract change with `CHEATENGINE_MCP_UPDATE_GOLDEN=1`, which makes
-  `GoldenFile` write the snapshots instead of comparing them, then run again without it and review the diff; see
-  [Golden files](../../CONTRIBUTING.md#golden-files).
+Run `dotnet restore CheatEngine.Mcp.slnx --locked-mode` and `dotnet build CheatEngine.Mcp.slnx --no-restore` first when the solution has not already been restored and built.
+`--fail-skips on` makes an accidental skipped test fail, so an unavailable environment must be excluded by its trait instead of hidden by a skip.
 
-## Rules
+### Native Lua tests
 
-- Name tests `Subject_Condition_Outcome`.
-- Prefer the Client doubles and real loopback transport over mocking Cheat Engine internals.
-- Exclude a test by category, never skip it: every run uses `--fail-skips on`.
-- Never commit a real token, a personal path or an e-mail address, not even in a fixture or a golden file.
-- Offline tests are not native host verification.
+The `NativeLua` category loads fixed Lua scripts into a real x64 Lua 5.3 DLL while stubbing Cheat Engine APIs.
+Set `CHEATENGINE_MCP_LUA53_PATH` to the DLL before running the category:
+
+```powershell
+$env:CHEATENGINE_MCP_LUA53_PATH = 'C:\Program Files\Cheat Engine\lua53-64.dll'
+dotnet test --project tests/CheatEngine.Mcp.Tests --filter-trait Category=NativeLua --fail-skips on
+Remove-Item Env:CHEATENGINE_MCP_LUA53_PATH
+```
+
+Run this category when changing fixed Lua source, the Lua runtime, the job kernel, or the plugin status indicator.
+
+### Live qualification
+
+The `LiveQualification` category launches real local Cheat Engine copies and attaches them only to the disposable live target.
+It is opt-in, refuses to run in CI, requires Cheat Engine and DebugView to be closed, and writes its private copies, backups, and reports outside the checkout.
+
+Follow [Live qualification](../../CONTRIBUTING.md#live-qualification) exactly, including publishing the matching configuration and supplying the required acknowledgement environment variable.
+Do not include this category in an ordinary local test run.
+
+## Test layout
+
+| Path | Scope |
+| --- | --- |
+| `Architecture/` | Project graph, layering, composition, deployment, and repository rules. |
+| `Contract/` | MCP catalog, initialization, schema, composition, license, and deployment snapshots. |
+| `Core/` | Primitive composition, execution, state, JSON, target handling, and shared utilities. |
+| `Tools/` | Tool-domain behavior, validation, result contracts, jobs, and resource ownership. |
+| `Resources/` | Knowledge documents, resource metadata, live-resource projections, URI validation, and completion. |
+| `Prompts/` | Workflow prompt schemas, completion, validation, rendering, and linked documentation. |
+| `Hosting/` | Backend host lifecycle, instance discovery, gateway routing, resource lists, completions, and correlation. |
+| `Plugin/` | Plugin composition, configuration, lifecycle, logging, and deployment behavior. |
+| `NativeLua/` | Fixed Lua scripts exercised by the real Lua runtime. |
+| `LiveQualification/` | Maintainer-authorized native qualification against separate Cheat Engine instances and disposable targets. |
+| `Support/` | Client doubles, loopback hosts, composition helpers, logging captures, golden-file support, and fixtures. |
+
+Tests that need serial access share the named serial collections in `Support/` and `LiveQualification/`.
+Prefer these existing fixtures and the Client contract doubles over mocks of Cheat Engine internals.
+
+## Contract snapshots
+
+`Contract/Golden/` contains reviewed snapshots of observable MCP behavior, including tool, resource, prompt, initialization, and packaged-plugin output.
+The test suite compares output to those files by default.
+
+Regenerate a snapshot only for an intended, reviewed contract change:
+
+```powershell
+$env:CHEATENGINE_MCP_UPDATE_GOLDEN = '1'
+dotnet test --solution CheatEngine.Mcp.slnx --no-restore --no-build --filter-not-trait Category=LiveQualification --filter-not-trait Category=NativeLua --fail-skips on
+Remove-Item Env:CHEATENGINE_MCP_UPDATE_GOLDEN
+dotnet test --solution CheatEngine.Mcp.slnx --no-restore --no-build --filter-not-trait Category=LiveQualification --filter-not-trait Category=NativeLua --fail-skips on
+```
+
+Review every changed file in `Contract/Golden/` before submitting the change.
+Update the relevant knowledge base and project README when the changed behavior is user-visible.
+
+## Writing tests
+
+Use xUnit v3 `Fact` and `Theory` tests with names in the `Subject_Condition_Outcome` form.
+Make assertions against observable contracts, result schemas, host effects, resource ownership, and cleanup behavior.
+
+Use `TestActivation`, `TestMcpPipeline`, `GatewayTestServers`, `ClientTestDouble`, and other support helpers before adding new test infrastructure.
+Prefer real loopback MCP transport when testing host and gateway behavior.
+
+A tool guarded by a capability needs a test that proves it makes no mutating Client call while the gate is disabled.
+Every fixed Lua script needs both a portable test and a NativeLua test.
+Do not treat portable tests as evidence of native Cheat Engine host compatibility.
+
+For repository-wide build, formatting, package, and contribution requirements, see [CONTRIBUTING.md](../../CONTRIBUTING.md).
