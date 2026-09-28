@@ -25,9 +25,11 @@ internal sealed class McpEnvironmentConfigurationProvider(Func<string, string?> 
 		string? port = environment("MCP_PORT");
 		if (port is not null)
 		{
-			// Parsed here, invariantly: a malformed value fails the activation instead of binding another port.
+			// Parse here so a malformed value names its source instead of silently binding another port.
 			data[Key(nameof(McpBackendOptions.Port))] =
-				int.Parse(port, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture);
+				int.TryParse(port, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsedPort)
+					? parsedPort.ToString(CultureInfo.InvariantCulture)
+					: throw new FormatException("MCP_PORT must be an integer from 0 to 65535.");
 		}
 
 		Data = data;
