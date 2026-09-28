@@ -82,6 +82,17 @@ public sealed class GatewayOptionsTests
 			GatewayOptions.Resolve([], Environment(("MCP_INSTANCE_DIRECTORY", "relative"))));
 	}
 
+	[Theory]
+	[InlineData("")]
+	[InlineData(" ")]
+	public void Resolve_EmptyInstanceDirectoryOverride_FailsAtStartup(string directory)
+	{
+		Assert.Throws<ArgumentException>(() =>
+			GatewayOptions.Resolve(["--instance-directory", directory], static _ => null));
+		Assert.Throws<ArgumentException>(() =>
+			GatewayOptions.Resolve([], Environment(("MCP_INSTANCE_DIRECTORY", directory))));
+	}
+
 	private static Func<string, string?> Environment(params (string Name, string Value)[] variables)
 	{
 		return name => variables.FirstOrDefault(variable => variable.Name == name).Value;

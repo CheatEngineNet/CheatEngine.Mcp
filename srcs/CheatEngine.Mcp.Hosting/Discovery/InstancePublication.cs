@@ -6,8 +6,10 @@ namespace CheatEngine.Mcp.Hosting.Discovery;
 /// <summary>Publishes one activation and withdraws only its own discovery record.</summary>
 public sealed class InstancePublication : IDisposable
 {
+	private readonly Lock _gate = new();
 	private readonly InstanceRegistry _registry;
 	private string? _publishedPath;
+	private bool _disposed;
 
 	public InstancePublication(InstanceRegistry registry, string name, string? pluginVersion = null)
 	{
@@ -27,24 +29,41 @@ public sealed class InstancePublication : IDisposable
 
 	public void Dispose()
 	{
-		string? path = Interlocked.Exchange(ref _publishedPath, null);
+		string? path;
+		lock (_gate)
+		{
+			_disposed = true;
+			path = _publishedPath;
+		}
+
 		if (path is not null)
 		{
 			File.Delete(path);
+			lock (_gate)
+			{
+				if (string.Equals(_publishedPath, path, StringComparison.Ordinal))
+				{
+					_publishedPath = null;
+				}
+			}
 		}
 	}
 
 	public void Publish(string endpoint)
 	{
-		if (_publishedPath is not null)
+		lock (_gate)
 		{
-			throw new InvalidOperationException("The activation is already published.");
-		}
+			ObjectDisposedException.ThrowIf(_disposed, this);
+			if (_publishedPath is not null)
+			{
+				throw new InvalidOperationException("The activation is already published.");
+			}
 
-		Descriptor = Descriptor with
-		{
-			Endpoint = new Uri(endpoint).AbsoluteUri
-		};
-		_publishedPath = _registry.Publish(Descriptor);
+			Descriptor = Descriptor with
+			{
+				Endpoint = new Uri(endpoint).AbsoluteUri
+			};
+			_publishedPath = _registry.Publish(Descriptor);
+		}
 	}
 }

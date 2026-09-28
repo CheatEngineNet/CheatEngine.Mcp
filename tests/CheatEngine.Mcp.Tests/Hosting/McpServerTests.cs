@@ -51,6 +51,39 @@ public sealed class McpServerTests
 	}
 
 	[Fact]
+	public async Task Start_SecondAttempt_LeavesTheOriginalListenerRunning()
+	{
+		string directory = Path.Combine(Path.GetTempPath(), $"CheatEngine.Mcp.Tests-{Guid.NewGuid():N}");
+		using PluginLog log = new(directory);
+		McpBackendOptions options = new()
+		{
+			Port = FreePort()
+		};
+		using TestActivation activation = new(ClientTestDouble.Client());
+		McpBackendHost server = CreateHost(activation, options, log);
+		try
+		{
+			await server.StartAsync();
+
+			InvalidOperationException failure =
+				await Assert.ThrowsAsync<InvalidOperationException>(() => server.StartAsync());
+
+			Assert.Equal("The MCP server can only be started once.", failure.Message);
+			Assert.True(server.IsRunning);
+			Assert.True(await IsListeningAsync(options.Port));
+		}
+		finally
+		{
+			await server.StopAsync();
+			await TestLog.ReleaseAsync(log);
+			if (Directory.Exists(directory))
+			{
+				Directory.Delete(directory, true);
+			}
+		}
+	}
+
+	[Fact]
 	public async Task Start_ToolDiscoveryAndDisabledLua_WorkOverRealHttp()
 	{
 		string directory = Path.Combine(Path.GetTempPath(), $"CheatEngine.Mcp.Tests-{Guid.NewGuid():N}");

@@ -70,6 +70,7 @@ public sealed class GatewayOptions
 		ArgumentNullException.ThrowIfNull(arguments);
 		ArgumentNullException.ThrowIfNull(environment);
 		string? directory = environment(InstanceDirectoryVariable);
+		string directorySource = InstanceDirectoryVariable;
 		string? timeout = environment(CallTimeoutVariable);
 		timeout = string.IsNullOrWhiteSpace(timeout) ? null : timeout;
 		string timeoutSource = CallTimeoutVariable;
@@ -78,6 +79,7 @@ public sealed class GatewayOptions
 			if (string.Equals(arguments[index], InstanceDirectoryArgument, StringComparison.Ordinal))
 			{
 				directory = ReadValue(arguments, ref index, "an absolute directory path");
+				directorySource = InstanceDirectoryArgument;
 			}
 			else if (string.Equals(arguments[index], CallTimeoutArgument, StringComparison.Ordinal))
 			{
@@ -90,13 +92,18 @@ public sealed class GatewayOptions
 			}
 		}
 
-		if (!string.IsNullOrWhiteSpace(directory) && !Path.IsPathFullyQualified(directory))
+		if (directory is not null && string.IsNullOrWhiteSpace(directory))
+		{
+			throw new ArgumentException($"{directorySource} must be an absolute directory path.", nameof(arguments));
+		}
+
+		if (directory is not null && !Path.IsPathFullyQualified(directory))
 		{
 			throw new ArgumentException("The instance directory must be an absolute path.", nameof(arguments));
 		}
 
 		return new GatewayOptions(
-			string.IsNullOrWhiteSpace(directory) ? InstanceRegistry.DefaultDirectory : directory,
+			directory ?? InstanceRegistry.DefaultDirectory,
 			ParseCallTimeout(timeout, timeoutSource));
 	}
 

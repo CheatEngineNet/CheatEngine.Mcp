@@ -26,13 +26,25 @@ public sealed class InstanceRegistry(string directory)
 	internal IReadOnlyList<InstanceDescriptor> ReadActive(CancellationToken cancellationToken)
 	{
 		cancellationToken.ThrowIfCancellationRequested();
-		if (!Directory.Exists(DirectoryPath))
+		string[] paths;
+		try
+		{
+			if (!Directory.Exists(DirectoryPath))
+			{
+				return [];
+			}
+
+			// Materialize while the directory exists: its deletion must be equivalent to no active records, rather than
+			// leaking a transient filesystem error through discovery.
+			paths = [.. Directory.EnumerateFiles(DirectoryPath, "*.json")];
+		}
+		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 		{
 			return [];
 		}
 
 		List<InstanceDescriptor> instances = [];
-		foreach (string path in Directory.EnumerateFiles(DirectoryPath, "*.json"))
+		foreach (string path in paths)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 			try
@@ -46,12 +58,21 @@ public sealed class InstanceRegistry(string directory)
 
 				InstanceDescriptor? instance =
 					JsonSerializer.Deserialize(file, HostingJsonContext.Default.InstanceDescriptor);
-				if (instance is not null && IsValid(instance)
-										 && string.Equals(Path.GetFileNameWithoutExtension(path),
-											 instance.ActivationId.ToString("N"), StringComparison.Ordinal)
-										 && IsProcessAlive(instance))
+				if (instance is null || !IsValid(instance)
+									 || !string.Equals(Path.GetFileNameWithoutExtension(path),
+										 instance.ActivationId.ToString("N"), StringComparison.Ordinal))
 				{
-					instances.Add(instance);
+					continue;
+				}
+
+				switch (GetProcessLiveness(instance))
+				{
+					case ProcessLiveness.Alive:
+						instances.Add(instance);
+						break;
+					case ProcessLiveness.Expired:
+						DeleteExpiredRecord(path, instance);
+						break;
 				}
 			}
 			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
@@ -114,15 +135,66 @@ public sealed class InstanceRegistry(string directory)
 
 	private static bool IsProcessAlive(InstanceDescriptor instance)
 	{
+		return GetProcessLiveness(instance) == ProcessLiveness.Alive;
+	}
+
+	private static ProcessLiveness GetProcessLiveness(InstanceDescriptor instance)
+	{
 		try
 		{
 			using Process process = Process.GetProcessById(instance.ProcessId);
-			return !process.HasExited && process.StartTime.ToUniversalTime().Ticks == instance.ProcessStartUtcTicks;
+			return !process.HasExited && process.StartTime.ToUniversalTime().Ticks == instance.ProcessStartUtcTicks
+				? ProcessLiveness.Alive
+				: ProcessLiveness.Expired;
 		}
-		catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or Win32Exception)
+		catch (ArgumentException)
 		{
-			return false;
+			return ProcessLiveness.Expired;
 		}
+		catch (InvalidOperationException)
+		{
+			// The process exited while its state was being inspected.
+			return ProcessLiveness.Expired;
+		}
+		catch (Win32Exception)
+		{
+			// Access to another process may be denied. Keep the record until its state is observable.
+			return ProcessLiveness.Unknown;
+		}
+	}
+
+	private static void DeleteExpiredRecord(string path, InstanceDescriptor expected)
+	{
+		try
+		{
+			// Re-read immediately before deletion. A concurrent publisher or repair that replaced the file leaves its
+			// record alone unless it still describes the exact expired activation we observed.
+			using FileStream file = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+			if (file.Length > 16384)
+			{
+				return;
+			}
+
+			InstanceDescriptor? current =
+				JsonSerializer.Deserialize(file, HostingJsonContext.Default.InstanceDescriptor);
+			if (current != expected || !IsValid(current) || GetProcessLiveness(current) != ProcessLiveness.Expired)
+			{
+				return;
+			}
+
+			File.Delete(path);
+		}
+		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+		{
+			// A publisher or an antivirus can still hold the file. The next discovery will retry the cleanup.
+		}
+	}
+
+	private enum ProcessLiveness
+	{
+		Alive,
+		Expired,
+		Unknown
 	}
 
 	private static string RequireAbsoluteDirectory(string path)

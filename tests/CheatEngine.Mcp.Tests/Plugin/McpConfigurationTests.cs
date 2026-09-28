@@ -219,7 +219,11 @@ public sealed class McpConfigurationTests
 	public void Load_InvalidEnvironmentPort_FailsInsteadOfSilentlyBindingAnotherPort()
 	{
 		using SettingsFixture fixture = new();
-		Assert.Throws<FormatException>(() => fixture.Load(name => name == "MCP_PORT" ? "bad" : null));
+
+		FormatException exception = Assert.Throws<FormatException>(() =>
+			fixture.Load(name => name == "MCP_PORT" ? "bad" : null));
+
+		Assert.Equal("MCP_PORT must be an integer from 0 to 65535.", exception.Message);
 	}
 
 	[Fact]

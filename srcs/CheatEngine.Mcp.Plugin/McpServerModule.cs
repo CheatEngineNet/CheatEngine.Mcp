@@ -15,10 +15,22 @@ internal sealed class McpServerModule(
 	McpStatusIndicator status)
 	: ICheatEngineClientModule, IDisposable
 {
+	private const int Created = 0;
+	private const int Starting = 1;
+	private const int Running = 2;
+	private const int Stopping = 3;
+	private const int Disposed = 4;
+
 	private IMcpBackendHost? _server;
+	private int _lifecycleState;
 
 	public void OnEnabled(ICheatEngineClient client)
 	{
+		if (Interlocked.CompareExchange(ref _lifecycleState, Starting, Created) != Created)
+		{
+			throw new InvalidOperationException("The MCP server module can only be enabled once.");
+		}
+
 		status.Report(client, "Starting");
 		IMcpBackendHost? server = null;
 		try
@@ -27,12 +39,28 @@ internal sealed class McpServerModule(
 			server.StartAsync().GetAwaiter().GetResult();
 			string endpoint = server.Endpoint
 							  ?? throw new InvalidOperationException("The MCP server started without an endpoint.");
-			_server = server;
+			if (Interlocked.CompareExchange(ref _server, server, null) is not null)
+			{
+				throw new InvalidOperationException("The MCP server module already owns a backend.");
+			}
+
 			server = null;
+			if (Interlocked.CompareExchange(ref _lifecycleState, Running, Starting) != Starting)
+			{
+				IMcpBackendHost? stoppingServer = Interlocked.Exchange(ref _server, null);
+				if (stoppingServer is not null)
+				{
+					StopWithoutWaiting(stoppingServer);
+				}
+
+				throw new InvalidOperationException("The MCP server stopped while it was starting.");
+			}
+
 			status.Report(client, "Enabled", endpoint);
 		}
 		catch (Exception exception)
 		{
+			Interlocked.CompareExchange(ref _lifecycleState, Stopping, Starting);
 			if (server is not null)
 			{
 				try
@@ -53,8 +81,10 @@ internal sealed class McpServerModule(
 
 	public void OnDisabling(ICheatEngineClient client)
 	{
-		_server?.StopAccepting();
-		if (_server is not null)
+		int state = Interlocked.Exchange(ref _lifecycleState, Stopping);
+		IMcpBackendHost? server = Volatile.Read(ref _server);
+		server?.StopAccepting();
+		if (server is not null && state == Running)
 		{
 			status.Report(client, "Disabled");
 		}
@@ -64,13 +94,20 @@ internal sealed class McpServerModule(
 	public void Dispose()
 	{
 		// Hosting disposes modules after draining leases. Never join HTTP workers on CE's main thread.
+		Interlocked.Exchange(ref _lifecycleState, Disposed);
 		IMcpBackendHost? server = Interlocked.Exchange(ref _server, null);
 		if (server is not null)
 		{
-			_ = server.StopAsync().ContinueWith(static task => _ = task.Exception,
-				CancellationToken.None,
-				TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
-				TaskScheduler.Default);
+			StopWithoutWaiting(server);
 		}
+	}
+
+	private static void StopWithoutWaiting(IMcpBackendHost server)
+	{
+		server.StopAccepting();
+		_ = server.StopAsync().ContinueWith(static task => _ = task.Exception,
+			CancellationToken.None,
+			TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+			TaskScheduler.Default);
 	}
 }

@@ -9,7 +9,7 @@ public interface IMcpBackendHost
 		get;
 	}
 
-	/// <summary>Starts the listener, then publishes discovery; a failed start releases everything it acquired.</summary>
+	/// <summary>Starts the listener once, then publishes discovery; a failed start releases everything it acquired.</summary>
 	/// <returns>The start operation.</returns>
 	public Task StartAsync();
 
