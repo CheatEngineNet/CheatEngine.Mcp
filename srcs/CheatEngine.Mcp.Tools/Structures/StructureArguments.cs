@@ -32,6 +32,25 @@ internal static class StructureArguments
 			: throw CheatEngineToolException.LimitExceeded(parameter, $"accepts at most {MaxNameLength} characters.");
 	}
 
+	/// <summary>Validates a batch of distinct structure names.</summary>
+	internal static string[] Names(string[]? values, string parameter, int maximum)
+	{
+		string[] names = Batch(values, parameter, 1, maximum);
+		string[] validated = new string[names.Length];
+		HashSet<string> seen = new(StringComparer.Ordinal);
+		for (int index = 0; index < names.Length; index++)
+		{
+			string item = Item(parameter, index);
+			validated[index] = Name(names[index], item);
+			if (!seen.Add(validated[index]))
+			{
+				throw CheatEngineToolException.InvalidArgument(item, "repeats a structure named earlier in the list.");
+			}
+		}
+
+		return validated;
+	}
+
 	/// <summary>Validates an element name: at most 256 characters, possibly empty.</summary>
 	internal static string ElementName(string? value, string parameter)
 	{
@@ -162,10 +181,13 @@ internal static class StructureArguments
 
 	/// <summary>
 	///     Validates element updates and encodes each as <c>{index, offset, name, vartype, displayMethod, byteSize}</c>.
+	///     Each element may be named once: a second update of the same index would be checked against the element's
+	///     state before the first one, so it is refused before anything is dispatched.
 	/// </summary>
 	internal static object?[][] Updates(StructureElementUpdate[] updates, string parameter)
 	{
 		object?[][] encoded = new object?[updates.Length][];
+		HashSet<int> seen = [];
 		for (int index = 0; index < updates.Length; index++)
 		{
 			string item = Item(parameter, index);
@@ -174,6 +196,13 @@ internal static class StructureArguments
 			if (update.Index < 0)
 			{
 				throw CheatEngineToolException.InvalidArgument(item + ".index", "must be zero or greater.");
+			}
+
+			if (!seen.Add(update.Index))
+			{
+				throw CheatEngineToolException.InvalidArgument(item + ".index",
+					$"repeats element {update.Index.ToString(CultureInfo.InvariantCulture)}; combine its changes " +
+					"into one update.");
 			}
 
 			if (update is { Offset: null, Name: null, ValueType: null, Display: null, ByteSize: null })

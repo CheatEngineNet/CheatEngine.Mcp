@@ -94,8 +94,10 @@ internal static class LuaUnsafeScriptWrapper
 		// repeats the source's first character when that is '\r': Lua reads "\n\r" (not "\r\r") as one break.
 		char opening = source.StartsWith('\r') ? '\r' : '\n';
 		StringBuilder script = new(sourceBytes + 1024);
-		script.Append("local __rawget, __rawset, __type, __pack, __pcall, __load, __env = rawget, rawset, type, table.pack, pcall, load, _ENV\n")
-			.Append("local __savedEnv = __rawget(__env, '_ENV'); local __savedTicks = __rawget(__env, 'getTickCount')\n")
+		script.Append(
+				"local __rawget, __rawset, __type, __pack, __pcall, __load, __env = rawget, rawset, type, table.pack, pcall, load, _ENV\n")
+			.Append(
+				"local __savedEnv = __rawget(__env, '_ENV'); local __savedTicks = __rawget(__env, 'getTickCount')\n")
 			.Append("__rawset(__env, '").Append(ResultGlobal).Append("', nil)\n")
 			.Append("local __chunk, __error = __load([").Append(level).Append('[').Append(opening)
 			.Append(source)
@@ -106,9 +108,11 @@ internal static class LuaUnsafeScriptWrapper
 			.Append("if __chunk == nil then\n")
 			.Append("\t__result = {token = '").Append(token).Append("', phase = 'compile', error = __error}\n")
 			.Append("else\n")
-			.Append("\t__result = {token = '").Append(token).Append("', phase = 'runtime', outcome = __pack(__pcall(__chunk))}\n")
+			.Append("\t__result = {token = '").Append(token)
+			.Append("', phase = 'runtime', outcome = __pack(__pcall(__chunk))}\n")
 			.Append("end\n")
-			.Append("__rawset(__env, 'rawget', __rawget); __rawset(__env, 'rawset', __rawset); __rawset(__env, 'type', __type)\n")
+			.Append(
+				"__rawset(__env, 'rawget', __rawget); __rawset(__env, 'rawset', __rawset); __rawset(__env, 'type', __type)\n")
 			.Append("__rawset(__env, '_ENV', __savedEnv); __rawset(__env, 'getTickCount', __savedTicks)\n")
 			.Append("__rawset(__env, '").Append(ResultGlobal).Append("', __result)\n");
 		return new WrappedScript(script.ToString(), token);

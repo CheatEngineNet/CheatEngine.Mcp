@@ -14,7 +14,7 @@ internal sealed class MainScannerTransitionGuard(ToolDispatch dispatch) : ITarge
 		if (!transition.IsReselection && ScanTools.IsMainScannerBusy(dispatch, cancellationToken))
 		{
 			throw CheatEngineToolException.Busy(ScanTools.MainScannerBusyMessage,
-				"Poll the main scan status until it is idle, or cancel it in Cheat Engine.");
+				"Poll scan_get_status until main is idle, or stop it with scan_stop.");
 		}
 	}
 }

@@ -135,7 +135,7 @@ public sealed class StructureValueCodecTests
 	public void Scripts_NameNoGatedApiAndLoadNoCode()
 	{
 		FieldInfo[] fields = [.. StructureToolHarness.ScriptFields()];
-		Assert.Equal(16, fields.Length);
+		Assert.Equal(18, fields.Length);
 		foreach (FieldInfo field in fields)
 		{
 			string script = (string) field.GetRawConstantValue()!;

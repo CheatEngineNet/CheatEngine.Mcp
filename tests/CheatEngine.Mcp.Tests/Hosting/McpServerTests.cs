@@ -229,7 +229,7 @@ public sealed class McpServerTests
 	}
 
 	[Fact]
-	public async Task IndependentScan_HttpCallsAndReconnect_KeepSessionUntilExplicitResetOrActivationEnd()
+	public async Task IndependentScan_HttpCallsAndReconnect_KeepSessionUntilExplicitDeleteOrActivationEnd()
 	{
 		HttpScanSessionProbe resetSession = new(new Address(0x1234), "initial");
 		HttpScanSessionProbe shutdownSession = new(new Address(0x5678), "remaining");
@@ -275,7 +275,7 @@ public sealed class McpServerTests
 				Assert.Equal(1, resetSession.NextCalls);
 				Assert.Equal(0, resetSession.ReleaseCalls);
 
-				await AssertSuccessfulCallAsync(reconnectingClient, "scan_reset",
+				await AssertSuccessfulCallAsync(reconnectingClient, "scan_delete",
 					new Dictionary<string, object?> { ["scannerName"] = "reset-me" });
 				Assert.Equal(1, resetSession.ReleaseCalls);
 

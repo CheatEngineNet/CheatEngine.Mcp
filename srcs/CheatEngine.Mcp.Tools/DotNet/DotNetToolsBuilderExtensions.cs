@@ -1,6 +1,6 @@
 namespace CheatEngine.Mcp.Tools.DotNet;
 
-/// <summary>The composition entry point of the <c>dotnet</c> tool domain (9 tools in the v2 catalog).</summary>
+/// <summary>The composition entry point of the <c>dotnet</c> tool domain (10 tools in the v2 catalog).</summary>
 public static class DotNetToolsBuilderExtensions
 {
 	extension(ICheatEngineMcpBuilder builder)

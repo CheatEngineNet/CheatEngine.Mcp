@@ -82,7 +82,8 @@
       "cheatengine.mcp.prompts": {
         "type": "Project",
         "dependencies": {
-          "CheatEngine.Mcp.Core": "[2.0.0, )"
+          "CheatEngine.Mcp.Core": "[2.0.0, )",
+          "CheatEngine.Mcp.Resources": "[2.0.0, )"
         }
       },
       "cheatengine.mcp.resources": {

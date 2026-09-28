@@ -90,6 +90,30 @@ internal static class MemoryTargets
 		}
 	}
 
+	/// <summary>Checks a fixed-size value type before any dispatch.</summary>
+	/// <param name="type">The caller's value type.</param>
+	/// <param name="parameter">The parameter that carried it.</param>
+	/// <returns>The same type in the contract's shared vocabulary.</returns>
+	internal static McpValueType RequireFixedType(FixedValueType type, string parameter)
+	{
+		return type switch
+		{
+			FixedValueType.Int8 => McpValueType.Int8,
+			FixedValueType.UInt8 => McpValueType.UInt8,
+			FixedValueType.Int16 => McpValueType.Int16,
+			FixedValueType.UInt16 => McpValueType.UInt16,
+			FixedValueType.Int32 => McpValueType.Int32,
+			FixedValueType.UInt32 => McpValueType.UInt32,
+			FixedValueType.Int64 => McpValueType.Int64,
+			FixedValueType.UInt64 => McpValueType.UInt64,
+			FixedValueType.Float => McpValueType.Float,
+			FixedValueType.Double => McpValueType.Double,
+			FixedValueType.Pointer => McpValueType.Pointer,
+			_ => throw CheatEngineToolException.InvalidArgument(parameter,
+				"must be int8 to uint64, float, double or pointer.")
+		};
+	}
+
 	/// <summary>Checks an inclusive integer range before any dispatch.</summary>
 	/// <param name="value">The caller's value.</param>
 	/// <param name="parameter">The parameter that carried it.</param>

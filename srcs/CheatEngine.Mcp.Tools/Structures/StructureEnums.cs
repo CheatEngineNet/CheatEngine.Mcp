@@ -143,3 +143,17 @@ public enum StructureFieldClassification
 	/// <summary>At least one instance could not be read.</summary>
 	Unreadable
 }
+
+/// <summary>Which generator writes the text of <c>structure_generate_c_header</c>.</summary>
+[JsonConverter(typeof(ContractEnumConverter<StructureHeaderGenerator>))]
+public enum StructureHeaderGenerator
+{
+	/// <summary>
+	///     Cheat Engine's own <c>generate_c_header</c> (<c>autorun/structureExportToCHeader.lua</c>), the text of its
+	///     "Export to C header file" menu.
+	/// </summary>
+	CheatEngine,
+
+	/// <summary>The plugin's generator: fixed-width types, offset comments, packing and size checks.</summary>
+	Managed
+}

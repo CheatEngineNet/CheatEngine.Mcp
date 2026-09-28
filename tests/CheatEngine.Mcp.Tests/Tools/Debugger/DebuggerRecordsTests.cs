@@ -22,4 +22,24 @@ public sealed class DebuggerRecordsTests
 		Assert.Equal("execute", result.GetProperty("trigger").GetString());
 		Assert.False(result.TryGetProperty("threadId", out _));
 	}
+
+	[Fact]
+	public void CaptureItem_SourceGeneratedContext_WritesEffectiveAddressGroupsAndOmitsThemForOtherItems()
+	{
+		DebuggerCaptureContext context = new("401010", 17, "401010", false, "mov eax,qword ptr [r12]",
+			new Dictionary<string, string> { ["R12"] = "3000" });
+
+		using JsonDocument grouped = JsonDocument.Parse(JsonSerializer.Serialize(
+			new DebuggerCaptureItem(context, 2, context, context, "3000", 8),
+			DebuggerJsonContext.Default.DebuggerCaptureItem));
+		using JsonDocument single = JsonDocument.Parse(JsonSerializer.Serialize(new DebuggerCaptureItem(context, 1),
+			DebuggerJsonContext.Default.DebuggerCaptureItem));
+
+		Assert.Equal("3000", grouped.RootElement.GetProperty("effectiveAddress").GetString());
+		Assert.Equal(8, grouped.RootElement.GetProperty("operandSize").GetInt32());
+		Assert.Equal(2, grouped.RootElement.GetProperty("hitCount").GetInt64());
+		Assert.False(single.RootElement.TryGetProperty("effectiveAddress", out _));
+		Assert.False(single.RootElement.TryGetProperty("operandSize", out _));
+		Assert.False(single.RootElement.TryGetProperty("firstContext", out _));
+	}
 }

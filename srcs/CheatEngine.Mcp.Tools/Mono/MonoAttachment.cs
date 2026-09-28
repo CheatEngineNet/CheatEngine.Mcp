@@ -3,6 +3,12 @@ using CheatEngine.Mcp.Core.Contract;
 namespace CheatEngine.Mcp.Tools.Mono;
 
 /// <summary>Tracks the activation-owned Mono collector attach so target changes and runtime cleanup detach it first.</summary>
+/// <remarks>
+///     The release closes the collector only while the Lua record that <see cref="MonoLuaScripts.Attach" /> left under
+///     this resource's id still describes Cheat Engine's current attachment; otherwise that attachment already ended
+///     outside MCP, the current one is left alone, and the outcome is
+///     <see cref="ResourceReleaseOutcome.ExternallyRemoved" />.
+/// </remarks>
 internal sealed class MonoAttachment : ITargetResource
 {
 	private readonly TargetResourceDescriptor _active;
@@ -51,7 +57,7 @@ internal sealed class MonoAttachment : ITargetResource
 		try
 		{
 			MonoDetachResult result = _dispatch.ExecuteLua(CheatEngineToolNames.MonoDetach, MonoLuaScripts.Detach,
-				MonoJsonContext.Default.MonoDetachResult, cancellationToken);
+				MonoJsonContext.Default.MonoDetachResult, cancellationToken, _active.Id);
 			if (!result.Detached)
 			{
 				_cleanupError = "Cheat Engine did not confirm that the Mono collector detached.";
@@ -59,7 +65,7 @@ internal sealed class MonoAttachment : ITargetResource
 			}
 
 			Interlocked.Exchange(ref _ended, 1);
-			return ResourceReleaseOutcome.Released();
+			return result.AlreadyEnded ? ResourceReleaseOutcome.ExternallyRemoved() : ResourceReleaseOutcome.Released();
 		}
 		catch (Exception exception)
 		{

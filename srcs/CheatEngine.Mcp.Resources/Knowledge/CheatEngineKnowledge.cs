@@ -4,8 +4,9 @@ using System.Diagnostics.CodeAnalysis;
 namespace CheatEngine.Mcp.Resources.Knowledge;
 
 /// <summary>
-///     The embedded knowledge documents and workflow bodies, loaded once with their relative links rewritten to
-///     <c>cheatengine://docs/…</c>. The files come from <c>skills/cheatengine-mcp/references/</c> by MSBuild link.
+///     The knowledge base: the documents of <c>Knowledge/Documents/</c> and the guided workflow bodies of
+///     <c>Knowledge/Workflows/</c>, embedded in this assembly and loaded once with their relative links rewritten to
+///     <c>cheatengine://docs/…</c>. The Resources project serves both; the Prompts project renders the workflow bodies.
 /// </summary>
 public static class CheatEngineKnowledge
 {
@@ -15,15 +16,20 @@ public static class CheatEngineKnowledge
 	private static readonly FrozenDictionary<string, string> Workflows =
 		McpKnowledgeText.Load(typeof(CheatEngineKnowledge).Assembly, McpKnowledgeText.WorkflowsLogicalPrefix);
 
-	/// <summary>The served document slugs, in reading order; the project file embeds exactly these.</summary>
+	/// <summary>
+	///     The served document slugs, in reading order: orientation first, then values, pointers and code, then engines
+	///     and runtimes, then reference material. A test keeps them equal to the embedded documents.
+	/// </summary>
 	public static IReadOnlyList<string> DocumentSlugs
 	{
 		get;
 	} =
 	[
-		"workflows", "value-scans", "pointers", "debugger", "auto-assembler", "x64-injection", "aob-signatures",
-		"structures", "code-analysis", "mono-and-dotnet", "speedhack", "cheat-tables", "lua", "kernel", "safety",
-		"errors-and-recovery", "connection-troubleshooting", "ce-tutorial"
+		"getting-started", "workflows", "safety", "glossary", "address-expressions", "value-types", "value-scans",
+		"troubleshooting-scans", "pointers", "memory-model", "structures", "code-analysis", "debugger",
+		"x64-injection", "auto-assembler", "aob-signatures", "cheat-tables", "cheat-recipes", "game-engines",
+		"mono-and-dotnet", "unity-il2cpp", "unreal-engine", "emulators", "speedhack", "lua", "lua-api", "kernel",
+		"errors-and-recovery", "connection-troubleshooting", "configuration", "ce-tutorial", "tool-map"
 	];
 
 	/// <summary>The embedded workflow names (kebab case), ordered; each is the body of the prompt of the same name.</summary>

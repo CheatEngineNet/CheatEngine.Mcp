@@ -5,6 +5,7 @@ using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Results;
 using CheatEngine.Mcp.Core.Contract;
+using CheatEngine.Mcp.Core.Lua;
 using CheatEngine.Mcp.Core.Values;
 using CheatEngine.Mcp.Tools.Memory;
 using CheatEngine.SDK.Engine.Enums;
@@ -268,6 +269,38 @@ public sealed class MemoryWriteToolsTests
 			new ProtectionFlags(true, true, true)), change);
 		Assert.Contains("[1] = 0x401000, [2] = 4096, [3] = true, [4] = true, [5] = true", source,
 			StringComparison.Ordinal);
+		Assert.Equal(1, target.LuaCalls);
+	}
+
+	[Fact]
+	public void SetProtection_FixedScript_PassesTheUpperCaseKeysCheatEngine77ReadsAndChecksTheResult()
+	{
+		// Cheat Engine 7.7 (LuaHandler.pas lua_setMemoryProtection) reads R, W and X and takes a missing key as
+		// false: lower-case keys alone would make every requested range PAGE_NOACCESS.
+		Assert.Contains("{R = read, W = write, X = execute", MemoryScripts.Protection, StringComparison.Ordinal);
+		Assert.Contains("ok, message = setMemoryProtection(", MemoryScripts.Protection, StringComparison.Ordinal);
+		Assert.Contains("ok = fullAccess(", MemoryScripts.Protection, StringComparison.Ordinal);
+		Assert.Contains("if not ok then", MemoryScripts.Protection, StringComparison.Ordinal);
+	}
+
+	[Theory]
+	[InlineData("not_applied", ToolHostEffect.NotApplied)]
+	[InlineData("started", ToolHostEffect.Started)]
+	public void SetProtection_CheatEngineRefusesTheChange_IsTheScriptsHostRefusal(string declared,
+		ToolHostEffect effect)
+	{
+		TargetDouble target = new();
+		UseMemoryRegion(target, Region(0x401000, 0x1000));
+		target.LuaResult = _ => new LuaScriptError("host_refused",
+			"Cheat Engine refused the protection change: This system does not support writable executable memory.",
+			declared, "Check the range with memory_get_address_info.");
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			new MemoryWriteTools(target.Dispatch).SetProtection("401000", 4096, false, true, true, Token));
+
+		Assert.Equal((ToolErrorKind.HostRefused, effect, false),
+			(exception.Error.Kind, exception.Error.HostEffect, exception.Error.Retryable));
+		Assert.Contains("writable executable", exception.Error.Message, StringComparison.Ordinal);
 		Assert.Equal(1, target.LuaCalls);
 	}
 

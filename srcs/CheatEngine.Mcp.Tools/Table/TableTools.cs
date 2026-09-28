@@ -132,12 +132,12 @@ public sealed class TableTools
 			try
 			{
 				foreach (string path in Directory.EnumerateFiles(root, "*",
-						 new EnumerationOptions
-						 {
-							 RecurseSubdirectories = true,
-							 IgnoreInaccessible = false,
-							 AttributesToSkip = FileAttributes.ReparsePoint
-						 }))
+							 new EnumerationOptions
+							 {
+								 RecurseSubdirectories = true,
+								 IgnoreInaccessible = false,
+								 AttributesToSkip = FileAttributes.ReparsePoint
+							 }))
 				{
 					if (!IsTablePath(path) || IsReparsePoint(path))
 					{
@@ -263,7 +263,8 @@ public sealed class TableTools
 				   extension.Equals(".xml", StringComparison.OrdinalIgnoreCase) ||
 				   extension.Equals(".cetrainer", StringComparison.OrdinalIgnoreCase);
 		}
-		catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException)
+		catch (Exception exception) when (exception is ArgumentException or NotSupportedException
+											  or PathTooLongException)
 		{
 			return false;
 		}

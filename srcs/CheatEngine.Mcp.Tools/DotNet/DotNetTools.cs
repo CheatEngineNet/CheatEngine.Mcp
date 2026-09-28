@@ -15,6 +15,7 @@ public sealed class DotNetTools
 	private const int MaximumFields = 2_048;
 	private const int MaximumInstances = 2_048;
 	private const int MaximumAddressLength = 512;
+	private const int MaximumFilterLength = 256;
 	private readonly ToolDispatch _dispatch;
 	private readonly JobRegistry _jobs;
 
@@ -63,7 +64,8 @@ public sealed class DotNetTools
 	[Description(
 		"Page managed modules in a .NET application domain. Pass domainHandle back verbatim from dotnet_list_domains.")]
 	public DotNetModulePage ListModules(
-		[Description("An opaque domain handle from dotnet_list_domains.")] string domainHandle,
+		[Description("An opaque domain handle from dotnet_list_domains.")]
+		string domainHandle,
 		[Description("The zero-based first module.")]
 		int offset = 0,
 		[Description("The most modules returned, 1 to 1000.")]
@@ -81,19 +83,24 @@ public sealed class DotNetTools
 		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.HostScan)]
 	[Description(
-		"Page type definitions in one managed module. The collector enumerates the module before applying the page.")]
+		"Page type definitions in one managed module, optionally only those whose full name contains nameContains. The collector enumerates the whole module before the filter and the page apply.")]
 	public DotNetTypePage ListTypes(
-		[Description("An opaque module handle from dotnet_list_modules.")] string moduleHandle,
+		[Description("An opaque module handle from dotnet_list_modules.")]
+		string moduleHandle,
 		[Description("The zero-based first type.")]
 		int offset = 0,
 		[Description("The most types returned, 1 to 1000.")]
 		int limit = 100,
+		[Description(
+			"Keep only the types whose full name, namespace included, contains this text, ignoring the case of ASCII letters, such as Player or Game.Player; at most 256 characters. Omit it for every type.")]
+		string? nameContains = null,
 		CancellationToken cancellationToken = default)
 	{
 		Page(offset, limit);
+		string module = Handle(moduleHandle, "moduleHandle");
 		return _dispatch.RunLua(CheatEngineToolNames.DotNetListTypes, DotNetLuaScripts.Types,
-			DotNetJsonContext.Default.DotNetTypePage, cancellationToken, Handle(moduleHandle, "moduleHandle"), offset,
-			limit);
+			DotNetJsonContext.Default.DotNetTypePage, cancellationToken, module, offset, limit,
+			NameFilter(nameContains));
 	}
 
 	/// <summary>Reads a type layout and its bounded field list.</summary>
@@ -101,9 +108,10 @@ public sealed class DotNetTools
 		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Read a managed type's layout and up to 2048 fields. Static addresses, when present, are target addresses rather than collector handles.")]
+		"Read a managed type's layout, its base type and up to 2048 fields. Fields report whether they are static, their CorElementType code and, for statics, the target address the collector reports; pass baseTypeModuleHandle and baseTypeToken back to read the base type.")]
 	public DotNetTypeDetails GetType(
-		[Description("An opaque module handle from dotnet_list_modules.")] string moduleHandle,
+		[Description("An opaque module handle from dotnet_list_modules.")]
+		string moduleHandle,
 		[Description("An opaque type token from dotnet_list_types.")]
 		string typeToken,
 		[Description("The maximum fields copied, 1 to 2048.")]
@@ -121,21 +129,55 @@ public sealed class DotNetTools
 		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Page a managed type's methods. NativeCode is zero or absent until the runtime has JIT-compiled the method.")]
+		"Page a managed type's methods, optionally only those whose name contains nameContains. NativeCode is zero or absent until the runtime has JIT-compiled the method.")]
 	public DotNetMethodPage ListMethods(
-		[Description("An opaque module handle from dotnet_list_modules.")] string moduleHandle,
+		[Description("An opaque module handle from dotnet_list_modules.")]
+		string moduleHandle,
 		[Description("An opaque type token from dotnet_list_types.")]
 		string typeToken,
 		[Description("The zero-based first method.")]
 		int offset = 0,
 		[Description("The most methods returned, 1 to 1000.")]
 		int limit = 100,
+		[Description(
+			"Keep only the methods whose name contains this text, ignoring the case of ASCII letters, such as Damage; at most 256 characters. Omit it for every method.")]
+		string? nameContains = null,
 		CancellationToken cancellationToken = default)
 	{
 		Page(offset, limit);
+		string module = Handle(moduleHandle, "moduleHandle");
+		string type = Handle(typeToken, "typeToken");
 		return _dispatch.RunLua(CheatEngineToolNames.DotNetListMethods, DotNetLuaScripts.Methods,
-			DotNetJsonContext.Default.DotNetMethodPage, cancellationToken, Handle(moduleHandle, "moduleHandle"),
-			Handle(typeToken, "typeToken"), offset, limit);
+			DotNetJsonContext.Default.DotNetMethodPage, cancellationToken, module, type, offset, limit,
+			NameFilter(nameContains));
+	}
+
+	/// <summary>Reads the parameters of one managed method.</summary>
+	[McpServerTool(Name = CheatEngineToolNames.DotNetGetMethodParameters, Title = "Get .NET method parameters",
+		ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+	[Description(
+		"Read a managed method's parameter names and CorElementType codes, and the signature text when the out-of-process collector reports it. Pass a module handle from dotnet_list_modules and a method token from dotnet_list_methods; this never injects into the target.")]
+	public DotNetMethodParameters GetMethodParameters(
+		[Description("An opaque module handle from dotnet_list_modules.")]
+		string moduleHandle,
+		[Description("An opaque method token from dotnet_list_methods.")]
+		string methodToken,
+		CancellationToken cancellationToken = default)
+	{
+		DotNetMethodParameters parameters = _dispatch.RunLua(CheatEngineToolNames.DotNetGetMethodParameters,
+			DotNetLuaScripts.MethodParameters, DotNetJsonContext.Default.DotNetMethodParameters, cancellationToken,
+			Handle(moduleHandle, "moduleHandle"), Handle(methodToken, "methodToken"));
+		return parameters with
+		{
+			Parameters =
+			[
+				.. parameters.Parameters.Select(static parameter => parameter with
+				{
+					ElementTypeName = ElementTypeName(parameter.ElementType)
+				})
+			]
+		};
 	}
 
 	/// <summary>Inspects a .NET object at an address.</summary>
@@ -143,7 +185,7 @@ public sealed class DotNetTools
 		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Inspect a recognized .NET object at an address or Cheat Engine address expression, copying at most 2048 fields.")]
+		"Inspect a recognized .NET object at an address or Cheat Engine address expression, copying at most 2048 fields with their current values: primitives read from the object start plus the field offset, references and pointers as hexadecimal addresses; value-type fields have no value.")]
 	public DotNetObject GetObject([Description("A target address or Cheat Engine address expression.")] string address,
 		[Description("The maximum fields copied, 1 to 2048.")]
 		int maximumFields = 512,
@@ -205,16 +247,54 @@ public sealed class DotNetTools
 	[Description(
 		"Read a non-consuming page of a .NET instance search. Start with afterSequence 0, then pass nextAfterSequence; runtime_stop_job discards buffered results.")]
 	public DotNetInstanceSearchPage PollInstanceSearch(
-		[Description("The job id returned by dotnet_start_instance_search.")] string jobId,
+		[Description("The job id returned by dotnet_start_instance_search.")]
+		string jobId,
 		[Description("The previous nextAfterSequence, or 0 for the first page.")]
 		long afterSequence = 0,
-		[Description("The maximum addresses returned, 1 to the configured job limit.")]
+		[Description("The maximum addresses returned, 1 to 1000.")]
 		int limit = 100)
 	{
 		ManagedJob<DotNetInstance> job = _jobs.Get<ManagedJob<DotNetInstance>>(jobId, "dotnetinstances");
 		JobPoll<DotNetInstance> poll = job.Poll(afterSequence, limit);
 		return new DotNetInstanceSearchPage(poll.Job, [.. poll.Items], poll.FirstSequence, poll.NextAfterSequence,
 			poll.More, poll.Dropped);
+	}
+
+	/// <summary>The name of an ECMA-335 CorElementType code (II.23.1.16), or null for an unknown code.</summary>
+	internal static string? ElementTypeName(int elementType)
+	{
+		return elementType switch
+		{
+			0x01 => "Void",
+			0x02 => "Boolean",
+			0x03 => "Char",
+			0x04 => "SByte",
+			0x05 => "Byte",
+			0x06 => "Int16",
+			0x07 => "UInt16",
+			0x08 => "Int32",
+			0x09 => "UInt32",
+			0x0A => "Int64",
+			0x0B => "UInt64",
+			0x0C => "Single",
+			0x0D => "Double",
+			0x0E => "String",
+			0x0F => "Pointer",
+			0x10 => "ByReference",
+			0x11 => "ValueType",
+			0x12 => "Class",
+			0x13 => "GenericTypeParameter",
+			0x14 => "Array",
+			0x15 => "GenericInstance",
+			0x16 => "TypedReference",
+			0x18 => "IntPtr",
+			0x19 => "UIntPtr",
+			0x1B => "FunctionPointer",
+			0x1C => "Object",
+			0x1D => "SZArray",
+			0x1E => "GenericMethodParameter",
+			_ => null
+		};
 	}
 
 	private static string Handle(string value, string parameter)
@@ -225,6 +305,26 @@ public sealed class DotNetTools
 		}
 
 		return value.Trim();
+	}
+
+	/// <summary>
+	///     Validates an optional <c>nameContains</c> filter: <see langword="null" /> or empty applies none, and the
+	///     text is passed unchanged for the fixed Lua to match literally.
+	/// </summary>
+	private static string? NameFilter(string? value)
+	{
+		if (string.IsNullOrEmpty(value))
+		{
+			return null;
+		}
+
+		if (value.Length > MaximumFilterLength)
+		{
+			throw CheatEngineToolException.InvalidArgument("nameContains",
+				$"must be at most {MaximumFilterLength} characters.");
+		}
+
+		return value;
 	}
 
 	private static string Address(string value, string parameter)

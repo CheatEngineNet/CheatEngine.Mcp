@@ -68,8 +68,9 @@ public sealed class LuaUnsafeScriptWrapperTests
 		Assert.Contains("__rawset(__env, '_ENV', __savedEnv)", script.Source, StringComparison.Ordinal);
 		Assert.Contains("__rawset(__env, 'getTickCount', __savedTicks)", script.Source, StringComparison.Ordinal);
 		Assert.True(script.Source.LastIndexOf("__rawset(__env, 'rawget', __rawget)", StringComparison.Ordinal) <
-						script.Source.LastIndexOf("__rawset(__env, '" + LuaUnsafeScriptWrapper.ResultGlobal + "', __result)",
-							StringComparison.Ordinal));
+					script.Source.LastIndexOf(
+						"__rawset(__env, '" + LuaUnsafeScriptWrapper.ResultGlobal + "', __result)",
+						StringComparison.Ordinal));
 	}
 
 	[Fact]

@@ -1,4 +1,4 @@
-// Adapted from CheatEngine.Client; see NOTICE.md and licenses/CheatEngine.Client.LICENSE.
+// Adapted from CheatEngine.Client (MIT); see NOTICE.md.
 
 namespace CheatEngine.Mcp.Tests.LiveQualification.Infrastructure;
 

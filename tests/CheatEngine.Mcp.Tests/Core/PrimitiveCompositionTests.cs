@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Tests.Support;
@@ -139,6 +140,7 @@ public sealed class PrimitiveCompositionTests
 
 		[McpServerResource(UriTemplate = "cheatengine://instance/probe", Name = "probe", Title = "Probe",
 			MimeType = "application/json")]
+		[McpSourceTool(typeof(ThrowingTool), CheatEngineToolNames.RuntimeGetInfo)]
 		[Description("Probe resource.")]
 		public string Read()
 		{
@@ -159,7 +161,7 @@ public sealed class PrimitiveCompositionTests
 		// Prompts are static (Local): the catalog never needs, and never builds, an instance for them.
 		[McpServerPrompt(Name = "probe_prompt", Title = "Probe prompt")]
 		[Description("Probe prompt.")]
-		public static string Prompt([Description("A topic.")] string topic)
+		public static string Prompt([Description("A topic.")][Display(Name = "Topic")] string topic)
 		{
 			return "probe:" + topic;
 		}

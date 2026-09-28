@@ -8,8 +8,8 @@ using ModelContextProtocol.Server;
 namespace CheatEngine.Mcp.Tools.Structures;
 
 /// <summary>
-///     Lists, reads, creates and deletes Cheat Engine's Structure Dissect definitions. Structures are Cheat Engine's
-///     global state, saved with the cheat table; they outlive the plugin and are never target resources.
+///     Lists, reads, creates, renames and deletes Cheat Engine's Structure Dissect definitions. Structures are Cheat
+///     Engine's global state, saved with the cheat table; they outlive the plugin and are never target resources.
 /// </summary>
 [McpServerToolType]
 public sealed class StructureTools
@@ -154,20 +154,47 @@ public sealed class StructureTools
 			StructuresJsonContext.Default.StructureDeleted, cancellationToken, structure);
 	}
 
+	/// <summary>Renames a structure, global or internal, in place.</summary>
+	[McpServerTool(Name = CheatEngineToolNames.StructureSetName, Title = "Rename a structure", ReadOnly = false,
+		Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+	[Description(
+		"Renames a structure in place, internal ones included; pointer elements of other structures keep pointing " +
+		"to it, unlike a copy with structure_create(cloneFrom) and a delete. A newName that any structure already " +
+		"has is invalid_state; the current name is a no-op. A global structure is saved with the table under its " +
+		"new name; an internal structure is never saved.")]
+	public StructureSummary SetName(
+		[Description("The structure's current case-sensitive name.")]
+		string name,
+		[Description("The new case-sensitive name (1-256 characters); no other structure may have it.")]
+		string newName,
+		CancellationToken cancellationToken = default)
+	{
+		string structure = StructureArguments.Name(name, "name");
+		string renamed = StructureArguments.Name(newName, "newName");
+		return _dispatch.RunLua(CheatEngineToolNames.StructureSetName, StructureLuaScripts.Rename,
+			StructuresJsonContext.Default.StructureSummary, cancellationToken, structure, renamed);
+	}
+
 	/// <summary>Lets Cheat Engine guess a structure's fields from memory.</summary>
 	[McpServerTool(Name = CheatEngineToolNames.StructureAutoguess, Title = "Auto-guess a structure", ReadOnly = false,
 		Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Lets Cheat Engine guess element types from the current bytes at address, like the dissect window's automatic " +
-		"guess, creating the structure when missing. Guesses are unconfirmed: pointers can read as integers and padding " +
-		"as fields. Keep size to the object, usually 1024-4096 bytes.")]
+		"Lets Cheat Engine guess element types from the current bytes at address plus offset, like the dissect " +
+		"window's automatic guess, creating the structure when missing. The guessed elements are added from offset " +
+		"on and existing elements are kept, so guess into a range that has none yet. Guesses are unconfirmed: " +
+		"pointers can read as integers and padding as fields. Keep size to the object, usually 1024-4096 bytes.")]
 	public StructureSummary Autoguess(
 		[Description("The structure's case-sensitive name.")]
 		string name,
-		[Description("The object's base address or symbol expression, such as 7FF6A1B2C3D0 or [game.exe+1C]+10.")]
+		[Description(
+			"The object's base address or symbol expression, such as 7FF6A1B2C3D0 or [game.exe+1C]+10; the bytes " +
+			"are read from this address plus offset.")]
 		string address,
-		[Description("The offset inside the structure where guessing starts, as signed hexadecimal.")]
+		[Description(
+			"The structure offset where guessing starts, as hexadecimal, zero or greater: Cheat Engine reads from " +
+			"address plus offset and places the first guessed element at this offset.")]
 		string offset = "0",
 		[Description("The bytes to guess from, a decimal count (1-65536).")]
 		int size = 4096,
@@ -187,8 +214,13 @@ public sealed class StructureTools
 		return _dispatch.Run(CheatEngineToolNames.StructureAutoguess, token =>
 		{
 			ulong resolved = StructureArguments.Resolve(_dispatch.Client, expression, "address", token);
+			// Cheat Engine reads from its base argument and only labels the elements from its offset argument, as the
+			// dissect window's own guess passes the column address plus the start offset.
+			ulong first = StructureArguments.Add(resolved, start) ??
+						  throw CheatEngineToolException.InvalidArgument("address",
+							  "plus offset leaves the address space.");
 			return _dispatch.ExecuteLua(CheatEngineToolNames.StructureAutoguess, StructureLuaScripts.AutoGuess,
-				StructuresJsonContext.Default.StructureSummary, token, structure, "0x" + HexFormat.Address(resolved),
+				StructuresJsonContext.Default.StructureSummary, token, structure, "0x" + HexFormat.Address(first),
 				start, size, createIfMissing);
 		}, cancellationToken);
 	}

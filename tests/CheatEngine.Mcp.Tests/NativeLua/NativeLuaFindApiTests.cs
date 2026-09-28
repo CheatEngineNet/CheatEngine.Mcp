@@ -1,9 +1,8 @@
-using CheatEngine.Mcp.Core.Lua;
 using CheatEngine.Mcp.Tools.Lua;
 
 namespace CheatEngine.Mcp.Tests.NativeLua;
 
-public sealed unsafe partial class NativeLuaToolRuntimeTests
+public sealed partial class NativeLuaToolRuntimeTests
 {
 	[Fact]
 	public void LuaFindApi_OverlongStreamingLine_ReturnsTheClosedPartialPage()

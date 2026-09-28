@@ -1,4 +1,7 @@
 using System.ComponentModel;
+using System.Text.Json.Serialization;
+
+using CheatEngine.Mcp.Core.Contract;
 
 namespace CheatEngine.Mcp.Tools.Asm;
 
@@ -22,14 +25,28 @@ public sealed record AsmAssembleResult(
 	[property: Description("The total assembled byte count.")]
 	int Size);
 
-/// <summary>Cheat Engine's syntax-check result for an Auto Assembler script.</summary>
+/// <summary>A section of an Auto Assembler script; the wire value is the <c>snake_case</c> member name.</summary>
+[JsonConverter(typeof(ContractEnumConverter<AsmScriptSection>))]
+public enum AsmScriptSection
+{
+	/// <summary>The <c>[ENABLE]</c> section, which applies the patch.</summary>
+	Enable,
+
+	/// <summary>The <c>[DISABLE]</c> section, which releases the patch.</summary>
+	Disable
+}
+
+/// <summary>Cheat Engine's syntax-check result for both sections of an Auto Assembler script.</summary>
 public sealed record AsmCheckResult(
-	[property: Description("Whether Cheat Engine accepted the ENABLE section. A true result does not apply the patch.")]
+	[property: Description(
+		"Whether Cheat Engine accepted both the ENABLE and the DISABLE section. A true result does not apply the patch.")]
 	bool Accepted,
-	[property: Description("Cheat Engine's bounded, unparsed diagnostic text when it returned any.")]
+	[property: Description("Cheat Engine's bounded, unparsed diagnostic text for the rejected section, when it returned any.")]
 	string? HostMessages = null,
-	[property: Description("Whether hostMessages was truncated by CheatEngine.Client.")]
-	bool HostMessagesTruncated = false);
+	[property: Description("Whether hostMessages was truncated to its bound.")]
+	bool HostMessagesTruncated = false,
+	[property: Description("The section Cheat Engine rejected, enable or disable; omitted when accepted is true.")]
+	AsmScriptSection? FailedSection = null);
 
 /// <summary>A Client-owned Auto Assembler patch held by this MCP activation.</summary>
 public sealed record AsmPatchInfo(
@@ -106,3 +123,9 @@ public sealed record AsmGeneratedScript(
 	string? SymbolName = null);
 
 internal sealed record AsmLuaScript(string Script);
+
+/// <summary>What the fixed <c>[DISABLE]</c> syntax check reports.</summary>
+/// <param name="Accepted">Whether Cheat Engine accepted the DISABLE section.</param>
+/// <param name="HostMessages">Cheat Engine's bounded error text, when it returned one.</param>
+/// <param name="HostMessagesTruncated">Whether the error text was cut at its bound.</param>
+internal sealed record AsmLuaCheck(bool Accepted, string? HostMessages = null, bool HostMessagesTruncated = false);

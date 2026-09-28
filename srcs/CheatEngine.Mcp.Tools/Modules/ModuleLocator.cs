@@ -98,9 +98,27 @@ internal static class ModuleLocator
 	/// </exception>
 	internal static ModuleInfo Find(ICheatEngineClient client, string module, CancellationToken token)
 	{
+		return Find(client, module, out _, token);
+	}
+
+	/// <summary>
+	///     Finds a module as <see cref="Find(ICheatEngineClient, string, CancellationToken)" /> does and also returns the
+	///     module list it searched, so a tool can place other addresses without copying the list again.
+	/// </summary>
+	/// <param name="client">The activation's Client.</param>
+	/// <param name="module">A checked module argument.</param>
+	/// <param name="modules">Receives the attached process's modules in Cheat Engine's order.</param>
+	/// <param name="token">The dispatch body's token.</param>
+	/// <returns>The module.</returns>
+	/// <exception cref="CheatEngineToolException">
+	///     <c>not_attached</c> without a process, <c>not_found</c> when no module matches.
+	/// </exception>
+	internal static ModuleInfo Find(ICheatEngineClient client, string module, out ImmutableArray<ModuleInfo> modules,
+		CancellationToken token)
+	{
 		// Cheat Engine enumerates its own modules when nothing is attached; refuse that first.
 		client.Processes.GetCurrentProcess(token);
-		ImmutableArray<ModuleInfo> modules = GetModules(client, null, token);
+		modules = GetModules(client, null, token);
 		foreach (ModuleInfo candidate in modules)
 		{
 			if (string.Equals(candidate.Name, module, StringComparison.OrdinalIgnoreCase))

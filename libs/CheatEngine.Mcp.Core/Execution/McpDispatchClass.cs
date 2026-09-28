@@ -26,8 +26,8 @@ public static class McpDispatchClass
 	public const string Short = "short";
 
 	/// <summary>
-	///     A host scan whose duration grows with the target, such as an AOB or reference scan, bounded by its caller's
-	///     limits; expected well under one second.
+	///     A host scan whose duration grows with the target, such as a value, AOB or reference scan, which holds Cheat
+	///     Engine while it runs and can take seconds on a large target; the tool description states its worst case.
 	/// </summary>
 	public const string HostScan = "host_scan";
 

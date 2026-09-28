@@ -11,7 +11,7 @@ using ModelContextProtocol.Protocol;
 namespace CheatEngine.Mcp.Tests.Contract;
 
 /// <summary>
-///     The frozen v2 catalog: the 173 names, their fit with the naming rules, the map from every pre-v2 name, the reviewed
+///     The frozen v2 catalog: the 187 names, their fit with the naming rules, the map from every pre-v2 name, the reviewed
 ///     open-world list and the per-tool summary that the reference documentation is generated from.
 /// </summary>
 public sealed class ToolCatalogContractTests
@@ -25,38 +25,38 @@ public sealed class ToolCatalogContractTests
 		{ "instance", 1 },
 		{ "runtime", 6 },
 		{ "process", 9 },
-		{ "memory", 14 },
+		{ "memory", 19 },
 		{ "scan", 8 },
-		{ "aob", 2 },
+		{ "aob", 3 },
 		{ "pointer", 10 },
-		{ "module", 4 },
-		{ "symbol", 9 },
+		{ "module", 5 },
+		{ "symbol", 10 },
 		{ "speedhack", 2 },
 		{ "util", 2 },
-		{ "code", 13 },
+		{ "code", 14 },
 		{ "asm", 8 },
-		{ "record", 13 },
+		{ "record", 14 },
 		{ "table", 3 },
-		{ "structure", 13 },
+		{ "structure", 15 },
 		{ "debugger", 18 },
 		{ "exec", 6 },
-		{ "dotnet", 9 },
-		{ "mono", 14 },
+		{ "dotnet", 10 },
+		{ "mono", 15 },
 		{ "kernel", 7 },
 		{ "lua", 2 }
 	};
 
 	[Fact]
-	public void ToolNames_Constants_Are173UniqueNamesSplitBetweenBackendAndGateway()
+	public void ToolNames_Constants_Are187UniqueNamesSplitBetweenBackendAndGateway()
 	{
 		string[] constants = typeof(CheatEngineToolNames).GetFields(BindingFlags.Public | BindingFlags.Static)
 			.Where(static field => field.IsLiteral)
 			.Select(static field => (string) field.GetRawConstantValue()!)
 			.ToArray();
 
-		Assert.Equal(173, constants.Length);
+		Assert.Equal(187, constants.Length);
 		Assert.Equal(constants.Order(StringComparer.Ordinal), CheatEngineToolNames.All.Order(StringComparer.Ordinal));
-		Assert.Equal(172, CheatEngineToolNames.Backend.Count);
+		Assert.Equal(186, CheatEngineToolNames.Backend.Count);
 		Assert.Equal([CheatEngineToolNames.InstanceList],
 			CheatEngineToolNames.All.Except(CheatEngineToolNames.Backend));
 	}

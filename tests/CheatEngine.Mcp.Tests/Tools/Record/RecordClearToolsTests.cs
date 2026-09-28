@@ -25,7 +25,9 @@ public sealed class RecordClearToolsTests
 
 		Assert.Equal(new RecordClearResult(5), result);
 		Assert.Contains("for child = 0, record.Count - 1 do", source, StringComparison.Ordinal);
-		Assert.Contains("queue[last] = record.Child[child]", source, StringComparison.Ordinal);
+		Assert.Contains("enqueue(record.Child[child])", source, StringComparison.Ordinal);
+		// Cheat Engine indexes nested records in the list too, so each record is queued once by its id.
+		Assert.Contains("if record ~= nil and not queued[record.ID] then", source, StringComparison.Ordinal);
 		Assert.Contains("return {deleted = last}", source, StringComparison.Ordinal);
 		Assert.Equal(1, target.LuaCalls);
 	}

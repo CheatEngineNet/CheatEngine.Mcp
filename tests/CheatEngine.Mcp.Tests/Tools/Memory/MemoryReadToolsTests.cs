@@ -101,7 +101,7 @@ public sealed class MemoryReadToolsTests
 		TargetDouble target = new();
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			new MemoryReadTools(target.Dispatch).Read("1000", type, count, size, length, Token));
+			new MemoryReadTools(target.Dispatch).Read("1000", type, count, size, length, cancellationToken: Token));
 
 		Assert.Equal(kind, exception.Error.Kind);
 		Assert.Equal(ToolHostEffect.NotStarted, exception.Error.HostEffect);

@@ -40,11 +40,11 @@ public sealed partial class ToolDispatch
 	private readonly TimeSpan _budget;
 	private readonly int _budgetMilliseconds;
 	private readonly LuaJsonBufferPool _buffers = new();
+	private readonly IFixedLuaExecutor _fixedLua;
 	private readonly ILogger<ToolDispatch> _logger;
 	private readonly ConditionalWeakTable<string, McpFeature[]> _luaRequirements = new();
 	private readonly int _maximumConcurrency;
 	private readonly DispatchStatistics _statistics;
-	private readonly IFixedLuaExecutor _fixedLua;
 	private readonly TimeProvider _time;
 	private int _active;
 

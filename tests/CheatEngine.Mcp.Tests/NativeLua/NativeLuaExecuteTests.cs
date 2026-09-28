@@ -88,7 +88,8 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 		using RuntimeScope scope = CreateScope();
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			PluginLuaToolRuntime.Execute(CreateJsonLuaClient(), "declared_probe", body, TestJsonContext.Default.StringArray,
+			PluginLuaToolRuntime.Execute(CreateJsonLuaClient(), "declared_probe", body,
+				TestJsonContext.Default.StringArray,
 				CancellationToken.None));
 
 		Assert.Equal(kind, exception.Error.Kind);
@@ -128,7 +129,8 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 		using RuntimeScope scope = CreateScope();
 
 		CheatEngineClientException exception = Assert.ThrowsAny<CheatEngineClientException>(() =>
-			PluginLuaToolRuntime.Execute(CreateJsonLuaClient(), "failure_probe", body, TestJsonContext.Default.StringArray,
+			PluginLuaToolRuntime.Execute(CreateJsonLuaClient(), "failure_probe", body,
+				TestJsonContext.Default.StringArray,
 				CancellationToken.None));
 
 		Assert.Equal(CheatEngineFailureKind.LuaError, exception.Failure.Kind);

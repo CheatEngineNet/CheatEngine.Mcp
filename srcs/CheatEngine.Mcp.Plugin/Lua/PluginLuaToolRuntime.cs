@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Globalization;
 using System.Text;
 using System.Text.Json.Serialization.Metadata;
@@ -7,8 +6,6 @@ using CheatEngine.Client;
 using CheatEngine.Client.Lua;
 using CheatEngine.Client.Results;
 using CheatEngine.Mcp.Core.Contract;
-using CheatEngine.Mcp.Core.Execution;
-using CheatEngine.Mcp.Core.Lua;
 using CheatEngine.SDK.Lua.Calls;
 using CheatEngine.SDK.Lua.Runtime;
 using CheatEngine.SDK.Lua.State;
@@ -110,7 +107,8 @@ internal static class PluginLuaToolRuntime
 		return exception.Violation is LuaJsonViolation.Limit
 			? new CheatEngineToolException(new ToolError(ToolErrorKind.LimitExceeded, exception.Message, operation,
 				ToolHostEffect.Completed, false, ToolFailureMapping.LimitHint), exception)
-			: new CheatEngineToolException(new ToolError(ToolErrorKind.Internal, LuaToolRuntime.ContractViolationMessage,
+			: new CheatEngineToolException(new ToolError(ToolErrorKind.Internal,
+				LuaToolRuntime.ContractViolationMessage,
 				operation, ToolHostEffect.Completed, false, CheatEngineToolException.InternalHint), exception);
 	}
 
@@ -393,4 +391,3 @@ internal sealed class PluginFixedLuaExecutor(ICheatEngineClient client) : IFixed
 			cancellationToken);
 	}
 }
-

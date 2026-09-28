@@ -32,24 +32,43 @@ namespace CheatEngine.Mcp.Tests.Resources;
 public sealed partial class KnowledgeResourceTests
 {
 	private const int DocumentBudgetBytes = 24 * 1024;
-	private const int TotalBudgetBytes = 200 * 1024;
-
-	/// <summary>Reference files that stay in the skill only: local notes and the legacy files P6 removes.</summary>
-	private static readonly string[] NeverEmbedded =
-	[
-		"local-cheat-engine", "local-cheat-engine.example", "address-list-and-speedhack", "lua-execution",
-		"scanning-and-debugging", "tool-catalog"
-	];
+	private const int TotalBudgetBytes = 704 * 1024;
 
 	private static readonly string[] LiveResourceUris =
 	[
-		"cheatengine://instance/memory/regions", "cheatengine://instance/modules",
-		"cheatengine://instance/process", "cheatengine://instance/records", "cheatengine://instance/runtime",
-		"cheatengine://instance/structures"
+		"cheatengine://instance/debugger",
+		"cheatengine://instance/debugger/breakpoints{?limit}",
+		"cheatengine://instance/disassembly/{address}{?count}",
+		"cheatengine://instance/jobs",
+		"cheatengine://instance/memory/{address}{?size}",
+		"cheatengine://instance/modules/{module}",
+		"cheatengine://instance/modules/{module}/exports{?offset,limit}",
+		"cheatengine://instance/modules{?offset,limit}",
+		"cheatengine://instance/patches",
+		"cheatengine://instance/pointer-maps",
+		"cheatengine://instance/pointer-scans",
+		"cheatengine://instance/pointer-scans/{scanName}/paths{?offset,limit}",
+		"cheatengine://instance/process",
+		"cheatengine://instance/records/{recordId}",
+		"cheatengine://instance/records{?offset,limit}",
+		"cheatengine://instance/regions{?offset,limit}",
+		"cheatengine://instance/resources",
+		"cheatengine://instance/runtime",
+		"cheatengine://instance/scanners",
+		"cheatengine://instance/scanners/{scannerName}",
+		"cheatengine://instance/speedhack",
+		"cheatengine://instance/structures/{structure}{?offset,limit}",
+		"cheatengine://instance/structures{?offset,limit}",
+		"cheatengine://instance/symbols{?offset,limit}",
+		"cheatengine://instance/threads"
 	];
 
-	private static string ReferencesFolder => Path.Combine(RepositoryPaths.Root, "skills", "cheatengine-mcp",
-		"references");
+	internal static string KnowledgeFolder => Path.Combine(RepositoryPaths.Root, "srcs", "CheatEngine.Mcp.Resources",
+		"Knowledge");
+
+	private static string DocumentsFolder => Path.Combine(KnowledgeFolder, McpKnowledgeText.DocumentsFolder);
+
+	private static string WorkflowsFolder => Path.Combine(KnowledgeFolder, McpKnowledgeText.WorkflowsFolder);
 
 	internal static CheatEngineMcpPrimitiveOptions KnowledgeManifest
 	{
@@ -60,35 +79,38 @@ public sealed partial class KnowledgeResourceTests
 	[Fact]
 	public void Knowledge_EmbeddedDocuments_EqualTheExplicitListAndEachFileExists()
 	{
-		Assert.Equal(18, CheatEngineKnowledge.DocumentSlugs.Count);
+		string[] files = Directory.EnumerateFiles(DocumentsFolder, "*.md")
+			.Select(static path => Path.GetFileNameWithoutExtension(path))
+			.Order(StringComparer.Ordinal).ToArray();
+
+		Assert.Equal(CheatEngineKnowledge.DocumentSlugs.Count,
+			CheatEngineKnowledge.DocumentSlugs.Distinct(StringComparer.Ordinal).Count());
 		Assert.Equal(CheatEngineKnowledge.DocumentSlugs.Order(StringComparer.Ordinal),
 			CheatEngineKnowledge.EmbeddedDocuments.Order(StringComparer.Ordinal));
-		Assert.All(CheatEngineKnowledge.DocumentSlugs,
-			static slug => Assert.True(File.Exists(Path.Combine(ReferencesFolder, slug + ".md")), slug));
+		Assert.Equal(files, CheatEngineKnowledge.DocumentSlugs.Order(StringComparer.Ordinal));
 	}
 
 	[Fact]
 	public void Knowledge_EmbeddedWorkflows_EqualTheWorkflowFiles()
 	{
-		string[] files = Directory.EnumerateFiles(Path.Combine(ReferencesFolder, "workflows"), "*.md")
+		string[] files = Directory.EnumerateFiles(WorkflowsFolder, "*.md")
 			.Select(static path => Path.GetFileNameWithoutExtension(path))
-			.Where(static name => !name.StartsWith("local-", StringComparison.Ordinal))
 			.Order(StringComparer.Ordinal).ToArray();
 
-		Assert.Equal(22, files.Length);
+		Assert.NotEmpty(files);
 		Assert.Equal(files, CheatEngineKnowledge.WorkflowNames);
 	}
 
 	[Fact]
-	public void Knowledge_LocalAndLegacyFiles_AreNeverEmbedded()
+	public void Knowledge_IsEmbeddedOnceInTheResourcesAssembly()
 	{
-		string[] embedded = typeof(CheatEngineKnowledge).Assembly.GetManifestResourceNames()
-			.Concat(typeof(CheatEngineWorkflowPrompts).Assembly.GetManifestResourceNames()).ToArray();
+		string[] embedded = typeof(CheatEngineKnowledge).Assembly.GetManifestResourceNames();
 
 		Assert.All(embedded, static name => Assert.StartsWith("CheatEngine.Mcp.Knowledge/", name,
 			StringComparison.Ordinal));
-		Assert.All(NeverEmbedded, name => Assert.DoesNotContain(embedded,
-			resource => resource.EndsWith("/" + name + ".md", StringComparison.Ordinal)));
+		Assert.Equal(CheatEngineKnowledge.DocumentSlugs.Count + CheatEngineKnowledge.WorkflowNames.Count,
+			embedded.Length);
+		Assert.Empty(typeof(CheatEngineWorkflowPrompts).Assembly.GetManifestResourceNames());
 	}
 
 	[Fact]
@@ -114,7 +136,7 @@ public sealed partial class KnowledgeResourceTests
 		Assert.All(catalog.LocalResources, static entry => Assert.Equal(McpPrimitiveRouting.Local, entry.Routing));
 		Assert.Equal(LiveResourceUris,
 			catalog.InstanceResources.Select(static resource => resource.Template.UriTemplate));
-		ResourceTemplate template = Assert.Single(catalog.ResourceTemplates);
+		ResourceTemplate template = Assert.Single(catalog.LocalResources, static entry => entry.IsTemplated).Template;
 		Assert.Equal("cheatengine://docs/workflows/{workflow}", template.UriTemplate);
 		Assert.Equal(McpResourceUris.MarkdownMimeType, template.MimeType);
 	}
@@ -220,9 +242,10 @@ public sealed partial class KnowledgeResourceTests
 	{
 		ModuleSymbolTarget target = new();
 		target.AddModule("game.exe", 0x140000000, 0x5000);
-		ModuleLiveResources resources = new(new ModuleTools(target.Dispatch));
+		ModuleLiveResources resources = new(new ModuleTools(target.Dispatch),
+			new ModuleExportTools(target.Dispatch), target.Dispatch);
 
-		ReadResourceResult result = resources.Modules(TestContext.Current.CancellationToken);
+		ReadResourceResult result = resources.Modules(cancellationToken: TestContext.Current.CancellationToken);
 
 		TextResourceContents contents = Assert.IsType<TextResourceContents>(Assert.Single(result.Contents));
 		Assert.Equal("cheatengine://instance/modules", contents.Uri);
@@ -240,12 +263,13 @@ public sealed partial class KnowledgeResourceTests
 		{
 			Inspection = LiveResourceInspection.Regions
 		};
-		MemoryLiveResources resources = new(new MemoryInfoTools(target.Dispatch));
+		MemoryLiveResources resources = new(new MemoryInfoTools(target.Dispatch),
+			new MemoryReadTools(target.Dispatch));
 
-		ReadResourceResult result = resources.Regions(TestContext.Current.CancellationToken);
+		ReadResourceResult result = resources.Regions(cancellationToken: TestContext.Current.CancellationToken);
 
 		TextResourceContents contents = Assert.IsType<TextResourceContents>(Assert.Single(result.Contents));
-		Assert.Equal("cheatengine://instance/memory/regions", contents.Uri);
+		Assert.Equal("cheatengine://instance/regions", contents.Uri);
 		using JsonDocument json = JsonDocument.Parse(contents.Text);
 		Assert.Equal(1, json.RootElement.GetProperty("total").GetInt32());
 		Assert.Equal(("401000", "committed"), (
@@ -265,7 +289,7 @@ public sealed partial class KnowledgeResourceTests
 		};
 		StructureLiveResources resources = new(new StructureTools(target.Dispatch));
 
-		ReadResourceResult result = resources.Structures(TestContext.Current.CancellationToken);
+		ReadResourceResult result = resources.Structures(cancellationToken: TestContext.Current.CancellationToken);
 
 		TextResourceContents contents = Assert.IsType<TextResourceContents>(Assert.Single(result.Contents));
 		Assert.Equal("cheatengine://instance/structures", contents.Uri);
@@ -302,8 +326,9 @@ public sealed partial class KnowledgeResourceTests
 			new ResourceTemplateReference { Uri = "cheatengine://docs/workflows/{workflow}" }, "workflow", "find",
 			cancellationToken: TestContext.Current.CancellationToken);
 
-		Assert.Equal(["find-float-value", "find-known-value", "find-unknown-value", "find-writer"],
-			result.Completion.Values);
+		Assert.Equal(CheatEngineKnowledge.WorkflowNames.Where(static workflow =>
+			workflow.StartsWith("find", StringComparison.Ordinal)), result.Completion.Values);
+		Assert.Contains("find-writer", result.Completion.Values);
 	}
 
 	[Fact]

@@ -67,7 +67,8 @@ public sealed record CodeJobEvent(
 			"dissect when Cheat Engine completed a code-dissection pass, or search for an instruction-text match.")]
 	string Kind,
 	[property:
-		Description("The event's address, uppercase hexadecimal without 0x; omitted for a completed dissect pass.")]
+		Description(
+			"The event's address, uppercase hexadecimal without 0x: the first dissected address for a dissect event, or the matching instruction's address for a search event.")]
 	string? Address = null,
 	[property: Description("The matching decoded instruction, for a search event.")]
 	CodeInstruction? Instruction = null,

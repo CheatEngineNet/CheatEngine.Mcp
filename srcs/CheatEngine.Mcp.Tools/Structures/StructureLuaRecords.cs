@@ -76,6 +76,50 @@ internal sealed record StructureLuaPdbElement(long Offset, string? Name, int? Va
 /// <param name="Truncated">Whether more fields exist than were copied.</param>
 internal sealed record StructureLuaPdbLayout(bool Found, StructureLuaPdbElement[] Elements, bool Truncated);
 
+/// <summary>One element as the C header script copies it for the managed generator.</summary>
+/// <param name="Offset">The offset from the structure's start.</param>
+/// <param name="Vartype">Cheat Engine's variable type.</param>
+/// <param name="ByteSize">The bytes the element occupies.</param>
+/// <param name="Name">The name; <see langword="null" /> when empty.</param>
+/// <param name="Display">The display method of an integer element.</param>
+/// <param name="Child">The name of the child structure of a pointer element.</param>
+/// <param name="Nested">Whether the child structure is embedded rather than pointed to.</param>
+/// <param name="BitStart">The first bit of a binary element.</param>
+/// <param name="BitSize">The bit count of a binary element.</param>
+/// <param name="CustomType">The custom type's name of a custom element.</param>
+/// <param name="ChildStart">
+///     Where a pointer (not nested) element lands inside its child structure (<c>ChildStructStart</c>), when not 0.
+/// </param>
+internal sealed record StructureLuaHeaderElement(
+	long Offset,
+	int Vartype,
+	int ByteSize,
+	string? Name = null,
+	string? Display = null,
+	string? Child = null,
+	bool Nested = false,
+	int? BitStart = null,
+	int? BitSize = null,
+	string? CustomType = null,
+	long? ChildStart = null);
+
+/// <summary>One structure as the C header script copies it for the managed generator.</summary>
+/// <param name="Name">The structure's name.</param>
+/// <param name="Size">The structure's size.</param>
+/// <param name="Elements">Every element, in Cheat Engine's order.</param>
+internal sealed record StructureLuaHeaderStructure(string Name, int Size, StructureLuaHeaderElement[] Elements);
+
+/// <summary>
+///     What the C header script returns: Cheat Engine's text, or the structures for the managed generator.
+/// </summary>
+/// <param name="Names">The requested structures, then the child structures their pointer elements reach.</param>
+/// <param name="Text">The text Cheat Engine's <c>generate_c_header</c> wrote.</param>
+/// <param name="Structures">The copied structures, in the order of <paramref name="Names" />.</param>
+internal sealed record StructureLuaHeader(
+	string[] Names,
+	string? Text = null,
+	StructureLuaHeaderStructure[]? Structures = null);
+
 /// <summary>Values that Cheat Engine formatted, one row per element and one entry per base address.</summary>
 /// <param name="Values">The values; <see langword="null" /> when unreadable.</param>
 internal sealed record StructureLuaValues(string?[][] Values);

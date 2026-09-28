@@ -1,11 +1,16 @@
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Reflection;
 using System.Text;
 
+using CheatEngine.Mcp.Core.Contract;
+using CheatEngine.Mcp.Tests.Support;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
+using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
 namespace CheatEngine.Mcp.Tests.Core;
@@ -87,6 +92,25 @@ public sealed class PrimitiveRoutingTests
 		Assert.Equal("probe_prompt", Assert.Single(options.PromptCollection!).ProtocolPrompt.Name);
 		Assert.Single(options.Filters.Request.ReadResourceFilters);
 		Assert.Single(options.Filters.Request.GetPromptFilters);
+		Assert.Single(options.Filters.Request.CompleteFilters);
+	}
+
+	[Fact]
+	public void PromptArguments_EveryHost_ListTheDisplayNameAsTitle()
+	{
+		CheatEngineMcpPrimitiveOptions manifest = Manifest(static builder => builder.AddPromptType<LocalPrompts>());
+		McpPrimitiveCatalog catalog = McpPrimitiveCatalog.Create(manifest);
+		using ServiceProvider backend = Serve(manifest);
+		McpServerOptions gateway = new();
+		using ServiceProvider services = new ServiceCollection().BuildServiceProvider();
+
+		McpLocalPrimitives.AddTo(gateway, manifest, services);
+
+		PromptArgument listed = Assert.Single(Assert.Single(catalog.Prompts).Arguments!);
+		Assert.Equal(("topic", "Topic", "A topic."), (listed.Name, listed.Title, listed.Description));
+		Assert.Equal("Topic",
+			Assert.Single(Assert.Single(backend.GetServices<McpServerPrompt>()).ProtocolPrompt.Arguments!).Title);
+		Assert.Equal("Topic", Assert.Single(Assert.Single(gateway.PromptCollection!).ProtocolPrompt.Arguments!).Title);
 	}
 
 	[Theory]
@@ -119,6 +143,9 @@ public sealed class PrimitiveRoutingTests
 	[InlineData(typeof(CamelNamedPrompt), "must match")]
 	[InlineData(typeof(RoutingArgumentPrompt), "only the gateway uses for routing")]
 	[InlineData(typeof(NumericArgumentPrompt), "only strings are allowed")]
+	[InlineData(typeof(UntitledArgument), "argument 'topic' has no title; declare [Display(Name = ...)]")]
+	[InlineData(typeof(LowercaseArgumentTitle), "argument 'topic' needs a sentence-case title")]
+	[InlineData(typeof(RepeatedArgumentTitle), "argument 'other' repeats the title 'Topic' of 'topic'")]
 	public void Validator_InvalidPrompt_FailsStartup(Type container, string expected)
 	{
 		CheatEngineMcpPrimitiveOptions manifest = new();
@@ -193,13 +220,15 @@ public sealed class PrimitiveRoutingTests
 	}
 
 	[Theory]
-	[InlineData(false, "See [safety](safety.md) and [x](workflows/find-writer.md#steps).",
+	[InlineData(false, "See [safety](safety.md) and [x](../Workflows/find-writer.md#steps).",
 		"See [safety](cheatengine://docs/safety) and [x](cheatengine://docs/workflows/find-writer#steps).")]
-	[InlineData(true, "See [a](../debugger.md), [b](../workflows/nop-patch.md) and [c](trace-logic.md).",
+	[InlineData(true, "See [a](../Documents/debugger.md), [b](nop-patch.md) and [c](./trace-logic.md).",
 		"See [a](cheatengine://docs/debugger), [b](cheatengine://docs/workflows/nop-patch) and " +
 		"[c](cheatengine://docs/workflows/trace-logic).")]
-	[InlineData(false, "Keep [web](https://example.com/a.md), [skill](../SKILL.md) and [deep](a/b/c.md).",
-		"Keep [web](https://example.com/a.md), [skill](../SKILL.md) and [deep](a/b/c.md).")]
+	[InlineData(false, "Keep [web](https://example.com/a.md), [up](../README.md) and [deep](a/b/c.md).",
+		"Keep [web](https://example.com/a.md), [up](../README.md) and [deep](a/b/c.md).")]
+	[InlineData(true, "Keep [old](../workflows/nop-patch.md) and [out](../../README.md).",
+		"Keep [old](../workflows/nop-patch.md) and [out](../../README.md).")]
 	[InlineData(false, "Keep [root](/guide.md) and [cdn](//example.com/guide.md).",
 		"Keep [root](/guide.md) and [cdn](//example.com/guide.md).")]
 	public void KnowledgeText_RelativeLinks_BecomeDocsUris(bool inWorkflows, string markdown, string expected)
@@ -243,10 +272,25 @@ public sealed class PrimitiveRoutingTests
 
 		[McpServerResource(UriTemplate = "cheatengine://instance/probes/{name}", Name = "instance_probes",
 			Title = "Live probes", MimeType = "application/json")]
+		[McpSourceTool(typeof(RoutingProbeTool), CheatEngineToolNames.RuntimeGetInfo)]
 		[Description("A live template.")]
 		public string Live(string name)
 		{
 			return $"{{\"name\":\"{name}\",\"type\":\"{GetType().Name}\"}}";
+		}
+	}
+
+	/// <summary>The read-only, short tool the live probe projects; the probe catalogs never serve it.</summary>
+	[McpServerToolType]
+	public sealed class RoutingProbeTool
+	{
+		[McpServerTool(Name = CheatEngineToolNames.RuntimeGetInfo, Title = "Get routing probe", ReadOnly = true,
+			Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+		[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+		[Description("Returns a probe result.")]
+		public static ContractProbeResult Read()
+		{
+			return new ContractProbeResult("routing", [], false, 1, null);
 		}
 	}
 
@@ -267,7 +311,8 @@ public sealed class PrimitiveRoutingTests
 	{
 		[McpServerPrompt(Name = "probe_prompt", Title = "Probe prompt")]
 		[Description("A static prompt.")]
-		public static string Prompt([Description("A topic.")] string topic, McpServer? server = null)
+		public static string Prompt([Description("A topic.")][Display(Name = "Topic")] string topic,
+			McpServer? server = null)
 		{
 			return topic + (server is null ? string.Empty : ".");
 		}
@@ -417,7 +462,7 @@ public sealed class PrimitiveRoutingTests
 	{
 		[McpServerPrompt(Name = "instance_prompt", Title = "Instance prompt")]
 		[Description("An instance method.")]
-		public string Prompt([Description("A topic.")] string topic)
+		public string Prompt([Description("A topic.")][Display(Name = "Topic")] string topic)
 		{
 			return topic + GetType().Name;
 		}
@@ -428,7 +473,7 @@ public sealed class PrimitiveRoutingTests
 	{
 		[McpServerPrompt(Name = "undescribed", Title = "Undescribed")]
 		[Description("An argument without a description.")]
-		public static string Prompt(string topic)
+		public static string Prompt([Display(Name = "Topic")] string topic)
 		{
 			return topic;
 		}
@@ -439,7 +484,7 @@ public sealed class PrimitiveRoutingTests
 	{
 		[McpServerPrompt(Name = "memory_read", Title = "Tool named")]
 		[Description("A frozen tool name.")]
-		public static string Prompt([Description("A topic.")] string topic)
+		public static string Prompt([Description("A topic.")][Display(Name = "Topic")] string topic)
 		{
 			return topic;
 		}
@@ -450,7 +495,7 @@ public sealed class PrimitiveRoutingTests
 	{
 		[McpServerPrompt(Name = "findWriter", Title = "Camel named")]
 		[Description("A camelCase name.")]
-		public static string Prompt([Description("A topic.")] string topic)
+		public static string Prompt([Description("A topic.")][Display(Name = "Topic")] string topic)
 		{
 			return topic;
 		}
@@ -464,6 +509,40 @@ public sealed class PrimitiveRoutingTests
 		public static string Prompt([Description("An instance.")] string instanceId)
 		{
 			return instanceId;
+		}
+	}
+
+	[McpServerPromptType]
+	public sealed class UntitledArgument
+	{
+		[McpServerPrompt(Name = "untitled_argument", Title = "Untitled argument")]
+		[Description("An argument without a title.")]
+		public static string Prompt([Description("A topic.")] string topic)
+		{
+			return topic;
+		}
+	}
+
+	[McpServerPromptType]
+	public sealed class LowercaseArgumentTitle
+	{
+		[McpServerPrompt(Name = "lowercase_argument_title", Title = "Lowercase argument title")]
+		[Description("An argument titled in lower case.")]
+		public static string Prompt([Description("A topic.")][Display(Name = "topic")] string topic)
+		{
+			return topic;
+		}
+	}
+
+	[McpServerPromptType]
+	public sealed class RepeatedArgumentTitle
+	{
+		[McpServerPrompt(Name = "repeated_argument_title", Title = "Repeated argument title")]
+		[Description("Two arguments with one title.")]
+		public static string Prompt([Description("A topic.")][Display(Name = "Topic")] string topic,
+			[Description("Another topic.")][Display(Name = "Topic")] string other)
+		{
+			return topic + other;
 		}
 	}
 

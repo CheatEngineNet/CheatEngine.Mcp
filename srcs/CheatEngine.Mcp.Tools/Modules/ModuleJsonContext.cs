@@ -8,6 +8,7 @@ namespace CheatEngine.Mcp.Tools.Modules;
 [JsonSerializable(typeof(ModuleList))]
 [JsonSerializable(typeof(ModuleDetails))]
 [JsonSerializable(typeof(ExportList))]
+[JsonSerializable(typeof(ImportList))]
 [JsonSerializable(typeof(PatchScanResult))]
 [JsonSerializable(typeof(PeMachine))]
 [JsonSerializable(typeof(PeSubsystem))]

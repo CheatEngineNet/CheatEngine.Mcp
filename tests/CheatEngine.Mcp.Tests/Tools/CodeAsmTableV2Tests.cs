@@ -1,4 +1,6 @@
+using System.ComponentModel;
 using System.Reflection;
+using System.Text.Json;
 
 using CheatEngine.Client;
 using CheatEngine.Client.Assembly;
@@ -53,6 +55,43 @@ public sealed class CodeAsmTableV2Tests : IDisposable
 		Assert.Contains("origin could not be resolved", source, StringComparison.Ordinal);
 		Assert.DoesNotContain("load(", source, StringComparison.Ordinal);
 		Assert.Equal(1, harness.Dispatches);
+	}
+
+	[Fact]
+	public void DisassembleBytes_SpacedMixedCaseText_PassesContiguousUppercaseDigitsToCheatEngine()
+	{
+		StateTestHarness harness = new();
+		string? source = null;
+		harness.Answer<CodeLuaByteDisassembly>(value =>
+		{
+			source = value;
+			return new CodeLuaByteDisassembly("0", "mov rax,[rip+00000000]");
+		});
+
+		new CodeTools(harness.Dispatch, harness.Jobs).DisassembleBytes(" 48 8b\t05\r\n00 00 0000 ", null, Token);
+
+		Assert.Contains("\"488B0500000000\"", source, StringComparison.Ordinal);
+		Assert.DoesNotContain("48 8b", source, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void DissectorPages_SortAddressesNumericallyBeforeFormattingThem()
+	{
+		Assert.Contains("math.ult(left.from, right.from)", CodeScripts.FindReferences, StringComparison.Ordinal);
+		Assert.Contains("math.ult(left.address, right.address)", CodeScripts.FindStrings,
+			StringComparison.Ordinal);
+		Assert.All([CodeScripts.FindReferences, CodeScripts.FindStrings], static script =>
+			Assert.DoesNotContain("fromAddress <", script, StringComparison.Ordinal));
+	}
+
+	[Fact]
+	public void CodeJobEventAddress_DescribesTheDissectedStartAddress()
+	{
+		string description = typeof(CodeJobEvent).GetProperty(nameof(CodeJobEvent.Address))!
+			.GetCustomAttribute<System.ComponentModel.DescriptionAttribute>()!.Description;
+
+		Assert.Contains("first dissected address for a dissect event", description, StringComparison.Ordinal);
+		Assert.DoesNotContain("omitted", description, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -147,6 +186,123 @@ public sealed class CodeAsmTableV2Tests : IDisposable
 		Assert.Contains("mcpHook:\ndb 48 89 5C 24 08", result.Script, StringComparison.Ordinal);
 		Assert.Contains("unregistersymbol(mcpHook)", result.Script, StringComparison.Ordinal);
 		Assert.Contains("dealloc(newmem)", result.Script, StringComparison.Ordinal);
+		Assert.DoesNotContain("_aob", result.Script, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void GenerateInjection_WithOffset_RegistersTheSymbolAtTheInjectionPoint()
+	{
+		const string signature = "E8 ?? ?? ?? ?? 48 8B 05 ?? ?? ?? ?? 90 90 90 90 48 89 5C 24 08";
+
+		AsmGeneratedScript result =
+			AsmTools.GenerateInjection("game.exe", signature, "48 89 5C 24 08 90", "mcpHook", 16);
+
+		Assert.Equal(("48895C240890", "mcpHook"), (result.ExpectedBytes, result.SymbolName));
+		Assert.StartsWith($"[ENABLE]\naobscanmodule(mcpHook_aob,game.exe,{signature})\n" +
+						  "assert(mcpHook_aob+10,48 89 5C 24 08 90)\nalloc(newmem,2048,mcpHook_aob)\n",
+			result.Script, StringComparison.Ordinal);
+		Assert.Contains("label(mcpHook)\nregistersymbol(mcpHook)\n", result.Script, StringComparison.Ordinal);
+		Assert.Contains("code:\ndb 48 89 5C 24 08 90\njmp return", result.Script, StringComparison.Ordinal);
+		Assert.Contains("mcpHook_aob+10:\nmcpHook:\njmp newmem\nnop\nreturn:", result.Script, StringComparison.Ordinal);
+		Assert.EndsWith("[DISABLE]\nmcpHook:\ndb 48 89 5C 24 08 90\nunregistersymbol(mcpHook)\ndealloc(newmem)",
+			result.Script, StringComparison.Ordinal);
+	}
+
+	[Theory]
+	[InlineData(-1)]
+	[InlineData(4)]
+	public void GenerateInjection_OffsetOutsideTheSignature_RefusesWithInvalidArgument(int offset)
+	{
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			AsmTools.GenerateInjection("game.exe", "48 89 ?? 24", "48 89 5C 24 08", "mcpHook", offset));
+
+		Assert.Equal((ToolErrorKind.InvalidArgument, "offset"),
+			(exception.Error.Kind, exception.Error.Details!.Value.GetProperty("parameter").GetString()));
+	}
+
+	[Fact]
+	public void Assemble_UndefinedPreference_RefusesBeforeDispatch()
+	{
+		StateTestHarness harness = new();
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			new AsmTools(harness.Dispatch, harness.Resources).Assemble("401000", ["nop"],
+				(InstructionEncodingPreference) 4, cancellationToken: Token));
+
+		Assert.Equal((ToolErrorKind.InvalidArgument, "preference"),
+			(exception.Error.Kind, exception.Error.Details!.Value.GetProperty("parameter").GetString()));
+		Assert.Equal(0, harness.Dispatches);
+	}
+
+	[Fact]
+	public void AssemblePreference_DocumentsTheClientIntegers()
+	{
+		string description = Method(nameof(AsmTools.Assemble)).GetParameters()
+			.Single(static parameter => parameter.Name == "preference")
+			.GetCustomAttribute<DescriptionAttribute>()!.Description;
+
+		int[] values =
+		[
+			(int) InstructionEncodingPreference.None, (int) InstructionEncodingPreference.Short,
+			(int) InstructionEncodingPreference.Long, (int) InstructionEncodingPreference.Far
+		];
+
+		Assert.Equal([0, 1, 2, 3], values);
+		Assert.All(["0 none", "1 short", "2 long", "3 far"],
+			text => Assert.Contains(text, description, StringComparison.Ordinal));
+	}
+
+	[Fact]
+	public void Check_AcceptedEnable_AlsoChecksTheDisableSection()
+	{
+		StateTestHarness harness = new();
+		string? source = null;
+		harness.Answer<AsmLuaCheck>(value =>
+		{
+			source = value;
+			return new AsmLuaCheck(false, "Error in line 4 (bad) :This instruction can't be compiled", false);
+		});
+		AsmTools tools = new(harness.Dispatch, harness.Resources,
+			CheckingAutoAssembler(new AutoAssemblerCheckResult(true, null, false)));
+
+		AsmCheckResult result = tools.Check("[ENABLE]\nnop\n[DISABLE]\nbad", cancellationToken: Token);
+
+		Assert.Equal(new AsmCheckResult(false, "Error in line 4 (bad) :This instruction can't be compiled", false,
+			AsmScriptSection.Disable), result);
+		Assert.Contains("pcall(autoAssembleCheck, a[1], false, false)", source, StringComparison.Ordinal);
+		Assert.Contains($"[2] = {AsmTools.MaximumHostMessageBytes}", source, StringComparison.Ordinal);
+		LuaFixedScriptAssert.NeverLoadsCode(AsmScripts.CheckDisable);
+	}
+
+	[Fact]
+	public void Check_RejectedEnable_ReportsTheEnableSectionWithoutCheckingDisable()
+	{
+		StateTestHarness harness = new();
+		AsmTools tools = new(harness.Dispatch, harness.Resources,
+			CheckingAutoAssembler(new AutoAssemblerCheckResult(false, "Error in line 2", true)));
+
+		AsmCheckResult result = tools.Check("[ENABLE]\nbad\n[DISABLE]\nnop", cancellationToken: Token);
+
+		Assert.Equal(new AsmCheckResult(false, "Error in line 2", true, AsmScriptSection.Enable), result);
+		Assert.Empty(harness.LuaCalls);
+	}
+
+	[Fact]
+	public void Check_BothSectionsAccepted_OmitsFailedSection()
+	{
+		StateTestHarness harness = new();
+		harness.Answer<AsmLuaCheck>(static _ => new AsmLuaCheck(true));
+		AsmTools tools = new(harness.Dispatch, harness.Resources,
+			CheckingAutoAssembler(new AutoAssemblerCheckResult(true, null, false)));
+
+		AsmCheckResult result = tools.Check("[ENABLE]\nnop\n[DISABLE]\nnop", cancellationToken: Token);
+
+		Assert.Equal(new AsmCheckResult(true), result);
+		Assert.Equal("{\"accepted\":true,\"hostMessagesTruncated\":false}",
+			JsonSerializer.Serialize(result, AsmJsonContext.Default.AsmCheckResult));
+		Assert.Contains("\"failedSection\":\"disable\"",
+			JsonSerializer.Serialize(new AsmCheckResult(false, "x", false, AsmScriptSection.Disable),
+				AsmJsonContext.Default.AsmCheckResult), StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -349,6 +505,12 @@ public sealed class CodeAsmTableV2Tests : IDisposable
 	{
 		return typeof(AsmTools).GetMethod(name, BindingFlags.Instance | BindingFlags.Public)
 			   ?? throw new InvalidOperationException($"Missing {name}.");
+	}
+
+	private static IAutoAssemblerClient CheckingAutoAssembler(AutoAssemblerCheckResult enable)
+	{
+		return ClientTestDouble.Create<IAutoAssemblerClient>((method, _) =>
+			method.Name == nameof(IAutoAssemblerClient.Check) ? enable : throw new NotSupportedException(method.Name));
 	}
 
 	private sealed class AutoAssemblerHarness

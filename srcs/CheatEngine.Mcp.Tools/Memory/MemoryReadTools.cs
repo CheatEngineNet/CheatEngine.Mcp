@@ -75,10 +75,13 @@ public sealed class MemoryReadTools
 		[Description(
 			"The maximum string length for string and wstring, 1 to 4096 (default 256); refused for other types.")]
 		int? length = null,
+		[Description(MemoryByteOrders.Description)]
+		MemoryByteOrder byteOrder = MemoryByteOrder.LittleEndian,
 		CancellationToken cancellationToken = default)
 	{
 		string expression = MemoryTargets.RequireExpression(address, "address");
 		MemoryTargets.RequireType(valueType, "valueType");
+		bool swapped = MemoryByteOrders.Require(valueType, byteOrder, "byteOrder");
 		int? readLength = CheckShape(valueType, size, length, "size", "length");
 		MemoryTargets.RequireRange(count, "count", 1, MaximumCount);
 		int? fixedSize = McpValueCodec.FixedSize(valueType, 8);
@@ -94,8 +97,9 @@ public sealed class MemoryReadTools
 			string resolved = HexFormat.Address(target);
 			if (count == 1)
 			{
-				return new MemoryReadResult(resolved, valueType,
-					McpValueCodec.Read(client, target, valueType, readLength, token));
+				return new MemoryReadResult(resolved, valueType, swapped
+					? MemoryByteOrders.Read(client, target, valueType, token)
+					: McpValueCodec.Read(client, target, valueType, readLength, token));
 			}
 
 			int elementBytes = valueType is McpValueType.Pointer
@@ -106,8 +110,8 @@ public sealed class MemoryReadTools
 			string[] values = new string[count];
 			for (int index = 0; index < count; index++)
 			{
-				values[index] = MemoryTargets.Decode(valueType, bytes.AsSpan(index * elementBytes, elementBytes),
-					elementBytes);
+				values[index] = MemoryByteOrders.Decode(valueType,
+					bytes.AsSpan(index * elementBytes, elementBytes), elementBytes, byteOrder);
 			}
 
 			return new MemoryReadResult(resolved, valueType, Values: values);
@@ -322,10 +326,11 @@ public sealed class MemoryReadTools
 			string expression = MemoryTargets.RequireExpression(item.Address, prefix + ".address");
 			MemoryTargets.RequireType(item.ValueType, prefix + ".valueType");
 			int? length = CheckShape(item.ValueType, item.Size, item.Length, prefix + ".size", prefix + ".length");
+			MemoryByteOrders.Require(item.ValueType, item.ByteOrder, prefix + ".byteOrder");
 			// A pointer is charged at 8 bytes and a UTF-16 character at 2, whatever the target.
 			total += McpValueCodec.FixedSize(item.ValueType, 8) ??
 					 (item.ValueType is McpValueType.WString ? 2L * length!.Value : length!.Value);
-			reads[index] = new BatchRead(expression, item.ValueType, length);
+			reads[index] = new BatchRead(expression, item.ValueType, length, item.ByteOrder);
 		}
 
 		return total <= MaximumBatchBytes
@@ -353,48 +358,12 @@ public sealed class MemoryReadTools
 				: throw CheatEngineToolException.FromFailure(failure, client.Stopping.IsCancellationRequested);
 		}
 
-		foreach (IGrouping<McpValueType, int> run in Enumerable.Range(0, reads.Length)
+		foreach (IGrouping<(McpValueType Type, MemoryByteOrder Order), int> run in Enumerable.Range(0, reads.Length)
 					 .Where(index =>
 						 entries[index] is null && McpValueCodec.FixedSize(reads[index].Type, 8) is not null)
-					 .GroupBy(index => reads[index].Type))
+					 .GroupBy(index => (reads[index].Type, reads[index].Order)))
 		{
-			int[] indices = [.. run];
-			switch (run.Key)
-			{
-				case McpValueType.Int8:
-					ReadPrimitives<sbyte>(client, indices, addresses, entries, cancellationToken);
-					break;
-				case McpValueType.UInt8:
-					ReadPrimitives<byte>(client, indices, addresses, entries, cancellationToken);
-					break;
-				case McpValueType.Int16:
-					ReadPrimitives<short>(client, indices, addresses, entries, cancellationToken);
-					break;
-				case McpValueType.UInt16:
-					ReadPrimitives<ushort>(client, indices, addresses, entries, cancellationToken);
-					break;
-				case McpValueType.Int32:
-					ReadPrimitives<int>(client, indices, addresses, entries, cancellationToken);
-					break;
-				case McpValueType.UInt32:
-					ReadPrimitives<uint>(client, indices, addresses, entries, cancellationToken);
-					break;
-				case McpValueType.Int64:
-					ReadPrimitives<long>(client, indices, addresses, entries, cancellationToken);
-					break;
-				case McpValueType.UInt64:
-					ReadPrimitives<ulong>(client, indices, addresses, entries, cancellationToken);
-					break;
-				case McpValueType.Float:
-					ReadPrimitives<float>(client, indices, addresses, entries, cancellationToken);
-					break;
-				case McpValueType.Double:
-					ReadPrimitives<double>(client, indices, addresses, entries, cancellationToken);
-					break;
-				default:
-					ReadPrimitives<Address>(client, indices, addresses, entries, cancellationToken);
-					break;
-			}
+			ReadFixed(client, run.Key.Type, run.Key.Order, [.. run], addresses, entries, cancellationToken);
 		}
 
 		for (int index = 0; index < reads.Length; index++)
@@ -410,11 +379,100 @@ public sealed class MemoryReadTools
 	}
 
 	/// <summary>
+	///     Reads the addresses at <paramref name="indices" /> as one fixed-size type through the Client's typed batch
+	///     reads, inside the current dispatch. An address that cannot be read gets an in-band error entry; any other
+	///     failure ends the dispatch.
+	/// </summary>
+	/// <param name="client">The activation's Client.</param>
+	/// <param name="type">A fixed-size value type: an integer, a float or a pointer.</param>
+	/// <param name="order">
+	///     The byte order of the values; a big-endian type is read as the unsigned integer of its width and swapped.
+	/// </param>
+	/// <param name="indices">The indices of the addresses to read, in read order.</param>
+	/// <param name="addresses">The resolved addresses, indexed like <paramref name="entries" />.</param>
+	/// <param name="entries">Receives one entry per read index: the value text or the item error.</param>
+	/// <param name="cancellationToken">The token of the enclosing dispatch body.</param>
+	internal static void ReadFixed(ICheatEngineClient client, McpValueType type, MemoryByteOrder order, int[] indices,
+		Address[] addresses, MemoryReadBatchEntry?[] entries, CancellationToken cancellationToken)
+	{
+		if (order is MemoryByteOrder.BigEndian)
+		{
+			ReadSwapped(client, type, indices, addresses, entries, cancellationToken);
+			return;
+		}
+
+		switch (type)
+		{
+			case McpValueType.Int8:
+				ReadPrimitives<sbyte>(client, indices, addresses, entries, McpValueCodec.Format, cancellationToken);
+				break;
+			case McpValueType.UInt8:
+				ReadPrimitives<byte>(client, indices, addresses, entries, McpValueCodec.Format, cancellationToken);
+				break;
+			case McpValueType.Int16:
+				ReadPrimitives<short>(client, indices, addresses, entries, McpValueCodec.Format, cancellationToken);
+				break;
+			case McpValueType.UInt16:
+				ReadPrimitives<ushort>(client, indices, addresses, entries, McpValueCodec.Format, cancellationToken);
+				break;
+			case McpValueType.Int32:
+				ReadPrimitives<int>(client, indices, addresses, entries, McpValueCodec.Format, cancellationToken);
+				break;
+			case McpValueType.UInt32:
+				ReadPrimitives<uint>(client, indices, addresses, entries, McpValueCodec.Format, cancellationToken);
+				break;
+			case McpValueType.Int64:
+				ReadPrimitives<long>(client, indices, addresses, entries, McpValueCodec.Format, cancellationToken);
+				break;
+			case McpValueType.UInt64:
+				ReadPrimitives<ulong>(client, indices, addresses, entries, McpValueCodec.Format, cancellationToken);
+				break;
+			case McpValueType.Float:
+				ReadPrimitives<float>(client, indices, addresses, entries, McpValueCodec.Format, cancellationToken);
+				break;
+			case McpValueType.Double:
+				ReadPrimitives<double>(client, indices, addresses, entries, McpValueCodec.Format, cancellationToken);
+				break;
+			case McpValueType.Pointer:
+				ReadPrimitives<Address>(client, indices, addresses, entries, McpValueCodec.Format, cancellationToken);
+				break;
+			default:
+				throw new ArgumentOutOfRangeException(nameof(type), type, "Not a fixed-size value type.");
+		}
+	}
+
+	/// <summary>
+	///     Reads big-endian values as the unsigned integer of their width, whose little-endian bytes are the bytes the
+	///     target holds, and decodes each swapped.
+	/// </summary>
+	private static void ReadSwapped(ICheatEngineClient client, McpValueType type, int[] indices, Address[] addresses,
+		MemoryReadBatchEntry?[] entries, CancellationToken cancellationToken)
+	{
+		switch (McpValueCodec.FixedSize(type, sizeof(ulong)))
+		{
+			case 2:
+				ReadPrimitives<ushort>(client, indices, addresses, entries,
+					value => MemoryByteOrders.Format(type, value, 2), cancellationToken);
+				break;
+			case 4:
+				ReadPrimitives<uint>(client, indices, addresses, entries,
+					value => MemoryByteOrders.Format(type, value, 4), cancellationToken);
+				break;
+			default:
+				ReadPrimitives<ulong>(client, indices, addresses, entries,
+					value => MemoryByteOrders.Format(type, value, 8), cancellationToken);
+				break;
+		}
+	}
+
+	/// <summary>
 	///     Reads one fixed-size type in Client batches of at most <see cref="MemoryBatchLimits.MaximumOperationCount" />
-	///     addresses and the Client's payload bound, resuming after each failed index.
+	///     addresses and the Client's payload bound, resuming after each failed index; <paramref name="format" /> turns
+	///     each value read into its text.
 	/// </summary>
 	private static void ReadPrimitives<T>(ICheatEngineClient client, int[] indices, Address[] addresses,
-		MemoryReadBatchEntry?[] entries, CancellationToken cancellationToken) where T : unmanaged
+		MemoryReadBatchEntry?[] entries, Func<T, string> format, CancellationToken cancellationToken)
+		where T : unmanaged
 	{
 		int limit = Math.Min(MemoryBatchLimits.MaximumOperationCount,
 			MemoryResourceLimits.DefaultMaximumBatchPayloadBytes / 8);
@@ -435,7 +493,7 @@ public sealed class MemoryReadTools
 			for (int index = 0; index < outcome.CompletedCount; index++)
 			{
 				entries[indices[position + index]] =
-					new MemoryReadBatchEntry(HexFormat.Address(chunk[index]), McpValueCodec.Format(values[index]));
+					new MemoryReadBatchEntry(HexFormat.Address(chunk[index]), format(values[index]));
 			}
 
 			if (outcome.IsSuccess)
@@ -515,5 +573,5 @@ public sealed class MemoryReadTools
 		return false;
 	}
 
-	private sealed record BatchRead(string Expression, McpValueType Type, int? Length);
+	private sealed record BatchRead(string Expression, McpValueType Type, int? Length, MemoryByteOrder Order);
 }

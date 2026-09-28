@@ -8,6 +8,7 @@ namespace CheatEngine.Mcp.Tools.Runtime;
 /// <summary>Source-generated JSON metadata for the <c>runtime_*</c> contract.</summary>
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(RuntimeInfoResult))]
+[JsonSerializable(typeof(RuntimeGates))]
 [JsonSerializable(typeof(RuntimeOverviewResult))]
 [JsonSerializable(typeof(RuntimeResourceList))]
 [JsonSerializable(typeof(RuntimeReleaseResourcesResult))]

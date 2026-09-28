@@ -4,6 +4,7 @@ using CheatEngine.Client;
 using CheatEngine.Client.Processes;
 using CheatEngine.Client.Results;
 using CheatEngine.Mcp.Core.Contract;
+using CheatEngine.Mcp.Core.Features;
 using CheatEngine.Mcp.Core.Files;
 using CheatEngine.SDK.Engine.Inspection;
 
@@ -40,14 +41,6 @@ public sealed class ProcessTools
 	                                      return { saved = true }
 	                                      """;
 
-	private const string SetPausedScript = """
-	                                       assert(getOpenedProcessID() ~= 0, 'No process is attached.')
-	                                       if a[1] then pause() else unpause() end
-	                                       local observed = isPaused()
-	                                       assert(observed == a[1], 'Cheat Engine did not apply the requested pause state.')
-	                                       return { paused = observed }
-	                                       """;
-
 	private const string ThreadListScript = """
 	                                        assert(getOpenedProcessID() ~= 0, 'No process is attached.')
 	                                        local threads = getThreadlist()
@@ -64,10 +57,17 @@ public sealed class ProcessTools
 	                                         return { pointerSize = pointerSize }
 	                                         """;
 
+	/// <summary>The resource kind of a pause that MCP made.</summary>
+	internal const string PauseKind = "pause";
+
+	private const string PauseDetail = "Resumes the paused process.";
+
 	private readonly ToolDispatch _dispatch;
 	private readonly McpFilePaths _files;
 	private readonly TargetTransitionGuards _guards;
+	private readonly Lock _pauseLock = new();
 	private readonly TargetResources _resources;
+	private ITargetResource? _pause;
 
 	/// <summary>Creates the process tools without reading or changing Cheat Engine state.</summary>
 	public ProcessTools(ToolDispatch dispatch, TargetResources resources, TargetTransitionGuards guards,
@@ -122,7 +122,7 @@ public sealed class ProcessTools
 		Destructive = true, Idempotent = false, OpenWorld = true, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Attach to a positive process id or an exact process name. This changes Cheat Engine's selected target and is refused while retained state or a running scan blocks the change.")]
+		"Attach to a positive process id or an exact process name. This changes Cheat Engine's selected target and is refused while retained state or a running scan blocks the change. When the table option Uses Mono is set, Cheat Engine would inject its Mono data collector into the process, so Mcp:EnableTargetCodeExecution must be on.")]
 	public ProcessAttachResult Attach(
 		[Description("A positive process id or exact process name.")]
 		string process,
@@ -155,10 +155,11 @@ public sealed class ProcessTools
 			}
 
 			_guards.EnsureCanChangeTarget(new TargetTransition(currentId, byId ? requestedId : null), token);
+			bool monoAutoAttach = RequireMonoAutoAttach(CheatEngineToolNames.ProcessAttach, token);
 			ProcessSnapshot attached = byId
 				? client.Processes.Attach(new TargetProcessId(requestedId), token)
 				: client.Processes.AttachExactName(process, token);
-			return new ProcessAttachResult(attached.Id.Value, attached.Name);
+			return new ProcessAttachResult(attached.Id.Value, attached.Name, monoAutoAttach);
 		}, cancellationToken);
 	}
 
@@ -178,7 +179,7 @@ public sealed class ProcessTools
 		Destructive = true, Idempotent = false, OpenWorld = true, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Launch an external executable through Cheat Engine and select it. The validated executable stays pinned against writes, replacement, renaming and deletion until Cheat Engine returns. The target transition is guarded before the process starts; Windows or Cheat Engine can still refuse the launch.")]
+		"Launch an external executable through Cheat Engine and select it. The validated executable stays pinned against writes, replacement, renaming and deletion until Cheat Engine returns. The target transition is guarded before the process starts; Windows or Cheat Engine can still refuse the launch. When the table option Uses Mono is set, Cheat Engine would inject its Mono data collector into the process, so Mcp:EnableTargetCodeExecution must be on.")]
 	public ProcessCreateResult Create(
 		[Description("Absolute local executable path that passes the host-file policy, 1 to 4096 characters.")]
 		string path,
@@ -201,13 +202,18 @@ public sealed class ProcessTools
 			throw CheatEngineToolException.InvalidArgument("breakOnEntryPoint", "requires debug=true.");
 		}
 
-		using HeldFile executable = _files.OpenRead(path, CheatEngineToolNames.ProcessCreate, 0, "path");
+		using HeldFile executable = _files.OpenRead(path, CheatEngineToolNames.ProcessCreate, 0);
 		return _dispatch.Run(CheatEngineToolNames.ProcessCreate, token =>
 		{
 			_guards.EnsureCanChangeTarget(new TargetTransition(null, null), token);
-			return _dispatch.ExecuteLua(CheatEngineToolNames.ProcessCreate, CreateScript,
+			bool monoAutoAttach = RequireMonoAutoAttach(CheatEngineToolNames.ProcessCreate, token);
+			ProcessCreateResult created = _dispatch.ExecuteLua(CheatEngineToolNames.ProcessCreate, CreateScript,
 				ProcessJsonContext.Default.ProcessCreateResult, token, executable.FullPath, parameters, debug,
 				breakOnEntryPoint);
+			return created with
+			{
+				MonoAutoAttach = monoAutoAttach
+			};
 		}, cancellationToken);
 	}
 
@@ -216,7 +222,7 @@ public sealed class ProcessTools
 		Destructive = true, Idempotent = false, OpenWorld = true, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Open a host file through Cheat Engine's file-as-process interface. This changes the selected target. The validated file stays pinned against writes, replacement, renaming and deletion until Cheat Engine returns.")]
+		"Open a host file through Cheat Engine's file-as-process interface. This changes the selected target. The validated file stays pinned against writes, replacement, renaming and deletion until Cheat Engine returns. When the table option Uses Mono is set, Cheat Engine would inject its Mono data collector, so Mcp:EnableTargetCodeExecution must be on.")]
 	public ProcessOpenFileResult OpenFile(
 		[Description("Absolute local host file path that passes the host-file policy, 1 to 4096 characters.")]
 		string filename,
@@ -236,11 +242,13 @@ public sealed class ProcessTools
 		return _dispatch.Run(CheatEngineToolNames.ProcessOpenFile, token =>
 		{
 			_guards.EnsureCanChangeTarget(new TargetTransition(null, null), token);
+			bool monoAutoAttach = RequireMonoAutoAttach(CheatEngineToolNames.ProcessOpenFile, token);
 			ProcessOpenFileResult opened = _dispatch.ExecuteLua(CheatEngineToolNames.ProcessOpenFile, OpenFileScript,
 				ProcessJsonContext.Default.ProcessOpenFileResult, token, source.FullPath, is64Bit, startAddress);
 			return opened with
 			{
-				InputFileName = FileName(source.FullPath)
+				InputFileName = FileName(source.FullPath),
+				MonoAutoAttach = monoAutoAttach
 			};
 		}, cancellationToken);
 	}
@@ -276,19 +284,26 @@ public sealed class ProcessTools
 		};
 	}
 
-	/// <summary>Sets the selected target's paused state.</summary>
+	/// <summary>Sets the selected target's paused state, tracking a pause that MCP makes as a resource.</summary>
 	[McpServerTool(Name = CheatEngineToolNames.ProcessSetPaused, Title = "Set process paused", ReadOnly = false,
 		Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Pause or resume the currently selected target and report the state Cheat Engine observed after the request.")]
+		"Pause or resume the currently selected target and report the state Cheat Engine observed after the " +
+		"request. A pause that MCP makes is tracked as a pause resource (resourceId): it blocks a target change " +
+		"until runtime_release_resources resumes it or this tool resumes the target. Pausing again while MCP's " +
+		"pause of the opened process is tracked reports that resource; a target already paused by anything else, " +
+		"the user or an earlier activation, is left untracked. Resuming releases MCP's pause and forgets every " +
+		"recorded pause of the opened process. Both directions refuse with invalid_state, changing nothing, when no " +
+		"process is attached or the debugger is stopped at a breakpoint. When the process MCP paused is no longer " +
+		"the opened one, resuming fails with partial_effect and the pause stays listed for manual recovery.")]
 	public ProcessPausedResult SetPaused(
 		[Description("True pauses the target; false resumes it.")]
 		bool paused,
 		CancellationToken cancellationToken = default)
 	{
-		return _dispatch.RunLua(CheatEngineToolNames.ProcessSetPaused, SetPausedScript,
-			ProcessJsonContext.Default.ProcessPausedResult, cancellationToken, paused);
+		return _dispatch.Run(CheatEngineToolNames.ProcessSetPaused,
+			token => paused ? Pause(token) : Resume(token), cancellationToken);
 	}
 
 	/// <summary>Lists target threads through a bounded fixed Lua script.</summary>
@@ -321,6 +336,93 @@ public sealed class ProcessTools
 			ProcessJsonContext.Default.ProcessPointerSizeResult, cancellationToken, pointerSize);
 	}
 
+	/// <summary>
+	///     Pauses the opened process inside the dispatch. A new pause is recorded under a fresh id and tracked; while
+	///     MCP's tracked pause was recorded for the opened process, the call pauses again without a second record and
+	///     reports that one. A tracked pause of another process stays tracked for its own release.
+	/// </summary>
+	private ProcessPausedResult Pause(CancellationToken cancellationToken)
+	{
+		string? tracked = TrackedPause()?.Descriptor.Id;
+		string id = _resources.NextId(PauseKind);
+		ProcessPausedResult observed = _dispatch.ExecuteLua(CheatEngineToolNames.ProcessSetPaused,
+			ProcessPauseScripts.Pause, ProcessJsonContext.Default.ProcessPausedResult, cancellationToken,
+			_resources.Namespace, id, tracked);
+		if (!string.Equals(observed.ResourceId, id, StringComparison.Ordinal))
+		{
+			// Nothing was recorded: the target was already paused, or MCP's tracked pause was reused.
+			return observed with
+			{
+				ResourceId = string.Equals(observed.ResourceId, tracked, StringComparison.Ordinal) ? tracked : null
+			};
+		}
+
+		ITargetResource? recorded = null;
+		recorded = _resources.TrackState(id, PauseKind, () => ForgetPause(recorded), PauseKind,
+			detail: PauseDetail);
+		lock (_pauseLock)
+		{
+			_pause = recorded;
+		}
+
+		return observed with
+		{
+			ResourceId = recorded.Descriptor.Id
+		};
+	}
+
+	/// <summary>
+	///     Resumes the opened process inside the dispatch: once the shared refusals passed, MCP's own pause is released
+	///     through its recorded release, which refuses once another process is opened, and then the opened process is
+	///     resumed.
+	/// </summary>
+	private ProcessPausedResult Resume(CancellationToken cancellationToken)
+	{
+		if (TrackedPause() is { } tracked)
+		{
+			// A refusal (no process, a stopped debugger) must leave MCP's pause tracked, so check before releasing.
+			_dispatch.ExecuteLua(CheatEngineToolNames.ProcessSetPaused, ProcessPauseScripts.ResumeCheck,
+				ProcessJsonContext.Default.ProcessPausedResult, cancellationToken);
+			ResourceReleaseOutcome released = tracked.Release(cancellationToken);
+			// A failed release stays in the Lua state root with its cleanup error, listed for an acknowledgement.
+			_resources.Forget(tracked);
+			ForgetPause(tracked);
+			if (!released.IsComplete)
+			{
+				throw CheatEngineToolException.PartialEffect(
+					"Cheat Engine could not resume the process that MCP paused; the pause stays recorded for manual " +
+					"recovery.", released.HostEffect, new ReleasedResource(tracked.Descriptor, released),
+					ProcessJsonContext.Default.ReleasedResource, released.IsRetryable,
+					"Resume that process in Cheat Engine, then acknowledge the pause with " +
+					"runtime_release_resources(acknowledgeIds).");
+			}
+		}
+
+		return _dispatch.ExecuteLua(CheatEngineToolNames.ProcessSetPaused, ProcessPauseScripts.Resume,
+			ProcessJsonContext.Default.ProcessPausedResult, cancellationToken);
+	}
+
+	/// <summary>MCP's pause while its handle is active.</summary>
+	private ITargetResource? TrackedPause()
+	{
+		lock (_pauseLock)
+		{
+			return _pause is { IsEnded: false } pause ? pause : null;
+		}
+	}
+
+	/// <summary>Drops the reference to a pause once it was released or forgotten.</summary>
+	private void ForgetPause(ITargetResource? pause)
+	{
+		lock (_pauseLock)
+		{
+			if (pause is not null && ReferenceEquals(_pause, pause))
+			{
+				_pause = null;
+			}
+		}
+	}
+
 	private static ProcessCurrentResult Current(ICheatEngineClient client, CancellationToken cancellationToken)
 	{
 		if (!client.Processes.TryGetCurrentProcess(out ProcessSnapshot process, out CheatEngineFailure failure,
@@ -338,6 +440,18 @@ public sealed class ProcessTools
 			process.SelectionEpoch);
 	}
 
+	/// <summary>
+	///     Requires target-code execution, in the dispatch that opens the process, when Cheat Engine's Mono extension
+	///     would inject its data collector into it on its own because the table option UsesMono is set, as table_load
+	///     does for a table load.
+	/// </summary>
+	/// <returns>Whether the collector may be injected, which the result reports as <c>monoAutoAttach</c>.</returns>
+	private bool RequireMonoAutoAttach(string toolName, CancellationToken cancellationToken)
+	{
+		MonoAutoAttachState state = MonoAutoAttachProbe.ReadInDispatch(_dispatch, toolName, cancellationToken);
+		return state.RequireForProcessOpen(_dispatch.Features, toolName);
+	}
+
 	private McpFileWrite BeginExternalWrite(string filename)
 	{
 		try
@@ -347,9 +461,9 @@ public sealed class ProcessTools
 		catch (IOException exception)
 		{
 			throw new CheatEngineToolException(new ToolError(ToolErrorKind.InvalidState,
-				"The destination file could not be reserved.", CheatEngineToolNames.ProcessSaveFile,
-				ToolHostEffect.NotStarted, false,
-				"Check that the destination folder is writable and the file does not already exist, then repeat the call."),
+					"The destination file could not be reserved.", CheatEngineToolNames.ProcessSaveFile,
+					ToolHostEffect.NotStarted, false,
+					"Check that the destination folder is writable and the file does not already exist, then repeat the call."),
 				exception);
 		}
 	}

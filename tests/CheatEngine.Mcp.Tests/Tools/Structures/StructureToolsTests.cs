@@ -190,6 +190,91 @@ public sealed class StructureToolsTests
 		Assert.True(Assert.Single(harness.LuaCalls).Runs(StructureLuaScripts.CreateClone));
 	}
 
+	[Theory]
+	[InlineData(" ", "Hero", ToolErrorKind.InvalidArgument, "name")]
+	[InlineData("Player", "", ToolErrorKind.InvalidArgument, "newName")]
+	[InlineData("Player", "  ", ToolErrorKind.InvalidArgument, "newName")]
+	[InlineData("Player", null, ToolErrorKind.InvalidArgument, "newName")]
+	public void SetName_InvalidNames_AreRefusedWithoutDispatch(string name, string? newName, ToolErrorKind kind,
+		string parameter)
+	{
+		StructureToolHarness harness = new();
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			harness.Structures.SetName(name, newName!, Token));
+
+		Assert.Equal((kind, ToolHostEffect.NotStarted), (exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Equal(parameter, exception.Error.Details!.Value.GetProperty("parameter").GetString());
+		Assert.Equal(0, harness.Dispatcher.Calls);
+	}
+
+	[Fact]
+	public void SetName_NewNameLongerThan256_IsLimitExceededWithoutDispatch()
+	{
+		StructureToolHarness harness = new();
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			harness.Structures.SetName("Player", new string('n', 257), Token));
+
+		Assert.Equal(ToolErrorKind.LimitExceeded, exception.Error.Kind);
+		Assert.Equal("newName", exception.Error.Details!.Value.GetProperty("parameter").GetString());
+		Assert.Equal(0, harness.Dispatcher.Calls);
+	}
+
+	[Fact]
+	public void SetName_Names_ReachTheScriptAndItsSummaryIsReturned()
+	{
+		StructureToolHarness harness = new()
+		{
+			Lua = static call => call.Runs(StructureLuaScripts.Rename)
+				? """{"name":"Hero","size":24,"elementCount":3}"""
+				: null
+		};
+
+		StructureSummary renamed = harness.Structures.SetName("Player", "Hero", Token);
+
+		Assert.Contains("[1] = \"Player\", [2] = \"Hero\"", Assert.Single(harness.LuaCalls).Arguments,
+			StringComparison.Ordinal);
+		Assert.Equal(new StructureSummary("Hero", 24, 3), renamed);
+	}
+
+	[Theory]
+	[InlineData("invalid_state", "not_started", ToolErrorKind.InvalidState, ToolHostEffect.NotStarted)]
+	[InlineData("not_found", "not_started", ToolErrorKind.NotFound, ToolHostEffect.NotStarted)]
+	[InlineData("host_refused", "not_applied", ToolErrorKind.HostRefused, ToolHostEffect.NotApplied)]
+	public void SetName_DeclaredRefusal_IsTheContractError(string declared, string effect, ToolErrorKind kind,
+		ToolHostEffect hostEffect)
+	{
+		StructureToolHarness harness = new()
+		{
+			Lua = _ => StructureToolHarness.Declared(declared, effect)
+		};
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			harness.Structures.SetName("Player", "Enemy", Token));
+
+		Assert.Equal((kind, hostEffect), (exception.Error.Kind, exception.Error.HostEffect));
+	}
+
+	[Fact]
+	public void UpdateElements_DuplicateIndex_IsInvalidArgumentWithoutDispatch()
+	{
+		StructureToolHarness harness = new();
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			harness.Elements.UpdateElements("Player",
+			[
+				new StructureElementUpdate(2, Name: "health"),
+				new StructureElementUpdate(0, Name: "armor"),
+				new StructureElementUpdate(2, ValueType: McpValueType.Float)
+			], Token));
+
+		Assert.Equal((ToolErrorKind.InvalidArgument, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Equal("updates[2].index", exception.Error.Details!.Value.GetProperty("parameter").GetString());
+		Assert.Equal(0, harness.Dispatcher.Calls);
+	}
+
 	[Fact]
 	public void UpdateElements_UpdateThatChangesNothing_IsInvalidArgumentWithoutDispatch()
 	{
@@ -285,7 +370,7 @@ public sealed class StructureToolsTests
 	}
 
 	[Fact]
-	public void Autoguess_Address_IsResolvedByTheClientAndPassedAsHexText()
+	public void Autoguess_Address_IsResolvedByTheClientAndReadFromTheOffset()
 	{
 		StructureToolHarness harness = new()
 		{
@@ -293,13 +378,30 @@ public sealed class StructureToolsTests
 		};
 		harness.Symbols["game.exe+10"] = Base;
 
-		StructureSummary summary = harness.Structures.Autoguess("Player", "game.exe+10", "10", 1024, false, Token);
+		StructureSummary summary = harness.Structures.Autoguess("Player", "game.exe+10", "4C8", 1024, false, Token);
 
+		// Structure.autoGuess(base, offset, size) reads from base and only labels from offset, as the dissect window
+		// passes its column address plus the start offset (StructuresFrm2 miAutoGuessClick).
 		Assert.Equal(["game.exe+10"], harness.Resolutions);
-		Assert.Contains("[2] = \"0x7FF6A1B2C000\", [3] = 16, [4] = 1024, [5] = false",
+		Assert.Contains("[2] = \"0x7FF6A1B2C4C8\", [3] = 1224, [4] = 1024, [5] = false",
 			Assert.Single(harness.LuaCalls).Arguments, StringComparison.Ordinal);
 		Assert.Equal(1, harness.Dispatcher.Calls);
 		Assert.Equal(40, summary.ElementCount);
+	}
+
+	[Fact]
+	public void Autoguess_OffsetPastTheAddressSpace_IsInvalidArgumentBeforeAnyScript()
+	{
+		StructureToolHarness harness = new();
+		harness.Symbols["top"] = ulong.MaxValue - 4;
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			harness.Structures.Autoguess("Player", "top", "10", cancellationToken: Token));
+
+		Assert.Equal((ToolErrorKind.InvalidArgument, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Equal("address", exception.Error.Details!.Value.GetProperty("parameter").GetString());
+		Assert.Empty(harness.LuaCalls);
 	}
 
 	[Fact]

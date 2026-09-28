@@ -5,7 +5,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using System.Text.Unicode;
 
-using CheatEngine.Mcp.Core.Lua;
 using CheatEngine.SDK.Lua.Calls;
 using CheatEngine.SDK.Lua.State;
 
@@ -482,4 +481,3 @@ internal sealed class PluginLuaJsonWriter
 		}
 	}
 }
-

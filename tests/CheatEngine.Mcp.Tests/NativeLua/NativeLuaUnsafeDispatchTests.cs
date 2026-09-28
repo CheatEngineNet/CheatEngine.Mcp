@@ -31,11 +31,14 @@ public sealed partial class NativeLuaToolRuntimeTests
 			arguments[1] = default(CheatEngineFailure);
 			return true;
 		});
-		LuaTools tools = new(CreateUnsafeDispatch(CreateFixedLuaClient(static () => { })), unsafeLua);
+		LuaTools tools = new(CreateUnsafeDispatch(CreateFixedLuaClient(static () =>
+		{
+		})), unsafeLua);
 
 		LuaExecuteResult completed = tools.Execute("return 7", cancellationToken: CancellationToken.None);
 		LuaExecuteResult notApplied = tools.Execute("return +", cancellationToken: CancellationToken.None);
-		LuaExecuteResult unknown = tools.Execute("error('after effects may exist')", cancellationToken: CancellationToken.None);
+		LuaExecuteResult unknown =
+			tools.Execute("error('after effects may exist')", cancellationToken: CancellationToken.None);
 
 		Assert.Equal((true, ToolHostEffect.Completed), (completed.Ok, completed.HostEffect));
 		Assert.Equal(("compile", ToolHostEffect.NotApplied), (notApplied.Phase, notApplied.HostEffect));

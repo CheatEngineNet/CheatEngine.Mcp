@@ -3,7 +3,7 @@ using System.Collections.Frozen;
 namespace CheatEngine.Mcp.Core.Contract;
 
 /// <summary>
-///     The reviewed names of the v2 tool contract: 172 backend tools in 21 domains, in catalog order, and the gateway's
+///     The reviewed names of the v2 tool contract: 186 backend tools in 21 domains, in catalog order, and the gateway's
 ///     own
 ///     <see cref="InstanceList" />. Tools, prompts, server instructions and error hints cite these constants, so a rename
 ///     breaks the build instead of the contract, and the startup validator refuses a v2 tool whose name is not listed.
@@ -68,7 +68,7 @@ public static class CheatEngineToolNames
 	/// <summary>The <c>process_set_pointer_size</c> tool.</summary>
 	public const string ProcessSetPointerSize = "process_set_pointer_size";
 
-	// memory (14)
+	// memory (19)
 
 	/// <summary>The <c>memory_read</c> tool.</summary>
 	public const string MemoryRead = "memory_read";
@@ -112,6 +112,21 @@ public static class CheatEngineToolNames
 	/// <summary>The <c>memory_load_from_file</c> tool.</summary>
 	public const string MemoryLoadFromFile = "memory_load_from_file";
 
+	/// <summary>The <c>memory_create_snapshot</c> tool.</summary>
+	public const string MemoryCreateSnapshot = "memory_create_snapshot";
+
+	/// <summary>The <c>memory_compare_snapshot</c> tool.</summary>
+	public const string MemoryCompareSnapshot = "memory_compare_snapshot";
+
+	/// <summary>The <c>memory_list_snapshots</c> tool.</summary>
+	public const string MemoryListSnapshots = "memory_list_snapshots";
+
+	/// <summary>The <c>memory_delete_snapshot</c> tool.</summary>
+	public const string MemoryDeleteSnapshot = "memory_delete_snapshot";
+
+	/// <summary>The <c>memory_read_samples</c> tool.</summary>
+	public const string MemoryReadSamples = "memory_read_samples";
+
 	// scan (8)
 
 	/// <summary>The <c>scan_first</c> tool.</summary>
@@ -138,13 +153,16 @@ public static class CheatEngineToolNames
 	/// <summary>The <c>scan_stop</c> tool.</summary>
 	public const string ScanStop = "scan_stop";
 
-	// aob (2)
+	// aob (3)
 
 	/// <summary>The <c>aob_find</c> tool.</summary>
 	public const string AobFind = "aob_find";
 
 	/// <summary>The <c>aob_generate_signature</c> tool.</summary>
 	public const string AobGenerateSignature = "aob_generate_signature";
+
+	/// <summary>The <c>aob_find_value</c> tool.</summary>
+	public const string AobFindValue = "aob_find_value";
 
 	// pointer (10)
 
@@ -178,7 +196,7 @@ public static class CheatEngineToolNames
 	/// <summary>The <c>pointer_delete_scan</c> tool.</summary>
 	public const string PointerDeleteScan = "pointer_delete_scan";
 
-	// module (4)
+	// module (5)
 
 	/// <summary>The <c>module_list</c> tool.</summary>
 	public const string ModuleList = "module_list";
@@ -189,13 +207,19 @@ public static class CheatEngineToolNames
 	/// <summary>The <c>module_list_exports</c> tool.</summary>
 	public const string ModuleListExports = "module_list_exports";
 
+	/// <summary>The <c>module_list_imports</c> tool.</summary>
+	public const string ModuleListImports = "module_list_imports";
+
 	/// <summary>The <c>module_find_patches</c> tool.</summary>
 	public const string ModuleFindPatches = "module_find_patches";
 
-	// symbol (9)
+	// symbol (10)
 
 	/// <summary>The <c>symbol_resolve</c> tool.</summary>
 	public const string SymbolResolve = "symbol_resolve";
+
+	/// <summary>The <c>symbol_find</c> tool.</summary>
+	public const string SymbolFind = "symbol_find";
 
 	/// <summary>The <c>symbol_register</c> tool.</summary>
 	public const string SymbolRegister = "symbol_register";
@@ -237,7 +261,7 @@ public static class CheatEngineToolNames
 	/// <summary>The <c>util_calculate</c> tool.</summary>
 	public const string UtilCalculate = "util_calculate";
 
-	// code (13)
+	// code (14)
 
 	/// <summary>The <c>code_disassemble</c> tool.</summary>
 	public const string CodeDisassemble = "code_disassemble";
@@ -250,6 +274,9 @@ public static class CheatEngineToolNames
 
 	/// <summary>The <c>code_get_function</c> tool.</summary>
 	public const string CodeGetFunction = "code_get_function";
+
+	/// <summary>The <c>code_get_function_graph</c> tool.</summary>
+	public const string CodeGetFunctionGraph = "code_get_function_graph";
 
 	/// <summary>The <c>code_start_dissect</c> tool.</summary>
 	public const string CodeStartDissect = "code_start_dissect";
@@ -304,7 +331,7 @@ public static class CheatEngineToolNames
 	/// <summary>The <c>asm_generate_api_hook</c> tool.</summary>
 	public const string AsmGenerateApiHook = "asm_generate_api_hook";
 
-	// record (13)
+	// record (14)
 
 	/// <summary>The <c>record_list</c> tool.</summary>
 	public const string RecordList = "record_list";
@@ -342,6 +369,9 @@ public static class CheatEngineToolNames
 	/// <summary>The <c>record_set_script</c> tool.</summary>
 	public const string RecordSetScript = "record_set_script";
 
+	/// <summary>The <c>record_set_dropdown</c> tool.</summary>
+	public const string RecordSetDropdown = "record_set_dropdown";
+
 	/// <summary>The <c>record_clear</c> tool.</summary>
 	public const string RecordClear = "record_clear";
 
@@ -356,7 +386,7 @@ public static class CheatEngineToolNames
 	/// <summary>The <c>table_list_files</c> tool.</summary>
 	public const string TableListFiles = "table_list_files";
 
-	// structure (13)
+	// structure (15)
 
 	/// <summary>The <c>structure_list</c> tool.</summary>
 	public const string StructureList = "structure_list";
@@ -396,6 +426,12 @@ public static class CheatEngineToolNames
 
 	/// <summary>The <c>structure_compare</c> tool.</summary>
 	public const string StructureCompare = "structure_compare";
+
+	/// <summary>The <c>structure_generate_c_header</c> tool.</summary>
+	public const string StructureGenerateCHeader = "structure_generate_c_header";
+
+	/// <summary>The <c>structure_set_name</c> tool.</summary>
+	public const string StructureSetName = "structure_set_name";
 
 	// debugger (18)
 
@@ -473,7 +509,7 @@ public static class CheatEngineToolNames
 	/// <summary>The <c>exec_compile_c</c> tool.</summary>
 	public const string ExecCompileC = "exec_compile_c";
 
-	// dotnet (9)
+	// dotnet (10)
 
 	/// <summary>The <c>dotnet_get_status</c> tool.</summary>
 	public const string DotNetGetStatus = "dotnet_get_status";
@@ -493,6 +529,9 @@ public static class CheatEngineToolNames
 	/// <summary>The <c>dotnet_list_methods</c> tool.</summary>
 	public const string DotNetListMethods = "dotnet_list_methods";
 
+	/// <summary>The <c>dotnet_get_method_parameters</c> tool.</summary>
+	public const string DotNetGetMethodParameters = "dotnet_get_method_parameters";
+
 	/// <summary>The <c>dotnet_get_object</c> tool.</summary>
 	public const string DotNetGetObject = "dotnet_get_object";
 
@@ -502,7 +541,7 @@ public static class CheatEngineToolNames
 	/// <summary>The <c>dotnet_poll_instance_search</c> tool.</summary>
 	public const string DotNetPollInstanceSearch = "dotnet_poll_instance_search";
 
-	// mono (14)
+	// mono (15)
 
 	/// <summary>The <c>mono_attach</c> tool.</summary>
 	public const string MonoAttach = "mono_attach";
@@ -539,6 +578,9 @@ public static class CheatEngineToolNames
 
 	/// <summary>The <c>mono_invoke_method</c> tool.</summary>
 	public const string MonoInvokeMethod = "mono_invoke_method";
+
+	/// <summary>The <c>mono_get_object</c> tool.</summary>
+	public const string MonoGetObject = "mono_get_object";
 
 	/// <summary>The <c>mono_start_instance_search</c> tool.</summary>
 	public const string MonoStartInstanceSearch = "mono_start_instance_search";
@@ -577,7 +619,7 @@ public static class CheatEngineToolNames
 	/// <summary>The <c>lua_find_api</c> tool.</summary>
 	public const string LuaFindApi = "lua_find_api";
 
-	/// <summary>The 172 backend tool names; every tool a Cheat Engine instance serves.</summary>
+	/// <summary>The 186 backend tool names; every tool a Cheat Engine instance serves.</summary>
 	public static FrozenSet<string> Backend
 	{
 		get;
@@ -611,6 +653,11 @@ public static class CheatEngineToolNames
 		MemoryHash,
 		MemoryDumpToFile,
 		MemoryLoadFromFile,
+		MemoryCreateSnapshot,
+		MemoryCompareSnapshot,
+		MemoryListSnapshots,
+		MemoryDeleteSnapshot,
+		MemoryReadSamples,
 		ScanFirst,
 		ScanNext,
 		ScanGetStatus,
@@ -621,6 +668,7 @@ public static class CheatEngineToolNames
 		ScanStop,
 		AobFind,
 		AobGenerateSignature,
+		AobFindValue,
 		PointerReadChain,
 		PointerFindReferences,
 		PointerCreateMap,
@@ -634,8 +682,10 @@ public static class CheatEngineToolNames
 		ModuleList,
 		ModuleGet,
 		ModuleListExports,
+		ModuleListImports,
 		ModuleFindPatches,
 		SymbolResolve,
+		SymbolFind,
 		SymbolRegister,
 		SymbolUnregister,
 		SymbolListRegistered,
@@ -652,6 +702,7 @@ public static class CheatEngineToolNames
 		CodeDecode,
 		CodeDisassembleBytes,
 		CodeGetFunction,
+		CodeGetFunctionGraph,
 		CodeStartDissect,
 		CodeStartSearch,
 		CodePollJob,
@@ -681,6 +732,7 @@ public static class CheatEngineToolNames
 		RecordMove,
 		RecordGroup,
 		RecordSetScript,
+		RecordSetDropdown,
 		RecordClear,
 		TableLoad,
 		TableSave,
@@ -698,6 +750,8 @@ public static class CheatEngineToolNames
 		StructureRead,
 		StructureWriteElement,
 		StructureCompare,
+		StructureGenerateCHeader,
+		StructureSetName,
 		DebuggerAttach,
 		DebuggerDetach,
 		DebuggerGetStatus,
@@ -728,6 +782,7 @@ public static class CheatEngineToolNames
 		DotNetListTypes,
 		DotNetGetType,
 		DotNetListMethods,
+		DotNetGetMethodParameters,
 		DotNetGetObject,
 		DotNetStartInstanceSearch,
 		DotNetPollInstanceSearch,
@@ -743,6 +798,7 @@ public static class CheatEngineToolNames
 		MonoGetStaticFieldAddress,
 		MonoCompileMethod,
 		MonoInvokeMethod,
+		MonoGetObject,
 		MonoStartInstanceSearch,
 		MonoPollInstanceSearch,
 		KernelGetStatus,

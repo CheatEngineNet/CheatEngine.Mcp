@@ -19,4 +19,5 @@ namespace CheatEngine.Mcp.Tools.Kernel;
 [JsonSerializable(typeof(KernelWatchPoll))]
 [JsonSerializable(typeof(JobStatus))]
 [JsonSerializable(typeof(LuaKernelWatchArmed))]
+[JsonSerializable(typeof(LuaKernelWatchDrain))]
 public sealed partial class KernelJsonContext : JsonSerializerContext;

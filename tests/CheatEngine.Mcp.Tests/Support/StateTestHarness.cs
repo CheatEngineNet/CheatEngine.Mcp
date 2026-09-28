@@ -6,7 +6,6 @@ using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Lua;
 using CheatEngine.Mcp.Core.Features;
 using CheatEngine.Mcp.Core.Jobs;
-using CheatEngine.Mcp.Core.Lua;
 
 using Microsoft.Extensions.Options;
 
@@ -164,9 +163,9 @@ internal sealed class StateTestHarness
 /// <summary>A clock whose timestamp and UTC time only move when a test advances it.</summary>
 internal sealed class ManualClock : TimeProvider
 {
-	private long _ticks = new DateTimeOffset(2026, 9, 27, 12, 0, 0, TimeSpan.Zero).UtcTicks;
-	private readonly Lock _timersLock = new();
 	private readonly List<ManualTimer> _timers = [];
+	private readonly Lock _timersLock = new();
+	private long _ticks = new DateTimeOffset(2026, 9, 27, 12, 0, 0, TimeSpan.Zero).UtcTicks;
 
 	public override long TimestampFrequency => TimeSpan.TicksPerSecond;
 

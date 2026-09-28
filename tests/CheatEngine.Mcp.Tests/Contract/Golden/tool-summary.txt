@@ -1,6 +1,7 @@
 # name | title | readOnly,destructive,idempotent,openWorld | dispatchClass | requires
 # Generated from the backend tools/list and the gateway's instance_list.
 aob_find | Find byte patterns | true,false,true,false | host_scan | -
+aob_find_value | Find value bytes | true,false,true,false | host_scan | -
 aob_generate_signature | Generate an AOB signature | true,false,true,false | host_scan | -
 asm_apply | Apply Auto Assembler patch | false,true,false,false | may_prompt | auto_assembler
 asm_apply_code_patch | Apply code patch | false,true,false,false | may_prompt | auto_assembler
@@ -18,6 +19,7 @@ code_find_references | Find code references | true,false,true,false | short | -
 code_find_strings | Find referenced strings | true,false,true,false | short | -
 code_get_comments | Get code comments | true,false,true,false | short | -
 code_get_function | Get function estimate | true,false,true,false | short | -
+code_get_function_graph | Get a function control-flow graph | true,false,true,false | short | -
 code_list_functions | List referenced functions | true,false,true,false | short | -
 code_poll_job | Poll code job | true,false,true,false | short | -
 code_set_comment | Set code comment | false,false,true,false | short | -
@@ -41,6 +43,7 @@ debugger_set_thread_ignored | Set ignored debugger thread | false,false,true,fal
 debugger_start_capture | Start debugger capture | false,false,false,false | short | -
 debugger_start_trace | Start debugger trace | false,false,false,false | short | -
 debugger_step | Step debugger | false,false,false,false | short | -
+dotnet_get_method_parameters | Get .NET method parameters | true,false,true,false | short | -
 dotnet_get_object | Get .NET object | true,false,true,false | short | -
 dotnet_get_status | Get .NET collector status | true,false,true,false | short | -
 dotnet_get_type | Get .NET type | true,false,true,false | short | -
@@ -68,15 +71,20 @@ lua_execute | Execute Lua | false,true,false,true | may_prompt | unsafe_lua
 lua_find_api | Find Lua API | true,false,true,false | short | -
 memory_allocate | Allocate memory | false,false,false,false | short | -
 memory_compare | Compare memory | true,false,true,false | short | -
+memory_compare_snapshot | Compare a memory snapshot | true,false,true,false | short | -
 memory_copy | Copy memory | false,true,false,false | short | -
+memory_create_snapshot | Create a memory snapshot | false,false,false,false | short | -
+memory_delete_snapshot | Delete a memory snapshot | false,true,true,false | short | -
 memory_dump_to_file | Dump memory to a file | false,false,true,true | short | -
 memory_free | Free memory | false,true,true,false | short | -
 memory_get_address_info | Describe addresses | true,false,true,false | short | -
 memory_hash | Hash memory | true,false,true,false | short | -
 memory_list_regions | List memory regions | true,false,true,false | short | -
+memory_list_snapshots | List memory snapshots | true,false,true,false | short | -
 memory_load_from_file | Load memory from a file | false,true,true,true | short | -
 memory_read | Read memory | true,false,true,false | short | -
 memory_read_batch | Read many addresses | true,false,true,false | short | -
+memory_read_samples | Sample values over time | true,false,true,false | short | -
 memory_set_protection | Set memory protection | false,true,false,false | short | -
 memory_write | Write memory | false,true,false,false | short | -
 memory_write_batch | Write many addresses | false,true,false,false | short | -
@@ -84,11 +92,13 @@ module_find_patches | Find module patches | true,false,true,true | short | -
 module_get | Get module details | true,false,true,false | short | -
 module_list | List modules | true,false,true,false | short | -
 module_list_exports | List module exports | true,false,true,false | short | -
+module_list_imports | List module imports | true,false,true,false | short | -
 mono_attach | Attach Mono collector | false,true,false,false | may_prompt | target_code_execution
 mono_compile_method | Compile Mono method | false,true,false,false | blocking_native | target_code_execution
 mono_detach | Detach Mono collector | false,true,true,false | short | -
 mono_find_class | Find Mono class | true,false,true,false | host_scan | -
 mono_find_method | Find Mono method | true,false,true,false | short | -
+mono_get_object | Get Mono object | true,false,true,false | host_scan | -
 mono_get_static_field_address | Get Mono static field address | true,false,true,false | short | -
 mono_get_status | Get Mono collector status | true,false,true,false | short | -
 mono_invoke_method | Invoke Mono method | false,true,false,false | blocking_native | target_code_execution
@@ -128,6 +138,7 @@ record_list | List address-list records | true,false,true,false | short | -
 record_move | Move address-list record | false,true,true,false | short | -
 record_select | Select address-list record | false,false,true,false | short | -
 record_set_active | Set address-list records active | false,true,true,false | short | -
+record_set_dropdown | Set address-list record dropdown | false,true,true,false | short | -
 record_set_script | Set address-list Auto Assembler script | false,true,true,false | short | -
 record_update | Update address-list records | false,true,true,false | short | -
 runtime_get_info | Get runtime information | true,false,true,false | short | -
@@ -137,11 +148,11 @@ runtime_list_resources | List retained resources | true,false,true,false | short
 runtime_release_resources | Release retained resources | false,true,true,false | short | -
 runtime_stop_job | Stop a job | false,true,true,false | short | -
 scan_delete | Delete independent scanner | false,true,true,false | short | -
-scan_first | Start value scan | false,true,false,false | short | -
+scan_first | Start value scan | false,true,false,false | host_scan | -
 scan_get_status | Get scan status | true,false,true,false | short | -
 scan_list_results | List scan results | true,false,true,false | short | -
 scan_list_scanners | List scanners | true,false,true,false | short | -
-scan_next | Narrow value scan | false,true,false,false | short | -
+scan_next | Narrow value scan | false,true,false,false | host_scan | -
 scan_reset | Reset scan | false,true,true,false | short | -
 scan_stop | Stop scan | false,true,true,false | short | -
 speedhack_get_state | Get speedhack state | true,false,true,false | short | -
@@ -152,15 +163,18 @@ structure_compare | Compare structure instances | true,false,true,false | short 
 structure_create | Create a structure | false,false,false,false | short | -
 structure_delete | Delete a structure | false,true,true,false | short | -
 structure_fill_from_dotnet | Fill a structure from .NET | false,true,false,false | blocking_native | -
+structure_generate_c_header | Generate a C header | true,false,true,false | short | -
 structure_get | Get a structure | true,false,true,false | short | -
 structure_get_pdb_layout | Get a PDB structure layout | true,false,true,false | short | -
 structure_list | List structures | true,false,true,false | short | -
 structure_read | Read structure values | true,false,true,false | short | -
 structure_remove_elements | Remove structure elements | false,true,true,false | short | -
+structure_set_name | Rename a structure | false,true,true,false | short | -
 structure_update_elements | Update structure elements | false,true,true,false | short | -
 structure_write_element | Write a structure element | false,true,true,false | short | -
 symbol_add_module | Load symbols from a file | false,false,true,true | blocking_native | -
 symbol_enable_sources | Enable system symbol sources | false,false,true,true | blocking_native | -
+symbol_find | Find symbols | true,false,true,false | host_scan | -
 symbol_get_module_preference | Get module preference | true,false,true,false | short | -
 symbol_list_registered | List registered symbols | true,false,true,false | short | -
 symbol_register | Register a symbol | false,false,false,false | short | -

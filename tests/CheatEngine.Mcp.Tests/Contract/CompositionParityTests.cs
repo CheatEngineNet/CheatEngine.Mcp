@@ -37,7 +37,9 @@ public sealed class CompositionParityTests
 		[
 			typeof(CheatEngineDocResources), typeof(RuntimeLiveResources), typeof(ProcessLiveResources),
 			typeof(ModuleLiveResources), typeof(MemoryLiveResources), typeof(RecordLiveResources),
-			typeof(StructureLiveResources)
+			typeof(StructureLiveResources), typeof(CodeLiveResources), typeof(ScanLiveResources),
+			typeof(AsmLiveResources), typeof(SymbolLiveResources), typeof(PointerLiveResources),
+			typeof(DebuggerLiveResources), typeof(SpeedhackLiveResources)
 		], Types(CheatEngineMcpPrimitiveKind.Resource));
 		Assert.Equal([typeof(CheatEngineWorkflowPrompts)], Types(CheatEngineMcpPrimitiveKind.Prompt));
 	}

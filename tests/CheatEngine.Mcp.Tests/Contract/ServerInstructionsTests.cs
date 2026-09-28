@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Prompts;
+using CheatEngine.Mcp.Resources.Knowledge;
 using CheatEngine.Mcp.Tests.Support;
 
 using Microsoft.Extensions.Options;
@@ -31,11 +32,26 @@ public sealed partial class ServerInstructionsTests
 
 	[Theory]
 	[MemberData(nameof(Texts))]
-	public void Instructions_Length_IsAboutOneHundredThirtyWords(string host, string text)
+	public void Instructions_Length_StaysUnderTwoHundredWords(string host, string text)
 	{
 		int words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
 
-		Assert.True(words is >= 100 and <= 160, $"The {host} instructions have {words} words.");
+		Assert.True(words is >= 120 and <= 200, $"The {host} instructions have {words} words.");
+	}
+
+	[Theory]
+	[MemberData(nameof(Texts))]
+	public void Instructions_StateScopeConsentAndTheGuidedWorkflows(string host, string text)
+	{
+		Assert.Contains("single-player or offline software the user may modify", text, StringComparison.Ordinal);
+		Assert.Contains("consent", text, StringComparison.Ordinal);
+		Assert.Contains(McpResourceUris.Doc("workflows") + " first", text, StringComparison.Ordinal);
+		Assert.Contains("prompts", text, StringComparison.Ordinal);
+		Assert.Contains("Most lists page with offset and limit", text, StringComparison.Ordinal);
+		string[] documents = DocumentUri().Matches(text).Select(static match => match.Groups["slug"].Value).ToArray();
+		Assert.NotEmpty(documents);
+		Assert.All(documents, slug => Assert.True(CheatEngineKnowledge.DocumentSlugs.Contains(slug),
+			$"The {host} instructions cite {McpResourceUris.Doc(slug)}, which is not a served document."));
 	}
 
 	[Fact]
@@ -90,4 +106,7 @@ public sealed partial class ServerInstructionsTests
 
 	[GeneratedRegex("[a-z][a-z0-9]*(?:_[a-z0-9]+)+", RegexOptions.CultureInvariant)]
 	private static partial Regex SnakeToken();
+
+	[GeneratedRegex("cheatengine://docs/(?<slug>[a-z0-9-]+)", RegexOptions.CultureInvariant)]
+	private static partial Regex DocumentUri();
 }

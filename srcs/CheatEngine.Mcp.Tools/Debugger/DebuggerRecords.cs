@@ -174,9 +174,14 @@ public sealed record DebuggerExecutionContinued(
 public sealed record DebuggerContext(
 	[property: Description("Whether the target is 64-bit according to Cheat Engine.")]
 	bool Is64Bit,
-	[property: Description("Uppercase register names and their hexadecimal or bounded textual values.")]
+	[property: Description(
+		"Uppercase register names mapped to text: integer registers as uppercase hexadecimal without 0x; byte-array " +
+		"registers such as FP0-FP7 and XMM0-XMM15 as space-separated hexadecimal bytes in memory order, least " +
+		"significant byte first; any other value as bounded text.")]
 	Dictionary<string, string> Registers,
-	[property: Description("Whether FPU and XMM values were requested.")]
+	[property: Description(
+		"Whether FPU and XMM registers were requested; they appear in registers only where Cheat Engine supplied " +
+		"them.")]
 	bool IncludesExtraRegisters);
 
 /// <summary>The verified result of changing a general-purpose register.</summary>
@@ -248,7 +253,7 @@ public sealed record DebuggerCaptureContext(
 	[property: Description("The stack pointer at the event when the trace requested it.")]
 	string? StackPointer = null);
 
-/// <summary>One capture result, optionally aggregated by candidate instruction.</summary>
+/// <summary>One capture result, optionally aggregated by candidate instruction or by effective address.</summary>
 public sealed record DebuggerCaptureItem(
 	[property: Description("The latest context for this item.")]
 	DebuggerCaptureContext Context,
@@ -257,7 +262,17 @@ public sealed record DebuggerCaptureItem(
 	[property: Description("The first context in an aggregated group; omitted for individual hits.")]
 	DebuggerCaptureContext? FirstContext = null,
 	[property: Description("The latest context in an aggregated group; omitted for individual hits.")]
-	DebuggerCaptureContext? LastContext = null);
+	DebuggerCaptureContext? LastContext = null,
+	[property: Description(
+		"The memory address that the instruction's memory operand accessed for this group, computed from the " +
+		"registers before the instruction ran, uppercase hexadecimal without 0x; only when the capture groups by " +
+		"effective address.")]
+	string? EffectiveAddress = null,
+	[property: Description(
+		"The accessed byte count that Cheat Engine's disassembly states (byte ptr 1, word ptr 2, dword ptr 4, " +
+		"qword ptr 8, tword ptr 10, dqword ptr 16, ymmword ptr 32); omitted when the disassembly states no size " +
+		"and the register operand implies it, or when the capture does not group by effective address.")]
+	int? OperandSize = null);
 
 /// <summary>A page of non-consuming capture results.</summary>
 public sealed record DebuggerCapturePage(
@@ -288,6 +303,15 @@ public sealed record DebuggerTracePage(
 	bool More,
 	[property: Description("How many oldest steps the bounded job buffer evicted.")]
 	long Dropped);
+
+/// <summary>The debugger interface Cheat Engine's settings select for an attach with interface default.</summary>
+/// <param name="Attached">Whether a debugger is already attached, so the attach only reports it.</param>
+/// <param name="Configured">
+///     ceserver while Cheat Engine is connected to one, else windows, veh, kernel or dbvm; <see langword="null" />
+///     when none was identified. MCP refuses ceserver, dbvm and <see langword="null" />, because it cannot drive the
+///     network debugger, the DBVM debugger or an unidentified one.
+/// </param>
+internal sealed record LuaDebuggerDefaultInterface(bool Attached, string? Configured = null);
 
 /// <summary>The tracked one-shot breakpoint that debugger_run_to armed.</summary>
 public sealed record DebuggerRunToStarted(

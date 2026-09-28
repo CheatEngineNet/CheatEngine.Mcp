@@ -37,3 +37,8 @@ namespace CheatEngine.Mcp.Tools.Debugger;
 [JsonSerializable(typeof(string[]))]
 [JsonSerializable(typeof(int?))]
 public sealed partial class DebuggerJsonContext : JsonSerializerContext;
+
+/// <summary>Source-generated metadata for the fixed Lua copies used only inside the debugger tools.</summary>
+[JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
+[JsonSerializable(typeof(LuaDebuggerDefaultInterface))]
+internal sealed partial class DebuggerLuaJsonContext : JsonSerializerContext;

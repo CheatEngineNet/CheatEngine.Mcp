@@ -8,7 +8,7 @@ body:
       value: |
         Thank you for the report.
         Do not report a security vulnerability here: follow [SECURITY.md](https://github.com/CheatEngineNet/CheatEngine.Mcp/blob/main/SECURITY.md) instead.
-        Many connection and startup problems are covered in [docs/troubleshooting.md](https://github.com/CheatEngineNet/CheatEngine.Mcp/blob/main/docs/troubleshooting.md).
+        Many connection and startup problems are covered in the README's [Troubleshooting](https://github.com/CheatEngineNet/CheatEngine.Mcp#troubleshooting) section and in [connection troubleshooting](https://github.com/CheatEngineNet/CheatEngine.Mcp/blob/main/srcs/CheatEngine.Mcp.Resources/Knowledge/Documents/connection-troubleshooting.md).
   - type: dropdown
     id: component
     attributes:
@@ -20,7 +20,7 @@ body:
         - A tool, resource or prompt
         - Configuration or capability gates
         - Build, tests or packaging
-        - Documentation or operator skill
+        - Documentation, knowledge resources or prompts
         - Other
     validations:
       required: true

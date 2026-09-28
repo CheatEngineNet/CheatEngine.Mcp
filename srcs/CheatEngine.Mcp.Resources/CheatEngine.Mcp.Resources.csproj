@@ -1,12 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
     Cheat Engine MCP resources. The only public composition entry point is ICheatEngineMcpBuilder.AddResources().
-    Resources are declared with AddResourceType<T>(). The knowledge documents are the operator skill's reference files,
-    embedded by link from skills/cheatengine-mcp/references/ (the single source) and served as Local resources.
+    Resources are declared with AddResourceType<T>(). This project owns the knowledge base: the documents in
+    Knowledge/Documents/ (served as cheatengine://docs/{slug}) and the guided workflow bodies in Knowledge/Workflows/
+    (served as cheatengine://docs/workflows/{workflow} and rendered by the Prompts project), embedded here once.
   -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <CeMcpKnowledgeRoot>$(RepoRoot)skills/cheatengine-mcp/references/</CeMcpKnowledgeRoot>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../libs/CheatEngine.Mcp.Core/CheatEngine.Mcp.Core.csproj"/>
@@ -17,22 +17,13 @@
     <InternalsVisibleTo Include="CheatEngine.Mcp.Tests"/>
   </ItemGroup>
   <!--
-    The explicit list of served documents; CheatEngineKnowledge.DocumentSlugs and a test keep it equal to what is embedded.
-    Never local-*.md, and never the legacy address-list-and-speedhack, lua-execution, scanning-and-debugging or
-    tool-catalog files. TODO(P6): add tool-map once it is generated from the catalog.
+    CheatEngineKnowledge.DocumentSlugs lists the served documents in reading order; a test keeps it equal to the files
+    embedded here. WithCulture=false: a file name must never be read as a culture, which would create a satellite
+    assembly.
   -->
   <ItemGroup>
-    <CeMcpKnowledgeDocument Include="workflows;value-scans;pointers;debugger;auto-assembler;x64-injection;aob-signatures"/>
-    <CeMcpKnowledgeDocument Include="structures;code-analysis;mono-and-dotnet;speedhack;cheat-tables;lua;kernel;safety"/>
-    <CeMcpKnowledgeDocument Include="errors-and-recovery;connection-troubleshooting;ce-tutorial"/>
-  </ItemGroup>
-  <ItemGroup>
-    <!-- WithCulture=false: a file name must never be read as a culture, which would create a satellite assembly. -->
-    <EmbeddedResource Include="@(CeMcpKnowledgeDocument->'$(CeMcpKnowledgeRoot)%(Identity).md')"
-                      LogicalName="CheatEngine.Mcp.Knowledge/docs/%(Filename)%(Extension)"
-                      Link="Knowledge/docs/%(Filename)%(Extension)" WithCulture="false"/>
-    <EmbeddedResource Include="$(CeMcpKnowledgeRoot)workflows/*.md" Exclude="$(CeMcpKnowledgeRoot)workflows/local-*.md"
-                      LogicalName="CheatEngine.Mcp.Knowledge/workflows/%(Filename)%(Extension)"
-                      Link="Knowledge/workflows/%(Filename)%(Extension)" WithCulture="false"/>
+    <None Remove="Knowledge/**/*.md"/>
+    <EmbeddedResource Include="Knowledge/Documents/*.md" LogicalName="CheatEngine.Mcp.Knowledge/docs/%(Filename)%(Extension)" WithCulture="false"/>
+    <EmbeddedResource Include="Knowledge/Workflows/*.md" LogicalName="CheatEngine.Mcp.Knowledge/workflows/%(Filename)%(Extension)" WithCulture="false"/>
   </ItemGroup>
 </Project>

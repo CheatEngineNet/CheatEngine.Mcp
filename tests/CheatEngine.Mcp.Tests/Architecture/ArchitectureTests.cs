@@ -34,7 +34,8 @@ public sealed class ArchitectureTests
 		{ "CheatEngine.Mcp.Core", ["CheatEngine.Client", "CheatEngine.SDK"] },
 		{ "CheatEngine.Mcp.Tools", ["CheatEngine.Mcp.Core", "CheatEngine.Client", "CheatEngine.SDK"] },
 		{ "CheatEngine.Mcp.Resources", ["CheatEngine.Mcp.Core", "CheatEngine.Mcp.Tools"] },
-		{ "CheatEngine.Mcp.Prompts", ["CheatEngine.Mcp.Core"] },
+		// Prompts render the workflow bodies of the Resources knowledge base and link the documents it serves.
+		{ "CheatEngine.Mcp.Prompts", ["CheatEngine.Mcp.Core", "CheatEngine.Mcp.Resources"] },
 		// The transport never sees the Client: it borrows primitive instances through the Core manifest.
 		{ "CheatEngine.Mcp.Hosting", ["CheatEngine.Mcp.Core"] },
 		{
@@ -84,7 +85,9 @@ public sealed class ArchitectureTests
 		{
 			string[] expected = subject == Core
 				? ["CheatEngine.Mcp.Plugin", "CheatEngine.Mcp.Tests"]
-				: subject == Gateway ? [] : ["CheatEngine.Mcp.Tests"];
+				: subject == Gateway
+					? []
+					: ["CheatEngine.Mcp.Tests"];
 			Assert.Equal(expected, subject.GetCustomAttributes<InternalsVisibleToAttribute>()
 				.Select(static attribute => attribute.AssemblyName)
 				.Order());
@@ -126,8 +129,10 @@ public sealed class ArchitectureTests
 			.Order(StringComparer.Ordinal)
 			.ToArray();
 		Assert.Equal(
-			["srcs/CheatEngine.Mcp.Plugin/Lua/PluginLuaToolRuntime.cs",
-				"srcs/CheatEngine.Mcp.Plugin/McpStatusIndicator.cs"],
+			[
+				"srcs/CheatEngine.Mcp.Plugin/Lua/PluginLuaToolRuntime.cs",
+				"srcs/CheatEngine.Mcp.Plugin/McpStatusIndicator.cs"
+			],
 			callers);
 	}
 
@@ -157,7 +162,7 @@ public sealed class ArchitectureTests
 	{
 		string self = Path.Combine(RepositoryPaths.Root, "tests", "CheatEngine.Mcp.Tests", "Architecture",
 			"ArchitectureTests.cs");
-		IEnumerable<string> files = SourceFiles("srcs", "libs", "tests", "eng", "skills", ".github")
+		IEnumerable<string> files = SourceFiles("srcs", "libs", "tests", "eng", ".github")
 			.Concat(Directory.EnumerateFiles(RepositoryPaths.Root, "*.*", SearchOption.TopDirectoryOnly))
 			.Where(file => !string.Equals(file, self, StringComparison.OrdinalIgnoreCase)
 						   && Path.GetExtension(file) is ".cs" or ".csproj" or ".props" or ".targets" or ".ps1"

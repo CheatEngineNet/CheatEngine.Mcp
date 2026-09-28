@@ -490,6 +490,8 @@ public sealed class ToolDispatchTests
 			private set;
 		}
 
+		internal int LuaCalls => Volatile.Read(ref _luaCalls);
+
 		private sealed class FixedLuaExecutor(Harness harness) : IFixedLuaExecutor
 		{
 			public LuaJsonResult<T> Execute<T>(string operation, string source, JsonTypeInfo<T> resultType,
@@ -503,7 +505,5 @@ public sealed class ToolDispatchTests
 					: throw harness.LuaFault;
 			}
 		}
-
-		internal int LuaCalls => Volatile.Read(ref _luaCalls);
 	}
 }

@@ -215,7 +215,13 @@ public sealed class MemoryFileTools
 	///     Reads one chunk inside the current dispatch. With <paramref name="zeroFill" />, an unreadable part is skipped
 	///     to the end of its region when Cheat Engine reports it uncommitted or unreadable, and page by page otherwise.
 	/// </summary>
-	private static Chunk ReadChunk(ICheatEngineClient client, Address start, int length, bool zeroFill,
+	/// <param name="client">The activation's Client.</param>
+	/// <param name="start">The chunk's first address.</param>
+	/// <param name="length">The chunk's length, at most <see cref="MemoryTargets.ChunkBytes" />.</param>
+	/// <param name="zeroFill">Whether unreadable memory reads as zeros instead of failing.</param>
+	/// <param name="cancellationToken">The token of the enclosing dispatch body.</param>
+	/// <returns>The bytes and the zero-filled ranges, relative to <paramref name="start" />, in offset order.</returns>
+	internal static Chunk ReadChunk(ICheatEngineClient client, Address start, int length, bool zeroFill,
 		CancellationToken cancellationToken)
 	{
 		byte[] buffer = new byte[length];
@@ -319,7 +325,10 @@ public sealed class MemoryFileTools
 			"Check that the folder is writable and has free space, then repeat the dump."), exception);
 	}
 
-	private sealed record Chunk(byte[] Bytes, (int Offset, int Length)[] Zeros);
+	/// <summary>One chunk read by <see cref="ReadChunk" />.</summary>
+	/// <param name="Bytes">The bytes; unreadable ranges hold zeros.</param>
+	/// <param name="Zeros">The zero-filled ranges, relative to the chunk's start, in offset order.</param>
+	internal sealed record Chunk(byte[] Bytes, (int Offset, int Length)[] Zeros);
 
 	/// <summary>The zero-filled ranges of a dump, merged when adjacent and listed up to a bound.</summary>
 	private sealed class ZeroRanges

@@ -200,6 +200,57 @@ public sealed record ModuleExport(
 	[property: Description("The forwarder, such as NTDLL.RtlAllocateHeap, when the export forwards to another module.")]
 	string? Forwarder = null);
 
+/// <summary>One page of a module's imported functions.</summary>
+/// <param name="Module">The module name.</param>
+/// <param name="Total">The number of imports that match the filters.</param>
+/// <param name="Imports">The imports of this page.</param>
+/// <param name="NextOffset">The offset of the next page; omitted on the last page.</param>
+public sealed record ImportList(
+	[property: Description("The module name.")]
+	string Module,
+	[property: Description("The number of imports that match dllContains and nameContains.")]
+	int Total,
+	[property: Description(
+		"The imports of this page: the import directory in descriptor and slot order, then the delay-load directory.")]
+	ModuleImport[] Imports,
+	[property: Description("The offset of the next page; omitted on the last page.")]
+	int? NextOffset = null);
+
+/// <summary>One imported function of <see cref="ImportList" />.</summary>
+/// <param name="Dll">The DLL the import descriptor names.</param>
+/// <param name="SlotAddress">The address of the function's import address table slot.</param>
+/// <param name="DelayLoaded">Whether the import comes from the delay-load directory.</param>
+/// <param name="Value">The pointer the slot holds now.</param>
+/// <param name="Name">The imported name, when the image records one.</param>
+/// <param name="Ordinal">The imported ordinal, for an import by ordinal.</param>
+/// <param name="Hint">The export-table hint of a named import.</param>
+/// <param name="TargetModule">The loaded module that contains the slot's value.</param>
+/// <param name="TargetSymbol">Cheat Engine's name for the slot's value.</param>
+public sealed record ModuleImport(
+	[property: Description(
+		"The DLL the import descriptor names, such as KERNEL32.dll or api-ms-win-core-synch-l1-2-0.dll.")]
+	string Dll,
+	[property: Description(
+		"The address of the function's import address table (IAT) slot, uppercase hexadecimal without 0x; the code calls through it.")]
+	string SlotAddress,
+	[property: Description("Whether the import comes from the delay-load directory.")]
+	bool DelayLoaded,
+	[property: Description(
+		"The pointer the slot holds now, uppercase hexadecimal: the resolved function, or for a delay-loaded import this module's loader stub until the first call.")]
+	string Value,
+	[property: Description(
+		"The imported name; omitted for an import by ordinal and when the image keeps no lookup table (a bound IAT).")]
+	string? Name = null,
+	[property: Description("The imported ordinal; only for an import by ordinal.")]
+	long? Ordinal = null,
+	[property: Description("The export-table hint the linker recorded with a named import.")]
+	int? Hint = null,
+	[property: Description("The loaded module that contains value; omitted when no module does.")]
+	string? TargetModule = null,
+	[property: Description(
+		"Cheat Engine's name for value, such as KERNELBASE.Sleep or game.exe+1A2B; omitted when it has none.")]
+	string? TargetSymbol = null);
+
 /// <summary>The differences between a module's code in memory and its file on disk.</summary>
 /// <param name="Module">The module name.</param>
 /// <param name="FilePath">The file that was compared.</param>

@@ -66,10 +66,13 @@ public sealed class MemoryWriteTools
 		bool nullTerminate = false,
 		[Description("Whether to read the range back and compare it with the written bytes.")]
 		bool verify = true,
+		[Description(MemoryByteOrders.Description)]
+		MemoryByteOrder byteOrder = MemoryByteOrder.LittleEndian,
 		CancellationToken cancellationToken = default)
 	{
 		string expression = MemoryTargets.RequireExpression(address, "address");
 		MemoryTargets.RequireType(valueType, "valueType");
+		bool swapped = MemoryByteOrders.Require(valueType, byteOrder, "byteOrder");
 		RequireValue(value, "value");
 		MemoryTargets.RequireRange(repeat, "repeat", 1, MaximumRepeat);
 		if (repeat != 1 && valueType is not McpValueType.Bytes)
@@ -85,6 +88,11 @@ public sealed class MemoryWriteTools
 
 		// A pointer is checked here as 64-bit and sized once the target's pointer size is known.
 		byte[] encoded = McpValueCodec.Encode(valueType, value, 8, "value");
+		if (swapped)
+		{
+			MemoryByteOrders.Swap(encoded);
+		}
+
 		if (valueType is McpValueType.Bytes && (long) encoded.Length * repeat > MaximumWriteBytes)
 		{
 			throw CheatEngineToolException.LimitExceeded("repeat",
@@ -112,7 +120,11 @@ public sealed class MemoryWriteTools
 				: bytes;
 			string previous = HexFormat.Bytes(MemoryReadTools.ReadArray(client, target,
 				Math.Min(written.Length, PreviousBytes), token));
-			if (typedWrite)
+			if (typedWrite && swapped)
+			{
+				MemoryByteOrders.Write(client, target, written, token);
+			}
+			else if (typedWrite)
 			{
 				McpValueCodec.Write(client, target, valueType, value, token);
 			}
@@ -179,14 +191,15 @@ public sealed class MemoryWriteTools
 		ReadOnly = false, Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Change the page protection of up to 16 MiB of target memory (Cheat Engine's setMemoryProtection, or fullAccess when read, write and execute are all set). The entire range must fit in one committed memory region, so its returned previous access can restore the range. Change protection only with consent and restore previous when done.")]
+		"Change the page protection of up to 16 MiB of target memory (Cheat Engine's setMemoryProtection, or fullAccess when read, write and execute are all set). The entire range must fit in one committed memory region, so its returned previous access can restore the range. A change Cheat Engine refuses, such as write and execute together where the system forbids them, fails with host_refused. Change protection only with consent and restore previous when done.")]
 	public ProtectionChange SetProtection(
 		[Description("An address or Cheat Engine address expression.")]
 		string address,
 		[Description(
 			"The number of bytes whose pages change, 1 to 16777216; all must fit in one committed memory region.")]
 		long size,
-		[Description("Whether the pages can be read.")]
+		[Description(
+			"Whether the pages can be read. Write or execute always includes read; with all three false the pages become inaccessible and any access by the target faults.")]
 		bool read = true,
 		[Description("Whether the pages can be written.")]
 		bool write = false,
@@ -257,6 +270,7 @@ public sealed class MemoryWriteTools
 			string expression = MemoryTargets.RequireExpression(item.Address, prefix + ".address");
 			MemoryTargets.RequireType(item.ValueType, prefix + ".valueType");
 			RequireValue(item.Value, prefix + ".value");
+			bool swapped = MemoryByteOrders.Require(item.ValueType, item.ByteOrder, prefix + ".byteOrder");
 			byte[] encoded = McpValueCodec.Encode(item.ValueType, item.Value, 8, prefix + ".value");
 			if (encoded.Length == 0)
 			{
@@ -264,7 +278,8 @@ public sealed class MemoryWriteTools
 			}
 
 			total += encoded.Length;
-			writes[index] = new PreparedWrite(expression, item.ValueType, item.Value, encoded);
+			writes[index] = new PreparedWrite(expression, item.ValueType, item.Value,
+				swapped ? MemoryByteOrders.Swap(encoded) : encoded, item.ByteOrder);
 		}
 
 		return total <= MaximumWriteBytes
@@ -307,17 +322,18 @@ public sealed class MemoryWriteTools
 		while (position < writes.Length)
 		{
 			McpValueType type = writes[position].Type;
+			MemoryByteOrder order = writes[position].Order;
 			if (McpValueCodec.FixedSize(type, 8) is not null)
 			{
 				int end = position;
-				while (end < writes.Length && writes[end].Type == type &&
+				while (end < writes.Length && writes[end].Type == type && writes[end].Order == order &&
 					   end - position < MemoryBatchLimits.MaximumOperationCount)
 				{
 					end++;
 				}
 
-				MemoryPrimitiveBatchWriteOutcome outcome =
-					WriteRun(client, type, writes.AsSpan(position, end - position), addresses.AsSpan(position), token);
+				MemoryPrimitiveBatchWriteOutcome outcome = WriteRun(client, type, order,
+					writes.AsSpan(position, end - position), addresses.AsSpan(position), token);
 				token = client.Stopping;
 				if (!outcome.IsSuccess)
 				{
@@ -376,9 +392,27 @@ public sealed class MemoryWriteTools
 			mismatched.Count == 0 ? null : [.. mismatched]);
 	}
 
+	/// <summary>
+	///     Writes one run of a fixed-size type as one typed batch. A big-endian run already holds its swapped bytes, so
+	///     it is written as the unsigned integer of its width, whose little-endian bytes are those bytes.
+	/// </summary>
 	private static MemoryPrimitiveBatchWriteOutcome WriteRun(ICheatEngineClient client, McpValueType type,
-		ReadOnlySpan<PreparedWrite> run, ReadOnlySpan<Address> addresses, CancellationToken cancellationToken)
+		MemoryByteOrder order, ReadOnlySpan<PreparedWrite> run, ReadOnlySpan<Address> addresses,
+		CancellationToken cancellationToken)
 	{
+		if (order is MemoryByteOrder.BigEndian)
+		{
+			return McpValueCodec.FixedSize(type, 8) switch
+			{
+				2 => WritePrimitives(client, run, addresses,
+					static bytes => BinaryPrimitives.ReadUInt16LittleEndian(bytes), cancellationToken),
+				4 => WritePrimitives(client, run, addresses,
+					static bytes => BinaryPrimitives.ReadUInt32LittleEndian(bytes), cancellationToken),
+				_ => WritePrimitives(client, run, addresses,
+					static bytes => BinaryPrimitives.ReadUInt64LittleEndian(bytes), cancellationToken)
+			};
+		}
+
 		return type switch
 		{
 			McpValueType.Int8 => WritePrimitives(client, run, addresses,
@@ -447,5 +481,11 @@ public sealed class MemoryWriteTools
 			"Read the items with memory_read_batch before repeating any write; the completed items stay written.");
 	}
 
-	private sealed record PreparedWrite(string Expression, McpValueType Type, string Value, byte[] Bytes);
+	/// <summary>One checked write; <c>Bytes</c> are the bytes the target must hold, in its byte order.</summary>
+	private sealed record PreparedWrite(
+		string Expression,
+		McpValueType Type,
+		string Value,
+		byte[] Bytes,
+		MemoryByteOrder Order);
 }

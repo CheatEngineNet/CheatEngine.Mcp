@@ -55,6 +55,48 @@ public sealed record SymbolItemError(
 	[property: Description("What failed.")]
 	string Message);
 
+/// <summary>One page of the symbols whose names contain the searched text.</summary>
+/// <param name="Total">The number of matches collected.</param>
+/// <param name="Truncated">Whether the collection stopped at its cap.</param>
+/// <param name="SymbolsLoaded">
+///     Whether Cheat Engine reported every symbol loaded, and its IL2CPP method list complete, before the search.
+/// </param>
+/// <param name="Symbols">The matches of this page.</param>
+/// <param name="NextOffset">The offset of the next page.</param>
+public sealed record SymbolFindResult(
+	[property: Description("The number of matches collected, at most 10000; see truncated.")]
+	int Total,
+	[property: Description(
+		"Whether the search stopped at 10000 matches, so more symbols match and the collected ones are an arbitrary subset; narrow nameContains or pass module.")]
+	bool Truncated,
+	[property: Description(
+		"Whether Cheat Engine reported every symbol loaded, and any IL2CPP method list fully enumerated, before the search; while false a name missing now may appear later.")]
+	bool SymbolsLoaded,
+	[property: Description("The matches of this page, sorted by lowercase name, then name, then address.")]
+	SymbolMatch[] Symbols,
+	[property: Description("The offset of the next page; omitted on the last page.")]
+	int? NextOffset = null);
+
+/// <summary>One symbol of <see cref="SymbolFindResult" />.</summary>
+/// <param name="Name">The symbol name as Cheat Engine lists it.</param>
+/// <param name="Address">The symbol's address.</param>
+/// <param name="Module">The module that defines the symbol.</param>
+/// <param name="Size">The symbol's size, when Cheat Engine knows it.</param>
+/// <param name="Registered">Whether the symbol is a registered symbol or comes from a registered symbol list.</param>
+public sealed record SymbolMatch(
+	[property: Description("The symbol name as Cheat Engine lists it; use it in any address expression.")]
+	string Name,
+	[property: Description("The symbol's address as uppercase hexadecimal without 0x.")]
+	string Address,
+	[property: Description("The module that defines the symbol, as Cheat Engine names it; omitted when it does not say.")]
+	string? Module = null,
+	[property: Description(
+		"The symbol's size in bytes, or a registered allocation's size; omitted when unknown or zero, and for the size 1 Cheat Engine gives symbols of registered symbol lists by default.")]
+	long? Size = null,
+	[property: Description(
+		"True for a symbol registered by a table, a script (including {$C} code and other registered symbol lists) or symbol_register; omitted for loaded symbols.")]
+	bool? Registered = null);
+
 /// <summary>A symbol this activation registered.</summary>
 /// <param name="Name">The symbol name.</param>
 /// <param name="Address">The address it names.</param>
@@ -201,6 +243,25 @@ internal sealed record LuaRegisteredSymbols(
 	int Count,
 	[property: Description("Whether fewer were copied.")]
 	bool Truncated);
+
+/// <summary>What the fixed search script collected and the page it returned.</summary>
+/// <param name="Total">How many matches were collected.</param>
+/// <param name="Truncated">Whether the collection stopped at its cap.</param>
+/// <param name="SymbolsLoaded">
+///     Whether <c>symbolsDoneLoading</c> reported true, and no IL2CPP method list was still being filled, before the
+///     copies.
+/// </param>
+/// <param name="Symbols">The requested page of the sorted matches.</param>
+internal sealed record LuaSymbolFind(
+	[property: Description("How many matches were collected, at most the cap.")]
+	int Total,
+	[property: Description("Whether the collection stopped at its cap.")]
+	bool Truncated,
+	[property: Description(
+		"Whether symbolsDoneLoading reported true and the IL2CPP method list was complete before the copies.")]
+	bool SymbolsLoaded,
+	[property: Description("The requested page of the sorted matches.")]
+	SymbolMatch[] Symbols);
 
 /// <summary>What the fixed reload script observed.</summary>
 /// <param name="Done">Whether <c>symbolsDoneLoading</c> reported true.</param>

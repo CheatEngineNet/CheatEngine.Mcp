@@ -129,6 +129,12 @@ internal sealed class ModuleSymbolTarget
 		get;
 	} = [];
 
+	/// <summary>Failures that naming an address returns instead of a name.</summary>
+	internal Dictionary<ulong, CheatEngineFailureKind> NameFailures
+	{
+		get;
+	} = [];
+
 	internal Dictionary<string, SymbolInfo> Symbols
 	{
 		get;
@@ -267,6 +273,11 @@ internal sealed class ModuleSymbolTarget
 			case nameof(IInspectionClient.TryResolveName):
 				{
 					ulong address = ((Address) arguments[0]!).ToUInt64();
+					if (NameFailures.TryGetValue(address, out CheatEngineFailureKind nameFailure))
+					{
+						return Fail(arguments, 2, nameFailure, null);
+					}
+
 					if (!Names.TryGetValue(address, out string? name))
 					{
 						return Fail(arguments, 2, CheatEngineFailureKind.NotFound, null);

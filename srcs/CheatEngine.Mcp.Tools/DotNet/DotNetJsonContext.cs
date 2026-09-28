@@ -14,6 +14,7 @@ namespace CheatEngine.Mcp.Tools.DotNet;
 [JsonSerializable(typeof(DotNetTypeDetails))]
 [JsonSerializable(typeof(DotNetMethodPage))]
 [JsonSerializable(typeof(DotNetObject))]
+[JsonSerializable(typeof(DotNetMethodParameters))]
 [JsonSerializable(typeof(DotNetInstanceSearch))]
 [JsonSerializable(typeof(DotNetInstanceSearchPage))]
 [JsonSerializable(typeof(DotNetInstanceBatch))]

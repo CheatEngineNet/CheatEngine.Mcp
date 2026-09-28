@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Text;
+
 using CheatEngine.Client.Scanning;
 using CheatEngine.Mcp.Core.Contract;
 
@@ -29,6 +32,33 @@ internal static class SignatureBuilder
 		{
 			return null;
 		}
+	}
+
+	/// <summary>Formats bytes as a normalized pattern, writing <c>??</c> for each wildcarded byte.</summary>
+	/// <param name="bytes">The bytes.</param>
+	/// <param name="wildcards">One flag per byte; <see langword="true" /> for a wildcard.</param>
+	/// <returns>Uppercase byte pairs and <c>??</c> wildcards separated by single spaces.</returns>
+	internal static string Format(IReadOnlyList<byte> bytes, IReadOnlyList<bool> wildcards)
+	{
+		StringBuilder pattern = new(bytes.Count * 3);
+		for (int index = 0; index < bytes.Count; index++)
+		{
+			if (index > 0)
+			{
+				pattern.Append(' ');
+			}
+
+			if (wildcards[index])
+			{
+				pattern.Append("??");
+			}
+			else
+			{
+				pattern.Append(bytes[index].ToString("X2", CultureInfo.InvariantCulture));
+			}
+		}
+
+		return pattern.ToString();
 	}
 
 	/// <summary>How many byte positions a normalized pattern holds.</summary>

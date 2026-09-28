@@ -2,6 +2,7 @@ using CheatEngine.Mcp.Hosting.Discovery;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 using ModelContextProtocol.Server;
@@ -30,6 +31,9 @@ internal static class GatewayRoutingServiceCollectionExtensions
 			services.TryAddSingleton<GatewayPrimitiveCatalog>();
 			services.TryAddSingleton<GatewayToolCatalog>();
 			services.TryAddSingleton<GatewayResourceCatalog>();
+			services.TryAddSingleton<GatewayLiveInstances>();
+			services.TryAddSingleton<GatewayResourceListMonitor>();
+			services.AddHostedService(static provider => provider.GetRequiredService<GatewayResourceListMonitor>());
 			services.TryAddSingleton<GatewayRouter>();
 			services.TryAddSingleton<GatewayResourceRouter>();
 			services.TryAddSingleton<GatewayCompletionRouter>();

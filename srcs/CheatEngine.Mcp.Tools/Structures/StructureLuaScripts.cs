@@ -285,6 +285,143 @@ internal static class StructureLuaScripts
 	                                         """;
 
 	/// <summary>
+	///     Renames a structure in place, so pointer elements that point to it keep their child structure. The same name
+	///     is a no-op; a name that any structure, internal ones included, already has is refused. <c>a</c>: name, new
+	///     name.
+	/// </summary>
+	internal const string Rename = Helpers + """
+	                                         local s = findStructure(a[1])
+	                                         if s == nil then return missing(a[1], 'name') end
+	                                         if a[2] == a[1] then return summary(s) end
+	                                         if findStructure(a[2]) ~= nil then return exists(a[2]) end
+	                                         local ok, failure = pcall(function() s.Name = a[2] end)
+	                                         local now = s.Name
+	                                         if not ok or now ~= a[2] then
+	                                           local effect = 'unknown'
+	                                           if now == a[1] then effect = 'not_applied' end
+	                                           local reason = 'the name did not change'
+	                                           if not ok then reason = tostring(failure) end
+	                                           return mcp.err('host_refused', 'Cheat Engine did not rename ' .. a[1] .. ': ' .. reason, effect,
+	                                             'Check the names with structure_list before repeating the call.')
+	                                         end
+	                                         return summary(s)
+	                                         """;
+
+	/// <summary>
+	///     Resolves the requested structures and the child structures their pointer elements reach (keyed by name, so a
+	///     cycle ends), then returns Cheat Engine's <c>generate_c_header</c> text or, for the managed generator, a copy
+	///     of every element. Cheat Engine's generator marks every byte of every element in a Lua table, so it is skipped
+	///     (or refused when asked for) above a byte span. <c>a</c>: names, mode (<c>auto</c>, <c>cheat_engine</c> or
+	///     <c>managed</c>), the most structures, the most elements, the most text bytes, the most element bytes for
+	///     Cheat Engine's generator.
+	/// </summary>
+	internal const string CHeader = Helpers + """
+	                                          local requested, mode = a[1], a[2]
+	                                          local roots, queue, seen = {}, {}, {}
+	                                          for i = 1, #requested do
+	                                            local s = findStructure(requested[i])
+	                                            if s == nil then return missing(requested[i], 'names[' .. (i - 1) .. ']') end
+	                                            roots[i] = s
+	                                            if seen[s.Name] == nil then
+	                                              seen[s.Name] = true
+	                                              queue[#queue + 1] = s
+	                                            end
+	                                          end
+	                                          local head, elements, bytes = 1, 0, 0
+	                                          while head <= #queue do
+	                                            local s = queue[head]
+	                                            head = head + 1
+	                                            local count = s.Count
+	                                            elements = elements + count
+	                                            if elements > a[4] then
+	                                              return mcp.err('limit_exceeded', 'The structures and the child structures they reach have more than ' ..
+	                                                a[4] .. ' elements.', 'not_started', 'Request fewer structures in one call.')
+	                                            end
+	                                            for i = 0, count - 1 do
+	                                              local e = s.getElement(i)
+	                                              bytes = bytes + e.getBytesize()
+	                                              if e.Vartype == 12 then
+	                                                local child = e.ChildStruct
+	                                                if child ~= nil and seen[child.Name] == nil then
+	                                                  if #queue >= a[3] then
+	                                                    return mcp.err('limit_exceeded', 'The structures reach more than ' .. a[3] ..
+	                                                      ' structures through their pointer elements.', 'not_started', 'Request fewer structures in one call.')
+	                                                  end
+	                                                  seen[child.Name] = true
+	                                                  queue[#queue + 1] = child
+	                                                end
+	                                              end
+	                                            end
+	                                          end
+	                                          local names = {}
+	                                          for i = 1, #queue do names[i] = queue[i].Name end
+	                                          local native = mode ~= 'managed' and type(generate_c_header) == 'function'
+	                                          if mode == 'cheat_engine' and not native then
+	                                            return mcp.err('unsupported', 'This Cheat Engine defines no generate_c_header function ' ..
+	                                              '(autorun/structureExportToCHeader.lua).', 'not_started',
+	                                              'Omit generator, or pass managed, to use the managed generator.')
+	                                          end
+	                                          if native and bytes > a[6] then
+	                                            if mode == 'cheat_engine' then
+	                                              return mcp.err('limit_exceeded', 'The elements span ' .. bytes .. " bytes; Cheat Engine's generator " ..
+	                                                'walks every byte, so it takes at most ' .. a[6] .. '.', 'not_started',
+	                                                'Omit generator, or pass managed, whose cost does not grow with element sizes.')
+	                                            end
+	                                            native = false
+	                                          end
+	                                          if native then
+	                                            local ok, text = pcall(generate_c_header, roots)
+	                                            if ok and type(text) == 'string' then
+	                                              if #text > a[5] then
+	                                                return mcp.err('limit_exceeded', "Cheat Engine's header has " .. #text .. ' bytes; at most ' .. a[5] ..
+	                                                  ' are returned.', 'not_started', 'Request fewer structures in one call.')
+	                                              end
+	                                              return {names = names, text = text}
+	                                            end
+	                                            if mode == 'cheat_engine' then
+	                                              local reason = 'it returned no text'
+	                                              if not ok then reason = tostring(text) end
+	                                              return mcp.err('host_refused', 'Cheat Engine could not generate the header: ' .. reason, 'not_applied',
+	                                                'Omit generator, or pass managed, to use the managed generator.')
+	                                            end
+	                                          end
+	                                          local copied = {}
+	                                          for i = 1, #queue do
+	                                            local s = queue[i]
+	                                            local items = {}
+	                                            for j = 0, s.Count - 1 do
+	                                              local e = s.getElement(j)
+	                                              local vartype = e.Vartype
+	                                              local item = {offset = e.Offset, vartype = vartype, byteSize = e.getBytesize()}
+	                                              local name = e.Name
+	                                              if name ~= nil and name ~= '' then item.name = name end
+	                                              if vartype >= 0 and vartype <= 3 then
+	                                                item.display = optional(function() return e.DisplayMethod end, 'string')
+	                                              elseif vartype == 12 then
+	                                                local child = e.ChildStruct
+	                                                if child ~= nil then
+	                                                  item.child = child.Name
+	                                                  if optional(function() return e.NestedStructure end, 'boolean') == true then
+	                                                    item.nested = true
+	                                                  else
+	                                                    local start = optional(function() return e.getChildStructStart() end, 'integer')
+	                                                    if start ~= nil and start ~= 0 then item.childStart = start end
+	                                                  end
+	                                                end
+	                                              elseif vartype == 9 then
+	                                                item.bitStart = optional(function() return e.BitStart end, 'integer')
+	                                                item.bitSize = optional(function() return e.BitSize end, 'integer')
+	                                              elseif vartype == 13 then
+	                                                item.customType = optional(function() return e.CustomTypeName end, 'string')
+	                                              end
+	                                              items[#items + 1] = item
+	                                            end
+	                                            copied[i] = {name = s.Name, size = s.Size, elements = items}
+	                                          end
+	                                          return {names = names, structures = copied}
+	                                          """;
+
+	/// <summary>
 	///     Adds elements, all or nothing: on a refusal the elements added by the call are destroyed again.
 	///     <c>a</c>: name, specifications as for <see cref="CreateFromElements" />.
 	/// </summary>
@@ -432,8 +569,9 @@ internal static class StructureLuaScripts
 	                                                 """;
 
 	/// <summary>
-	///     Lets Cheat Engine guess fields from memory, creating the structure first when asked.
-	///     <c>a</c>: name, base address as <c>0x</c> text, offset, size, create when missing.
+	///     Lets Cheat Engine guess fields from memory, creating the structure first when asked. Cheat Engine reads
+	///     from its base argument and labels the new elements from its offset argument, so the base is the object
+	///     address plus the offset. <c>a</c>: name, read address as <c>0x</c> text, offset, size, create when missing.
 	/// </summary>
 	internal const string AutoGuess = Helpers + """
 	                                            local s = findStructure(a[1])

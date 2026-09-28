@@ -5,6 +5,7 @@ using CheatEngine.Client.Processes;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
 using CheatEngine.Mcp.Core.Contract;
+using CheatEngine.Mcp.Core.Features;
 using CheatEngine.Mcp.Core.Jobs;
 
 using ModelContextProtocol.Server;
@@ -33,12 +34,14 @@ public sealed class RuntimeTools
 		_jobs = jobs;
 	}
 
-	/// <summary>Gets the activation identity and Client capability evidence.</summary>
+	/// <summary>Gets the activation identity, Client capability evidence and exposure switches.</summary>
 	[McpServerTool(Name = CheatEngineToolNames.RuntimeGetInfo, Title = "Get runtime information", ReadOnly = true,
 		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Read the active Client epoch, host version, plugin identity and capability evidence before using optional features.")]
+		"Read the active Client epoch, host version, plugin identity, capability evidence and the Mcp:Enable* " +
+		"gates (gates: autoAssembler, unsafeLua, targetCodeExecution, kernelAccess) before using optional features; " +
+		"a tool whose gate is off is refused with capability_disabled.")]
 	public RuntimeInfoResult GetInfo(CancellationToken cancellationToken = default)
 	{
 		return _dispatch.Run(CheatEngineToolNames.RuntimeGetInfo,
@@ -51,7 +54,8 @@ public sealed class RuntimeTools
 		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Read the host capability snapshot, current target and retained resource/job counts before starting target work.")]
+		"Read the host capability snapshot, the Mcp:Enable* gates (runtime.gates), the current target and the " +
+		"retained resource and job counts before starting target work.")]
 	public RuntimeOverviewResult GetOverview(CancellationToken cancellationToken = default)
 	{
 		return _dispatch.Run(CheatEngineToolNames.RuntimeGetOverview, token =>
@@ -139,9 +143,12 @@ public sealed class RuntimeTools
 				new RuntimeCapability(capability.Capability.Value, capability.State.ToString(), capability.IsAvailable,
 					capability.Reason, capability.Evidence.ToString()))
 		];
+		McpFeatureSummary features = _dispatch.Features.Snapshot();
+		RuntimeGates gates = new(features.AutoAssembler, features.UnsafeLua, features.TargetCodeExecution,
+			features.KernelAccess);
 		return new RuntimeInfoResult(snapshot.Epoch, snapshot.Version.ToString(), snapshot.Platform.ToString(),
 			_runtime.Version, FileName(_runtime.Location), FileName(_runtime.RuntimeLocation), _runtime.ApplicationName,
-			capabilities);
+			capabilities, gates);
 	}
 
 	private static RuntimeCurrentProcess Current(ICheatEngineClient client, CancellationToken cancellationToken)

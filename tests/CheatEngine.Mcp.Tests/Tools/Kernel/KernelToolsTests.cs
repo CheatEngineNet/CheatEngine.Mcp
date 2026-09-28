@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json;
 
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Features;
@@ -7,6 +8,8 @@ using CheatEngine.Mcp.Tests.Support;
 using CheatEngine.Mcp.Tools.Kernel;
 
 using Microsoft.Extensions.Options;
+
+using KernelPage = CheatEngine.Mcp.Core.Jobs.LuaJobPage;
 
 namespace CheatEngine.Mcp.Tests.Tools.Kernel;
 
@@ -132,6 +135,155 @@ public sealed class KernelToolsTests
 		Assert.Empty(harness.LuaCalls);
 	}
 
+	[Theory]
+	[InlineData("1FFF", 2, 1)]
+	[InlineData("1001", 4096, 4095)]
+	[InlineData("2800", 2049, 2048)]
+	public void StartWatch_RangeThatCrossesAPhysicalPage_RefusesBeforeLua(string physicalAddress, int byteSize,
+		int available)
+	{
+		StateTestHarness harness = new();
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			new KernelTools(harness.Dispatch, harness.Jobs).StartWatch(KernelWatchAccess.Write, physicalAddress,
+				byteSize, cancellationToken: Token));
+
+		Assert.Equal((ToolErrorKind.InvalidArgument, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Equal("byteSize", exception.Error.Details!.Value.GetProperty("parameter").GetString());
+		Assert.Contains($"at most {available} bytes", exception.Error.Message, StringComparison.Ordinal);
+		Assert.Equal(0, harness.Dispatches);
+		Assert.Equal(0, harness.Jobs.Count);
+	}
+
+	[Theory]
+	[InlineData("2000", 4096)]
+	[InlineData("2800", 2048)]
+	[InlineData("2FFF", 1)]
+	public void StartWatch_RangeThatEndsAtThePageBoundary_IsArmed(string physicalAddress, int byteSize)
+	{
+		StateTestHarness harness = new();
+		harness.Answer<LuaKernelWatchArmed>(static _ => new LuaKernelWatchArmed(3));
+
+		KernelWatchStart started = new KernelTools(harness.Dispatch, harness.Jobs).StartWatch(
+			KernelWatchAccess.Read, physicalAddress, byteSize, cancellationToken: Token);
+
+		Assert.Equal((physicalAddress, byteSize), (started.PhysicalAddress, started.ByteSize));
+		Assert.Equal(CheatEngineToolNames.KernelStartWatch, Assert.Single(harness.LuaCalls).Operation);
+	}
+
+	[Fact]
+	public void StartWatch_BufferLimitOutsideTheConfiguredLimit_NamesBufferLimit()
+	{
+		StateTestHarness harness = new(new McpExecutionOptions { JobBufferLimit = 2 });
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			new KernelTools(harness.Dispatch, harness.Jobs).StartWatch(KernelWatchAccess.Read, "1000",
+				bufferLimit: 3, cancellationToken: Token));
+
+		Assert.Equal((ToolErrorKind.InvalidArgument, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Equal("bufferLimit", exception.Error.Details!.Value.GetProperty("parameter").GetString());
+		Assert.StartsWith("bufferLimit:", exception.Error.Message, StringComparison.Ordinal);
+		Assert.Equal(0, harness.Dispatches);
+		Assert.Equal(0, harness.Jobs.Count);
+	}
+
+	[Fact]
+	public void PollWatch_DrainsDbvmThenReadsThePageThroughTheJobPoll()
+	{
+		StateTestHarness harness = new();
+		harness.Answer<LuaKernelWatchArmed>(static _ => new LuaKernelWatchArmed(7));
+		KernelTools tools = new(harness.Dispatch, harness.Jobs);
+		DateTimeOffset created = harness.Time.GetUtcNow();
+		KernelWatchStart started = tools.StartWatch(KernelWatchAccess.Write, "1000", 4, cancellationToken: Token);
+		harness.Answer<LuaKernelWatchDrain>(static _ => new LuaKernelWatchDrain(true, 2));
+		harness.Answer<KernelPage>(source =>
+		{
+			Assert.Contains(started.JobId, source, StringComparison.Ordinal);
+			return new KernelPage(new JobStatus(started.JobId, "kernelwatch", JobState.Completed, 5, 1_000, 2, 2, 0),
+				[Json(new KernelWatchEvent(1, "401000", null, "1", null, null, null, null, null, null, null, null, null,
+					null, null, null, null, null, "1AB000")), Json(Event(2))], 1, 2, false, 0);
+		});
+
+		KernelWatchPoll page = tools.PollWatch(started.JobId, cancellationToken: Token);
+
+		Assert.Equal((JobState.Completed, created, 1L, 2L, false, 0L),
+			(page.Job.State, page.Job.CreatedUtc, page.FirstSequence, page.NextAfterSequence, page.More,
+				page.Dropped));
+		Assert.Equal([1L, 2L], page.Events.Select(static item => item.SourceIndex));
+		Assert.Equal(("401000", "1", "1AB000"), (page.Events[0].Rip, page.Events[0].Rax, page.Events[0].Cr3));
+		(string Operation, string Source)[] calls = [.. harness.LuaCalls];
+		Assert.Equal([
+			CheatEngineToolNames.KernelStartWatch, CheatEngineToolNames.KernelPollWatch,
+			CheatEngineToolNames.KernelPollWatch
+		], calls.Select(static call => call.Operation));
+		Assert.Contains("dbvm_watch_retrievelog", calls[1].Source, StringComparison.Ordinal);
+		Assert.DoesNotContain("dbvm_watch_retrievelog", calls[2].Source, StringComparison.Ordinal);
+		// The job poll refreshed the managed state: a completed watch no longer holds host state.
+		Assert.Equal(TargetResourceState.Ended, Assert.Single(harness.Resources.List()).State);
+	}
+
+	[Fact]
+	public void PollWatch_JobGoneFromLua_ReportsNotFoundAndRetiresTheManagedJob()
+	{
+		StateTestHarness harness = new();
+		harness.Answer<LuaKernelWatchArmed>(static _ => new LuaKernelWatchArmed(7));
+		KernelTools tools = new(harness.Dispatch, harness.Jobs);
+		KernelWatchStart started = tools.StartWatch(KernelWatchAccess.Read, "1000", cancellationToken: Token);
+		harness.Answer<LuaKernelWatchDrain>(static _ => new LuaKernelWatchDrain(false, 0));
+		harness.Declare<KernelPage>("not_found", "Unknown or expired job.");
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			tools.PollWatch(started.JobId, cancellationToken: Token));
+		int dispatches = harness.Dispatches;
+		CheatEngineToolException again = Assert.Throws<CheatEngineToolException>(() =>
+			tools.PollWatch(started.JobId, cancellationToken: Token));
+
+		Assert.Equal((ToolErrorKind.NotFound, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Equal(ToolErrorKind.NotFound, again.Error.Kind);
+		Assert.Equal(dispatches, harness.Dispatches);
+		Assert.Equal(0, harness.Jobs.Count);
+	}
+
+	[Fact]
+	public void PollWatch_DrainRefused_ReportsTheRefusalWithoutReadingAPage()
+	{
+		StateTestHarness harness = new();
+		harness.Answer<LuaKernelWatchArmed>(static _ => new LuaKernelWatchArmed(7));
+		KernelTools tools = new(harness.Dispatch, harness.Jobs);
+		KernelWatchStart started = tools.StartWatch(KernelWatchAccess.Read, "1000", cancellationToken: Token);
+		harness.Declare<LuaKernelWatchDrain>("host_refused", "DBVM could not retrieve watch events.", "started");
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			tools.PollWatch(started.JobId, cancellationToken: Token));
+
+		Assert.Equal((ToolErrorKind.HostRefused, ToolHostEffect.Started),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Equal(2, harness.LuaCalls.Count);
+		Assert.Equal(1, harness.Jobs.Count);
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public void InitializeDbvm_PassesCheatEnginesWarningAndTheReasonSeparately(bool offload)
+	{
+		StateTestHarness harness = new();
+		harness.Answer<KernelDbvmInitialization>(_ => new KernelDbvmInitialization(true, offload, "Watch a page"));
+
+		KernelDbvmInitialization result = new KernelTools(harness.Dispatch, harness.Jobs).InitializeDbvm(offload,
+			"Watch a page", Token);
+
+		Assert.Equal(new KernelDbvmInitialization(true, offload, "Watch a page"), result);
+		(string operation, string source) = Assert.Single(harness.LuaCalls);
+		Assert.Equal(CheatEngineToolNames.KernelInitializeDbvm, operation);
+		Assert.Contains("There is a high chance running DBVM can crash your system", source, StringComparison.Ordinal);
+		Assert.Contains("Watch a page", source, StringComparison.Ordinal);
+		Assert.Contains("'invalid_state'", source, StringComparison.Ordinal);
+	}
+
 	public static IEnumerable<object[]> FixedLuaBodies()
 	{
 		yield return [KernelScripts.GetStatus, "dbk_initialized"];
@@ -140,7 +292,7 @@ public sealed class KernelToolsTests
 		yield return [KernelScripts.ReadPhysical, "dbvm_readPhysicalMemory"];
 		yield return [KernelScripts.WritePhysical, "dbvm_writePhysicalMemory"];
 		yield return [KernelScripts.StartWatch, "dbvm_watch_disable"];
-		yield return [KernelScripts.PollWatch, "dbvm_watch_retrievelog"];
+		yield return [KernelScripts.DrainWatch, "dbvm_watch_retrievelog"];
 	}
 
 	[Theory]
@@ -205,6 +357,17 @@ public sealed class KernelToolsTests
 		Assert.Equal((started.JobId, true, false), (stopped.JobId, stopped.Released, stopped.AlreadyReleased));
 		Assert.Equal("mcp_job_stop", harness.LuaCalls.Last().Operation);
 		Assert.Empty(harness.Resources.List());
+	}
+
+	private static KernelWatchEvent Event(long sourceIndex)
+	{
+		return new KernelWatchEvent(sourceIndex, null, null, null, null, null, null, null, null, null, null, null, null,
+			null, null, null, null, null, null);
+	}
+
+	private static JsonElement Json(KernelWatchEvent value)
+	{
+		return JsonSerializer.SerializeToElement(value, KernelJsonContext.Default.KernelWatchEvent);
 	}
 
 	private static MethodInfo Method(string name)

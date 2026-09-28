@@ -1,4 +1,10 @@
+using System.ComponentModel.DataAnnotations;
 using System.Reflection;
+using System.Text.Json.Nodes;
+
+using CheatEngine.Mcp.Core.Contract;
+using CheatEngine.Mcp.Core.Execution;
+using CheatEngine.Mcp.Core.Features;
 
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
@@ -11,21 +17,27 @@ internal static partial class McpContractRules
 	internal const int MaxPromptNameLength = 40;
 
 	/// <summary>
-	///     Validates the resources of one server: URI space and grammar, routing, MIME type, metadata, parameters and
-	///     overlap between templates.
+	///     Validates the resources of one server: URI space and grammar, routing, MIME type, metadata, annotations,
+	///     parameters, overlap between templates and, for a live resource, the tool it projects.
 	/// </summary>
 	/// <param name="resources">The server's resources and resource templates.</param>
+	/// <param name="toolNames">
+	///     The tools the same server serves; when there are any, a live resource's source tool must be one of them.
+	/// </param>
 	/// <returns>One message per violation.</returns>
-	internal static IEnumerable<string> ValidateResources(IEnumerable<McpServerResource> resources)
+	internal static IEnumerable<string> ValidateResources(IEnumerable<McpServerResource> resources,
+		IEnumerable<string> toolNames)
 	{
 		ArgumentNullException.ThrowIfNull(resources);
+		ArgumentNullException.ThrowIfNull(toolNames);
 		McpServerResource[] all = resources.ToArray();
+		HashSet<string> served = new(toolNames, StringComparer.Ordinal);
 		List<string> failures = [];
 		Dictionary<string, string> names = new(StringComparer.OrdinalIgnoreCase);
 		foreach (McpServerResource resource in all)
 		{
 			ResourceTemplate template = resource.ProtocolResourceTemplate;
-			ValidateResource(failures, resource);
+			ValidateResource(failures, resource, served);
 			if (!string.IsNullOrEmpty(template.Name) && !names.TryAdd(template.Name, template.UriTemplate))
 			{
 				failures.Add($"Resource '{template.UriTemplate}' repeats the name '{template.Name}' of " +
@@ -50,8 +62,9 @@ internal static partial class McpContractRules
 	}
 
 	/// <summary>
-	///     Validates the prompts of one server: names, titles, descriptions, arguments and routing. A prompt must be a
-	///     static method, because no gateway argument selects the instance a prompt would run on.
+	///     Validates the prompts of one server: names, titles, descriptions, arguments (each with a description and a
+	///     title) and routing. A prompt must be a static method, because no gateway argument selects the instance a
+	///     prompt would run on.
 	/// </summary>
 	/// <param name="prompts">The server's prompts.</param>
 	/// <param name="toolNames">The server's tool names, which a prompt name must not repeat.</param>
@@ -103,6 +116,7 @@ internal static partial class McpContractRules
 				failures.Add($"Prompt '{name}' has no description.");
 			}
 
+			Dictionary<string, string> argumentTitles = new(StringComparer.OrdinalIgnoreCase);
 			foreach (PromptArgument argument in protocol.Arguments ?? [])
 			{
 				if (string.Equals(argument.Name, RoutingArgument, StringComparison.OrdinalIgnoreCase))
@@ -115,6 +129,8 @@ internal static partial class McpContractRules
 				{
 					failures.Add($"Prompt '{name}' argument '{argument.Name}' has no description.");
 				}
+
+				ValidateArgumentTitle(failures, name, argument, argumentTitles);
 			}
 
 			MethodInfo? method = McpPrimitiveOrigin.MethodOf(prompt);
@@ -131,6 +147,29 @@ internal static partial class McpContractRules
 		}
 
 		return failures;
+	}
+
+	/// <summary>
+	///     A prompt argument needs a title, the label a client shows instead of its name: the
+	///     <c>[Display(Name = ...)]</c> of its parameter, in sentence case, at most <see cref="MaxTitleLength" />
+	///     characters and distinct from the other titles of its prompt.
+	/// </summary>
+	private static void ValidateArgumentTitle(List<string> failures, string prompt, PromptArgument argument,
+		Dictionary<string, string> titles)
+	{
+		string subject = $"Prompt '{prompt}' argument '{argument.Name}'";
+		if (string.IsNullOrWhiteSpace(argument.Title))
+		{
+			failures.Add($"{subject} has no title; declare [Display(Name = ...)] on its parameter.");
+		}
+		else if (argument.Title.Length > MaxTitleLength || !IsSentenceCase(argument.Title))
+		{
+			failures.Add($"{subject} needs a sentence-case title of at most {MaxTitleLength} characters.");
+		}
+		else if (!titles.TryAdd(argument.Title, argument.Name))
+		{
+			failures.Add($"{subject} repeats the title '{argument.Title}' of '{titles[argument.Title]}'.");
+		}
 	}
 
 	/// <summary>Checks a prompt or resource name: lowercase snake case, one word allowed, at most 40 characters.</summary>
@@ -240,7 +279,8 @@ internal static partial class McpContractRules
 			.Select(static segment => segment.StartsWith('{') && segment.EndsWith('}') ? "sample-1" : segment));
 	}
 
-	private static void ValidateResource(List<string> failures, McpServerResource resource)
+	private static void ValidateResource(List<string> failures, McpServerResource resource,
+		IReadOnlySet<string> servedTools)
 	{
 		ResourceTemplate template = resource.ProtocolResourceTemplate;
 		string uri = template.UriTemplate ?? string.Empty;
@@ -301,6 +341,13 @@ internal static partial class McpContractRules
 			failures.Add($"{subject} has no description.");
 		}
 
+		foreach (McpResourceAnnotationsAttribute annotations in
+				 resource.Metadata.OfType<McpResourceAnnotationsAttribute>())
+		{
+			failures.AddRange(annotations.Validate().Select(reason => $"{subject} {reason}."));
+		}
+
+		ValidateSource(failures, subject, resource, routing, servedTools);
 		if (McpPrimitiveOrigin.MethodOf(resource) is { } method)
 		{
 			string[] parameters = ValidateParameters(failures, subject, method,
@@ -314,6 +361,132 @@ internal static partial class McpContractRules
 			{
 				failures.Add($"{subject} has the variable '{variable}', which no string parameter receives.");
 			}
+
+			ValidateCompletions(failures, subject, uri, method, routing);
+		}
+	}
+
+	/// <summary>
+	///     A variable marked with <see cref="McpCompletionAttribute" /> must be a path variable of a live template
+	///     whose container implements <see cref="IMcpCompletionSource" />, and must not also declare
+	///     <c>[AllowedValues]</c>, which the SDK completes by itself: the gateway forwards only marked variables and
+	///     answers allowed values from its own catalog.
+	/// </summary>
+	private static void ValidateCompletions(List<string> failures, string subject, string uriTemplate,
+		MethodInfo method, McpPrimitiveRouting routing)
+	{
+		int query = uriTemplate.IndexOf("{?", StringComparison.Ordinal);
+		string[] segments = (query < 0 ? uriTemplate : uriTemplate[..query]).Split('/');
+		foreach (ParameterInfo parameter in method.GetParameters())
+		{
+			if (parameter.GetCustomAttribute<McpCompletionAttribute>() is null)
+			{
+				continue;
+			}
+
+			string name = parameter.Name ?? string.Empty;
+			if (routing is not McpPrimitiveRouting.Instance)
+			{
+				failures.Add($"{subject} is served locally, so it must not mark '{name}' with [McpCompletion]; " +
+							 "declare [AllowedValues] instead.");
+				continue;
+			}
+
+			if (!segments.Contains("{" + name + "}", StringComparer.Ordinal))
+			{
+				failures.Add($"{subject} marks '{name}' with [McpCompletion], which only a path variable may carry.");
+			}
+
+			if (parameter.GetCustomAttribute<AllowedValuesAttribute>() is not null)
+			{
+				failures.Add($"{subject} marks '{name}' with both [AllowedValues] and [McpCompletion]; the SDK " +
+							 "already completes allowed values.");
+			}
+
+			Type? container = method.ReflectedType ?? method.DeclaringType;
+			if (container is null || !typeof(IMcpCompletionSource).IsAssignableFrom(container))
+			{
+				string owner = container?.Name ?? "its container";
+				failures.Add($"{subject} marks '{name}' with [McpCompletion], but {owner} does not implement " +
+							 $"{nameof(IMcpCompletionSource)}.");
+			}
+		}
+	}
+
+	/// <summary>
+	///     A live resource must name, with <see cref="McpSourceToolAttribute" />, the tool whose structured result it
+	///     returns, and publish that name in <c>_meta</c>. A client may read or prefetch a resource without any tool call,
+	///     so the tool must be a frozen backend tool that is read-only, closed-world, ungated and <c>short</c>; when the
+	///     server serves tools, it must serve that one. A Local document projects no tool.
+	/// </summary>
+	private static void ValidateSource(List<string> failures, string subject, McpServerResource resource,
+		McpPrimitiveRouting routing, IReadOnlySet<string> servedTools)
+	{
+		McpResourceSource? source = McpResourceSource.Of(resource);
+		if (routing is not McpPrimitiveRouting.Instance)
+		{
+			if (source is not null)
+			{
+				failures.Add($"{subject} is served locally, so it must not declare a source tool.");
+			}
+
+			// The gateway serves a Local resource without any activation, so no gate could refuse the read.
+			if (resource.Metadata.OfType<RequiresFeatureAttribute>().Any())
+			{
+				failures.Add($"{subject} is served locally, where no feature gate exists, so it must not require a " +
+							 "feature switch.");
+			}
+
+			return;
+		}
+
+		if (source is null)
+		{
+			failures.Add($"{subject} is a live resource, so it must name the read-only tool it projects with " +
+						 $"[McpSourceTool], published in _meta under {McpSourceToolAttribute.MetaKey}.");
+			return;
+		}
+
+		string tool = source.ToolName;
+		JsonNode? published = resource.ProtocolResourceTemplate.Meta?[McpSourceToolAttribute.MetaKey];
+		if (published is not JsonValue value || !value.TryGetValue(out string? text) ||
+			!string.Equals(text, tool, StringComparison.Ordinal))
+		{
+			failures.Add($"{subject} must publish '{tool}' in _meta under {McpSourceToolAttribute.MetaKey}.");
+		}
+
+		if (source.Method is null)
+		{
+			failures.Add($"{subject} names the source tool '{tool}', which {source.ToolType.Name} does not declare " +
+						 "exactly once.");
+			return;
+		}
+
+		if (!CheatEngineToolNames.Backend.Contains(tool))
+		{
+			failures.Add($"{subject} projects '{tool}', which is not a backend name of the frozen v2 catalog.");
+		}
+		else if (servedTools.Count > 0 && !servedTools.Contains(tool))
+		{
+			failures.Add($"{subject} projects '{tool}', which this server does not serve.");
+		}
+
+		if (!source.ReadOnly || source.OpenWorld)
+		{
+			failures.Add($"{subject} projects '{tool}', which must be read-only and closed-world.");
+		}
+
+		if (source.Requires.Count > 0)
+		{
+			failures.Add($"{subject} projects '{tool}', which requires " +
+						 $"{string.Join(", ", source.Requires.Select(McpFeatureGate.ContractName))}; a resource read " +
+						 "must never need a feature switch.");
+		}
+
+		if (!string.Equals(source.DispatchClass, McpDispatchClass.Short, StringComparison.Ordinal))
+		{
+			failures.Add($"{subject} projects '{tool}', whose dispatch class is {source.DispatchClass ?? "missing"}; " +
+						 $"only a {McpDispatchClass.Short} tool may back a resource a client can prefetch.");
 		}
 	}
 

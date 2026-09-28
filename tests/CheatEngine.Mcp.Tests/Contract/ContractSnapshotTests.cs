@@ -113,7 +113,8 @@ public sealed class ContractSnapshotTests
 					Command = executable,
 					Arguments = ["--instance-directory", Path.Combine(directory, "instances")],
 					Name = "CheatEngine.Mcp.ContractTests.Gateway",
-					WorkingDirectory = directory,
+					// Outside the deleted tree: a gateway still exiting holds its working directory.
+					WorkingDirectory = AppContext.BaseDirectory,
 					ShutdownTimeout = TimeSpan.FromSeconds(10)
 				}), CreateClientOptions(), cancellationToken: TestContext.Current.CancellationToken);
 
@@ -142,10 +143,8 @@ public sealed class ContractSnapshotTests
 		}
 		finally
 		{
-			if (Directory.Exists(directory))
-			{
-				Directory.Delete(directory, true);
-			}
+			// The gateway may still hold a registry file while it exits.
+			await TestDirectory.DeleteAsync(directory);
 		}
 	}
 

@@ -15,9 +15,11 @@ namespace CheatEngine.Mcp.Tools.Asm;
 [JsonSerializable(typeof(AsmGeneratedScript))]
 [JsonSerializable(typeof(AsmPatchInfo))]
 [JsonSerializable(typeof(InstructionEncodingPreference))]
+[JsonSerializable(typeof(AsmScriptSection))]
 public sealed partial class AsmJsonContext : JsonSerializerContext;
 
 /// <summary>Source-generated metadata for fixed Lua results that remain inside the assembler tools.</summary>
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
 [JsonSerializable(typeof(AsmLuaScript))]
+[JsonSerializable(typeof(AsmLuaCheck))]
 internal sealed partial class AsmLuaJsonContext : JsonSerializerContext;

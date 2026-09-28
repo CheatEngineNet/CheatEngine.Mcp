@@ -34,7 +34,9 @@ internal sealed class TargetDouble
 		"Lua.Execute"
 	];
 
-	internal TargetDouble(CancellationToken stopping = default)
+	/// <param name="options">The dispatch limits, such as a lower concurrency; the defaults when omitted.</param>
+	/// <param name="stopping">The activation's stopping token.</param>
+	internal TargetDouble(McpExecutionOptions? options = null, CancellationToken stopping = default)
 	{
 		Client = ClientTestDouble.Client(Dispatcher.Dispatcher, stopping,
 			(nameof(ICheatEngineClient.Memory), Recorded<IMemoryClient>("Memory", () => Memory)),
@@ -43,7 +45,7 @@ internal sealed class TargetDouble
 			(nameof(ICheatEngineClient.Allocations), Recorded<IAllocationClient>("Allocations", () => Allocations)),
 			(nameof(ICheatEngineClient.Patterns), Recorded<IPatternScanner>("Patterns", () => Patterns)),
 			(nameof(ICheatEngineClient.Lua), Recorded<ILuaClient>("Lua", static () => null)));
-		IOptions<McpExecutionOptions> execution = Options.Create(new McpExecutionOptions());
+		IOptions<McpExecutionOptions> execution = Options.Create(options ?? new McpExecutionOptions());
 		Dispatch = new ToolDispatch(Client, new McpFeatureGate(Options.Create(new McpFeatureOptions())), execution,
 			new DispatchStatistics(execution), TimeProvider.System, new RecordingLogger<ToolDispatch>(),
 			new PluginFixedLuaExecutor(Client));

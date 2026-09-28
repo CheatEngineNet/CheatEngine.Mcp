@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 using CheatEngine.Mcp.Core.Features;
@@ -76,5 +77,15 @@ public sealed class McpPrimitiveTargets
 		return _targets.TryGetValue(type, out object? target)
 			? target
 			: throw new InvalidOperationException($"No activation target was resolved for {type.FullName}.");
+	}
+
+	/// <summary>Returns the resolved instance of a declared primitive type, when the activation resolved one.</summary>
+	/// <param name="type">The primitive container type.</param>
+	/// <param name="target">The activation-owned instance, when resolved.</param>
+	/// <returns><see langword="true" /> when the type has an instance primitive method and was resolved.</returns>
+	internal bool TryGet(Type type, [NotNullWhen(true)] out object? target)
+	{
+		ArgumentNullException.ThrowIfNull(type);
+		return _targets.TryGetValue(type, out target);
 	}
 }

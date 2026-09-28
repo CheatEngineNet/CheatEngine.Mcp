@@ -2,7 +2,6 @@
 # Columns: old name | kind | new name(s), comma-separated, or - | note
 # Kinds: renamed (one new tool, the only one replacing it), merged (one new tool that also replaces other old names),
 # split (several new tools), changed_in_place (the name stays with a v2 contract), removed (no replacement).
-# The CHANGELOG 2.0.0 migration table is generated from this file.
 add_code_reference | removed | - | Dissect-reference editing is deferred past 2.0.0.
 add_memory_record | renamed | record_create | Up to 256 value, script or group records, rolled back on failure.
 add_structure_element | renamed | structure_add_elements | Batched.
@@ -145,7 +144,7 @@ get_symbols_loading_state | removed | - | Read runtime_get_overview (symbolsLoad
 get_thread_list | renamed | process_list_threads | Paged.
 hash_memory | renamed | memory_hash | MD5, SHA-1 or SHA-256.
 inject_dotnet_assembly | merged | exec_inject_dotnet | Bounded .NET injection result.
-inject_dotnet_library | merged | exec_inject_dotnet | Flattened result; waits at most 30 s.
+inject_dotnet_library | merged | exec_inject_dotnet | Flattened result; no Cheat Engine timeout, bounded only by the MCP call timeout.
 inject_library | renamed | exec_inject_library | Gated by Mcp:EnableTargetCodeExecution.
 is_jump_destination | merged | code_get_function | addressIsJumpDestination field.
 list_instances | renamed | instance_list | Gateway-local.

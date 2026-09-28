@@ -370,12 +370,13 @@ public sealed class JobRegistryTests
 		StateTestHarness harness = new(new McpExecutionOptions { MaxJobs = 1 });
 		harness.Answer<LuaJobStop>(_ => new LuaJobStop(true, true, true, "stopped"));
 
-		InvalidOperationException failure = Assert.Throws<InvalidOperationException>(() => harness.Jobs.StartLua("capture", TimeSpan.FromSeconds(60), 8,
-			StateTestJsonContext.Default.Int64, _ =>
-			{
-				harness.Stopping.Cancel();
-				throw new InvalidOperationException("start failed");
-			}));
+		InvalidOperationException failure = Assert.Throws<InvalidOperationException>(() =>
+			harness.Jobs.StartLua("capture", TimeSpan.FromSeconds(60), 8,
+				StateTestJsonContext.Default.Int64, _ =>
+				{
+					harness.Stopping.Cancel();
+					throw new InvalidOperationException("start failed");
+				}));
 
 		Assert.Equal("start failed", failure.Message);
 		Assert.Equal("mcp_job_stop", Assert.Single(harness.LuaCalls).Operation);

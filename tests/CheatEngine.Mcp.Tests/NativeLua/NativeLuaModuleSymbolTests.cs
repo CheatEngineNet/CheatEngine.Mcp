@@ -4,6 +4,7 @@ using System.Text;
 using CheatEngine.Client;
 using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Lua;
+using CheatEngine.Client.Processes;
 using CheatEngine.Client.Results;
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Features;
@@ -43,6 +44,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 	public static TheoryData<string, string> ModuleSymbolScripts => new()
 	{
 		{ nameof(SymbolScripts.ListRegistered), SymbolScripts.ListRegistered },
+		{ nameof(SymbolScripts.Find), SymbolScripts.Find },
 		{ nameof(SymbolScripts.GetModulePreference), SymbolScripts.GetModulePreference },
 		{ nameof(SymbolScripts.SetModulePreference), SymbolScripts.SetModulePreference },
 		{ nameof(SymbolScripts.Reload), SymbolScripts.Reload },
@@ -58,6 +60,8 @@ public sealed partial class NativeLuaToolRuntimeTests
 		object?[] arguments = name switch
 		{
 			nameof(SymbolScripts.ListRegistered) => [SymbolScripts.MaximumRegisteredSymbols],
+			nameof(SymbolScripts.Find) =>
+				["health", SymbolScripts.MaximumFoundSymbols, 0, 100, 0x140000000UL, 0x2000UL],
 			nameof(SymbolScripts.SetModulePreference) => [new[] { "game", "engine" }, false],
 			nameof(SymbolScripts.Reload) => ["dotnet", "Assembly-CSharp.dll"],
 			nameof(SymbolScripts.AddModule) => ["C:\\Games\\game.pdb", 0x140000000UL, true],
@@ -283,8 +287,11 @@ public sealed partial class NativeLuaToolRuntimeTests
 		return result;
 	}
 
-	/// <summary>A Client double whose Lua facade runs typed operations on the test state and whose inspection is given.</summary>
-	private static ICheatEngineClient ModuleSymbolClient(IInspectionClient inspection)
+	/// <summary>
+	///     A Client double whose Lua facade runs typed operations on the test state and whose inspection, and optionally
+	///     processes, are given.
+	/// </summary>
+	private static ICheatEngineClient ModuleSymbolClient(IInspectionClient inspection, IProcessClient? processes = null)
 	{
 		ILuaClient lua = ClientTestDouble.Create<ILuaClient>((method, arguments) =>
 		{
@@ -301,7 +308,11 @@ public sealed partial class NativeLuaToolRuntimeTests
 			((CheatEngineFailure) call[2]!).Throw();
 			return null;
 		});
-		return ClientTestDouble.Client((nameof(ICheatEngineClient.Lua), lua),
-			(nameof(ICheatEngineClient.Inspection), inspection));
+		return processes is null
+			? ClientTestDouble.Client((nameof(ICheatEngineClient.Lua), lua),
+				(nameof(ICheatEngineClient.Inspection), inspection))
+			: ClientTestDouble.Client((nameof(ICheatEngineClient.Lua), lua),
+				(nameof(ICheatEngineClient.Inspection), inspection),
+				(nameof(ICheatEngineClient.Processes), processes));
 	}
 }

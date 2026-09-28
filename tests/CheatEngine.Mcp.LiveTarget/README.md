@@ -19,8 +19,8 @@ It is never shipped and has no purpose outside the tests.
 The test project builds it into `artifacts/bin/CheatEngine.Mcp.LiveTarget/<configuration>/`, and the live qualification
 harness in [`tests/CheatEngine.Mcp.Tests/LiveQualification`](../CheatEngine.Mcp.Tests/LiveQualification) starts one
 instance per Cheat Engine copy and stops it through the stop file.
-To run live qualification, follow [docs/testing.md](../../docs/testing.md#live-qualification); never start it by hand
-next to a real Cheat Engine session.
+To run live qualification, follow [Live qualification](../../CONTRIBUTING.md#live-qualification); never start it by
+hand next to a real Cheat Engine session.
 
 ## Rules
 

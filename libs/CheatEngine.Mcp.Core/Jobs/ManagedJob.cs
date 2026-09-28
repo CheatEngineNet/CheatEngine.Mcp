@@ -40,11 +40,11 @@ public sealed class ManagedJob<TItem> : McpJob
 	private const int ActivationEnd = 3;
 
 	private readonly CancellationTokenSource _cancellation = new();
-	private ITimer? _expiryTimer;
 	private readonly TimeProvider _time;
 	private readonly JobWriter<TItem> _writer;
 	private Task _completion = Task.CompletedTask;
 	private string? _error;
+	private ITimer? _expiryTimer;
 	private int _state = (int) JobState.Running;
 	private int _stopReason;
 
@@ -224,7 +224,7 @@ public sealed class ManagedJob<TItem> : McpJob
 				error = exception.Error.Message;
 			}
 			catch (CheatEngineClientException exception) when (exception.Failure.Kind is
-															   CheatEngineFailureKind.ActivationExpired)
+																   CheatEngineFailureKind.ActivationExpired)
 			{
 				final = JobState.Cancelled;
 				error = ActivationEndedMessage;
@@ -236,6 +236,7 @@ public sealed class ManagedJob<TItem> : McpJob
 				error = UnexpectedMessage;
 			}
 		}
+
 		Volatile.Write(ref _error, error);
 		_writer.Close();
 		final = Finalize(final);

@@ -23,7 +23,78 @@ internal static class SampleModule
 	internal const uint Pointer32Rva = TextRva + 0x1F0;
 	internal const int TextSize = 0x2000;
 
+	internal const uint ImportRva = 0x6000;
+	internal const uint DelayImportRva = 0x7000;
+	internal const uint DelayStubRva = TextRva + 0x40;
+	internal const ulong PreferredBase32 = 0x10000000;
+	internal const ulong KernelBase64 = 0x7FFB00000000;
+	internal const ulong KernelBase32 = 0x76A00000;
+	internal const ulong BoundValue = 0x7FFC00001000;
+
 	internal static readonly Guid Signature = new("3f2504e0-4f89-11d3-9a0c-0305e82c3301");
+
+	/// <summary>
+	///     The sample DLL with an import section at <see cref="ImportRva" />: KERNEL32.dll (two named imports and one by
+	///     ordinal) and a bound bound.dll without lookup table; and, unless <paramref name="withDelayLoads" /> is false, a
+	///     delay-load section at <see cref="DelayImportRva" /> with USER32.dll whose slot still points at a stub in .text.
+	/// </summary>
+	internal static (TestPe Pe, TestImportTable Imports, TestImportTable? DelayImports) BuildWithImports(
+		bool is64 = true, bool withDelayLoads = true)
+	{
+		ulong kernel = is64 ? KernelBase64 : KernelBase32;
+		ulong bound = is64 ? BoundValue : 0x77001000;
+		TestPe pe = Build(is64: is64);
+		TestImportTable imports = TestPe.ImportData(ImportRva, is64,
+		[
+			new TestImportDll("KERNEL32.dll",
+			[
+				new TestImport("Sleep", kernel + 0x1000, 0x5A1),
+				new TestImport("GetTickCount", kernel + 0x2000, 0x2B3),
+				new TestImport(null, kernel + 0x3000, Ordinal: 17)
+			]),
+			new TestImportDll("bound.dll", [new TestImport(null, bound), new TestImport(null, bound + 0x10)], true)
+		]);
+		pe.AddSection(".idata", ImportRva, imports.Data, TestPe.WritableData)
+			.SetDirectory(1, ImportRva, imports.DescriptorsSize);
+		if (!withDelayLoads)
+		{
+			return (pe, imports, null);
+		}
+
+		ulong stub = (is64 ? LoadedBase : PreferredBase32) + DelayStubRva;
+		TestImportTable delayed = TestPe.ImportData(DelayImportRva, is64,
+			[new TestImportDll("USER32.dll", [new TestImport("MessageBoxW", stub, 0x28A)])], true);
+		pe.AddSection(".didat", DelayImportRva, delayed.Data, TestPe.WritableData)
+			.SetDirectory(13, DelayImportRva, delayed.DescriptorsSize);
+		return (pe, imports, delayed);
+	}
+
+	/// <summary>
+	///     The sample DLL with only a delay-load section at <see cref="DelayImportRva" />, its descriptor laid out in
+	///     <paramref name="form" />: USER32.dll imports MessageBoxW by name (hint 0x28A) and ordinal 42, and each slot
+	///     still points at its load stub in .text. The stubs and, in the address form, the descriptor fields and the named
+	///     lookup entries are base relocations, so <see cref="TestPe.Map" /> moves them to any base as a loader does.
+	/// </summary>
+	internal static (TestPe Pe, TestImportTable DelayImports) BuildWithDelayLoads(bool is64, TestDelayForm form)
+	{
+		ulong preferred = is64 ? PreferredBase : PreferredBase32;
+		TestPe pe = Build(is64: is64);
+		TestImportTable delayed = TestPe.ImportData(DelayImportRva, is64,
+		[
+			new TestImportDll("USER32.dll",
+			[
+				new TestImport("MessageBoxW", preferred + DelayStubRva, 0x28A),
+				new TestImport(null, preferred + DelayStubRva + 0x10, Ordinal: 42)
+			])
+		], true, form, preferred);
+		pe.AddSection(".didat", DelayImportRva, delayed.Data, TestPe.WritableData)
+			.SetDirectory(13, DelayImportRva, delayed.DescriptorsSize);
+		byte slot = is64 ? PeRelocations.Dir64 : PeRelocations.HighLow;
+		pe.Relocations.Add((delayed.SlotRvas[0], slot));
+		pe.Relocations.Add((delayed.SlotRvas[0] + (is64 ? 8u : 4u), slot));
+		pe.Relocations.AddRange(delayed.AddressFields);
+		return (pe, delayed);
+	}
 
 	internal static TestPe Build(int textSize = TextSize, bool is64 = true, uint? additionalRelocationRva = null)
 	{
@@ -33,7 +104,7 @@ internal static class SampleModule
 			text[index] = (byte) (0x90 + (index % 7));
 		}
 
-		ulong preferred = is64 ? PreferredBase : 0x10000000;
+		ulong preferred = is64 ? PreferredBase : PreferredBase32;
 		// An absolute pointer to .data, which the loader relocates.
 		BinaryPrimitives.WriteUInt64LittleEndian(text.AsSpan((int) (PointerRva - TextRva)), preferred + DataRva);
 		BinaryPrimitives.WriteUInt32LittleEndian(text.AsSpan((int) (Pointer32Rva - TextRva)),

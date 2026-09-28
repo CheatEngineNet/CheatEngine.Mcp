@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Runtime.Versioning;
-using System.Text.Json;
 using System.Text.Json.Nodes;
 
 using CheatEngine.Mcp.Core.Contract;
@@ -44,7 +43,8 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			});
 
 			step = "gateway instance discovery";
-			JsonArray instances = (await GatewayCallAsync(gateway, CheatEngineToolNames.InstanceList))["instances"]!.AsArray();
+			JsonArray instances = (await GatewayCallAsync(gateway, CheatEngineToolNames.InstanceList))["instances"]!
+				.AsArray();
 			Assert.Equal(2, instances.Count);
 			AssertInstance(instances, sandbox.HostA);
 			AssertInstance(instances, sandbox.HostB);
@@ -143,12 +143,14 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			speedhackAttempted = true;
 			await AssertSpeedAsync(instanceA, 0.5);
 			Assert.Equal(1.0,
-				(await SuccessfulCallAsync(instanceB, CheatEngineToolNames.SpeedhackGetState))["speed"]!.GetValue<double>(),
+				(await SuccessfulCallAsync(instanceB, CheatEngineToolNames.SpeedhackGetState))["speed"]!
+				.GetValue<double>(),
 				4);
 			await AssertSpeedAsync(instanceA, 2.0);
 			await AssertSpeedAsync(instanceA, 1.0);
 			Assert.Equal(1.0,
-				(await SuccessfulCallAsync(instanceB, CheatEngineToolNames.SpeedhackGetState))["speed"]!.GetValue<double>(),
+				(await SuccessfulCallAsync(instanceB, CheatEngineToolNames.SpeedhackGetState))["speed"]!
+				.GetValue<double>(),
 				4);
 
 			step = "instance A address-list unfreeze and deletion";
@@ -161,7 +163,8 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			AssertMemoryValue(await ReadMemoryAsync(instanceA, sandbox.HostA.TargetAddress), 20260931);
 			await SuccessfulCallAsync(instanceA, CheatEngineToolNames.RecordDelete,
 				new Dictionary<string, object?> { ["ids"] = new[] { existingRecordId } });
-			Assert.DoesNotContain((await SuccessfulCallAsync(instanceA, CheatEngineToolNames.RecordList))["records"]!.AsArray(),
+			Assert.DoesNotContain(
+				(await SuccessfulCallAsync(instanceA, CheatEngineToolNames.RecordList))["records"]!.AsArray(),
 				entry => entry!["id"]!.GetValue<int>() == existingRecordId);
 			recordId = null;
 
@@ -339,7 +342,8 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			Assert.True(JsonNode.DeepEquals(scanner, status));
 		}
 
-		Assert.Single((await SuccessfulCallAsync(instanceB, CheatEngineToolNames.ScanListScanners))["scanners"]!.AsArray());
+		Assert.Single(
+			(await SuccessfulCallAsync(instanceB, CheatEngineToolNames.ScanListScanners))["scanners"]!.AsArray());
 
 		await WriteMemoryAsync(instanceA, sandbox.HostA.TargetAddress, 20260932);
 		await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanNext,
@@ -352,16 +356,17 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 		await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanNext,
 			new Dictionary<string, object?> { ["value"] = "20260932" });
 		await WaitForMainScanAsync(instanceA);
-		AssertScanContains(await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanListResults), sandbox.HostA.TargetAddress,
+		AssertScanContains(await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanListResults),
+			sandbox.HostA.TargetAddress,
 			"20260932");
-		await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanReset,
+		await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanDelete,
 			new Dictionary<string, object?> { ["scannerName"] = "independent-one" });
 		Assert.Equal(1L,
 			(await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanListResults))["count"]!.GetValue<long>());
 		Assert.True((await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanGetStatus,
 				new Dictionary<string, object?> { ["scannerName"] = "independent-two" }))["resultsReady"]!
 			.GetValue<bool>());
-		await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanReset,
+		await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanDelete,
 			new Dictionary<string, object?> { ["scannerName"] = "independent-two" });
 
 		Assert.Equal("false", (await sandbox.ScanUiAsync("A", "hide"))[7]);
@@ -372,7 +377,8 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 		await WriteMemoryAsync(instanceA, sandbox.HostA.TargetAddress, 20260927);
 		await sandbox.ScanUiAsync("A", "manual");
 		await WaitForMainScanAsync(instanceA);
-		AssertScanContains(await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanListResults), sandbox.HostA.TargetAddress,
+		AssertScanContains(await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanListResults),
+			sandbox.HostA.TargetAddress,
 			"20260927");
 		await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanReset);
 		sandbox.Record("main_and_independent_scanners",
@@ -388,7 +394,10 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 	private static void AssertScanContains(JsonNode page, string address, string value)
 	{
 		Assert.Contains(page["results"]!.AsArray(), row =>
-			string.Equals(row!["address"]!.GetValue<string>(), address, StringComparison.OrdinalIgnoreCase)
+			// Scan addresses are uppercase hex without 0x; the live target reports its address with the prefix.
+			string.Equals(row!["address"]!.GetValue<string>(),
+				address.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? address[2..] : address,
+				StringComparison.OrdinalIgnoreCase)
 			&& row["value"]!.GetValue<string>() == value);
 	}
 
@@ -428,7 +437,8 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 		DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(10);
 		do
 		{
-			JsonArray instances = (await GatewayCallAsync(gateway, CheatEngineToolNames.InstanceList))["instances"]!.AsArray();
+			JsonArray instances = (await GatewayCallAsync(gateway, CheatEngineToolNames.InstanceList))["instances"]!
+				.AsArray();
 			if (instances.Count == 1 && instances[0]!["instanceId"]!.GetValue<string>() == remainingInstanceId)
 			{
 				return;

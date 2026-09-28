@@ -16,7 +16,10 @@ public static class McpLocalPrimitives
 
 	/// <summary>
 	///     Adds every Local resource and prompt of <paramref name="manifest" /> to the server's collections, with the same
-	///     serializer and schema options as a backend, and the Core error filters for resource reads and prompt requests.
+	///     serializer and schema options and the same prompt argument titles as a backend, the Core error filters for
+	///     resource reads and prompt requests, and the completion bound, which keeps every <c>completion/complete</c>
+	///     answer of the server, the SDK's allowed values of these prompts included, within
+	///     <see cref="McpCompletions.MaximumValues" /> values.
 	/// </summary>
 	/// <param name="options">The server options, before the server is created.</param>
 	/// <param name="manifest">The composition.</param>
@@ -50,5 +53,6 @@ public static class McpLocalPrimitives
 
 		options.Filters.Request.ReadResourceFilters.Add(CheatEngineToolFilters.MapResourceErrors);
 		options.Filters.Request.GetPromptFilters.Add(CheatEngineToolFilters.MapPromptErrors);
+		options.Filters.Request.CompleteFilters.Add(CheatEngineToolFilters.BoundCompletions);
 	}
 }

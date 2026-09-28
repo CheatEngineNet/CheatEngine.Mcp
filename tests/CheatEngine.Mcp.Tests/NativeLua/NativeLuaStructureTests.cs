@@ -17,7 +17,8 @@ namespace CheatEngine.Mcp.Tests.NativeLua;
 public sealed partial class NativeLuaToolRuntimeTests
 {
 	// Cheat Engine's structure API as plain Lua tables: getStructure(index or name), a global list, elements kept
-	// sorted by offset on endUpdate, and element indices through the published index property.
+	// sorted by offset on endUpdate, and element indices through the published index property. Size is the end of the
+	// element with the highest offset, as Cheat Engine's getStructureSize reads its last sorted element.
 	private const string StructureHostStubs = """
 	                                          structures = {}
 	                                          pdb = {}
@@ -43,9 +44,12 @@ public sealed partial class NativeLuaToolRuntimeTests
 	                                            setmetatable(s, {__index = function(t, k)
 	                                              if k == 'Count' then return #t.elements end
 	                                              if k == 'Size' then
-	                                                local size = 0
-	                                                for _, e in ipairs(t.elements) do size = math.max(size, e.Offset + e.bytesize) end
-	                                                return size
+	                                                local last = nil
+	                                                for _, e in ipairs(t.elements) do
+	                                                  if last == nil or e.Offset >= last.Offset then last = e end
+	                                                end
+	                                                if last == nil then return 0 end
+	                                                return last.Offset + last.bytesize
 	                                              end
 	                                            end})
 	                                            s.getElement = function(i) return s.elements[i + 1] end
@@ -107,9 +111,20 @@ public sealed partial class NativeLuaToolRuntimeTests
 	                                          define('PlayerBase', {})
 	                                          """;
 
+	// Player points to Enemy and Enemy back to Player, so the C header closure must end on the cycle.
+	private const string StructurePointerCycle = """
+	                                             local target = player.addElement()
+	                                             target.Offset = 24; target.Name = 'target'; target.Vartype = 12; target.bytesize = 8
+	                                             target.ChildStruct = enemy
+	                                             local owner = enemy.addElement()
+	                                             owner.Offset = 8; owner.Name = 'owner'; owner.Vartype = 12; owner.bytesize = 8
+	                                             owner.ChildStruct = player
+	                                             """;
+
 	private static readonly int[] StructureRemovedIndices = [2, 0];
 	private static readonly int[] StructureFormattedIndices = [2];
 	private static readonly ulong[] StructureFormattedBases = [0x1000UL];
+	private static readonly string[] StructureHeaderNames = ["Player"];
 
 	public static TheoryData<string, object?[]> StructureScripts => new()
 	{
@@ -124,6 +139,8 @@ public sealed partial class NativeLuaToolRuntimeTests
 		{ nameof(StructureLuaScripts.CreateClone), ["Copy", false, "Player"] },
 		{ nameof(StructureLuaScripts.CreateFromPdb), ["Peb", false, "_PEB", 4096] },
 		{ nameof(StructureLuaScripts.Delete), ["Player"] },
+		{ nameof(StructureLuaScripts.Rename), ["Player", "Hero"] },
+		{ nameof(StructureLuaScripts.CHeader), [StructureHeaderNames, "auto", 256, 8192, 1048576, 1048576] },
 		{
 			nameof(StructureLuaScripts.AddElements),
 			["Player", new object?[] { new object?[] { 4, "b", 6, null, 16, null, null } }]
@@ -278,6 +295,242 @@ public sealed partial class NativeLuaToolRuntimeTests
 	}
 
 	[Fact]
+	public void StructureSetName_StubbedStructures_RenamesInPlaceAndRefusesTakenOrMissingNames()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(StructureHostStubs);
+		// getStructure(name) also finds internal structures, which the global list does not hold.
+		InstallStubs("hidden = makeStructure('Hidden'); hidden.Internal = true; local byName = getStructure; " +
+					 "getStructure = function(x) if x == 'Hidden' then return hidden end return byName(x) end");
+		InstallStubs(StructurePointerCycle);
+		StructureTools tools = NativeStructureHarness().Structures;
+
+		StructureSummary renamed = tools.SetName("Player", "Hero", StructureToken);
+		StructureSummary unchanged = tools.SetName("Hero", "Hero", StructureToken);
+
+		Assert.Equal(new StructureSummary("Hero", 32, 4), renamed);
+		Assert.Equal(renamed, unchanged);
+		Assert.Equal(("Hero", "Hero", 3L), (LuaValue("player.Name"), LuaValue("enemy.elements[2].ChildStruct.Name"),
+			LuaValue("#structures")));
+		AssertDeclared(() => tools.SetName("Hero", "Enemy", StructureToken), ToolErrorKind.InvalidState,
+			ToolHostEffect.NotStarted);
+		AssertDeclared(() => tools.SetName("Hero", "Hidden", StructureToken), ToolErrorKind.InvalidState,
+			ToolHostEffect.NotStarted);
+		AssertDeclared(() => tools.SetName("Player", "Other", StructureToken), ToolErrorKind.NotFound,
+			ToolHostEffect.NotStarted);
+		Assert.Equal(("Hero", "Enemy"), (LuaValue("player.Name"), LuaValue("enemy.Name")));
+	}
+
+	[Fact]
+	public void StructureSetName_SetterThatFailsOrIgnoresTheName_IsHostRefusedNotApplied()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(StructureHostStubs);
+		InstallStubs("local index = getmetatable(enemy).__index; enemy.realName = enemy.Name; enemy.Name = nil; " +
+					 "setmetatable(enemy, {__index = function(t, k) if k == 'Name' then return t.realName end " +
+					 "return index(t, k) end, __newindex = function(t, k, v) if k == 'Name' then " +
+					 "if ignoreRename then return end error('read only') end rawset(t, k, v) end})");
+		StructureTools tools = NativeStructureHarness().Structures;
+
+		AssertDeclared(() => tools.SetName("Enemy", "Foe", StructureToken), ToolErrorKind.HostRefused,
+			ToolHostEffect.NotApplied);
+		InstallStubs("ignoreRename = true");
+		AssertDeclared(() => tools.SetName("Enemy", "Foe", StructureToken), ToolErrorKind.HostRefused,
+			ToolHostEffect.NotApplied);
+
+		Assert.Equal("Enemy", LuaValue("enemy.Name"));
+	}
+
+	[Fact]
+	public void StructureGenerateCHeader_CheatEngineGenerator_GetsTheRequestedStructuresOnly()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(StructureHostStubs);
+		InstallStubs(StructurePointerCycle);
+		InstallStubs("generate_c_header = function(list) received = list; " +
+					 "return 'header of ' .. list[1].Name .. ' and ' .. #list end");
+		StructureHeaderTools tools = NativeStructureHarness().Headers;
+
+		StructureCHeader header = tools.GenerateCHeader(["Player"], cancellationToken: StructureToken);
+		StructureCHeader both = tools.GenerateCHeader(["Enemy", "PlayerBase"], StructureHeaderGenerator.CheatEngine,
+			StructureToken);
+
+		Assert.Equal(("header of Player and 1", StructureHeaderGenerator.CheatEngine), (header.Text, header.Generator));
+		Assert.Equal(["Player", "Enemy"], header.Structures);
+		Assert.Equal("header of Enemy and 2", both.Text);
+		Assert.Equal(["Enemy", "PlayerBase", "Player"], both.Structures);
+		Assert.Equal("PlayerBase", LuaValue("received[2].Name"));
+	}
+
+	[Fact]
+	public void StructureGenerateCHeader_MissingOrFailingGenerator_FallsBackToTheManagedCopy()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(StructureHostStubs);
+		InstallStubs(StructurePointerCycle);
+		StructureHeaderTools tools = NativeStructureHarness().Headers;
+
+		StructureCHeader missing = tools.GenerateCHeader(["Player"], cancellationToken: StructureToken);
+		AssertDeclared(() => tools.GenerateCHeader(["Player"], StructureHeaderGenerator.CheatEngine, StructureToken),
+			ToolErrorKind.Unsupported, ToolHostEffect.NotStarted);
+		InstallStubs("generate_c_header = function() error('broken') end");
+		StructureCHeader failed = tools.GenerateCHeader(["Player"], cancellationToken: StructureToken);
+		AssertDeclared(() => tools.GenerateCHeader(["Player"], StructureHeaderGenerator.CheatEngine, StructureToken),
+			ToolErrorKind.HostRefused, ToolHostEffect.NotApplied);
+		InstallStubs("generate_c_header = function() return nil end");
+		AssertDeclared(() => tools.GenerateCHeader(["Player"], StructureHeaderGenerator.CheatEngine, StructureToken),
+			ToolErrorKind.HostRefused, ToolHostEffect.NotApplied);
+		InstallStubs("generate_c_header = function() return string.rep('x', 1048577) end");
+		AssertDeclared(() => tools.GenerateCHeader(["Player"], cancellationToken: StructureToken),
+			ToolErrorKind.LimitExceeded, ToolHostEffect.NotStarted);
+		StructureCHeader managed = tools.GenerateCHeader(["Player"], StructureHeaderGenerator.Managed, StructureToken);
+
+		Assert.Equal((StructureHeaderGenerator.Managed, StructureHeaderGenerator.Managed),
+			(missing.Generator, failed.Generator));
+		Assert.Equal(missing.Text, failed.Text);
+		Assert.Equal(missing.Text, managed.Text);
+		Assert.Equal(["Player", "Enemy"], managed.Structures);
+		Assert.Contains("struct Player\n{\n\tint32_t health; // 0x0 int32\n\tuint8_t pad_4[0x4]; // 0x4 padding\n" +
+						"\tfloat speed; // 0x8 float\n\tuint8_t pad_C[0x4]; // 0xC padding\n" +
+						"\tuint8_t flags; // 0x10 binary\n\tuint8_t pad_11[0x7]; // 0x11 padding\n" +
+						"\tEnemy *target; // 0x18 pointer to Enemy\n};\n", managed.Text, StringComparison.Ordinal);
+		Assert.Contains("\tPlayer *owner; // 0x8 pointer to Player\n", managed.Text, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void StructureGenerateCHeader_NestedBinaryAndCustomElements_AreCopiedForTheManagedGenerator()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(StructureHostStubs);
+		InstallStubs("""
+					 vec = define('Vec', {{0, 'x', 4}, {4, 'y', 4}, {8, 'z', 4}})
+					 local pos = player.addElement()
+					 pos.Offset = 32; pos.Name = 'pos'; pos.Vartype = 12; pos.bytesize = 12; pos.ChildStruct = vec
+					 pos.NestedStructure = true
+					 local kind = player.addElement()
+					 kind.Offset = 44; kind.Name = 'kind'; kind.Vartype = 13; kind.CustomTypeName = 'BE4'
+					 player.elements[3].BitStart = 1; player.elements[3].BitSize = 3
+					 """);
+		StructureHeaderTools tools = NativeStructureHarness().Headers;
+
+		StructureCHeader header = tools.GenerateCHeader(["Player"], StructureHeaderGenerator.Managed, StructureToken);
+
+		Assert.Equal(["Player", "Vec"], header.Structures);
+		Assert.Contains("\tuint8_t flags; // 0x10 binary bits 1-3\n", header.Text, StringComparison.Ordinal);
+		Assert.Contains("\tVec pos; // 0x20 nested Vec\n", header.Text, StringComparison.Ordinal);
+		Assert.Contains("\tuint32_t kind; // 0x2C custom \"BE4\"\n", header.Text, StringComparison.Ordinal);
+		Assert.True(header.Text.IndexOf("struct Vec\n", StringComparison.Ordinal) <
+					header.Text.IndexOf("struct Player\n", StringComparison.Ordinal),
+			"An embedded structure must be defined before the structure that embeds it.");
+	}
+
+	[Fact]
+	public void StructureGenerateCHeader_PointerIntoItsChild_IsCopiedWithItsStartOnlyWhenNotNested()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(StructureHostStubs);
+		InstallStubs(StructurePointerCycle);
+		InstallStubs("""
+					 player.elements[4].childStart = 4
+					 enemy.elements[2].getChildStructStart = function() error('no start') end
+					 vec = define('Vec', {{0, 'x', 4}, {4, 'y', 4}, {8, 'z', 4}})
+					 local pos = player.addElement()
+					 pos.Offset = 32; pos.Name = 'pos'; pos.Vartype = 12; pos.bytesize = 12; pos.ChildStruct = vec
+					 pos.NestedStructure = true; pos.childStart = 4
+					 """);
+		StructureHeaderTools tools = NativeStructureHarness().Headers;
+
+		LuaJsonResult<StructureLuaHeader> copied =
+			StructureHeaderScript(StructureHeaderNames, "managed", 256, 8192, 1048576, 1048576);
+		StructureCHeader header = tools.GenerateCHeader(["Player"], StructureHeaderGenerator.Managed, StructureToken);
+
+		StructureLuaHeaderElement[] elements = copied.Value!.Structures![0].Elements;
+		Assert.Equal(("target", 4L, "pos", (long?) null),
+			(elements[3].Name, elements[3].ChildStart, elements[4].Name, elements[4].ChildStart));
+		Assert.Equal(("owner", (long?) null), (copied.Value.Structures[1].Elements[1].Name,
+			copied.Value.Structures[1].Elements[1].ChildStart));
+		Assert.Contains("\tuint8_t *target; // 0x18 pointer to Enemy+0x4\n", header.Text, StringComparison.Ordinal);
+		Assert.Contains("\tPlayer *owner; // 0x8 pointer to Player\n", header.Text, StringComparison.Ordinal);
+		Assert.Contains("\tVec pos; // 0x20 nested Vec\n", header.Text, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void StructureGenerateCHeader_NestedChildWithAnElementPastItsSize_IsEmbeddedAsBytes()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(StructureHostStubs);
+		// Cheat Engine's Size of Pair ends at its highest-offset element, b (2 + 2 = 4), yet a reaches 8.
+		InstallStubs("""
+					 pair = define('Pair', {{0, 'a', 3, nil, 8}, {2, 'b', 1, nil, 2}})
+					 holder = define('Holder', {{4, 'x', 2}})
+					 local inner = holder.addElement()
+					 inner.Offset = 0; inner.Name = 'inner'; inner.Vartype = 12; inner.bytesize = 4
+					 inner.ChildStruct = pair; inner.NestedStructure = true
+					 """);
+		StructureHeaderTools tools = NativeStructureHarness().Headers;
+
+		StructureCHeader header = tools.GenerateCHeader(["Holder"], StructureHeaderGenerator.Managed, StructureToken);
+
+		Assert.Equal(["Holder", "Pair"], header.Structures);
+		Assert.Contains("// \"Pair\": 0x4 bytes, 2 elements\nstruct Pair\n{\n\tuint64_t a; // 0x0 uint64\n" +
+						"\t// 0x2 uint16 \"b\": overlaps the member before it, not declared\n};\n" +
+						"// An element ends at 0x8, past Cheat Engine's size 0x4, which ends at the element with the " +
+						"highest offset.\n// static_assert(sizeof(Pair) == 0x8, \"Pair\");\n", header.Text,
+			StringComparison.Ordinal);
+		Assert.Contains("\tuint8_t inner[0x4]; // 0x0 nested Pair as bytes\n\tuint32_t x; // 0x4 uint32\n",
+			header.Text, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void StructureGenerateCHeader_Limits_AreDeclaredBeforeAnyGeneration()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(StructureHostStubs);
+		InstallStubs(StructurePointerCycle);
+		InstallStubs("generate_c_header = function(list) called = true; return string.rep('x', 100) end");
+		string[] missing = ["Player", "Nope"];
+
+		LuaJsonResult<StructureLuaHeader> structures =
+			StructureHeaderScript(StructureHeaderNames, "auto", 1, 8192, 64, 1048576);
+		LuaJsonResult<StructureLuaHeader> elements =
+			StructureHeaderScript(StructureHeaderNames, "auto", 256, 4, 64, 1048576);
+		LuaJsonResult<StructureLuaHeader> unknown = StructureHeaderScript(missing, "auto", 256, 8192, 64, 1048576);
+		Assert.Null(LuaValue("called"));
+		LuaJsonResult<StructureLuaHeader> text = StructureHeaderScript(StructureHeaderNames, "auto", 256, 8192, 64,
+			1048576);
+
+		Assert.Equal(("limit_exceeded", "not_started"), (structures.Error!.Kind, structures.Error.HostEffect));
+		Assert.Equal(("limit_exceeded", "not_started"), (elements.Error!.Kind, elements.Error.HostEffect));
+		Assert.Equal(("not_found", "not_started"), (unknown.Error!.Kind, unknown.Error.HostEffect));
+		Assert.Contains("names[1]", unknown.Error.Message, StringComparison.Ordinal);
+		Assert.Equal(("limit_exceeded", "not_started"), (text.Error!.Kind, text.Error.HostEffect));
+		Assert.Equal(true, LuaValue("called"));
+	}
+
+	[Fact]
+	public void StructureGenerateCHeader_ElementsSpanningTooManyBytes_SkipCheatEngineGenerator()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(StructureHostStubs);
+		InstallStubs("generate_c_header = function(list) called = true; return 'native' end");
+
+		// Player's elements span 4 + 4 + 1 bytes.
+		LuaJsonResult<StructureLuaHeader> skipped =
+			StructureHeaderScript(StructureHeaderNames, "auto", 256, 8192, 1048576, 8);
+		LuaJsonResult<StructureLuaHeader> refused =
+			StructureHeaderScript(StructureHeaderNames, "cheat_engine", 256, 8192, 1048576, 8);
+		Assert.Null(LuaValue("called"));
+		LuaJsonResult<StructureLuaHeader> native =
+			StructureHeaderScript(StructureHeaderNames, "cheat_engine", 256, 8192, 1048576, 9);
+
+		Assert.False(skipped.IsError);
+		Assert.Null(skipped.Value!.Text);
+		Assert.Equal(3, Assert.Single(skipped.Value.Structures!).Elements.Length);
+		Assert.Equal(("limit_exceeded", "not_started"), (refused.Error!.Kind, refused.Error.HostEffect));
+		Assert.Equal("native", native.Value!.Text);
+	}
+
+	[Fact]
 	public void StructureAddElements_NewOffsets_ReportTheSortedIndicesAndRollBackARefusal()
 	{
 		using RuntimeScope scope = CreateScope();
@@ -364,8 +617,9 @@ public sealed partial class NativeLuaToolRuntimeTests
 
 		StructureSummary guessed = tools.Autoguess("Guess", "1000", "8", 64, cancellationToken: StructureToken);
 
+		// Cheat Engine reads from the base argument, so the body receives the object address plus the offset.
 		Assert.Equal(new StructureSummary("Guess", 12, 1), guessed);
-		Assert.Equal(("0x1000", 8L, 64L), (LuaValue("guessed.base"), LuaValue("guessed.offset"),
+		Assert.Equal(("0x1008", 8L, 64L), (LuaValue("guessed.base"), LuaValue("guessed.offset"),
 			LuaValue("guessed.size")));
 		AssertDeclared(
 			() => tools.Autoguess("Other", "1000", createIfMissing: false, cancellationToken: StructureToken),
@@ -478,6 +732,13 @@ public sealed partial class NativeLuaToolRuntimeTests
 	private static StructureToolHarness NativeStructureHarness()
 	{
 		return new StructureToolHarness { NativeLua = ExecuteNativeLua };
+	}
+
+	/// <summary>Runs the C header script with explicit caps and copies its result.</summary>
+	private static LuaJsonResult<StructureLuaHeader> StructureHeaderScript(params object?[] arguments)
+	{
+		return ReadJson(LuaToolRuntime.BuildSource(StructureLuaScripts.CHeader, 100, arguments),
+			StructureLuaJsonContext.Default.StructureLuaHeader);
 	}
 
 	/// <summary>Runs one Client Lua operation on the test's Lua state, as the Client would on Cheat Engine's thread.</summary>

@@ -298,8 +298,6 @@ public sealed class McpModuleLifecycleTests
 
 	private sealed class PartiallyStartedBackend : IMcpBackendHost
 	{
-		public string? Endpoint => null;
-
 		public int StopAcceptingCalls
 		{
 			get;
@@ -311,6 +309,8 @@ public sealed class McpModuleLifecycleTests
 			get;
 			private set;
 		}
+
+		public string? Endpoint => null;
 
 		public Task StartAsync()
 		{

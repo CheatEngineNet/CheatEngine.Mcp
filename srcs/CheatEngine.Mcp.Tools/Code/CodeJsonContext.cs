@@ -20,6 +20,8 @@ namespace CheatEngine.Mcp.Tools.Code;
 [JsonSerializable(typeof(CodeComment))]
 [JsonSerializable(typeof(CodeClearResult))]
 [JsonSerializable(typeof(CodeJobEvent))]
+[JsonSerializable(typeof(CodeFunctionGraph))]
+[JsonSerializable(typeof(CodeBlockTerminator))]
 [JsonSerializable(typeof(JobStatus))]
 [JsonSerializable(typeof(JobState))]
 [JsonSerializable(typeof(string[]))]

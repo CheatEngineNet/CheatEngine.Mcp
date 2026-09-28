@@ -13,28 +13,51 @@ namespace CheatEngine.Mcp.Hosting.Gateway;
 
 /// <summary>
 ///     The gateway's resource handlers. The SDK serves the Local documents and appends them to these lists; these
-///     handlers add <c>cheatengine://instances</c> and the routed <c>cheatengine://instances/{instanceId}/…</c> templates,
-///     and read a routed URI from exactly the instance it names.
+///     handlers add <c>cheatengine://instances</c>, the concrete live resources of every verified instance and the
+///     routed <c>cheatengine://instances/{instanceId}/…</c> templates, and read a routed URI from exactly the instance
+///     it names.
 /// </summary>
 /// <remarks>
-///     A routed read strips the prefix (a pure swap to <c>cheatengine://instance/…</c>), refuses an unknown path without
-///     contacting any backend, verifies the backend identity like a tool call, reads once and rewrites the content URIs
-///     back. It never retries and never reads from another instance.
+///     <para>
+///         The resource list is read from the registry and the identity cache only
+///         (<see cref="GatewayLiveInstances" />), never with an identity check, and is immediately stale (<c>ttlMs</c>
+///         0); <see cref="GatewayResourceListMonitor" /> sends <c>notifications/resources/list_changed</c> when its
+///         instances change.
+///     </para>
+///     <para>
+///         A routed read strips the prefix (a pure swap to <c>cheatengine://instance/…</c>), refuses an unknown path
+///         without contacting any backend, verifies the backend identity like a tool call, reads once and rewrites the
+///         content URIs back. It never retries and never reads from another instance.
+///     </para>
 /// </remarks>
 internal sealed partial class GatewayResourceRouter(
 	GatewayOptions options,
 	GatewayBackendConnector connector,
 	GatewayInstanceTool instances,
 	GatewayResourceCatalog catalog,
+	GatewayLiveInstances live,
 	ILogger<GatewayResourceRouter> logger)
 {
-	internal static ValueTask<ListResourcesResult> ListResourcesAsync(RequestContext<ListResourcesRequestParams> _,
-		CancellationToken __)
+	/// <summary>
+	///     Lists <c>cheatengine://instances</c>, then the concrete live resources of each listed instance in their
+	///     gateway form, such as <c>cheatengine://instances/{instanceId}/process</c>; the SDK appends the Local
+	///     documents.
+	/// </summary>
+	/// <param name="_">The request; the list has a single page.</param>
+	/// <param name="cancellationToken">The request's cancellation.</param>
+	/// <returns>The list, private and immediately stale.</returns>
+	internal ValueTask<ListResourcesResult> ListResourcesAsync(RequestContext<ListResourcesRequestParams> _,
+		CancellationToken cancellationToken)
 	{
+		IReadOnlyList<InstanceListEntry> listed = live.ListForClient(cancellationToken);
 		return ValueTask.FromResult(new ListResourcesResult
 		{
-			Resources = [GatewayResourceCatalog.CreateInstancesResource()],
-			TimeToLive = GatewayRouter.CatalogTimeToLive,
+			Resources =
+			[
+				GatewayResourceCatalog.CreateInstancesResource(),
+				.. listed.SelectMany(catalog.CreateLiveResources)
+			],
+			TimeToLive = TimeSpan.Zero,
 			CacheScope = CacheScope.Private
 		});
 	}

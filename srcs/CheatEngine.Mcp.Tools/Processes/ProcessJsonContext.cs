@@ -13,6 +13,7 @@ namespace CheatEngine.Mcp.Tools.Processes;
 [JsonSerializable(typeof(ProcessSaveFileResult))]
 [JsonSerializable(typeof(ProcessSaveFilePublishFailure))]
 [JsonSerializable(typeof(ProcessPausedResult))]
+[JsonSerializable(typeof(ReleasedResource))]
 [JsonSerializable(typeof(ProcessThreadListResult))]
 [JsonSerializable(typeof(ProcessPointerSizeResult))]
 [JsonSerializable(typeof(string[]))]

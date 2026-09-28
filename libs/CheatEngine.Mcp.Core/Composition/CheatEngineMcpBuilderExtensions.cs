@@ -3,7 +3,6 @@ using System.Reflection;
 using System.Text.Json.Serialization.Metadata;
 
 using CheatEngine.Client;
-
 using CheatEngine.Mcp.Core.Execution;
 using CheatEngine.Mcp.Core.Features;
 using CheatEngine.Mcp.Core.Jobs;
@@ -12,6 +11,7 @@ using CheatEngine.Mcp.Core.Targets;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace CheatEngine.Mcp.Core.Composition;
@@ -91,7 +91,7 @@ public static class CheatEngineMcpBuilderExtensions
 					services.GetRequiredService<IOptions<McpExecutionOptions>>(),
 					services.GetRequiredService<DispatchStatistics>(),
 					services.GetRequiredService<TimeProvider>(),
-					services.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ToolDispatch>>(),
+					services.GetRequiredService<ILogger<ToolDispatch>>(),
 					services.GetRequiredService<IFixedLuaExecutor>())));
 				builder.Services.TryAddScoped<McpStateLedger>();
 				builder.Services.TryAddScoped<TargetResources>();

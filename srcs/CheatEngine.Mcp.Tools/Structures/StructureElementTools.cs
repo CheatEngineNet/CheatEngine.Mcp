@@ -51,13 +51,13 @@ public sealed class StructureElementTools
 		ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Renames, retypes or moves elements. Every update names an element by its index before this call; all are " +
-		"checked first, then applied in order. The first refusal stops the batch with partial_effect (details.applied, " +
-		"details.failedIndex); read the structure with structure_get before retrying the rest.")]
+		"Renames, retypes or moves elements. Every update names a different element by its index before this call; " +
+		"all are checked first, then applied in order. The first refusal stops the batch with partial_effect " +
+		"(details.applied, details.failedIndex); read the structure with structure_get before retrying the rest.")]
 	public StructureChange UpdateElements(
 		[Description("The structure's case-sensitive name.")]
 		string name,
-		[Description("The updates (1-256); each sets at least one field.")]
+		[Description("The updates (1-256), at most one per element; each sets at least one field.")]
 		StructureElementUpdate[] updates,
 		CancellationToken cancellationToken = default)
 	{

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 
 using CheatEngine.Client;
 using CheatEngine.Client.Inspection;
@@ -16,6 +17,22 @@ internal static class ExecSupport
 	internal const int MaximumArgumentText = 4096;
 	internal const int MaximumExpression = 1024;
 
+	/// <summary>
+	///     The UTF-8 bytes of a managed assembly path: Cheat Engine's <c>injectDotNetDLL</c> writes it as UTF-16 with a
+	///     terminator into a 512-byte Auto Assembler allocation.
+	/// </summary>
+	internal const int MaximumManagedPathBytes = 255;
+
+	/// <summary>
+	///     The UTF-8 bytes of a managed class name, method name or parameter: each is written as UTF-16 with a
+	///     terminator into a 256-byte Auto Assembler allocation.
+	/// </summary>
+	internal const int MaximumManagedTextBytes = 127;
+
+	internal const string ManagedTextHint =
+		"Cheat Engine copies assemblyPath, className, methodName and parameter into fixed Auto Assembler strings; " +
+		"move the assembly to a short plain path and pass larger or arbitrary data through a file the method reads.";
+
 	internal static string Expression(string? value, string parameter)
 	{
 		if (value is null || value.Any(char.IsControl))
@@ -32,6 +49,29 @@ internal static class ExecSupport
 		}
 
 		return text;
+	}
+
+	/// <summary>
+	///     Checks a value that Cheat Engine's <c>injectDotNetDLL</c> formats into an Auto Assembler
+	///     <c>dw '...',0</c> data line of a fixed allocation. A quote would end the string, a line break would start a
+	///     new Auto Assembler line such as <c>{$lua}</c>, and a brace opens an Auto Assembler comment or directive, so
+	///     none of them may reach Cheat Engine. Bounding UTF-8 bytes keeps the UTF-16 copy and its terminator inside
+	///     the allocation even if Cheat Engine widened every byte to one character.
+	/// </summary>
+	/// <param name="value">The value exactly as it will be passed to Cheat Engine.</param>
+	/// <param name="parameter">The input-schema name reported in the error.</param>
+	/// <param name="maximumBytes">The allocation's capacity in UTF-8 bytes.</param>
+	/// <param name="required">Whether an empty or whitespace-only value is refused.</param>
+	/// <exception cref="CheatEngineToolException"><c>invalid_argument</c> with <c>not_started</c>.</exception>
+	internal static void ManagedInjectionText(string? value, string parameter, int maximumBytes, bool required)
+	{
+		if (value is null || (required && string.IsNullOrWhiteSpace(value)) ||
+			Encoding.UTF8.GetByteCount(value) > maximumBytes || value.Any(BreaksAssemblerString))
+		{
+			throw CheatEngineToolException.InvalidArgument(parameter,
+				$"must contain {(required ? 1 : 0)} to {maximumBytes} UTF-8 bytes without control characters, line " +
+				"separators, quotes (' or \") or braces ({ or }).", ManagedTextHint);
+		}
 	}
 
 	internal static Address Resolve(ICheatEngineClient client, string expression, string parameter,
@@ -154,6 +194,12 @@ internal static class ExecSupport
 		}
 
 		throw CheatEngineToolException.InvalidArgument(parameter, "must be a finite invariant floating-point number.");
+	}
+
+	private static bool BreaksAssemblerString(char character)
+	{
+		// Control characters include CR, LF, NUL, TAB and NEL; U+2028 and U+2029 are refused as line breaks too.
+		return char.IsControl(character) || character is '\'' or '"' or '{' or '}' or '\u2028' or '\u2029';
 	}
 
 	private static bool IsHex(ReadOnlySpan<char> value)

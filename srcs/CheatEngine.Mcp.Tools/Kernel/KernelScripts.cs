@@ -21,18 +21,48 @@ internal static class KernelScripts
 	                                      dbvmCr4 = register(dbvm_getCR4)}
 	                                  """;
 
+	/// <summary>
+	///     Cheat Engine's own confirmation text for loading DBVM, <c>rsToUseThisFunctionYouWillNeedToRunDBVM</c>. A
+	///     reason passed to <c>dbvm_initialize</c> replaces it in the dialog, so the body puts it before the MCP
+	///     reason.
+	/// </summary>
+	internal const string DbvmCrashWarning =
+		"To use this function you will need to run DBVM. There is a high chance running DBVM can crash your system " +
+		"and make you lose your data(So don't forget to save first). Do you want to run DBVM?";
+
+	// Arguments: offload the operating system, Cheat Engine's crash warning, the caller's reason or nil.
 	internal const string InitializeDbvm = """
-	                                       if type(dbvm_initialize) ~= 'function' or type(dbvm_initialized) ~= 'function' then
-	                                           return mcp.err('unsupported', 'This Cheat Engine build has no DBVM initialization API.', 'not_started')
-	                                       end
-	                                       local called = pcall(dbvm_initialize, a[1], a[2])
-	                                       local checked, initialized = pcall(dbvm_initialized)
-	                                       if not called or not checked or initialized ~= true then
-	                                           return mcp.err('host_refused', 'Cheat Engine did not confirm DBVM initialization; it may still be changing host state.',
-	                                               'unknown', 'Check kernel_get_status before deciding whether to retry.')
-	                                       end
-	                                       return {dbvmInitialized = true, offloadOperatingSystem = a[1], reason = a[2]}
-	                                       """;
+		if type(dbvm_initialize) ~= 'function' or type(dbvm_initialized) ~= 'function' then
+			return mcp.err('unsupported', 'This Cheat Engine build has no DBVM initialization API.', 'not_started')
+		end
+		if not a[1] then
+			-- Without offloading, Cheat Engine only sets its default DBVM keys and reports whether DBVM already runs.
+			pcall(dbvm_initialize, false)
+			local checked, initialized = pcall(dbvm_initialized)
+			if checked and initialized == true then
+				return {dbvmInitialized = true, offloadOperatingSystem = false, reason = a[3]}
+			end
+			return mcp.err('invalid_state', 'DBVM is not running; offloadOperatingSystem=false loads nothing.',
+				'not_started', 'Check kernel_get_status. Only offloadOperatingSystem=true loads DBK and then DBVM '
+					.. 'after a human confirms, which can crash the host.')
+		end
+		-- A reason replaces Cheat Engine's own crash warning in its dialog, so the warning comes first.
+		local warning = a[2]
+		if type(translate) == 'function' then
+			local translated, text = pcall(translate, warning)
+			if translated and type(text) == 'string' and text ~= '' then warning = text end
+		end
+		local prompt = warning
+		if a[3] ~= nil then prompt = warning .. '\n\nReason given by the MCP client: ' .. a[3] end
+		local called = pcall(dbvm_initialize, true, prompt)
+		local checked, initialized = pcall(dbvm_initialized)
+		if not called or not checked or initialized ~= true then
+			return mcp.err('host_refused',
+				'Cheat Engine did not confirm DBVM initialization; it may still be changing host state.', 'unknown',
+				'Check kernel_get_status before deciding whether to retry.')
+		end
+		return {dbvmInitialized = true, offloadOperatingSystem = true, reason = a[3]}
+		""";
 
 	internal const string TranslateAddress = """
 	                                         if type(dbk_getPhysicalAddress) ~= 'function' then
@@ -114,7 +144,7 @@ internal static class KernelScripts
 			local id = createWatch(a[5], a[6], a[7], a[8], a[9])
 			assert(type(id) == 'number' and id >= 0, 'DBVM watch creation failed')
 			active.watchId = id
-			active.watchSeen = 0
+			active.watchRetrieved = 0
 			active.onStop = function(current)
 				local stopped, result = pcall(dbvm_watch_disable, current.watchId)
 				if not stopped or result == false then error('DBVM watch ' .. tostring(current.watchId) .. ' could not be disabled', 0) end
@@ -123,7 +153,12 @@ internal static class KernelScripts
 		return {watchId = job.watchId}
 		""";
 
-	internal static readonly string PollWatch = LuaJobKernelScripts.Kernel + "\n" + """
+	/// <summary>
+	///     Moves every event DBVM logged since the previous retrieval into the watch job's ring; the page itself is
+	///     read by the normal job poll. Arguments: namespace, job id. DBVM empties its log after each complete
+	///     retrieval, so every returned entry is new and <c>sourceIndex</c> counts all events retrieved for the watch.
+	/// </summary>
+	internal static readonly string DrainWatch = LuaJobKernelScripts.Kernel + "\n" + """
 		local function addressOf(event, upper, lower)
 			local value = event[upper]
 			if value == nil then value = event[lower] end
@@ -142,26 +177,21 @@ internal static class KernelScripts
 				r15 = addressOf(event, 'R15', 'r15'), cr3 = addressOf(event, 'CR3', 'cr3')}
 		end
 		local job = jobFind(a[1], a[2])
-		if job == nil or job.kind ~= 'kernelwatch' then
-			return mcp.err('not_found', 'Unknown or expired DBVM watch job: ' .. tostring(a[2]) .. '.', 'not_started',
-				'Start a new watch or list current jobs with runtime_list_jobs.')
+		-- A missing job is reported by the job poll that follows, which also retires the managed handle.
+		if job == nil or job.kind ~= 'kernelwatch' then return {found = false, retrieved = 0} end
+		if job.state ~= 'running' then return {found = true, retrieved = 0} end
+		if type(dbvm_watch_retrievelog) ~= 'function' then
+			return mcp.err('unsupported', 'This Cheat Engine build has no DBVM watch-log API.', 'started')
 		end
-		if job.state == 'running' then
-			if type(dbvm_watch_retrievelog) ~= 'function' then
-				return mcp.err('unsupported', 'This Cheat Engine build has no DBVM watch-log API.', 'started')
-			end
-			local called, entries = pcall(dbvm_watch_retrievelog, job.watchId)
-			if not called or type(entries) ~= 'table' then
-				return mcp.err('host_refused', 'DBVM could not retrieve watch events; the watch remains armed.', 'started',
-					'Stop the job with runtime_stop_job if it must no longer watch memory.')
-			end
-			local seen = job.watchSeen or 0
-			if seen > #entries then seen = 0 end
-			for index = seen + 1, #entries do jobPush(job, copyEvent(entries[index], index)) end
-			job.watchSeen = #entries
+		local called, entries = pcall(dbvm_watch_retrievelog, job.watchId)
+		if not called or type(entries) ~= 'table' then
+			return mcp.err('host_refused', 'DBVM could not retrieve watch events; the watch remains armed.', 'started',
+				'Stop the job with runtime_stop_job if it must no longer watch memory.')
 		end
-		local page = jobPoll(job, a[3], a[4])
-		return {job = page.job, events = page.items, firstSequence = page.firstSequence,
-			nextAfterSequence = page.nextAfterSequence, more = page.more, dropped = page.dropped}
+		-- Each retrieval returns only events logged since the previous one; a full ring evicts and counts the oldest.
+		local retrieved = job.watchRetrieved or 0
+		for index = 1, #entries do jobPush(job, copyEvent(entries[index], retrieved + index)) end
+		job.watchRetrieved = retrieved + #entries
+		return {found = true, retrieved = #entries}
 		""";
 }

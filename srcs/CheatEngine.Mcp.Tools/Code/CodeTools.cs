@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Text;
 
 using CheatEngine.Client;
 using CheatEngine.Client.Assembly;
@@ -120,8 +121,7 @@ public sealed class CodeTools
 		string? origin = null,
 		CancellationToken cancellationToken = default)
 	{
-
-		ValidateHexadecimalBytes(hexadecimalBytes);
+		string bytes = NormalizeHexadecimalBytes(hexadecimalBytes);
 
 		if (origin is not null)
 		{
@@ -130,7 +130,7 @@ public sealed class CodeTools
 
 		CodeLuaByteDisassembly decoded = _dispatch.RunLua(CheatEngineToolNames.CodeDisassembleBytes,
 			CodeScripts.DisassembleBytes, CodeLuaJsonContext.Default.CodeLuaByteDisassembly, cancellationToken,
-			hexadecimalBytes, origin);
+			bytes, origin);
 		return new CodeByteDisassembly(decoded.Origin, decoded.Text);
 	}
 
@@ -468,18 +468,29 @@ public sealed class CodeTools
 		}
 	}
 
-	private static CodeInstruction Instruction(AssemblyInstructionSnapshot instruction, string operation)
+	/// <summary>Copies one decoded instruction into the contract form.</summary>
+	/// <param name="instruction">Cheat Engine's copied instruction.</param>
+	/// <param name="operation">The tool name, for a malformed host instruction.</param>
+	/// <returns>The contract instruction.</returns>
+	internal static CodeInstruction Instruction(AssemblyInstructionSnapshot instruction, string operation)
 	{
 		if (instruction.Length <= 0)
 		{
-			throw new CheatEngineToolException(new ToolError(ToolErrorKind.HostRefused,
-				"Cheat Engine returned a decoded instruction without a positive byte length.", operation,
-				ToolHostEffect.Completed, false,
-				"Inspect the target's code region, then retry the disassembly."));
+			throw NonPositiveLength(operation);
 		}
 
 		return new CodeInstruction(HexFormat.Address(instruction.Address), instruction.AddressText, instruction.Opcode,
 			instruction.Extra, instruction.Text, Convert.ToHexString(instruction.Bytes.AsSpan()), instruction.Length);
+	}
+
+	/// <summary>The contract error for a decoded instruction without a positive byte length.</summary>
+	/// <param name="operation">The tool name.</param>
+	/// <returns>The exception to throw.</returns>
+	internal static CheatEngineToolException NonPositiveLength(string operation)
+	{
+		return new CheatEngineToolException(new ToolError(ToolErrorKind.HostRefused,
+			"Cheat Engine returned a decoded instruction without a positive byte length.", operation,
+			ToolHostEffect.Completed, false, "Inspect the target's code region, then retry the disassembly."));
 	}
 
 	private static void Page(int offset, int limit)
@@ -488,7 +499,12 @@ public sealed class CodeTools
 		RequireRange(limit, "limit", 1, MaximumPage);
 	}
 
-	private static void RequireRange(int value, string parameter, int minimum, int maximum)
+	/// <summary>Checks an inclusive integer range before any dispatch, as <c>invalid_argument</c> like the domain's paging.</summary>
+	/// <param name="value">The caller's value.</param>
+	/// <param name="parameter">The parameter that carried it.</param>
+	/// <param name="minimum">The smallest accepted value.</param>
+	/// <param name="maximum">The largest accepted value.</param>
+	internal static void RequireRange(int value, string parameter, int minimum, int maximum)
 	{
 		if (value < minimum || value > maximum)
 		{
@@ -496,7 +512,13 @@ public sealed class CodeTools
 		}
 	}
 
-	private static void ValidateHexadecimalBytes(string? value)
+	/// <summary>
+	///     Checks hexadecimal byte text and returns its digits without whitespace, because Cheat Engine's byte parser
+	///     splits words only at spaces, commas and dashes and pairs digits within each word.
+	/// </summary>
+	/// <param name="value">The caller's text.</param>
+	/// <returns>The contiguous uppercase digits.</returns>
+	private static string NormalizeHexadecimalBytes(string? value)
 	{
 		if (string.IsNullOrWhiteSpace(value) || value.Length > MaximumByteTextLength)
 		{
@@ -504,7 +526,7 @@ public sealed class CodeTools
 				$"must contain 1 to {MaximumByteTextLength} characters.");
 		}
 
-		int digits = 0;
+		StringBuilder digits = new(value.Length);
 		foreach (char character in value)
 		{
 			if (char.IsWhiteSpace(character))
@@ -518,14 +540,16 @@ public sealed class CodeTools
 					"must contain hexadecimal bytes with optional whitespace.");
 			}
 
-			digits++;
+			digits.Append(char.ToUpperInvariant(character));
 		}
 
-		if (digits == 0 || digits % 2 != 0)
+		if (digits.Length == 0 || digits.Length % 2 != 0)
 		{
 			throw CheatEngineToolException.InvalidArgument("hexadecimalBytes",
 				"must contain a non-empty, even number of hexadecimal digits.");
 		}
+
+		return digits.ToString();
 	}
 }
 

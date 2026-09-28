@@ -9,7 +9,8 @@ namespace CheatEngine.Mcp.Core.Composition;
 /// <summary>
 ///     Builds the JSON-RPC error of a failed resource read or prompt request, the same way on every backend and on the
 ///     gateway: the contract kind selects the code, and <see cref="Exception.Data" /> (the JSON-RPC <c>error.data</c>)
-///     carries <c>kind</c>, <c>operation</c>, <c>hostEffect</c>, <c>retryable</c> and <c>hint</c> as strings and booleans.
+///     carries <c>kind</c>, <c>operation</c>, <c>hostEffect</c>, <c>retryable</c> and <c>hint</c> as strings and
+///     booleans, plus the <c>errorId</c> of a correlated <c>internal</c> error.
 /// </summary>
 public static class McpResourceErrors
 {
@@ -60,7 +61,10 @@ public static class McpResourceErrors
 		return WithData(new McpProtocolException(error.Message, innerException, McpErrorCode.InvalidParams), error);
 	}
 
-	/// <summary>Copies the contract fields into a protocol exception's data.</summary>
+	/// <summary>
+	///     Copies the contract fields into a protocol exception's data, and the <c>errorId</c> of a correlated
+	///     <c>internal</c> error, which the log event of the failure also records.
+	/// </summary>
 	/// <param name="exception">The exception.</param>
 	/// <param name="error">The contract error.</param>
 	/// <returns>The same exception.</returns>
@@ -79,6 +83,11 @@ public static class McpResourceErrors
 		if (error.Hint is not null)
 		{
 			exception.Data["hint"] = error.Hint;
+		}
+
+		if (McpErrorCorrelation.Read(error) is { } errorId)
+		{
+			exception.Data[McpErrorCorrelation.Key] = errorId;
 		}
 
 		return exception;

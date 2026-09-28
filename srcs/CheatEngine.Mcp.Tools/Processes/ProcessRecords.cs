@@ -21,7 +21,10 @@ public sealed record ProcessAttachResult(
 	[property: Description("The selected process id.")]
 	int ProcessId,
 	[property: Description("The selected process name, when the host supplied one.")]
-	string? ProcessName);
+	string? ProcessName,
+	[property: Description(
+		"Whether this open could trigger Cheat Engine's Mono data-collector auto attach, because the table option UsesMono is set; Mcp:EnableTargetCodeExecution allowed it.")]
+	bool MonoAutoAttach = false);
 
 /// <summary>The currently selected Cheat Engine target.</summary>
 public sealed record ProcessCurrentResult(
@@ -39,7 +42,10 @@ public sealed record ProcessCurrentResult(
 /// <summary>The target selected after Cheat Engine created a process.</summary>
 public sealed record ProcessCreateResult(
 	[property: Description("The new process id selected by Cheat Engine.")]
-	int ProcessId);
+	int ProcessId,
+	[property: Description(
+		"Whether this open could trigger Cheat Engine's Mono data-collector auto attach, because the table option UsesMono is set; Mcp:EnableTargetCodeExecution allowed it.")]
+	bool MonoAutoAttach = false);
 
 /// <summary>The file-as-process target opened by Cheat Engine.</summary>
 public sealed record ProcessOpenFileResult(
@@ -50,7 +56,10 @@ public sealed record ProcessOpenFileResult(
 	[property: Description("The process-like target id after the operation.")]
 	int ObservedProcessId,
 	[property: Description("The file size Cheat Engine observed after opening it.")]
-	long ObservedFileSize);
+	long ObservedFileSize,
+	[property: Description(
+		"Whether this open could trigger Cheat Engine's Mono data-collector auto attach, because the table option UsesMono is set; Mcp:EnableTargetCodeExecution allowed it.")]
+	bool MonoAutoAttach = false);
 
 /// <summary>The completed file-as-process save request.</summary>
 public sealed record ProcessSaveFileResult(
@@ -69,7 +78,12 @@ public sealed record ProcessSaveFilePublishFailure(
 /// <summary>The observed pause state after a pause or resume request.</summary>
 public sealed record ProcessPausedResult(
 	[property: Description("Whether the selected target is paused.")]
-	bool Paused);
+	bool Paused,
+	[property: Description(
+		"The MCP-owned pause resource of the opened process that runtime_release_resources resumes, also when a " +
+		"repeated pause reuses it; omitted after a resume and when the target was already paused by anything else, " +
+		"the user or an earlier activation.")]
+	string? ResourceId = null);
 
 /// <summary>A bounded list of target thread ids.</summary>
 public sealed record ProcessThreadListResult(

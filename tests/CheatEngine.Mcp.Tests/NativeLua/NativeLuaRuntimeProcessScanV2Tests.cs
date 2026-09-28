@@ -15,7 +15,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 	[Fact]
 	public void V2FixedLuaBodies_NeverLoadCallerCode()
 	{
-		IEnumerable<string> bodies = new[] { typeof(ProcessTools), typeof(ScanTools) }
+		IEnumerable<string> bodies = new[] { typeof(ProcessTools), typeof(ScanScripts) }
 			.SelectMany(static type => type.GetFields(BindingFlags.NonPublic | BindingFlags.Static))
 			.Where(static field =>
 				field.FieldType == typeof(string) && field.Name.EndsWith("Script", StringComparison.Ordinal))
@@ -35,24 +35,22 @@ public sealed partial class NativeLuaToolRuntimeTests
 		InstallMainScanner();
 		ScanTools tools = new(CreateNativeDispatch(new McpFeatureOptions()), new TargetResources());
 
-		ScanStatusResult started = tools.First(value: "25", cancellationToken: Token);
+		ScanState started = tools.First(value: "25", cancellationToken: Token);
 		Assert.Equal(("main", "ui", "Scanning"), (started.ScannerName, started.Mode, started.State));
 		Assert.Equal(1L, ReadGlobal("firstCalls"));
 		InstallStubs("complete(false)");
 		ScanResultsResult page = tools.ListResults(maximumResults: 2, cancellationToken: Token);
 		Assert.Equal(3UL, page.Count);
 		Assert.Equal(2, page.Results.Length);
-		Assert.Equal("0xABCD", page.Results[0].Address);
+		Assert.Equal("ABCD", page.Results[0].Address);
 		Assert.Equal("ResultsReady", tools.GetStatus(cancellationToken: Token).State);
 		Assert.Equal("Created", tools.Reset(cancellationToken: Token).Status!.State);
 
 		tools.First(value: "25", cancellationToken: Token);
-		InstallStubs(
-			"stopCalls=0; ms.terminate=function() stopCalls=stopCalls+1; ms.LastScanType='stNewScan'; f.btnNewScan.Enabled=true end");
 		ScanStopResult stopped = tools.Stop(cancellationToken: Token);
 		Assert.True(stopped.StopRequested);
-		Assert.Equal("Created", stopped.Status!.State);
-		Assert.Equal(1L, ReadGlobal("stopCalls"));
+		Assert.Equal("Scanning", stopped.Status!.State);
+		Assert.Equal((1L, false), (ReadGlobal("stopCalls"), ReadGlobal("stopForce")));
 	}
 
 	[Fact]
@@ -98,7 +96,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 			InstallStubs("complete(false)");
 		}
 
-		ScanStatusResult status = first
+		ScanState status = first
 			? tools.First(value: value, comparison: comparison, upperValue: upperValue, cancellationToken: Token)
 			: tools.Next(value: value, comparison: comparison, upperValue: upperValue, cancellationToken: Token);
 
@@ -125,7 +123,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 		InstallMainScanner();
 		using ScanTools tools = new(CreateNativeDispatch(new McpFeatureOptions()), new TargetResources());
 
-		ScanStatusResult status = tools.First(valueType: valueType, value: value, cancellationToken: Token);
+		ScanState status = tools.First(valueType: valueType, value: value, cancellationToken: Token);
 
 		Assert.Equal(valueType, status.ValueType);
 		Assert.Equal(expectedIndex, ReadGlobal("requestedType"));
@@ -145,11 +143,13 @@ public sealed partial class NativeLuaToolRuntimeTests
 		ScanStatusResult baseline = tools.GetStatus(cancellationToken: Token);
 		CheatEngineToolException unreadable = Assert.Throws<CheatEngineToolException>(() =>
 			tools.ListResults(cancellationToken: Token));
-		ScanStatusResult narrowed = tools.Next(comparison: "unchanged", cancellationToken: Token);
+		ScanState narrowed = tools.Next(comparison: "unchanged", cancellationToken: Token);
 		InstallStubs("complete(false)");
 
 		Assert.Equal("BaselineReady", baseline.State);
-		Assert.Equal(ToolErrorKind.HostRefused, unreadable.Error.Kind);
+		Assert.Equal((ToolErrorKind.InvalidState, ToolHostEffect.NotStarted),
+			(unreadable.Error.Kind, unreadable.Error.HostEffect));
+		Assert.Contains("scan_next", unreadable.Error.Hint, StringComparison.Ordinal);
 		Assert.Equal(("Scanning", 9L), (narrowed.State, ReadGlobal("requestedComparison")));
 		Assert.True(tools.GetStatus(cancellationToken: Token).ResultsReady);
 	}
@@ -173,15 +173,12 @@ public sealed partial class NativeLuaToolRuntimeTests
 	{
 		using RuntimeScope scope = CreateScope();
 		InstallStubs("""
-		             pid=77; created=0; opened=0; saved=0; paused=false; pointerSize=8
+		             pid=77; created=0; opened=0; saved=0; pointerSize=8
 		             createProcess=function(path, parameters, debug, breakAtEntry) created=created+1; createdPath=path; pid=88 end
 		             openFileAsProcess=function(filename, is64Bit, startAddress) opened=opened+1; openedFilename=filename; pid=99 end
 		             getOpenedProcessID=function() return pid end
 		             getOpenedFileSize=function() return 4096 end
 		             saveOpenedFile=function(filename) saved=saved+1; savedFilename=filename end
-		             pause=function() paused=true end
-		             unpause=function() paused=false end
-		             isPaused=function() return paused end
 		             getThreadlist=function() return {100, 200, 300} end
 		             setPointerSize=function(value) pointerSize=value end
 		             getPointerSize=function() return pointerSize end
@@ -198,7 +195,6 @@ public sealed partial class NativeLuaToolRuntimeTests
 			ProcessOpenFileResult opened = tools.OpenFile(input, false, "400000",
 				Token);
 			ProcessSaveFileResult saved = tools.SaveFile(output, Token);
-			ProcessPausedResult paused = tools.SetPaused(true, Token);
 			ProcessThreadListResult threads = tools.ListThreads(Token);
 			ProcessPointerSizeResult pointerSize = tools.SetPointerSize(4, Token);
 
@@ -206,7 +202,6 @@ public sealed partial class NativeLuaToolRuntimeTests
 			Assert.Equal((99, 4096L, Path.GetFileName(input), false),
 				(opened.ObservedProcessId, opened.ObservedFileSize, opened.InputFileName, opened.Requested64Bit));
 			Assert.Equal((true, Path.GetFileName(output)), (saved.Saved, saved.FileName));
-			Assert.True(paused.Paused);
 			Assert.Equal(new long[] { 100, 200, 300 }, threads.Threads);
 			Assert.Equal(4, pointerSize.PointerSize);
 			Assert.Equal(1L, ReadGlobal("created"));

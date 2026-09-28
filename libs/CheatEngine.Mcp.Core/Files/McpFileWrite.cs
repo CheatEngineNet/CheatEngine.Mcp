@@ -63,25 +63,6 @@ public sealed class McpFileWrite : IDisposable
 	/// <summary>The temporary path reserved below the anchored destination directory for an external writer.</summary>
 	public string TemporaryPath => Path.Combine(Path.GetDirectoryName(FullPath)!, _temporaryName);
 
-	/// <summary>
-	///     Closes the private stream and returns its reserved temporary path for one external writer, while retaining the
-	///     anchored directory chain. Call <see cref="Commit" /> only after that writer has returned successfully.
-	/// </summary>
-	/// <exception cref="InvalidOperationException">The transaction was already prepared, committed or disposed.</exception>
-	public string PrepareForExternalWrite()
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-		if (_committed || _externalWritePrepared)
-		{
-			throw new InvalidOperationException("The file write is already prepared or committed.");
-		}
-
-		Stream.Flush(true);
-		Stream.Dispose();
-		_externalWritePrepared = true;
-		return TemporaryPath;
-	}
-
 	/// <inheritdoc />
 	public void Dispose()
 	{
@@ -109,6 +90,25 @@ public sealed class McpFileWrite : IDisposable
 				DisposeDirectories();
 			}
 		}
+	}
+
+	/// <summary>
+	///     Closes the private stream and returns its reserved temporary path for one external writer, while retaining the
+	///     anchored directory chain. Call <see cref="Commit" /> only after that writer has returned successfully.
+	/// </summary>
+	/// <exception cref="InvalidOperationException">The transaction was already prepared, committed or disposed.</exception>
+	public string PrepareForExternalWrite()
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		if (_committed || _externalWritePrepared)
+		{
+			throw new InvalidOperationException("The file write is already prepared or committed.");
+		}
+
+		Stream.Flush(true);
+		Stream.Dispose();
+		_externalWritePrepared = true;
+		return TemporaryPath;
 	}
 
 	/// <summary>Flushes the temporary file and atomically renames it to the requested destination below the held parent.</summary>

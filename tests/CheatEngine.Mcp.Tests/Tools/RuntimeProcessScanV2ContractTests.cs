@@ -60,7 +60,7 @@ public sealed class RuntimeProcessScanV2ContractTests
 		ProcessListResult processes = new([new ProcessSummary(42, "target.exe")], false);
 		ProcessCurrentResult current = new(true, 42, "target.exe", 8, 7);
 		ScanResultsResult scan = new("named", "independent", 1,
-			[new ScanMatch("0x401000", "25")], null, false);
+			[new ScanMatch("401000", "25")], null, false);
 
 		string runtimeJson = JsonSerializer.Serialize(runtime, RuntimeJsonContext.Default.RuntimeInfoResult);
 		string processJson = JsonSerializer.Serialize(processes, ProcessJsonContext.Default.ProcessListResult);
@@ -72,8 +72,10 @@ public sealed class RuntimeProcessScanV2ContractTests
 		Assert.Contains("target.exe", processJson);
 		Assert.DoesNotContain("executablePath", processJson, StringComparison.Ordinal);
 		Assert.DoesNotContain("executablePath",
-			JsonSerializer.Serialize(current, ProcessJsonContext.Default.ProcessCurrentResult), StringComparison.Ordinal);
-		Assert.Contains("0x401000", JsonSerializer.Serialize(scan, ScanJsonContext.Default.ScanResultsResult));
+			JsonSerializer.Serialize(current, ProcessJsonContext.Default.ProcessCurrentResult),
+			StringComparison.Ordinal);
+		Assert.Contains("\"address\":\"401000\"",
+			JsonSerializer.Serialize(scan, ScanJsonContext.Default.ScanResultsResult), StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -121,11 +123,13 @@ public sealed class RuntimeProcessScanV2ContractTests
 		ProcessTools tools = new(harness.Dispatch, harness.Resources, new TargetTransitionGuards([]), CreateFiles());
 
 		Assert.Equal(ToolErrorKind.InvalidArgument,
-			Assert.Throws<CheatEngineToolException>(() => tools.OpenFile("relative.bin", cancellationToken: Token)).Error.Kind);
+			Assert.Throws<CheatEngineToolException>(() => tools.OpenFile("relative.bin", cancellationToken: Token))
+				.Error.Kind);
 		Assert.Equal(ToolErrorKind.InvalidArgument,
 			Assert.Throws<CheatEngineToolException>(() => tools.SaveFile(null!, Token)).Error.Kind);
 		Assert.Equal(ToolErrorKind.InvalidArgument,
-			Assert.Throws<CheatEngineToolException>(() => tools.SaveFile(Path.Combine(Path.GetTempPath(), "outside.bin"), Token)).Error.Kind);
+			Assert.Throws<CheatEngineToolException>(() =>
+				tools.SaveFile(Path.Combine(Path.GetTempPath(), "outside.bin"), Token)).Error.Kind);
 		Assert.Equal(0, harness.Dispatches);
 	}
 

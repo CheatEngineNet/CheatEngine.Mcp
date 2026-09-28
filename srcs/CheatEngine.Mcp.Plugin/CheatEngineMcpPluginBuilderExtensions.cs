@@ -1,7 +1,6 @@
 using CheatEngine.Client.Hosting;
 using CheatEngine.Mcp.Core.Execution;
 using CheatEngine.Mcp.Core.Features;
-using CheatEngine.Mcp.Core.Lua;
 using CheatEngine.Mcp.Plugin.Logging;
 using CheatEngine.Mcp.Plugin.Lua;
 

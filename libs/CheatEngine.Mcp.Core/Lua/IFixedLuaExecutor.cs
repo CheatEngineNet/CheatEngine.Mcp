@@ -39,4 +39,3 @@ internal sealed class UnavailableFixedLuaExecutor : IFixedLuaExecutor
 			"Fixed Lua execution requires the CheatEngine.Mcp.Plugin composition bridge for the active Cheat Engine client.");
 	}
 }
-

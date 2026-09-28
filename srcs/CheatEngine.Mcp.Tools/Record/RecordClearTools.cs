@@ -11,6 +11,11 @@ namespace CheatEngine.Mcp.Tools.Record;
 [McpServerToolType]
 public sealed class RecordClearTools(ToolDispatch dispatch)
 {
+	/// <summary>
+	///     Walks every record before one clear. Cheat Engine's <c>Count</c> and <c>getMemoryRecord</c> index the
+	///     address-list tree with nested records included, and each record's children are queued too, so a record is
+	///     queued once by its <c>ID</c> and counted once.
+	/// </summary>
 	internal const string ClearScript = """
 	                                    local list = getAddressList()
 	                                    if list == nil then return mcp.err('host_refused', 'Cheat Engine has no address list.', 'not_started') end
@@ -18,23 +23,29 @@ public sealed class RecordClearTools(ToolDispatch dispatch)
 	                                        return mcp.err('limit_exceeded', 'The address list exceeds 100000 records; it was not cleared.', 'not_started')
 	                                    end
 	                                    local queue = {}
+	                                    local queued = {}
 	                                    local last = 0
+	                                    local function enqueue(record)
+	                                        if record ~= nil and not queued[record.ID] then
+	                                            queued[record.ID] = true
+	                                            last = last + 1
+	                                            queue[last] = record
+	                                        end
+	                                    end
 	                                    for i = 0, list.Count - 1 do
-	                                        last = last + 1
-	                                        queue[last] = list.getMemoryRecord(i)
+	                                        enqueue(list.getMemoryRecord(i))
 	                                    end
 	                                    local index = 1
 	                                    while index <= last do
 	                                        if last > 100000 then
 	                                            return mcp.err('limit_exceeded', 'The address list exceeds 100000 records; it was not cleared.', 'not_started')
 	                                        end
-	                                    local record = queue[index]
-	                                    if record.Type == vtAutoAssembler and record.Active and not a[1] then
-	                                        return mcp.err('capability_disabled', 'An active Auto Assembler record requires Mcp:EnableAutoAssembler before the list can be cleared.', 'not_started')
-	                                    end
+	                                        local record = queue[index]
+	                                        if record.Type == vtAutoAssembler and record.Active and not a[1] then
+	                                            return mcp.err('capability_disabled', 'An active Auto Assembler record requires Mcp:EnableAutoAssembler before the list can be cleared.', 'not_started')
+	                                        end
 	                                        for child = 0, record.Count - 1 do
-	                                            last = last + 1
-	                                            queue[last] = record.Child[child]
+	                                            enqueue(record.Child[child])
 	                                        end
 	                                        index = index + 1
 	                                    end

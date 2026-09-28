@@ -23,8 +23,18 @@ public sealed class AsmTools
 	internal const int MaximumInstructions = 128;
 	internal const int MaximumInstructionLength = 4096;
 	internal const int MaximumScriptLength = 1024 * 1024;
+
+	/// <summary>
+	///     The UTF-8 size bound of a checked script: the largest string a fixed Lua body receives as an argument.
+	/// </summary>
+	internal const int MaximumCheckedScriptBytes = 1024 * 1024;
+
 	internal const int MaximumPatchNameLength = 256;
 	internal const int MaximumPatchCount = 128;
+	internal const int MaximumHostMessageBytes = 4096;
+
+	/// <summary>The longest label suffix <c>asm_generate_api_hook</c> passes to Cheat Engine.</summary>
+	internal const int MaximumHookExtensionLength = 64;
 
 	private readonly IAutoAssemblerClient? _autoAssembler;
 	private readonly ToolDispatch _dispatch;
@@ -53,7 +63,8 @@ public sealed class AsmTools
 		string address,
 		[Description("The instruction sources, 1 to 128 entries, each at most 4096 characters.")]
 		string[] instructions,
-		[Description("The preferred encoding for relative jumps and calls: None, Short, Long or Far.")]
+		[Description(
+			"The preferred encoding for relative jumps and calls as an integer: 0 none (Cheat Engine chooses), 1 short, 2 long or 3 far.")]
 		InstructionEncodingPreference preference = InstructionEncodingPreference.None,
 		[Description("Whether Cheat Engine skips relative-branch reachability checks.")]
 		bool skipRangeCheck = false,
@@ -73,6 +84,12 @@ public sealed class AsmTools
 				throw CheatEngineToolException.InvalidArgument("instructions",
 					$"each instruction must contain 1 to {MaximumInstructionLength} characters.");
 			}
+		}
+
+		if (!Enum.IsDefined(preference))
+		{
+			throw CheatEngineToolException.InvalidArgument("preference",
+				"must be 0 (none), 1 (short), 2 (long) or 3 (far).");
 		}
 
 		return _dispatch.Run(CheatEngineToolNames.AsmAssemble, token =>
@@ -97,27 +114,48 @@ public sealed class AsmTools
 		}, cancellationToken);
 	}
 
-	/// <summary>Checks an Auto Assembler source without applying it.</summary>
+	/// <summary>Checks both sections of an Auto Assembler source without applying it.</summary>
 	[McpServerTool(Name = CheatEngineToolNames.AsmCheck, Title = "Check Auto Assembler", ReadOnly = true,
 		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[RequiresFeature(McpFeature.AutoAssembler)]
 	[Description(
-		"Check an Auto Assembler ENABLE section without applying it. The server classifies the submitted source before Cheat Engine sees it and requires every capability it reaches. A successful check neither applies a patch nor proves a later apply will succeed.")]
+		"Check an Auto Assembler script without applying it: Cheat Engine checks ENABLE, then DISABLE if ENABLE passed; failedSection names the rejected section. Cheat Engine runs parts of a script while checking it, so the server refuses, as unsupported, any script that needs a switch beyond auto_assembler (such as {$lua}, {$c}, luacall, loadlibrary, include or a Lua-registered command like USEMONO), uses globalalloc, which allocates memory even during a check, or writes $ before anything but hexadecimal digits, which Cheat Engine evaluates as Lua; review it by reading it. Commands in // and /* */ comments are ignored, as Cheat Engine removes those first. Its symbol handler still resolves addresses and operands, consulting symbol-lookup callbacks that Lua registered, such as the shipped luasymbols.lua, which reads an unknown name as Lua. DISABLE is checked without ENABLE's symbols, so symbol+4 there is rejected although a release would resolve it. Success proves no later apply or release.")]
 	public AsmCheckResult Check(
-		[Description("A complete Auto Assembler source with ENABLE and DISABLE sections, up to 1048576 characters.")]
+		[Description(
+			"A complete Auto Assembler source with ENABLE and DISABLE sections, up to 1048576 characters and " +
+			"1048576 UTF-8 bytes.")]
 		string script,
 		[Description("An optional diagnostic patch name, up to 256 characters.")]
 		string? name = null,
 		CancellationToken cancellationToken = default)
 	{
 		ValidateScript(script, name);
-		AutoAssemblerScriptClassifier.Classify(script).Enforce(_dispatch.Features, CheatEngineToolNames.AsmCheck);
+		// The DISABLE check passes the script to fixed Lua, which bounds a string argument by its UTF-8 size; refuse a
+		// larger script here, before Cheat Engine checks the ENABLE section.
+		if (Encoding.UTF8.GetByteCount(script) > MaximumCheckedScriptBytes)
+		{
+			throw CheatEngineToolException.LimitExceeded("script",
+				$"must be at most {MaximumCheckedScriptBytes} bytes when encoded as UTF-8.");
+		}
+
+		AsmCheckScreen.Screen(script).Enforce(_dispatch.Features, CheatEngineToolNames.AsmCheck);
 		return _dispatch.Run(CheatEngineToolNames.AsmCheck, token =>
 		{
-			AutoAssemblerCheckResult result = RequireAutoAssembler(CheatEngineToolNames.AsmCheck)
+			AutoAssemblerCheckResult enable = RequireAutoAssembler(CheatEngineToolNames.AsmCheck)
 				.Check(new AutoAssemblerScript(script, name), token);
-			return new AsmCheckResult(result.IsAccepted, result.HostMessages, result.HostMessagesTruncated);
+			if (!enable.IsAccepted)
+			{
+				return new AsmCheckResult(false, enable.HostMessages, enable.HostMessagesTruncated,
+					AsmScriptSection.Enable);
+			}
+
+			AsmLuaCheck disable = _dispatch.ExecuteLua(CheatEngineToolNames.AsmCheck, AsmScripts.CheckDisable,
+				AsmLuaJsonContext.Default.AsmLuaCheck, token, script, MaximumHostMessageBytes);
+			return disable.Accepted
+				? new AsmCheckResult(true)
+				: new AsmCheckResult(false, disable.HostMessages, disable.HostMessagesTruncated,
+					AsmScriptSection.Disable);
 		}, cancellationToken);
 	}
 
@@ -228,17 +266,21 @@ public sealed class AsmTools
 		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Generate a rollback-capable AOB injection scaffold without applying it. It asserts the original bytes, allocates only while enabled, restores the bytes and releases its allocation and symbol while disabled. signature must be a verified unique module signature from aob_generate_signature; review the template, then use asm_check before any apply.")]
+		"Generate a rollback-capable AOB injection scaffold without applying it. It asserts the original bytes, allocates only while enabled, restores the bytes and releases its allocation and symbol while disabled. signature must be a verified unique module signature from aob_generate_signature; pass its offset too, so the scaffold injects at the match start plus offset, where symbolName is registered. Review the template, then use asm_check before any apply.")]
 	public static AsmGeneratedScript GenerateInjection(
 		[Description("The loaded module name to scan, such as game.exe.")]
 		string module,
 		[Description("A verified unique AOB signature from aob_generate_signature.")]
 		string signature,
-		[Description("The exact original instruction bytes asserted before the jump, at least 5 and at most 64 bytes.")]
+		[Description(
+			"The exact original instruction bytes at the injection point, asserted before the jump, at least 5 and at most 64 bytes.")]
 		string expectedBytes,
 		[Description(
-			"The Auto Assembler symbol name, 1 to 64 ASCII letters, digits or underscores and not starting with a digit.")]
-		string symbolName = "mcpInjection")
+			"The Auto Assembler symbol name registered at the injection point, 1 to 64 ASCII letters, digits or underscores and not starting with a digit.")]
+		string symbolName = "mcpInjection",
+		[Description(
+			"The byte distance from the signature's match start to the injection point, as returned in offset by aob_generate_signature; 0 to the signature length minus 1.")]
+		int offset = 0)
 	{
 		if (string.IsNullOrWhiteSpace(module) || module.Length > 260 ||
 			module.Any(character => !(char.IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-')))
@@ -250,7 +292,16 @@ public sealed class AsmTools
 		string pattern = CorePattern.Normalize(signature, "signature");
 		byte[] expected = Bytes(expectedBytes, "expectedBytes", 5);
 		ValidateSymbol(symbolName);
-		string script = InjectionScript(module, pattern, expected, symbolName);
+		int patternLength = (pattern.Length + 1) / 3;
+		if (offset < 0 || offset >= patternLength)
+		{
+			throw CheatEngineToolException.InvalidArgument("offset",
+				$"must be from 0 to {patternLength - 1}, inside the {patternLength}-byte signature.");
+		}
+
+		string script = offset == 0
+			? InjectionScript(module, pattern, expected, symbolName)
+			: OffsetInjectionScript(module, pattern, expected, symbolName, offset);
 		return new AsmGeneratedScript(script, Convert.ToHexString(expected), symbolName);
 	}
 
@@ -259,15 +310,18 @@ public sealed class AsmTools
 		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Ask Cheat Engine to generate an Auto Assembler API-hook script without applying it. Review the generated source, including its DISABLE path, and run asm_check before an explicit asm_apply.")]
+		"Ask Cheat Engine's generateAPIHookScript for an Auto Assembler hook that sends execution at address to jumpTarget, without applying it. The script's ENABLE section allocates originalcall, which holds the instructions the jump overwrites followed by a jump back, adds a jump trampoline on x64, and writes the jump at address; its DISABLE section restores the original bytes and frees what ENABLE allocated. Review the generated source and run asm_check before an explicit asm_apply.")]
 	public AsmGeneratedScript GenerateApiHook(
-		[Description("The hook address expression.")]
+		[Description(
+			"The address or expression of the function or instruction to hook; Cheat Engine overwrites the whole instructions that the jump covers.")]
 		string address,
-		[Description("The jump-target expression.")]
+		[Description("The address or expression of the replacement code that the hook jumps to.")]
 		string jumpTarget,
-		[Description("An optional symbol for the generated new-call address.")]
+		[Description(
+			"An optional address or symbol where the ENABLE section stores the address of originalcall (dq on x64, dd on x86), so the replacement code can call the original instructions; DISABLE does not restore it. Up to 256 characters.")]
 		string? newCallAddress = null,
-		[Description("An optional architecture extension passed to Cheat Engine.")]
+		[Description(
+			"An optional suffix Cheat Engine appends to the script's label and allocation names (originalcall, returnhere, jumptrampoline), so two generated hooks can share one script: up to 64 ASCII letters, digits or underscores.")]
 		string? extension = null,
 		[Description("Whether Cheat Engine should generate a hook in its own process.")]
 		bool targetSelf = false,
@@ -275,11 +329,17 @@ public sealed class AsmTools
 	{
 		ValidateText(address, "address", 1024);
 		ValidateText(jumpTarget, "jumpTarget", 1024);
-		if (newCallAddress is { Length: > 256 } || extension is { Length: > 64 })
+		if (newCallAddress is { Length: > 256 })
 		{
-			throw CheatEngineToolException.InvalidArgument(
-				newCallAddress is { Length: > 256 } ? "newCallAddress" : "extension",
-				"is longer than the supported bound.");
+			throw CheatEngineToolException.InvalidArgument("newCallAddress", "is longer than the supported bound.");
+		}
+
+		if (extension is not null && (extension.Length > MaximumHookExtensionLength ||
+									  !extension.All(static character =>
+										  char.IsAsciiLetterOrDigit(character) || character == '_')))
+		{
+			throw CheatEngineToolException.InvalidArgument("extension",
+				$"must be at most {MaximumHookExtensionLength} ASCII letters, digits or underscores, because Cheat Engine appends it to label names.");
 		}
 
 		AsmLuaScript generated = _dispatch.RunLua(CheatEngineToolNames.AsmGenerateApiHook, AsmScripts.GenerateApiHook,
@@ -471,6 +531,21 @@ public sealed class AsmTools
 		string nops = string.Join('\n', Enumerable.Repeat("nop", expected.Length - 5));
 		return
 			$"[ENABLE]\naobscanmodule({symbol},{module},{pattern})\nassert({symbol},{Spaced(expected)})\nalloc(newmem,2048,{symbol})\nlabel(code)\nlabel(return)\nregistersymbol({symbol})\n\nnewmem:\n// Add reviewed custom code above the original bytes.\ncode:\ndb {Spaced(expected)}\njmp return\n\n{symbol}:\njmp newmem{(nops.Length == 0 ? string.Empty : "\n" + nops)}\nreturn:\n\n[DISABLE]\n{symbol}:\ndb {Spaced(expected)}\nunregistersymbol({symbol})\ndealloc(newmem)";
+	}
+
+	/// <summary>
+	///     The scaffold for an injection point inside the match: the scan result keeps a script-local name, and
+	///     <paramref name="symbol" /> is a registered label at the match start plus <paramref name="offset" />, so the
+	///     DISABLE section addresses it by name.
+	/// </summary>
+	private static string OffsetInjectionScript(string module, string pattern, byte[] expected, string symbol,
+		int offset)
+	{
+		string nops = string.Join('\n', Enumerable.Repeat("nop", expected.Length - 5));
+		string scan = symbol + "_aob";
+		string at = scan + "+" + offset.ToString("X", CultureInfo.InvariantCulture);
+		return
+			$"[ENABLE]\naobscanmodule({scan},{module},{pattern})\nassert({at},{Spaced(expected)})\nalloc(newmem,2048,{scan})\nlabel(code)\nlabel(return)\nlabel({symbol})\nregistersymbol({symbol})\n\nnewmem:\n// Add reviewed custom code above the original bytes.\ncode:\ndb {Spaced(expected)}\njmp return\n\n{at}:\n{symbol}:\njmp newmem{(nops.Length == 0 ? string.Empty : "\n" + nops)}\nreturn:\n\n[DISABLE]\n{symbol}:\ndb {Spaced(expected)}\nunregistersymbol({symbol})\ndealloc(newmem)";
 	}
 
 	private static string Spaced(IEnumerable<byte> bytes)

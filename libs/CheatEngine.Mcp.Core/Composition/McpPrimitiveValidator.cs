@@ -9,8 +9,9 @@ namespace CheatEngine.Mcp.Core.Composition;
 /// <summary>
 ///     Fails server startup on duplicate primitive identifiers, which the MCP SDK would otherwise drop silently, on
 ///     tools that break the v2 contract rules (<see cref="McpContractRules" />), including a name outside the frozen
-///     catalog, a missing output schema or dispatch class, and on resources or prompts outside the URI grammar and
-///     routing rules.
+///     catalog, a missing output schema or dispatch class, on resources or prompts outside the URI grammar and routing
+///     rules, on a live resource whose source tool is not a read-only, closed-world, ungated, short tool this server
+///     serves, and on a misplaced <see cref="McpCompletionAttribute" />.
 /// </summary>
 internal sealed class McpPrimitiveValidator(
 	IEnumerable<McpServerTool> tools,
@@ -25,7 +26,8 @@ internal sealed class McpPrimitiveValidator(
 		AddDuplicates(failures, "resource",
 			resources.Select(static resource => resource.ProtocolResourceTemplate.UriTemplate));
 		failures.AddRange(McpContractRules.ValidateTools(tools.Select(static tool => tool.ProtocolTool), false));
-		failures.AddRange(McpContractRules.ValidateResources(resources));
+		failures.AddRange(McpContractRules.ValidateResources(resources,
+			tools.Select(static tool => tool.ProtocolTool.Name)));
 		// A prompt must not reuse a tool name.
 		IEnumerable<string> toolNames = tools.Select(static tool => tool.ProtocolTool.Name)
 			.Concat(CheatEngineToolNames.All);

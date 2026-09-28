@@ -2,8 +2,10 @@ using System.ComponentModel;
 using System.Text.Json.Nodes;
 
 using CheatEngine.Mcp.Core.Contract;
+using CheatEngine.Mcp.Prompts.Workflows;
 using CheatEngine.Mcp.Resources.Knowledge;
 using CheatEngine.Mcp.Tests.Support;
+using CheatEngine.Mcp.Tools.Runtime;
 
 using ModelContextProtocol;
 using ModelContextProtocol.Client;
@@ -19,6 +21,18 @@ namespace CheatEngine.Mcp.Tests.Hosting;
 public sealed class GatewayResourceTests
 {
 	private const string RoutedTemplate = "cheatengine://instances/{instanceId}/probes/{name}";
+	private const string RoutedModules = "cheatengine://instances/{instanceId}/modules{?offset,limit}";
+
+	/// <summary>Every composed live template in its backend form, after <c>cheatengine://instance/</c>.</summary>
+	private static readonly string[] LivePaths =
+	[
+		"debugger", "debugger/breakpoints{?limit}", "disassembly/{address}{?count}", "jobs",
+		"memory/{address}{?size}", "modules/{module}", "modules/{module}/exports{?offset,limit}",
+		"modules{?offset,limit}", "patches", "pointer-maps", "pointer-scans",
+		"pointer-scans/{scanName}/paths{?offset,limit}", "process", "records/{recordId}", "records{?offset,limit}",
+		"regions{?offset,limit}", "resources", "runtime", "scanners", "scanners/{scannerName}", "speedhack",
+		"structures/{structure}{?offset,limit}", "structures{?offset,limit}", "symbols{?offset,limit}", "threads"
+	];
 
 	private static readonly CheatEngineMcpPrimitive[] RoutedProbe =
 	[
@@ -44,14 +58,9 @@ public sealed class GatewayResourceTests
 		Assert.Equal(
 		[
 			"cheatengine://docs/workflows/{workflow}",
-			"cheatengine://instances/{instanceId}/memory/regions",
-			"cheatengine://instances/{instanceId}/modules",
-			"cheatengine://instances/{instanceId}/process",
-			"cheatengine://instances/{instanceId}/records",
-			"cheatengine://instances/{instanceId}/runtime",
-			"cheatengine://instances/{instanceId}/structures"
+			.. LivePaths.Select(static path => "cheatengine://instances/{instanceId}/" + path)
 		], templates.ResourceTemplates.Select(static template => template.UriTemplate).Order(StringComparer.Ordinal));
-		Assert.Equal(TimeSpan.FromHours(1), resources.TimeToLive);
+		Assert.Equal(TimeSpan.Zero, resources.TimeToLive);
 	}
 
 	[Fact]
@@ -70,7 +79,7 @@ public sealed class GatewayResourceTests
 
 		Assert.Equal(CheatEngineKnowledge.ReadDocument("safety"),
 			Assert.IsType<TextResourceContents>(Assert.Single(safety.Contents)).Text);
-		Assert.Equal(22, prompts.Count);
+		Assert.Equal(CheatEngineWorkflows.All.Count, prompts.Count);
 		Assert.Contains(CheatEngineToolNames.InstanceList,
 			Assert.IsType<TextContentBlock>(prompt.Messages[0].Content).Text, StringComparison.Ordinal);
 		ResourceLinkBlock link = Assert.IsType<ResourceLinkBlock>(prompt.Messages[1].Content);
@@ -93,6 +102,87 @@ public sealed class GatewayResourceTests
 		Assert.Equal(McpResourceUris.JsonMimeType, routed.MimeType);
 		Assert.Contains(templates, static template =>
 			template.UriTemplate == "cheatengine://docs/workflows/{workflow}");
+	}
+
+	[Fact]
+	public async Task ListResourceTemplates_LiveTemplates_KeepTheirAnnotationsAndSourceTool()
+	{
+		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync();
+		await using McpClient client = await gateway.ConnectAsync();
+
+		IList<McpClientResourceTemplate> templates =
+			await client.ListResourceTemplatesAsync(cancellationToken: TestContext.Current.CancellationToken);
+
+		ResourceTemplate[] routed =
+		[
+			.. templates.Select(static template => template.ProtocolResourceTemplate)
+				.Where(static template => template.UriTemplate.StartsWith(McpResourceUris.GatewayInstancesPrefix,
+					StringComparison.Ordinal))
+		];
+		Assert.Equal(LivePaths.Length, routed.Length);
+		Assert.All(routed, static template =>
+		{
+			Assert.Equal([Role.Assistant], template.Annotations!.Audience);
+			Assert.Equal(0.3f, template.Annotations.Priority);
+			Assert.Contains(template.Meta![McpSourceToolAttribute.MetaKey]!.GetValue<string>(),
+				(IEnumerable<string>) CheatEngineToolNames.Backend);
+		});
+		ResourceTemplate modules = Assert.Single(routed, static template => template.UriTemplate == RoutedModules);
+		Assert.Equal(CheatEngineToolNames.ModuleList,
+			modules.Meta![McpSourceToolAttribute.MetaKey]!.GetValue<string>());
+		Assert.Equal("instance_modules", modules.Name);
+	}
+
+	[Fact]
+	public async Task ReadResource_QueryTemplate_ForwardsTheUriVerbatimAndRewritesItsContentUri()
+	{
+		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync();
+		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "paged");
+		await using McpClient client = await gateway.ConnectAsync();
+		string prefix = $"cheatengine://instances/{backend.Descriptor.InstanceId}/";
+
+		ReadResourceResult page = await client.ReadResourceAsync(prefix + "modules?offset=0&limit=1",
+			cancellationToken: TestContext.Current.CancellationToken);
+		ReadResourceResult limitOnly = await client.ReadResourceAsync(prefix + "regions?limit=5",
+			cancellationToken: TestContext.Current.CancellationToken);
+		ReadResourceResult encoded = await client.ReadResourceAsync(prefix + "memory/game.exe%2B10?size=16",
+			cancellationToken: TestContext.Current.CancellationToken);
+
+		Assert.Equal(
+		[
+			"cheatengine://instance/modules?offset=0&limit=1", "cheatengine://instance/regions?limit=5",
+			"cheatengine://instance/memory/game.exe%2B10?size=16"
+		], backend.ReadUris);
+		Assert.Equal(prefix + "modules?offset=0&limit=1",
+			Assert.IsType<TextResourceContents>(page.Contents[0]).Uri);
+		Assert.Equal(prefix + "regions?limit=5", Assert.IsType<TextResourceContents>(limitOnly.Contents[0]).Uri);
+		Assert.Equal(prefix + "memory/game.exe%2B10?size=16",
+			Assert.IsType<TextResourceContents>(encoded.Contents[0]).Uri);
+	}
+
+	[Theory]
+	[InlineData("2025-06-18", McpErrorCode.ResourceNotFound)]
+	[InlineData("2026-07-28", McpErrorCode.InvalidParams)]
+	public async Task ReadResource_QueryOutOfOrderOrUnknown_IsNotFoundWithoutContactingTheBackend(string version,
+		McpErrorCode code)
+	{
+		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync();
+		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "strict");
+		await using McpClient client = await gateway.ConnectAsync(version);
+		string prefix = $"cheatengine://instances/{backend.Descriptor.InstanceId}/";
+
+		foreach (string path in new[] { "modules?limit=1&offset=0", "modules?foo=1", "runtime?offset=0" })
+		{
+			McpProtocolException failure = await ReadFailureAsync(client, prefix + path);
+
+			Assert.Equal(code, failure.ErrorCode);
+			Assert.Equal("not_found", failure.Data["kind"]);
+			Assert.Contains("query parameters must follow the template's order",
+				Assert.IsType<string>(failure.Data["hint"]), StringComparison.Ordinal);
+		}
+
+		Assert.Equal(0, backend.IdentityProbeCount);
+		Assert.Empty(backend.ReadUris);
 	}
 
 	[Fact]
@@ -251,12 +341,18 @@ public sealed class GatewayResourceTests
 			cancellationToken: TestContext.Current.CancellationToken);
 		CompleteResult otherArgument = await client.CompleteAsync(reference, "name", "a",
 			cancellationToken: TestContext.Current.CancellationToken);
+		CompleteResult queryTemplate = await client.CompleteAsync(new ResourceTemplateReference { Uri = RoutedModules },
+			"instanceId", "ce-", cancellationToken: TestContext.Current.CancellationToken);
+		CompleteResult queryArgument = await client.CompleteAsync(new ResourceTemplateReference { Uri = RoutedModules },
+			"limit", "1", cancellationToken: TestContext.Current.CancellationToken);
 
 		Assert.Empty(beforeDiscovery.Completion.Values);
 		Assert.Equal([backend.Descriptor.InstanceId], afterDiscovery.Completion.Values);
 		Assert.Equal(1, afterDiscovery.Completion.Total);
 		Assert.Empty(otherPrefix.Completion.Values);
 		Assert.Empty(otherArgument.Completion.Values);
+		Assert.Equal([backend.Descriptor.InstanceId], queryTemplate.Completion.Values);
+		Assert.Empty(queryArgument.Completion.Values);
 		Assert.Empty(backend.ReadUris);
 	}
 
@@ -289,13 +385,13 @@ public sealed class GatewayResourceTests
 		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync();
 		await using McpClient client = await gateway.ConnectAsync();
 
-		CompleteResult prompt = await client.CompleteAsync(new PromptReference { Name = "aob_injection" },
-			"template", "f", cancellationToken: TestContext.Current.CancellationToken);
+		CompleteResult prompt = await client.CompleteAsync(new PromptReference { Name = "find_writer" },
+			"trigger", "a", cancellationToken: TestContext.Current.CancellationToken);
 		CompleteResult workflow = await client.CompleteAsync(
 			new ResourceTemplateReference { Uri = "cheatengine://docs/workflows/{workflow}" }, "workflow", "nop",
 			cancellationToken: TestContext.Current.CancellationToken);
 
-		Assert.Equal(["full"], prompt.Completion.Values);
+		Assert.Equal(["access"], prompt.Completion.Values);
 		Assert.Equal(["nop-patch"], workflow.Completion.Values);
 	}
 
@@ -349,6 +445,7 @@ public sealed class GatewayResourceTests
 	{
 		[McpServerResource(UriTemplate = "cheatengine://instance/probes/{name}", Name = "instance_probe",
 			Title = "Live probe", MimeType = "application/json")]
+		[McpSourceTool(typeof(RuntimeTools), CheatEngineToolNames.RuntimeGetInfo)]
 		[Description("A live probe resource.")]
 		public string Read(string name)
 		{

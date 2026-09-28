@@ -2,24 +2,18 @@
   <!--
     Cheat Engine MCP prompts and the initialize server instructions. The only public composition entry point is
     ICheatEngineMcpBuilder.AddPrompts(). Prompts are declared with AddPromptType<T>(); every prompt is a static (Local)
-    method that renders one workflow body of the operator skill, embedded here by link from
-    skills/cheatengine-mcp/references/workflows/ (the single source, also served as cheatengine://docs/workflows/{name}).
+    method that renders one guided workflow body of the Resources knowledge base (CheatEngineKnowledge) and links the
+    documents it serves, so the text has a single source and is embedded once.
   -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <CeMcpKnowledgeRoot>$(RepoRoot)skills/cheatengine-mcp/references/</CeMcpKnowledgeRoot>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../libs/CheatEngine.Mcp.Core/CheatEngine.Mcp.Core.csproj"/>
+    <ProjectReference Include="../CheatEngine.Mcp.Resources/CheatEngine.Mcp.Resources.csproj"/>
   </ItemGroup>
   <ItemGroup>
     <Using Include="CheatEngine.Mcp.Core.Composition"/>
     <InternalsVisibleTo Include="CheatEngine.Mcp.Tests"/>
-  </ItemGroup>
-  <ItemGroup>
-    <!-- WithCulture=false: a file name must never be read as a culture, which would create a satellite assembly. -->
-    <EmbeddedResource Include="$(CeMcpKnowledgeRoot)workflows/*.md" Exclude="$(CeMcpKnowledgeRoot)workflows/local-*.md"
-                      LogicalName="CheatEngine.Mcp.Knowledge/workflows/%(Filename)%(Extension)"
-                      Link="Knowledge/workflows/%(Filename)%(Extension)" WithCulture="false"/>
   </ItemGroup>
 </Project>

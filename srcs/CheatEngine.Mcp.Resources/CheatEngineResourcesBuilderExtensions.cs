@@ -11,7 +11,8 @@ public static class CheatEngineResourcesBuilderExtensions
 		/// <summary>
 		///     Declares every Cheat Engine resource container: the knowledge documents and the workflow bodies, which are
 		///     Local (static) and served by every backend and by the gateway, plus the live
-		///     <c>cheatengine://instance/…</c> projections of the implemented read-only v2 tools.
+		///     <c>cheatengine://instance/…</c> projections, each the structured result of one read-only, ungated,
+		///     <c>short</c> v2 tool named by its <see cref="McpSourceToolAttribute" />.
 		/// </summary>
 		/// <returns>The same builder.</returns>
 		public ICheatEngineMcpBuilder AddResources()
@@ -24,7 +25,14 @@ public static class CheatEngineResourcesBuilderExtensions
 				.AddResourceType<ModuleLiveResources>()
 				.AddResourceType<MemoryLiveResources>()
 				.AddResourceType<RecordLiveResources>()
-				.AddResourceType<StructureLiveResources>();
+				.AddResourceType<StructureLiveResources>()
+				.AddResourceType<CodeLiveResources>()
+				.AddResourceType<ScanLiveResources>()
+				.AddResourceType<AsmLiveResources>()
+				.AddResourceType<SymbolLiveResources>()
+				.AddResourceType<PointerLiveResources>()
+				.AddResourceType<DebuggerLiveResources>()
+				.AddResourceType<SpeedhackLiveResources>();
 		}
 	}
 }

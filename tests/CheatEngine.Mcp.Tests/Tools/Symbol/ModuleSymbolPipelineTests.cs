@@ -11,6 +11,7 @@ using CheatEngine.Mcp.Tools.Symbol;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
+using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 
 namespace CheatEngine.Mcp.Tests.Tools.Symbol;
@@ -84,6 +85,48 @@ public sealed class ModuleSymbolPipelineTests : IDisposable
 		ToolError error = TestMcpPipeline.AssertError(result, ToolErrorKind.InvalidArgument);
 		Assert.Equal(ToolHostEffect.NotStarted, error.HostEffect);
 		Assert.DoesNotContain("attacker", error.Message, StringComparison.Ordinal);
+		Assert.Equal(0, target.Dispatcher.Calls);
+		Assert.Equal(0, target.TotalClientCalls);
+	}
+
+	[Fact]
+	public async Task SymbolFind_Success_IsAPagedObjectFromAReadOnlyHostScanTool()
+	{
+		ModuleSymbolTarget target = new();
+		target.LuaResults[typeof(LuaSymbolFind)] = new LuaSymbolFind(3, false, true,
+			[new SymbolMatch("game.GetHealth", "140001000", "game", 64)]);
+		await using Activation activation = await Activation.StartAsync(target, _scratch);
+
+		CallToolResult result = await activation.Pipeline.CallAsync(CheatEngineToolNames.SymbolFind,
+			"""{"nameContains":"health","limit":1}""");
+		IList<McpClientTool> tools =
+			await activation.Pipeline.Client.ListToolsAsync(cancellationToken: TestContext.Current.CancellationToken);
+
+		Assert.NotEqual(true, result.IsError);
+		JsonElement content = Assert.IsType<JsonElement>(result.StructuredContent);
+		Assert.Equal((3, 1), (content.GetProperty("total").GetInt32(), content.GetProperty("nextOffset").GetInt32()));
+		JsonElement match = content.GetProperty("symbols")[0];
+		Assert.Equal(("game.GetHealth", "140001000", 64), (match.GetProperty("name").GetString(),
+			match.GetProperty("address").GetString(), match.GetProperty("size").GetInt32()));
+		Assert.False(match.TryGetProperty("registered", out _));
+		Assert.False(content.TryGetProperty("success", out _));
+		Tool find = tools.Single(static tool => tool.Name == CheatEngineToolNames.SymbolFind).ProtocolTool;
+		Assert.Equal(McpDispatchClass.HostScan, find.Meta?[McpDispatchClass.MetaKey]?.GetValue<string>());
+		Assert.Equal((true, false, true, false), (find.Annotations!.ReadOnlyHint, find.Annotations.DestructiveHint,
+			find.Annotations.IdempotentHint, find.Annotations.OpenWorldHint));
+	}
+
+	[Fact]
+	public async Task SymbolFind_OneCharacter_IsAnInvalidArgumentEnvelopeWithoutDispatch()
+	{
+		ModuleSymbolTarget target = new();
+		await using Activation activation = await Activation.StartAsync(target, _scratch);
+
+		CallToolResult result = await activation.Pipeline.CallAsync(CheatEngineToolNames.SymbolFind,
+			"""{"nameContains":"h"}""");
+
+		ToolError error = TestMcpPipeline.AssertError(result, ToolErrorKind.InvalidArgument);
+		Assert.Equal("nameContains", error.Details!.Value.GetProperty("parameter").GetString());
 		Assert.Equal(0, target.Dispatcher.Calls);
 		Assert.Equal(0, target.TotalClientCalls);
 	}

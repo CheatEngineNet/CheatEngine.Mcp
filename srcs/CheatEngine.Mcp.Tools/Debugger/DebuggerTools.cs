@@ -46,10 +46,19 @@ public sealed class DebuggerTools
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.MayPrompt)]
 	[Description(
 		"Attaches Cheat Engine's debugger to the selected local process. Windows is the compatible interface; VEH " +
-		"injects a helper and requires target_code_execution, and kernel requires kernel_access. A target that used " +
-		"VEH must restart before another attach. Read activeInterface because Cheat Engine can fall back.")]
+		"injects a helper and requires target_code_execution, and kernel requires kernel_access. default attaches " +
+		"the interface selected in Cheat Engine's settings: MCP reads that setting first and refuses with " +
+		"unsupported when it selects the DBVM debugger or cannot be identified, and with capability_disabled when " +
+		"the selected interface needs a switch that is off (VEH needs target_code_execution, kernel needs " +
+		"kernel_access); an already attached debugger is only reported. While Cheat Engine is connected to a " +
+		"ceserver, an attach is refused with unsupported before Cheat Engine attaches its network debugger, and an " +
+		"attached interface MCP cannot drive, such as DBVM, a GDB server or ceserver, is reported as unsupported. " +
+		"A target that used VEH must restart before another attach. Read activeInterface because Cheat Engine can " +
+		"fall back.")]
 	public DebuggerAttachment Attach(
-		[Description("default, windows, veh or kernel.")]
+		[Description(
+			"default, windows, veh or kernel. default follows the debugger interface selected in Cheat Engine's " +
+			"settings, needs the same exposure switch as that interface and is refused for the DBVM debugger.")]
 		DebuggerInterface @interface = DebuggerInterface.Default,
 		CancellationToken cancellationToken = default)
 	{
@@ -64,6 +73,11 @@ public sealed class DebuggerTools
 
 		return _dispatch.Run(CheatEngineToolNames.DebuggerAttach, token =>
 		{
+			if (@interface is DebuggerInterface.Default)
+			{
+				RequireConfiguredInterface(token);
+			}
+
 			ProcessSnapshot process = _dispatch.Client.Processes.GetCurrentProcess(token);
 			if (process.StartTimeUtc is not { } startTime)
 			{
@@ -85,12 +99,18 @@ public sealed class DebuggerTools
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
 		"Resumes a stopped debugger context, unpauses the selected target and detaches Cheat Engine's debugger. " +
-		"Refuses while MCP-owned breakpoints or debugger jobs still hold target state; release them first.")]
+		"Refuses with busy while any resource this MCP activation tracks still holds target state, whatever its " +
+		"kind (breakpoint, debugger or other job, pause, allocation, patch, scan, speedhack and so on); release it " +
+		"first. Cheat Engine's Lua state is re-read before deciding, so jobs and breakpoints that already ended " +
+		"there, for example at their TTL, no longer block.")]
 	public DebuggerDetached Detach(CancellationToken cancellationToken = default)
 	{
-		EnsureNoActiveResources(CheatEngineToolNames.DebuggerDetach);
-		return _dispatch.RunLua(CheatEngineToolNames.DebuggerDetach, DebuggerLuaScripts.Detach,
-			DebuggerJsonContext.Default.DebuggerDetached, cancellationToken);
+		return _dispatch.Run(CheatEngineToolNames.DebuggerDetach, token =>
+		{
+			EnsureNoActiveResources(token);
+			return _dispatch.ExecuteLua(CheatEngineToolNames.DebuggerDetach, DebuggerLuaScripts.Detach,
+				DebuggerJsonContext.Default.DebuggerDetached, token);
+		}, cancellationToken);
 	}
 
 	/// <summary>Gets a copied debugger-state snapshot.</summary>
@@ -247,9 +267,14 @@ public sealed class DebuggerTools
 		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Copies normalised registers from the current stopped context. Include extra registers only when FPU or XMM values matter.")]
+		"Copies normalised registers from the current stopped context; integer registers are uppercase hexadecimal " +
+		"without 0x. Include extra registers only when FPU or XMM values matter: Cheat Engine then supplies FP0-FP7 " +
+		"(10 bytes each) and XMM0-XMM15 (16 bytes each; XMM0-XMM7 on 32-bit targets) as byte arrays, returned as " +
+		"space-separated hexadecimal bytes in memory order, least significant byte first.")]
 	public DebuggerContext GetContext(
-		[Description("Include FPU and XMM values where Cheat Engine exposes them.")]
+		[Description(
+			"Include the FPU (FP0-FP7) and XMM registers where Cheat Engine exposes them, as space-separated " +
+			"hexadecimal bytes.")]
 		bool includeExtraRegisters = false,
 		CancellationToken cancellationToken = default)
 	{
@@ -318,7 +343,9 @@ public sealed class DebuggerTools
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
 		"Starts a TTL-bounded access, write or execute capture. The callback records bounded contexts and automatically " +
-		"continues the target. Poll with debugger_poll_capture and stop or release the returned job with runtime_stop_job.")]
+		"continues the target. With groupByEffectiveAddress, an execute capture groups hits by the memory address " +
+		"that the instruction's operand accesses, like Cheat Engine's find out what addresses this instruction " +
+		"accesses. Poll with debugger_poll_capture and stop or release the returned job with runtime_stop_job.")]
 	public DebuggerJobStarted StartCapture(
 		[Description("The address expression to capture.")]
 		string address,
@@ -329,7 +356,15 @@ public sealed class DebuggerTools
 		[Description("Group repeated hits by instruction address and retain first and last contexts.")]
 		bool aggregateByInstruction = false,
 		[Description(
-			"The maximum retained hits or instruction groups, from 1 through 1024 and the configured job buffer limit.")]
+			"Group repeated hits by the effective address of the instruction's one [...] memory operand, computed " +
+			"from the registers before it runs, and report effectiveAddress and operandSize per group with first and " +
+			"last contexts. Needs trigger execute on that instruction and excludes aggregateByInstruction. lea and " +
+			"nop, instructions without exactly one memory operand, fs: or gs: operands, vector-indexed operands and " +
+			"16-bit addressing are refused before any breakpoint is set.")]
+		bool groupByEffectiveAddress = false,
+		[Description(
+			"The maximum retained hits, instruction groups or effective-address groups, from 1 through 1024 and the " +
+			"configured job buffer limit.")]
 		int? maximumHits = null,
 		[Description("The job lifetime in seconds. Defaults to the configured job TTL and is at most 300 seconds.")]
 		int? lifetimeSeconds = null,
@@ -337,6 +372,7 @@ public sealed class DebuggerTools
 	{
 		string expression = Address(address, "address");
 		BreakpointSize(size, trigger);
+		EffectiveAddressGrouping(groupByEffectiveAddress, trigger, aggregateByInstruction);
 		int requested = maximumHits ?? Math.Min(256, MaximumCaptureHits);
 		Range(requested, "maximumHits", 1, MaximumCaptureHits);
 		TimeSpan ttl = _jobs.ResolveTimeToLive(lifetimeSeconds);
@@ -348,7 +384,7 @@ public sealed class DebuggerTools
 				receipt = _dispatch.RunLua(CheatEngineToolNames.DebuggerStartCapture, DebuggerLuaScripts.StartCapture,
 					DebuggerJsonContext.Default.DebuggerJobStarted, cancellationToken, start.Namespace, start.Id,
 					start.BufferLimit, start.TimeToLiveMilliseconds, expression, Trigger(trigger), size,
-					aggregateByInstruction);
+					aggregateByInstruction, groupByEffectiveAddress);
 			});
 		return receipt is { } started
 			? started with
@@ -385,17 +421,25 @@ public sealed class DebuggerTools
 		Destructive = false, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Arms an execute breakpoint and then traces only the hitting thread for at most 256 steps. It owns the global " +
-		"Cheat Engine stepping hook while active, leaves the thread stopped at completion, and is released by runtime_stop_job.")]
+		"Arms an execute breakpoint and then traces only the hitting thread for at most 256 steps. Only one trace " +
+		"can run at a time, because it installs Cheat Engine's global debugger_onBreakpoint hook while active: the " +
+		"call refuses (host_refused) while any debugger_onBreakpoint hook is installed, such as another trace or " +
+		"one set with lua_execute, and the job fails if one appears before its entry breakpoint is hit. The trace " +
+		"completes after maximumSteps contexts, the entry context included, or earlier after the first context that " +
+		"matches stopCondition. Completion leaves the thread stopped; runtime_stop_job releases the job and its hook.")]
 	public DebuggerJobStarted StartTrace(
 		[Description("The instruction address expression where the trace starts.")]
 		string address,
 		[Description("into follows calls; over steps across them.")]
 		DebuggerStepMode mode = DebuggerStepMode.Over,
-		[Description("The maximum contexts to retain and execute, from 1 through 256.")]
+		[Description(
+			"The contexts to retain and execute, from 1 through 256, the entry context included; without " +
+			"stopCondition the trace runs all of them.")]
 		int maximumSteps = 32,
 		[Description(
-			"An optional equality condition such as RAX=1A or IP=7FF612341000. It stops the trace after the matching context.")]
+			"An optional equality condition such as RAX=1A or IP=7FF612341000, compared as a hexadecimal number " +
+			"(leading zeros and 0x ignored). It stops the trace after the first matching context, the entry context " +
+			"included. Name a register of the target's width: RAX-R15 and RIP on x64, EAX-EIP on x86, EFLAGS or IP.")]
 		string? stopCondition = null,
 		[Description("Include the stack pointer in each retained context.")]
 		bool includeStack = false,
@@ -479,8 +523,73 @@ public sealed class DebuggerTools
 			: throw CheatEngineToolException.Internal("The run-to job started without a receipt.");
 	}
 
-	private void EnsureNoActiveResources(string operation)
+	/// <summary>
+	///     Reads the interface that Cheat Engine's settings select for <c>debugProcess(0)</c>, inside the attach
+	///     dispatch and before Cheat Engine attaches anything. It refuses a ceserver connection, the DBVM debugger and
+	///     an unidentified setting, which the attach could not drive, and applies the exposure switch of the selected
+	///     interface.
+	/// </summary>
+	private void RequireConfiguredInterface(CancellationToken cancellationToken)
 	{
+		LuaDebuggerDefaultInterface configured = _dispatch.ExecuteLua(CheatEngineToolNames.DebuggerAttach,
+			DebuggerLuaScripts.DefaultInterface, DebuggerLuaJsonContext.Default.LuaDebuggerDefaultInterface,
+			cancellationToken);
+		if (configured.Attached)
+		{
+			// The attach only reports the debugger that is already attached; Cheat Engine attaches nothing.
+			return;
+		}
+
+		(McpFeature? required, string? name) = configured.Configured switch
+		{
+			"windows" => ((McpFeature?) null, "Windows"),
+			"veh" => (McpFeature.TargetCodeExecution, "VEH"),
+			"kernel" => (McpFeature.KernelAccess, "kernel"),
+			_ => ((McpFeature?) null, null)
+		};
+		if (name is null)
+		{
+			const string selectHint =
+				"Select the Windows, VEH or kernel debugger in Cheat Engine's settings, or pass interface windows.";
+			(string refused, string hint) = configured.Configured switch
+			{
+				"ceserver" => (
+					"debugger_attach with interface default would attach the network debugger of the ceserver " +
+					"that Cheat Engine is connected to, which MCP cannot drive.",
+					"Disconnect Cheat Engine from the ceserver and open a local process, then attach again or " +
+					"pass interface windows."),
+				"dbvm" => (
+					"debugger_attach with interface default would attach the DBVM debugger selected in Cheat " +
+					"Engine's settings, which MCP cannot drive.", selectHint),
+				_ => (
+					"debugger_attach could not identify a Windows, VEH or kernel debugger in Cheat Engine's " +
+					"settings, so interface default is refused.", selectHint)
+			};
+			throw new CheatEngineToolException(new ToolError(ToolErrorKind.Unsupported, refused, null,
+				ToolHostEffect.NotStarted, false, hint));
+		}
+
+		McpFeatureGate features = _dispatch.Features;
+		if (required is not { } feature || features.IsEnabled(feature))
+		{
+			return;
+		}
+
+		string setting = McpFeatureGate.SettingName(feature);
+		throw new CheatEngineToolException(new ToolError(ToolErrorKind.CapabilityDisabled,
+			$"debugger_attach with interface default would attach the {name} debugger selected in Cheat Engine's " +
+			$"settings, which the Mcp:{setting} setting disables.", null, ToolHostEffect.NotStarted, false,
+			$"Pass interface windows, or set Mcp:{setting} to true in appsettings.json, then disable and re-enable " +
+			"the plugin."));
+	}
+
+	/// <summary>
+	///     Refuses while a resource of this activation holds target state; inside the detach dispatch. The Lua ledger
+	///     is re-read first, so a job or breakpoint that already ended in Lua, at its TTL say, no longer blocks.
+	/// </summary>
+	private void EnsureNoActiveResources(CancellationToken cancellationToken)
+	{
+		_ = _resources.ListAll(cancellationToken);
 		TargetResourceDescriptor? resource = _resources.List().FirstOrDefault(static item =>
 			item.State is TargetResourceState.Active or TargetResourceState.StopPending
 				or TargetResourceState.CleanupFailed);
@@ -518,6 +627,34 @@ public sealed class DebuggerTools
 		}
 
 		_ = trigger;
+	}
+
+	/// <summary>
+	///     Effective-address grouping reads the registers an instruction uses for its memory operand before it runs,
+	///     which only an execute breakpoint on that instruction provides, and replaces the instruction grouping.
+	/// </summary>
+	private static void EffectiveAddressGrouping(bool enabled, DebuggerBreakpointTrigger trigger,
+		bool aggregateByInstruction)
+	{
+		if (!enabled)
+		{
+			return;
+		}
+
+		if (trigger is not DebuggerBreakpointTrigger.Execute)
+		{
+			throw CheatEngineToolException.InvalidArgument("groupByEffectiveAddress",
+				"requires trigger execute on the instruction whose memory operand is grouped.",
+				"Find the accessing instruction with a write or access capture first, then capture its " +
+				"instructionAddress with trigger execute.");
+		}
+
+		if (aggregateByInstruction)
+		{
+			throw CheatEngineToolException.InvalidArgument("groupByEffectiveAddress",
+				"cannot be combined with aggregateByInstruction; an execute capture has one instruction.",
+				"Pass only one grouping option.");
+		}
 	}
 
 	private static void Positive(long value, string parameter)
@@ -619,6 +756,8 @@ public sealed class DebuggerTools
 				"must compare the register with 1 to 16 hexadecimal digits.");
 		}
 
-		return (register, hexadecimal.ToUpperInvariant());
+		// The trace formats every register without leading zeros, so compare the number rather than its spelling.
+		string significant = hexadecimal.TrimStart('0');
+		return (register, significant.Length == 0 ? "0" : significant.ToUpperInvariant());
 	}
 }

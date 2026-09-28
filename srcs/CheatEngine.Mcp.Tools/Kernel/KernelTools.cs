@@ -40,17 +40,29 @@ public sealed class KernelTools
 			KernelJsonContext.Default.KernelStatus, cancellationToken);
 	}
 
-	/// <summary>Asks Cheat Engine to initialize DBVM.</summary>
+	/// <summary>
+	///     Confirms that DBVM runs, or, with <paramref name="offloadOperatingSystem" />, asks Cheat Engine to load DBK
+	///     and then DBVM after a human confirms.
+	/// </summary>
 	[McpServerTool(Name = CheatEngineToolNames.KernelInitializeDbvm, Title = "Initialize DBVM", ReadOnly = false,
 		Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.MayPrompt)]
 	[RequiresFeature(McpFeature.KernelAccess)]
 	[Description(
-		"Initialize DBVM. Cheat Engine may show a confirmation dialog that a human must answer; offloadOperatingSystem=true can destabilize or blue-screen the host. reason is a short operator-facing rationale passed to Cheat Engine. Never retry an unknown outcome: call kernel_get_status after the host responds.")]
+		"Initialize DBVM. With offloadOperatingSystem=false (the default) Cheat Engine loads nothing: the call only " +
+		"confirms that DBVM already runs and otherwise fails with invalid_state and hostEffect not_started. With " +
+		"offloadOperatingSystem=true, when DBVM is not yet running and the CPU can run it, Cheat Engine first loads " +
+		"its DBK kernel driver without any prompt, then shows a confirmation dialog that a human must answer: Cheat " +
+		"Engine's own crash warning followed by reason. Loading DBVM can freeze or blue-screen the host. Never retry " +
+		"an unknown outcome: call kernel_get_status after the host responds.")]
 	public KernelDbvmInitialization InitializeDbvm(
-		[Description("Ask DBVM to offload the operating system when possible; this is the dangerous path.")]
+		[Description(
+			"false only confirms that DBVM already runs and loads nothing; true loads DBK, then DBVM after a human " +
+			"confirms, which can crash the host.")]
 		bool offloadOperatingSystem = false,
-		[Description("Short reason shown to or recorded by Cheat Engine, at most 256 characters.")]
+		[Description(
+			"Short operator-facing reason, at most 256 characters. With offloadOperatingSystem=true the dialog shows " +
+			"it after Cheat Engine's own crash warning.")]
 		string? reason = null,
 		CancellationToken cancellationToken = default)
 	{
@@ -61,7 +73,8 @@ public sealed class KernelTools
 		}
 
 		return _dispatch.RunLua(CheatEngineToolNames.KernelInitializeDbvm, KernelScripts.InitializeDbvm,
-			KernelJsonContext.Default.KernelDbvmInitialization, cancellationToken, offloadOperatingSystem, reason);
+			KernelJsonContext.Default.KernelDbvmInitialization, cancellationToken, offloadOperatingSystem,
+			KernelScripts.DbvmCrashWarning, reason);
 	}
 
 	/// <summary>Translates one selected-target virtual address to its current physical address through DBK.</summary>
@@ -137,13 +150,18 @@ public sealed class KernelTools
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.BlockingNative)]
 	[RequiresFeature(McpFeature.KernelAccess)]
 	[Description(
-		"Start a DBVM physical-page watch as a bounded job. The whole watched range must stay inside the unsigned 64-bit physical-address space. The watch observes every process and kernel access to the physical page. Poll it with kernel_poll_watch; runtime_stop_job(jobId), TTL expiry and plugin shutdown run its Lua cleanup hook to disable the DBVM watch. options may use only bits 0 to 3, because options 5 and above can create unbounded DBVM logs or change execution.")]
+		"Start a DBVM physical-page watch as a bounded job. The watched range must stay inside one 4 KiB physical " +
+		"page: (physicalAddress & 0xFFF) + byteSize may not exceed 4096, because DBVM silently shortens a range " +
+		"that crosses a page boundary. The watch observes every process and kernel access to the physical page. " +
+		"Poll it with kernel_poll_watch; runtime_stop_job(jobId), TTL expiry and plugin shutdown run its Lua cleanup " +
+		"hook to disable the DBVM watch. options may use only bits 0 to 3, because options 5 and above can create " +
+		"unbounded DBVM logs or change execution.")]
 	public KernelWatchStart StartWatch(
 		[Description("read, write or execute. A read watch also reports writes, as Cheat Engine documents.")]
 		KernelWatchAccess access,
 		[Description("Literal physical hexadecimal address to watch.")]
 		string physicalAddress,
-		[Description("Watched byte size, 1 to 4096.")]
+		[Description("Watched byte size, 1 to 4096, without crossing a 4 KiB physical page boundary.")]
 		int byteSize = 1,
 		[Description("DBVM watch option bits 0 to 3 only.")]
 		int options = 0,
@@ -152,7 +170,8 @@ public sealed class KernelTools
 		[Description("Watch job lifetime in seconds, 1 to 300; default from Mcp:Execution.")]
 		int? lifetimeSeconds = null,
 		[Description(
-			"Events retained in the MCP job buffer; default from Mcp:Execution, subject to its configured limit.")]
+			"Events retained in the MCP job buffer, 1 to Mcp:Execution:JobBufferLimit, which is also the default; " +
+			"older events are evicted and counted in dropped.")]
 		int? bufferLimit = null,
 		CancellationToken cancellationToken = default)
 	{
@@ -165,6 +184,7 @@ public sealed class KernelTools
 		ulong address = KernelSupport.PhysicalAddress(physicalAddress, "physicalAddress");
 		KernelSupport.Range(byteSize, 1, KernelSupport.MaximumPhysicalBytes, "byteSize");
 		KernelSupport.PhysicalRange(address, byteSize, "physicalAddress");
+		KernelSupport.WithinPhysicalPage(address, byteSize, "byteSize");
 		KernelSupport.Range(internalEntryCount, 1, KernelSupport.MaximumWatchEntries, "internalEntryCount");
 		if ((options & ~0x0F) != 0)
 		{
@@ -172,7 +192,7 @@ public sealed class KernelTools
 		}
 
 		TimeSpan lifetime = _jobs.ResolveTimeToLive(lifetimeSeconds);
-		int retained = _jobs.ResolveBufferLimit(bufferLimit);
+		int retained = _jobs.ResolveBufferLimit(bufferLimit, "bufferLimit");
 		LuaJob<KernelWatchEvent> job = _jobs.StartLua(WatchJobKind, lifetime, retained,
 			KernelJsonContext.Default.KernelWatchEvent, start =>
 			{
@@ -185,13 +205,22 @@ public sealed class KernelTools
 		return new KernelWatchStart(job.Id, HexFormat.Address(address), access, byteSize, internalEntryCount);
 	}
 
-	/// <summary>Drains newly available DBVM events into the job ring and returns a non-consuming page.</summary>
+	/// <summary>
+	///     Drains newly available DBVM events into the job ring, then returns a non-consuming page through the job
+	///     poll, which refreshes the managed job state.
+	/// </summary>
 	[McpServerTool(Name = CheatEngineToolNames.KernelPollWatch, Title = "Poll DBVM watch", ReadOnly = true,
 		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.BlockingNative)]
 	[RequiresFeature(McpFeature.KernelAccess)]
 	[Description(
-		"Poll one DBVM watch job. The first call uses afterSequence=0, then returns nextAfterSequence for the next page. Newly logged DBVM events are copied into the job's bounded ring before the page is returned; dropped reports ring eviction. Events include only a bounded register projection, never FPU or stack snapshots. Stop with runtime_stop_job(jobId), which disables the watch.")]
+		"Poll one DBVM watch job. The first call uses afterSequence=0, then returns nextAfterSequence for the next " +
+		"page. Each call first moves every event DBVM logged since the previous call into the job's bounded ring " +
+		"(DBVM empties its log on each retrieval), then returns a non-consuming page with the refreshed job status; " +
+		"dropped counts events evicted from that ring. Events DBVM discarded because internalEntryCount filled " +
+		"between polls are not reported, so poll often; events logged after the last poll are lost when the job " +
+		"ends. Events include only a bounded register projection, never FPU or stack snapshots. Stop with " +
+		"runtime_stop_job(jobId), which disables the watch.")]
 	public KernelWatchPoll PollWatch(
 		[Description("Job id returned by kernel_start_watch.")]
 		string jobId,
@@ -203,9 +232,14 @@ public sealed class KernelTools
 	{
 		RequireKernel(CheatEngineToolNames.KernelPollWatch);
 		JobRegistry.ValidatePoll(afterSequence, limit);
-		_ = _jobs.Get<LuaJob<KernelWatchEvent>>(jobId, WatchJobKind);
-		return _dispatch.RunLua(CheatEngineToolNames.KernelPollWatch, KernelScripts.PollWatch,
-			KernelJsonContext.Default.KernelWatchPoll, cancellationToken, _jobs.Namespace, jobId, afterSequence, limit);
+		LuaJob<KernelWatchEvent> job = _jobs.Get<LuaJob<KernelWatchEvent>>(jobId, WatchJobKind);
+		// A job that no longer exists in Lua is reported, and its managed handle retired, by the job poll below.
+		_ = _dispatch.RunLua(CheatEngineToolNames.KernelPollWatch, KernelScripts.DrainWatch,
+			KernelJsonContext.Default.LuaKernelWatchDrain, cancellationToken, _jobs.Namespace, job.Id);
+		JobPoll<KernelWatchEvent> page = job.Poll(afterSequence, limit, cancellationToken,
+			CheatEngineToolNames.KernelPollWatch);
+		return new KernelWatchPoll(page.Job, [.. page.Items], page.FirstSequence, page.NextAfterSequence, page.More,
+			page.Dropped);
 	}
 
 	private void RequireKernel(string toolName)

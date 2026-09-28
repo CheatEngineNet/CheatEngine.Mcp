@@ -26,7 +26,7 @@ internal sealed class McpServerModule(
 			server = backends.Create(targets, client.Stopping);
 			server.StartAsync().GetAwaiter().GetResult();
 			string endpoint = server.Endpoint
-				?? throw new InvalidOperationException("The MCP server started without an endpoint.");
+							  ?? throw new InvalidOperationException("The MCP server started without an endpoint.");
 			_server = server;
 			server = null;
 			status.Report(client, "Enabled", endpoint);

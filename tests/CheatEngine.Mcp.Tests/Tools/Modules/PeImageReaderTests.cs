@@ -183,6 +183,229 @@ public sealed class PeImageReaderTests
 	}
 
 	[Fact]
+	public void ReadImports_Pe32Plus_ListsNamedOrdinalBoundAndDelayLoadedSlotsWithTheirValues()
+	{
+		(TestPe pe, TestImportTable imports, TestImportTable? delayed) = SampleModule.BuildWithImports();
+
+		List<PeImport> read = PeImageReader.ReadImports(PeImageReader.ParseHeaders(pe.Headers()),
+			new ArrayImage(pe.Map(SampleModule.LoadedBase)), true, SampleModule.LoadedBase);
+
+		uint kernel = imports.SlotRvas[0];
+		uint bound = imports.SlotRvas[1];
+		PeImport[] expected =
+		[
+			new("KERNEL32.dll", kernel, false, "Sleep", null, 0x5A1, SampleModule.KernelBase64 + 0x1000),
+			new("KERNEL32.dll", kernel + 8, false, "GetTickCount", null, 0x2B3, SampleModule.KernelBase64 + 0x2000),
+			new("KERNEL32.dll", kernel + 16, false, null, 17, null, SampleModule.KernelBase64 + 0x3000),
+			new("bound.dll", bound, false, null, null, null, SampleModule.BoundValue),
+			new("bound.dll", bound + 8, false, null, null, null, SampleModule.BoundValue + 0x10),
+			new("USER32.dll", delayed!.SlotRvas[0], true, "MessageBoxW", null, 0x28A,
+				SampleModule.LoadedBase + SampleModule.TextRva + 0x40)
+		];
+		Assert.Equal(expected, read);
+	}
+
+	[Fact]
+	public void ReadImports_Pe32_ReadsFourByteThunksAndOrdinalFlag()
+	{
+		(TestPe pe, TestImportTable imports, _) = SampleModule.BuildWithImports(false, false);
+
+		List<PeImport> read = PeImageReader.ReadImports(PeImageReader.ParseHeaders(pe.Headers()),
+			new ArrayImage(pe.Map(0x10000000)), true, 0x10000000);
+
+		Assert.Equal(5, read.Count);
+		Assert.Equal(new PeImport("KERNEL32.dll", imports.SlotRvas[0] + 4, false, "GetTickCount", null, 0x2B3,
+			SampleModule.KernelBase32 + 0x2000), read[1]);
+		Assert.Equal(((ushort?) 17, SampleModule.KernelBase32 + 0x3000), (read[2].Ordinal, read[2].Value));
+		Assert.Equal(imports.SlotRvas[1] + 4, read[4].SlotRva);
+	}
+
+	[Fact]
+	public void ReadImports_WithoutDelayLoaded_SkipsTheDelayLoadDirectory()
+	{
+		(TestPe pe, _, _) = SampleModule.BuildWithImports();
+		ArrayImage image = new(pe.Map(SampleModule.LoadedBase));
+
+		List<PeImport> read = PeImageReader.ReadImports(PeImageReader.ParseHeaders(pe.Headers()), image, false,
+			SampleModule.LoadedBase);
+
+		Assert.Equal(5, read.Count);
+		Assert.DoesNotContain(read, static import => import.DelayLoaded);
+	}
+
+	/// <summary>
+	///     Each delay-load descriptor form of PE32 and PE32+, at its preferred base and rebased: the old PE32 form holds
+	///     addresses, above 2 GiB with the ordinal flag's bit set; a PE32+ descriptor is relative even without the RVA
+	///     attribute.
+	/// </summary>
+	[Theory]
+	[InlineData(false, nameof(TestDelayForm.Relative), SampleModule.PreferredBase32)]
+	[InlineData(false, nameof(TestDelayForm.Relative), 0x00400000UL)]
+	[InlineData(false, nameof(TestDelayForm.Addresses), SampleModule.PreferredBase32)]
+	[InlineData(false, nameof(TestDelayForm.Addresses), 0x00400000UL)]
+	[InlineData(false, nameof(TestDelayForm.Addresses), 0x8A000000UL)]
+	[InlineData(true, nameof(TestDelayForm.Relative), SampleModule.LoadedBase)]
+	[InlineData(true, nameof(TestDelayForm.RelativeWithoutAttribute), SampleModule.LoadedBase)]
+	[InlineData(true, nameof(TestDelayForm.RelativeWithoutAttribute), SampleModule.PreferredBase32)]
+	public void ReadImports_DelayLoadDescriptorForms_ListTheSameNamedAndOrdinalSlots(bool is64, string form,
+		ulong loadedBase)
+	{
+		(TestPe pe, TestImportTable delayed) =
+			SampleModule.BuildWithDelayLoads(is64, Enum.Parse<TestDelayForm>(form));
+
+		List<PeImport> read = PeImageReader.ReadImports(PeImageReader.ParseHeaders(pe.Headers(loadedBase)),
+			new ArrayImage(pe.Map(loadedBase)), true, loadedBase);
+
+		uint slot = delayed.SlotRvas[0];
+		PeImport[] expected =
+		[
+			new("USER32.dll", slot, true, "MessageBoxW", null, 0x28A, loadedBase + SampleModule.DelayStubRva),
+			new("USER32.dll", slot + (is64 ? 8u : 4u), true, null, 42, null,
+				loadedBase + SampleModule.DelayStubRva + 0x10)
+		];
+		Assert.Equal(expected, read);
+	}
+
+	[Fact]
+	public void BuildWithDelayLoads_AddressForm_HoldsRelocatedAddressesAsOldLinkersWroteThem()
+	{
+		const uint loadedBase = 0x00400000;
+		(TestPe pe, TestImportTable delayed) = SampleModule.BuildWithDelayLoads(false, TestDelayForm.Addresses);
+
+		byte[] mapped = pe.Map(loadedBase);
+
+		ReadOnlySpan<byte> descriptor = mapped.AsSpan((int) SampleModule.DelayImportRva, 32);
+		uint named = BinaryPrimitives.ReadUInt32LittleEndian(mapped.AsSpan((int) delayed.LookupRvas[0]));
+		uint ordinal = BinaryPrimitives.ReadUInt32LittleEndian(mapped.AsSpan((int) delayed.LookupRvas[0] + 4));
+		Assert.Equal((0u, loadedBase + delayed.SlotRvas[0], loadedBase + delayed.LookupRvas[0]),
+			(BinaryPrimitives.ReadUInt32LittleEndian(descriptor),
+				BinaryPrimitives.ReadUInt32LittleEndian(descriptor[12..]),
+				BinaryPrimitives.ReadUInt32LittleEndian(descriptor[16..])));
+		// The named entry is the address of the hint and the name; read as an RVA, it lies far past the image.
+		Assert.InRange(named, loadedBase + SampleModule.DelayImportRva, loadedBase + pe.SizeOfImage - 1);
+		Assert.Equal(0x8000002Au, ordinal);
+	}
+
+	[Theory]
+	[InlineData("descriptor", "A delay-load descriptor holds the address 7")]
+	[InlineData("lookup", "A delay-load lookup entry of USER32.dll holds the address FFF0000, outside the image.")]
+	public void ReadImports_OldDelayLoadAddressOutsideTheImage_IsRefused(string field, string message)
+	{
+		// A PE32 descriptor without the RVA attribute holds addresses: relative fields lie below the image base.
+		TestDelayForm form = field == "descriptor" ? TestDelayForm.RelativeWithoutAttribute : TestDelayForm.Addresses;
+		(TestPe pe, TestImportTable delayed) = SampleModule.BuildWithDelayLoads(false, form);
+		byte[] mapped = pe.Map(SampleModule.PreferredBase32);
+		if (field == "lookup")
+		{
+			BinaryPrimitives.WriteUInt32LittleEndian(mapped.AsSpan((int) delayed.LookupRvas[0]), 0x0FFF0000);
+		}
+
+		InvalidDataException exception = Assert.Throws<InvalidDataException>(() => PeImageReader.ReadImports(
+			PeImageReader.ParseHeaders(pe.Headers()), new ArrayImage(mapped), true, SampleModule.PreferredBase32));
+
+		Assert.StartsWith(message, exception.Message, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void ReadImports_NoImportDirectories_IsEmptyWithoutReading()
+	{
+		TestPe pe = SampleModule.Build();
+		ArrayImage image = new(pe.Map(SampleModule.LoadedBase));
+
+		Assert.Empty(PeImageReader.ReadImports(PeImageReader.ParseHeaders(pe.Headers()), image, true,
+			SampleModule.LoadedBase));
+		Assert.Equal(0, image.Reads);
+	}
+
+	[Theory]
+	[InlineData("name")]
+	[InlineData("lookup")]
+	[InlineData("hint")]
+	[InlineData("slots")]
+	public void ReadImports_TablesOutsideTheImage_AreRefused(string table)
+	{
+		(TestPe pe, TestImportTable imports, _) = SampleModule.BuildWithImports(withDelayLoads: false);
+		byte[] mapped = pe.Map(SampleModule.LoadedBase);
+		int descriptor = (int) SampleModule.ImportRva;
+		switch (table)
+		{
+			case "name":
+				BinaryPrimitives.WriteUInt32LittleEndian(mapped.AsSpan(descriptor + 12), 0x7FFFFFF0);
+				break;
+			case "lookup":
+				BinaryPrimitives.WriteUInt32LittleEndian(mapped.AsSpan(descriptor), 0x7FFFFFF0);
+				break;
+			case "hint":
+				BinaryPrimitives.WriteUInt64LittleEndian(mapped.AsSpan((int) imports.LookupRvas[0]), 0x7FFFFFF0);
+				break;
+			default:
+				BinaryPrimitives.WriteUInt32LittleEndian(mapped.AsSpan(descriptor + 16), 0x7FFFFFF0);
+				break;
+		}
+
+		Assert.Throws<InvalidDataException>(() => PeImageReader.ReadImports(
+			PeImageReader.ParseHeaders(pe.Headers()), new ArrayImage(mapped), true, SampleModule.LoadedBase));
+	}
+
+	[Fact]
+	public void ReadImports_LookupEntryNeitherOrdinalNorRva_IsRefused()
+	{
+		(TestPe pe, TestImportTable imports, _) = SampleModule.BuildWithImports(withDelayLoads: false);
+		byte[] mapped = pe.Map(SampleModule.LoadedBase);
+		BinaryPrimitives.WriteUInt64LittleEndian(mapped.AsSpan((int) imports.LookupRvas[0]), 0x1_0000_1000);
+
+		InvalidDataException exception = Assert.Throws<InvalidDataException>(() => PeImageReader.ReadImports(
+			PeImageReader.ParseHeaders(pe.Headers()), new ArrayImage(mapped), true, SampleModule.LoadedBase));
+
+		Assert.Contains("neither an ordinal nor an RVA", exception.Message, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void ReadImports_DescriptorsWithoutTerminatorPastTheCeiling_AreRefused()
+	{
+		const uint rva = 0x10000;
+		int descriptors = PeImageReader.MaximumImportDescriptors + 1;
+		int nameOffset = descriptors * 20;
+		int thunkOffset = nameOffset + 8;
+		byte[] data = new byte[thunkOffset + 8];
+		"a.dll"u8.CopyTo(data.AsSpan(nameOffset));
+		for (int index = 0; index < descriptors; index++)
+		{
+			// Every descriptor names a DLL whose table is empty, so only the descriptor ceiling stops the walk.
+			BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan((index * 20) + 12), rva + (uint) nameOffset);
+			BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan((index * 20) + 16), rva + (uint) thunkOffset);
+		}
+
+		TestPe pe = SampleModule.Build().AddSection(".idata", rva, data, TestPe.WritableData)
+			.SetDirectory(1, rva, (uint) nameOffset);
+
+		InvalidDataException exception = Assert.Throws<InvalidDataException>(() => PeImageReader.ReadImports(
+			PeImageReader.ParseHeaders(pe.Headers()), new ArrayImage(pe.Map(SampleModule.LoadedBase)), true,
+			SampleModule.LoadedBase));
+
+		Assert.Contains($"more than {PeImageReader.MaximumImportDescriptors} descriptors", exception.Message,
+			StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void ReadImports_MoreSlotsThanTheCeiling_AreRefused()
+	{
+		const uint rva = 0x10000;
+		TestImport[] functions =
+			[.. Enumerable.Range(0, PeImageReader.MaximumImports + 1).Select(static index => new TestImport(null, 1))];
+		TestImportTable imports = TestPe.ImportData(rva, true, [new TestImportDll("many.dll", functions, true)]);
+		TestPe pe = SampleModule.Build().AddSection(".idata", rva, imports.Data, TestPe.WritableData)
+			.SetDirectory(1, rva, imports.DescriptorsSize);
+
+		InvalidDataException exception = Assert.Throws<InvalidDataException>(() => PeImageReader.ReadImports(
+			PeImageReader.ParseHeaders(pe.Headers()), new ArrayImage(pe.Map(SampleModule.LoadedBase)), true,
+			SampleModule.LoadedBase));
+
+		Assert.Contains($"more than {PeImageReader.MaximumImports} functions", exception.Message,
+			StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void ReadCodeView_RsdsRecord_ReturnsPathSignatureAndAge()
 	{
 		TestPe pe = SampleModule.Build();

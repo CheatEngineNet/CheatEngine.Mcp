@@ -79,9 +79,9 @@ public sealed class GatewayTokenLeakTests
 		// Trace is configured globally, but authenticated backend and gateway transports keep their guarded categories
 		// at Information or above. The client remains unguarded here to exercise its own Trace diagnostics.
 		Assert.DoesNotContain(backendLogs.Entries, static entry => entry.Level < LogLevel.Information
-															   && TokenSafeLogging.GuardedCategories.Any(guarded =>
-																   entry.Category.StartsWith(guarded,
-																	   StringComparison.Ordinal)));
+																   && TokenSafeLogging.GuardedCategories.Any(guarded =>
+																	   entry.Category.StartsWith(guarded,
+																		   StringComparison.Ordinal)));
 		Assert.Contains(gatewayLogs.Entries, static entry => entry.Level == LogLevel.Debug
 															 && entry.Category.StartsWith(
 																 "CheatEngine.Mcp.Hosting.Gateway",

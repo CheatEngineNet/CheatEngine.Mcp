@@ -8,6 +8,7 @@ using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Features;
 using CheatEngine.Mcp.Core.Files;
 using CheatEngine.Mcp.Core.Values;
+using CheatEngine.Mcp.Tools.Modules;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Values;
 
@@ -16,8 +17,9 @@ using ModelContextProtocol.Server;
 namespace CheatEngine.Mcp.Tools.Symbol;
 
 /// <summary>
-///     The symbol lookup tools: <c>symbol_resolve</c>, <c>symbol_get_module_preference</c>,
-///     <c>symbol_set_module_preference</c>, <c>symbol_reload</c> and <c>symbol_add_module</c>.
+///     The symbol lookup tools: <c>symbol_resolve</c>, <c>symbol_find</c>, <c>symbol_get_module_preference</c>,
+///     <c>symbol_set_module_preference</c>, <c>symbol_reload</c>, <c>symbol_add_module</c> and
+///     <c>symbol_enable_sources</c>.
 /// </summary>
 [McpServerToolType]
 public sealed class SymbolTools
@@ -33,6 +35,15 @@ public sealed class SymbolTools
 
 	/// <summary>The longest module name accepted.</summary>
 	internal const int MaximumModuleLength = 256;
+
+	/// <summary>The shortest text <c>symbol_find</c> searches for.</summary>
+	internal const int MinimumFindLength = 2;
+
+	/// <summary>The longest text <c>symbol_find</c> searches for.</summary>
+	internal const int MaximumFindLength = 128;
+
+	/// <summary>The largest page of <c>symbol_find</c>.</summary>
+	internal const int MaximumFindLimit = 500;
 
 	private readonly ToolDispatch _dispatch;
 	private readonly McpFilePaths _paths;
@@ -100,6 +111,68 @@ public sealed class SymbolTools
 
 			return new SymbolResolveResult(items);
 		}, cancellationToken);
+	}
+
+	/// <summary>Searches the symbol names Cheat Engine knows for a substring, optionally inside one module.</summary>
+	/// <param name="nameContains">The text to find in symbol names.</param>
+	/// <param name="module">The module whose address range the symbols must lie in.</param>
+	/// <param name="offset">The index of the first sorted match to return.</param>
+	/// <param name="limit">The most matches to return.</param>
+	/// <param name="cancellationToken">The request's token.</param>
+	/// <returns>The page of matches.</returns>
+	[McpServerTool(Name = CheatEngineToolNames.SymbolFind, Title = "Find symbols", ReadOnly = true,
+		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.HostScan)]
+	[Description(
+		"Find symbols whose names contain nameContains, matched literally and ASCII case-insensitively, such as Health or CreateFile. It searches registered symbols, registered symbol lists ({$C} Auto Assembler functions, IL2CPP methods) and the main symbol list (exports; PDB symbols of the game or from symbol_add_module or symbol_enable_sources); .NET, Mono JIT and module names are not searched. module keeps only symbols inside one loaded module. Matches are sorted by name, then address; at most 10000 are collected (truncated says more match), then offset and limit (at most 500) page them, each with its module and size when known. symbolsLoaded=false means Cheat Engine is still loading symbols or IL2CPP methods: repeat later before concluding a name is absent. Every call copies all these lists on Cheat Engine's main thread, whatever the filters: quick with exports and a game PDB, but with Windows PDB symbols or IL2CPP methods loaded it can block Cheat Engine for a second or more (host_scan).")]
+	public SymbolFindResult Find(
+		[Description(
+			"The text to find in symbol names, 2 to 128 characters, matched literally and ASCII case-insensitively, such as Health.")]
+		string nameContains,
+		[Description(
+			"Keep only symbols inside this loaded module: a name such as game.exe or an address inside it; omit to search all.")]
+		string? module = null,
+		[Description("The index of the first sorted match to return.")]
+		int offset = 0,
+		[Description("The most matches to return, 1 to 500.")]
+		int limit = 100,
+		CancellationToken cancellationToken = default)
+	{
+		if (nameContains is null || nameContains.Length is < MinimumFindLength or > MaximumFindLength ||
+			string.IsNullOrWhiteSpace(nameContains) || nameContains.Any(char.IsControl))
+		{
+			throw CheatEngineToolException.InvalidArgument("nameContains",
+				$"must be {MinimumFindLength} to {MaximumFindLength} characters without control characters.");
+		}
+
+		string? moduleName = module is null ? null : ModuleLocator.RequireModule(module);
+		_ = Paging.Slice(Array.Empty<SymbolMatch>(), offset, limit, MaximumFindLimit);
+		ICheatEngineClient client = _dispatch.Client;
+		LuaSymbolFind found = _dispatch.Run(CheatEngineToolNames.SymbolFind, token =>
+		{
+			ulong? start = null;
+			ulong? size = null;
+			if (moduleName is null)
+			{
+				// Without a process Cheat Engine's symbol list is not a target's; refuse that first.
+				_ = client.Processes.GetCurrentProcess(token);
+			}
+			else
+			{
+				ModuleInfo located = ModuleLocator.Find(client, moduleName, token);
+				start = located.BaseAddress.ToUInt64();
+				size = located.ImageSize?.Value ?? throw CheatEngineToolException.Unsupported(
+					$"Cheat Engine reports no size for the module {located.Name}, so its symbols cannot be told " +
+					"apart; search without module.", CheatEngineToolNames.SymbolFind);
+			}
+
+			return _dispatch.ExecuteLua(CheatEngineToolNames.SymbolFind, SymbolScripts.Find,
+				SymbolLuaJsonContext.Default.LuaSymbolFind, token, nameContains, SymbolScripts.MaximumFoundSymbols,
+				offset, limit, start, size);
+		}, cancellationToken);
+		int end = offset + found.Symbols.Length;
+		return new SymbolFindResult(found.Total, found.Truncated, found.SymbolsLoaded, found.Symbols,
+			found.Symbols.Length > 0 && end < found.Total ? end : null);
 	}
 
 	/// <summary>Reads the module precedence of symbol lookup.</summary>

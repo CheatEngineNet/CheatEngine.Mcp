@@ -1,164 +1,78 @@
 using System.ComponentModel;
-using System.Globalization;
 
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Scanning;
 using CheatEngine.Mcp.Core.Contract;
+using CheatEngine.Mcp.Core.Values;
+using CheatEngine.Mcp.Tools.Memory;
 
 using ModelContextProtocol.Server;
 
 namespace CheatEngine.Mcp.Tools.Scan;
 
 /// <summary>UI and independent Client value scans with bounded result pages and explicit lifecycle operations.</summary>
+/// <remarks>
+///     <para>
+///         <c>main</c> drives Cheat Engine's visible scanner through fixed Lua (<see cref="ScanScripts" />): its scans run
+///         asynchronously with Cheat Engine's own range, protection, fast-scan and rounding settings. Any other scanner
+///         name is an independent Client session whose first and next scans run synchronously on Cheat Engine's main
+///         thread, which is why <c>scan_first</c> and <c>scan_next</c> are <see cref="McpDispatchClass.HostScan" />.
+///     </para>
+///     <para>
+///         Every first scan runs through the activation's <see cref="MappedMemoryOverride" />: a named one with
+///         <c>includeMapped</c> inside Cheat Engine's <c>MEM_MAPPED</c> scan override, which is Cheat Engine-wide and
+///         which the same dispatch ends on every path, and any other outside it. A first scan that runs nested in
+///         another scan's wait is refused as <c>busy</c> when the two disagree on <c>includeMapped</c>.
+///     </para>
+///     <para>
+///         Arguments are checked by <see cref="ScanCriteria" /> and <see cref="NamedScanOptions" /> before any Cheat
+///         Engine call, so a refused argument is always <c>invalid_argument</c> with <c>not_started</c>.
+///     </para>
+/// </remarks>
 [McpServerToolType]
 public sealed class ScanTools : IDisposable
 {
 	private const int MaximumScanners = 32;
 	private const int MaximumScannerNameLength = 256;
-	private const int MaximumScanValueCharacters = 1024 * 1024;
 	private const int MaximumResults = 1024;
+	private const string MainScanner = "main";
+	private const string MissingMessage = "No scan exists with that scannerName.";
+	private const string MissingHint = "List the scanners with scan_list_scanners; scan_first creates a named one.";
+
+	// The Client refuses the release after a target change and cannot begin it after a Lua runtime change, so
+	// scan_delete reports partial_effect and the name stays taken until that is resolved.
+	private const string ChangedReleaseHint =
+		"Release it with scan_delete and follow its hint if the release is incomplete; a new scan can start at once " +
+		"under another scannerName.";
+
+	private const string NoResultsHint =
+		"Run scan_first on it; when its state is Invalidated, call scan_reset first, or scan_delete when the reset " +
+		"is refused.";
 
 	internal const string MainScannerBusyMessage =
-		"The main UI scanner is busy. Wait for it to finish or cancel it in Cheat Engine before switching targets.";
-
-	private const string MainContext = """
-	                                   local f = assert(getMainForm(), 'Cheat Engine main form is unavailable')
-	                                   local ms = assert(getCurrentMemscan(), 'Cheat Engine main scanner is unavailable')
-	                                   assert(f.btnNewScan and f.btnNextScan and f.VarType and f.ScanType, 'Unsupported Cheat Engine scan controls')
-	                                   local function valueType()
-	                                     local types = {[1]='byte',[2]='int16',[3]='int32',[4]='int64',[5]='float',[6]='double',[7]='string',[8]='bytes'}
-	                                     local result = types[f.VarType.ItemIndex] or 'unsupported'
-	                                     if result == 'string' and f.cbUnicode.Checked then result = 'wstring' end
-	                                     return result
-	                                   end
-	                                   local function isBusy()
-	                                     local repeating = f.findComponentByName('cbRepeatUntilStopped')
-	                                     return getOpenedProcessID() ~= 0 and (not f.btnNewScan.Enabled or
-	                                       (repeating ~= nil and repeating.Visible and repeating.Checked and ms.LastScanType ~= 'stNewScan'))
-	                                   end
-	                                   local function summary()
-	                                     local attached = getOpenedProcessID() ~= 0
-	                                     local busy = isBusy()
-	                                     local started = ms.LastScanType ~= 'stNewScan'
-	                                     local baseline = started and ms.LastScanWasRegionScan
-	                                     local failure = not busy and ms.ErrorString or ''
-	                                     local state
-	                                     if not attached then
-	                                       state = 'NoTarget'
-	                                     elseif busy then
-	                                       state = 'Scanning'
-	                                     elseif failure ~= '' then
-	                                       state = 'Failed'
-	                                     elseif not started then
-	                                       state = 'Created'
-	                                     elseif baseline then
-	                                       state = 'BaselineReady'
-	                                     else
-	                                       state = 'ResultsReady'
-	                                     end
-	                                     local count = state == 'ResultsReady' and ms.FoundList.Count or nil
-	                                     return {scannerName='main',mode='ui',state=state,isScanning=busy,resultsReady=state=='ResultsReady',
-	                                       count=count,valueType=valueType(),processId=getOpenedProcessID(),error=failure ~= '' and failure or nil}
-	                                   end
-	                                   local function idle()
-	                                     assert(not isBusy(), 'The main UI scanner is busy; poll scan_get_status or stop it before changing the scan')
-	                                   end
-	                                   """ + "\n";
-
-	private const string MainStatusScript = MainContext + "return summary()";
-
-	private const string MainFirstScript = MainContext + """
-	                                                     idle()
-	                                                     assert(getOpenedProcessID() ~= 0, 'Open a target process before scanning')
-	                                                     assert(ms.LastScanType == 'stNewScan', 'Reset the main scanner explicitly before starting another first scan')
-	                                                     local indices = {byte=1,int16=2,int32=3,int64=4,float=5,double=6,string=7,wstring=7,bytes=8}
-	                                                     f.VarType.ItemIndex = assert(indices[a[1]], 'Unsupported main scan value type')
-	                                                     f.VarType.OnChange(f.VarType)
-	                                                     f.cbUnicode.Checked = a[1] == 'wstring'
-	                                                     assert(a[2] < f.ScanType.Items.Count, 'This comparison is unavailable in the main scanner')
-	                                                     f.ScanType.ItemIndex = a[2]
-	                                                     f.ScanType.OnChange(f.ScanType)
-	                                                     for _, name in ipairs({'cbLuaFormula','cbNot','cbRepeatUntilStopped','cbPercentage','cbCompareToSavedScan'}) do
-	                                                       local control = f.findComponentByName(name)
-	                                                       if control then control.Checked = false end
-	                                                     end
-	                                                     f.cbHexadecimal.Checked = valueType() == 'bytes'
-	                                                     f.Scanvalue.Text = a[3] or ''
-	                                                     local second = f.findComponentByName('scanvalue2')
-	                                                     if a[4] ~= nil then assert(second, 'The upper-value control is unavailable').Text = a[4] end
-	                                                     f.btnNewScan.doClick()
-	                                                     return summary()
-	                                                     """;
-
-	private const string MainNextScript = MainContext + """
-	                                                    idle()
-	                                                    assert(getOpenedProcessID() ~= 0, 'Open a target process before scanning')
-	                                                    assert(ms.LastScanType ~= 'stNewScan' and f.btnNextScan.Enabled, 'The main scanner has no completed scan to narrow')
-	                                                    assert(ms.ErrorString == '', 'The main scanner failed; reset it before scanning again')
-	                                                    assert(a[1] < f.ScanType.Items.Count, 'This comparison is unavailable in the main scanner')
-	                                                    f.ScanType.ItemIndex = a[1]
-	                                                    f.ScanType.OnChange(f.ScanType)
-	                                                    for _, name in ipairs({'cbLuaFormula','cbNot','cbRepeatUntilStopped','cbPercentage','cbCompareToSavedScan'}) do
-	                                                      local control = f.findComponentByName(name)
-	                                                      if control then control.Checked = false end
-	                                                    end
-	                                                    f.Scanvalue.Text = a[2] or ''
-	                                                    local second = f.findComponentByName('scanvalue2')
-	                                                    if a[3] ~= nil then assert(second, 'The upper-value control is unavailable').Text = a[3] end
-	                                                    f.btnNextScan.doClick()
-	                                                    return summary()
-	                                                    """;
-
-	private const string MainReadScript = MainContext + """
-	                                                    idle()
-	                                                    assert(ms.LastScanType ~= 'stNewScan', 'The main scanner has no results')
-	                                                    assert(ms.ErrorString == '', 'The main scanner failed; reset it before reading results')
-	                                                    assert(not ms.LastScanWasRegionScan, 'Unknown-initial baseline: run scan_next before reading results')
-	                                                    local found = assert(ms.FoundList, 'The UI found list is unavailable')
-	                                                    local count = found.Count
-	                                                    local finish = math.min(count, a[1] + a[2])
-	                                                    local rows = {}
-	                                                    for i = a[1], finish - 1 do
-	                                                      local value = found.Value[i] or ''
-	                                                      assert(#value <= 4096, 'A scan value exceeds the 4096-byte per-result limit; narrow the scan before reading')
-	                                                      local address = found.Address[i]:gsub('^0[xX]', ''):gsub('^0+', ''):upper()
-	                                                      rows[#rows + 1] = {address='0x' .. (address == '' and '0' or address), value=value}
-	                                                    end
-	                                                    return {scannerName='main',mode='ui',count=count,results=rows,
-	                                                      hasMore=finish<count,nextStartIndex=finish<count and finish or nil}
-	                                                    """;
-
-	private const string MainResetScript = MainContext + """
-	                                                     idle()
-	                                                     if ms.LastScanType ~= 'stNewScan' then
-	                                                       if not f.Visible then f.show() end
-	                                                       f.btnNewScan.doClick()
-	                                                     end
-	                                                     assert(ms.LastScanType == 'stNewScan', 'Cheat Engine did not reset the main scanner')
-	                                                     return summary()
-	                                                     """;
-
-	private const string MainStopScript = MainContext + """
-	                                                    if isBusy() then
-	                                                      assert(type(ms.terminate) == 'function', 'This Cheat Engine scanner cannot be cancelled through Lua; cancel it in Cheat Engine')
-	                                                      ms.terminate()
-	                                                    end
-	                                                    return summary()
-	                                                    """;
+		"The main UI scanner is busy. Wait for it to finish or stop it with scan_stop before switching targets.";
 
 	private readonly ToolDispatch _dispatch;
+	private readonly MappedMemoryOverride _mappedMemory;
 	private readonly TargetResources _resources;
 	private readonly Dictionary<string, IValueScanSession> _sessions = new(StringComparer.Ordinal);
 	private readonly Dictionary<string, ValueScanValueType> _valueTypes = new(StringComparer.Ordinal);
 	private bool _disposed;
 
 	/// <summary>Creates a scan container without opening a target or starting a scanner.</summary>
-	public ScanTools(ToolDispatch dispatch, TargetResources resources)
+	/// <param name="dispatch">The activation's dispatch facade.</param>
+	/// <param name="resources">The activation's target resources, which track the named sessions.</param>
+	/// <param name="mappedMemory">
+	///     The activation's <c>MEM_MAPPED</c> override owner, shared with the AOB scans; without one, this container
+	///     keeps its own.
+	/// </param>
+	public ScanTools(ToolDispatch dispatch, TargetResources resources, MappedMemoryOverride? mappedMemory = null)
 	{
 		ArgumentNullException.ThrowIfNull(dispatch);
 		ArgumentNullException.ThrowIfNull(resources);
 		_dispatch = dispatch;
 		_resources = resources;
+		_mappedMemory = mappedMemory ?? new MappedMemoryOverride(dispatch);
 	}
 
 	/// <inheritdoc />
@@ -183,99 +97,140 @@ public sealed class ScanTools : IDisposable
 	/// <summary>Starts a first value scan.</summary>
 	[McpServerTool(Name = CheatEngineToolNames.ScanFirst, Title = "Start value scan", ReadOnly = false,
 		Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
-	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.HostScan)]
 	[Description(
-		"Start main, Cheat Engine's visible scanner, or an independent named Client session. Main changes the visible scan controls; named sessions do not. Reset explicitly before another first scan.")]
-	public ScanStatusResult First(
+		"Start a first value scan. main drives Cheat Engine's visible scanner: it returns at once with state Scanning (poll scan_get_status), uses Cheat Engine's own range, protection, fast-scan and rounding settings, which scan_get_status reports, and needs scan_reset before another first scan. Any other scannerName is an independent session that never touches the UI; its scan runs synchronously and blocks Cheat Engine until it ends, which takes seconds over the whole address space or for unknown, so scope it with startAddress/endAddress, writable=required and alignment. Cheat Engine skips mapped memory, such as emulator guest RAM, unless its MEM_MAPPED setting is ticked; includeMapped adds it to one named scan. Integers are decimal; float and double values are written with floatDecimals decimals (default 6 and 12), which sets how close an exact match must be, so use between for rounded, displayed floats.")]
+	public ScanState First(
 		[Description("main (default) for the visible Cheat Engine scanner, or a unique independent name.")]
-		string scannerName = "main",
+		string scannerName = MainScanner,
 		[Description("byte, int16, int32 (default), int64, float, double, string, wstring or bytes.")]
 		string valueType = "int32",
-		[Description("Value for exact, between, greater or less; omit for unknown.")]
+		[Description(
+			"Value for exact, between, greater or less; omit for unknown. Integers are decimal, bytes are hex pairs such as 48 8B 05.")]
 		string? value = null,
-		[Description("exact, unknown, between, greater or less.")]
+		[Description("exact, unknown, between, greater or less; string, wstring and bytes support exact only.")]
 		string comparison = "exact",
 		[Description("Inclusive upper value for between.")]
 		string? upperValue = null,
+		[Description(
+			"Decimals written for float or double values, 0 to 15; default 6 for float and 12 for double. Each decimal fewer widens an exact match tenfold.")]
+		int? floatDecimals = null,
+		[Description(
+			"Named scanners only: the first scanned address or expression, such as game.exe; requires endAddress. A match may start slightly before it.")]
+		string? startAddress = null,
+		[Description(
+			"Named scanners only: the address or expression where the scan ends, exclusive; requires startAddress.")]
+		string? endAddress = null,
+		[Description(
+			"Named scanners only: whether matches must be in writable memory: required, excluded or any (default). required skips code and read-only data.")]
+		ProtectionRequirement writable = ProtectionRequirement.Any,
+		[Description(
+			"Named scanners only: whether matches must be in executable memory: required, excluded or any (default).")]
+		ProtectionRequirement executable = ProtectionRequirement.Any,
+		[Description(
+			"Named scanners only: whether matches must be in copy-on-write memory: required, excluded or any (default).")]
+		ProtectionRequirement copyOnWrite = ProtectionRequirement.Any,
+		[Description(
+			"Named scanners only: check only addresses divisible by this number, 1 to 65536, such as 4 for int32 (Cheat Engine's fast scan); not with lastDigits.")]
+		int? alignment = null,
+		[Description(
+			"Named scanners only: check only addresses whose hexadecimal form ends with these 1 to 16 digits; not with alignment.")]
+		string? lastDigits = null,
+		[Description(
+			"Named scanners only: also scan mapped memory (MEM_MAPPED: file views and shared sections, where emulators such as Dolphin, PCSX2 and PPSSPP keep guest RAM), which Cheat Engine skips unless ticked in its Scan Settings; default false. " +
+			MappedMemoryOverride.IncludeMappedEffect + " scan_next keeps the regions of this first scan.")]
+		bool includeMapped = false,
 		CancellationToken cancellationToken = default)
 	{
 		CheckName(scannerName);
-		CheckValue(value, "value");
-		CheckValue(upperValue, "upperValue");
-		ValueScanFirstRequest request = CreateFirstRequest(valueType, comparison, value, upperValue);
-		if (scannerName == "main")
+		ValueScanFirstRequest request = ScanCriteria.First(ScanCriteria.ParseValueType(valueType),
+			ScanCriteria.ParseFirstComparison(comparison), value, upperValue, floatDecimals);
+		NamedScanOptions options = NamedScanOptions.Create(startAddress, endAddress, writable, executable,
+			copyOnWrite, alignment, lastDigits, includeMapped);
+		if (scannerName == MainScanner)
 		{
-			return Map(_dispatch.RunLua(CheatEngineToolNames.ScanFirst, MainFirstScript,
-				ScanJsonContext.Default.ScanUiStatus, cancellationToken, MainScannerType(request.ValueType),
-				FirstComparisonIndex(request.Comparison), request.Value?.Text, request.UpperValue?.Text));
+			options.RequireNone();
+
+			// Main's scan lists its regions on Cheat Engine's scan thread, so it must not start inside an override.
+			return _dispatch.Run(CheatEngineToolNames.ScanFirst, token => Map(_mappedMemory.Follow(
+				CheatEngineToolNames.ScanFirst, () => _dispatch.ExecuteLua(CheatEngineToolNames.ScanFirst,
+					ScanScripts.MainFirstScript, ScanJsonContext.Default.ScanUiStatus, token,
+					ScanCriteria.Name(request.ValueType), FirstComparisonIndex(request.Comparison),
+					request.Value?.Text, request.UpperValue?.Text))), cancellationToken);
 		}
 
 		return _dispatch.Run(CheatEngineToolNames.ScanFirst, token =>
 		{
-			IValueScanSession session = GetOrCreate(scannerName);
-			if (session.State != ValueScanSessionState.Created)
+			if (_sessions.TryGetValue(scannerName, out IValueScanSession? existing) &&
+				existing.State != ValueScanSessionState.Created)
 			{
-				throw CheatEngineToolException.InvalidState("Reset the named scan before starting another first scan.");
+				throw CheatEngineToolException.InvalidState("The named scanner already holds a scan.",
+					"Call scan_reset to clear it, or scan_delete to release it, then repeat scan_first.");
 			}
 
-			session.FirstScan(request, token);
-			_valueTypes[scannerName] = request.ValueType;
-			return Describe(scannerName, session);
+			// Every refusal comes before the MEM_MAPPED override: the session limit, then the range, which resolves
+			// before the session exists, so an unresolvable expression leaves nothing behind.
+			CheckCapacity(scannerName);
+			ValueScanFirstRequest scoped = options.Apply(_dispatch.Client, request, token);
+			return options.IncludeMapped
+				? _mappedMemory.Include(CheatEngineToolNames.ScanFirst, () => FirstScan(scannerName, scoped, token),
+					status => new ScanMappedOverrideFailure(scannerName, status is not null, status),
+					ScanJsonContext.Default.ScanMappedOverrideFailure, token)
+				: _mappedMemory.Follow(CheatEngineToolNames.ScanFirst, () => FirstScan(scannerName, scoped, token));
 		}, cancellationToken);
 	}
 
 	/// <summary>Narrows a completed scan.</summary>
 	[McpServerTool(Name = CheatEngineToolNames.ScanNext, Title = "Narrow value scan", ReadOnly = false,
 		Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
-	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.HostScan)]
 	[Description(
-		"Narrow main's visible results or a named independent scan. A scan must have completed before it can be narrowed.")]
-	public ScanStatusResult Next(
+		"Narrow a completed scan against its previous results, with the value type of its first scan. main returns at once with state Scanning (poll scan_get_status) and uses Cheat Engine's own settings; a named scanner scans synchronously and blocks Cheat Engine until the scan ends, which grows with its result count. increased, decreased, changed and unchanged take no value; string, wstring and bytes scans support exact only. Float and double values are written with floatDecimals decimals (default 6 and 12).")]
+	public ScanState Next(
 		[Description("main (default) or an existing independent scanner name.")]
-		string scannerName = "main",
+		string scannerName = MainScanner,
 		[Description(
-			"Value for exact, between, greater, less, increasedBy or decreasedBy; omit for state comparisons.")]
+			"Value for exact, between, greater, less, increasedBy or decreasedBy; omit for state comparisons. Integers are decimal.")]
 		string? value = null,
 		[Description(
 			"exact, between, greater, less, increased, decreased, increasedBy, decreasedBy, changed or unchanged.")]
 		string comparison = "exact",
 		[Description("Inclusive upper value for between.")]
 		string? upperValue = null,
+		[Description(
+			"Decimals written for float or double values, 0 to 15; default 6 for float and 12 for double. Only for float and double scans.")]
+		int? floatDecimals = null,
 		CancellationToken cancellationToken = default)
 	{
 		CheckName(scannerName);
-		CheckValue(value, "value");
-		CheckValue(upperValue, "upperValue");
-		if (scannerName == "main")
+		ValueScanComparison parsed = ScanCriteria.ParseNextComparison(comparison);
+		ScanCriteria.CheckArguments(parsed, value, upperValue, floatDecimals);
+		if (scannerName == MainScanner)
 		{
 			return _dispatch.Run(CheatEngineToolNames.ScanNext, token =>
 			{
-				ScanUiStatus current = _dispatch.ExecuteLua(CheatEngineToolNames.ScanNext, MainStatusScript,
-					ScanJsonContext.Default.ScanUiStatus, token);
-				ValueScanNextRequest request = CreateNextRequest(ParseValueType(current.ValueType ?? ""), comparison,
-					value,
-					upperValue);
-				return Map(_dispatch.ExecuteLua(CheatEngineToolNames.ScanNext, MainNextScript,
+				// The first script only reads: a refused argument after it still reports not_started.
+				ScanUiStatus current = _dispatch.ExecuteLua(CheatEngineToolNames.ScanNext,
+					ScanScripts.MainNextCheckScript, ScanJsonContext.Default.ScanUiStatus, token);
+				ValueScanNextRequest request = ScanCriteria.Next(MainValueType(current.ValueType), parsed, value,
+					upperValue, floatDecimals);
+				return Map(_dispatch.ExecuteLua(CheatEngineToolNames.ScanNext, ScanScripts.MainNextScript,
 					ScanJsonContext.Default.ScanUiStatus, token, NextComparisonIndex(request.Comparison),
-					request.Value?.Text,
-					request.UpperValue?.Text));
+					request.Value?.Text, request.UpperValue?.Text));
 			}, cancellationToken);
 		}
 
 		return _dispatch.Run(CheatEngineToolNames.ScanNext, token =>
 		{
-			if (!_sessions.TryGetValue(scannerName, out IValueScanSession? session) ||
+			IValueScanSession session = Find(scannerName);
+			if (session.State != ValueScanSessionState.ResultsReady ||
 				!_valueTypes.TryGetValue(scannerName, out ValueScanValueType type))
 			{
-				throw CheatEngineToolException.NotFound("No scan exists with that scannerName.");
+				throw CheatEngineToolException.InvalidState("The named scanner has no completed results to narrow.",
+					NoResultsHint);
 			}
 
-			if (session.State != ValueScanSessionState.ResultsReady)
-			{
-				throw CheatEngineToolException.InvalidState("The named scan has no completed results to narrow.");
-			}
-
-			session.NextScan(CreateNextRequest(type, comparison, value, upperValue), token);
+			session.NextScan(ScanCriteria.Next(type, parsed, value, upperValue, floatDecimals), token);
 			return Describe(scannerName, session);
 		}, cancellationToken);
 	}
@@ -285,23 +240,22 @@ public sealed class ScanTools : IDisposable
 		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Read main's live UI scan state or the state of an independent Client session. Scanning means work is still in progress.")]
+		"Read main's live UI scan state or the state of an independent Client session. Scanning means work is still in progress. For main it also returns settings, read-only: the Cheat Engine options that main's scans use (range, protection boxes, fast scan, active memory only, pause, Hex, rounding, simple values only, case sensitive, code page) and the MEM_PRIVATE, MEM_IMAGE and MEM_MAPPED settings, which apply to named scanners too. Check them when main finds nothing or far too much.")]
 	public ScanStatusResult GetStatus(
 		[Description("main (default) or an existing independent scanner name.")]
-		string scannerName = "main",
+		string scannerName = MainScanner,
 		CancellationToken cancellationToken = default)
 	{
 		CheckName(scannerName);
-		if (scannerName == "main")
+		if (scannerName == MainScanner)
 		{
-			return Map(_dispatch.RunLua(CheatEngineToolNames.ScanGetStatus, MainStatusScript,
-				ScanJsonContext.Default.ScanUiStatus, cancellationToken));
+			ScanUiStatus main = _dispatch.RunLua(CheatEngineToolNames.ScanGetStatus,
+				ScanScripts.MainStatusSettingsScript, ScanJsonContext.Default.ScanUiStatus, cancellationToken);
+			return ScanStatusResult.From(Map(main), main.Settings);
 		}
 
-		return _dispatch.Run(CheatEngineToolNames.ScanGetStatus, _ => _sessions.TryGetValue(scannerName,
-			out IValueScanSession? session)
-			? Describe(scannerName, session)
-			: throw CheatEngineToolException.NotFound("No scan exists with that scannerName."), cancellationToken);
+		return _dispatch.Run(CheatEngineToolNames.ScanGetStatus,
+			_ => ScanStatusResult.From(Describe(scannerName, Find(scannerName))), cancellationToken);
 	}
 
 	/// <summary>Reads a bounded page of scan results.</summary>
@@ -309,11 +263,11 @@ public sealed class ScanTools : IDisposable
 		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Read one bounded page of results from main's visible found list or a named independent scan. Unknown-initial scans need a next scan before they have rows.")]
+		"Read one bounded page of results from main's visible found list or a named independent scan. Addresses are uppercase hexadecimal without 0x and values are Cheat Engine's display text; re-read an address with memory_read for a typed value. Unknown-initial scans need a next scan before they have rows.")]
 	public ScanResultsResult ListResults(
 		[Description("main (default) or an existing independent scanner name.")]
-		string scannerName = "main",
-		[Description("Zero-based result index.")]
+		string scannerName = MainScanner,
+		[Description("Zero-based result index; a start at or past the end returns an empty last page.")]
 		long startIndex = 0,
 		[Description("Maximum copied rows, 1 to 1024.")]
 		int maximumResults = 1000,
@@ -331,9 +285,9 @@ public sealed class ScanTools : IDisposable
 				"must be nonnegative and leave room for maximumResults.");
 		}
 
-		if (scannerName == "main")
+		if (scannerName == MainScanner)
 		{
-			ScanUiResults ui = _dispatch.RunLua(CheatEngineToolNames.ScanListResults, MainReadScript,
+			ScanUiResults ui = _dispatch.RunLua(CheatEngineToolNames.ScanListResults, ScanScripts.MainReadScript,
 				ScanJsonContext.Default.ScanUiResults, cancellationToken, startIndex, maximumResults);
 			return new ScanResultsResult(ui.ScannerName, ui.Mode, ToCount(ui.Count), ui.Results, ui.NextStartIndex,
 				ui.HasMore);
@@ -341,14 +295,26 @@ public sealed class ScanTools : IDisposable
 
 		return _dispatch.Run(CheatEngineToolNames.ScanListResults, token =>
 		{
-			if (!_sessions.TryGetValue(scannerName, out IValueScanSession? session))
+			IValueScanSession session = Find(scannerName);
+			if (session.State != ValueScanSessionState.ResultsReady)
 			{
-				throw CheatEngineToolException.NotFound("No scan exists with that scannerName.");
+				throw CheatEngineToolException.InvalidState("The named scanner has no results to read.",
+					NoResultsHint);
+			}
+
+			// Like main, a start index at or past the end reads as an empty last page rather than a Client refusal.
+			ulong count = session.GetResultCount(token);
+			if ((ulong) startIndex >= count)
+			{
+				return new ScanResultsResult(scannerName, "independent", count, [], null, false);
 			}
 
 			ValueScanPage page = session.Read(new ValueScanReadRequest(startIndex, maximumResults), token);
 			return new ScanResultsResult(scannerName, "independent", page.ResultCount,
-				[.. page.Matches.Select(static match => new ScanMatch($"0x{match.Address.Value:X}", match.ValueText))],
+				[
+					.. page.Matches.Select(static match =>
+						new ScanMatch(HexFormat.Address(match.Address), match.ValueText))
+				],
 				page.NextStartIndex, page.HasMore);
 		}, cancellationToken);
 	}
@@ -363,10 +329,10 @@ public sealed class ScanTools : IDisposable
 	{
 		return _dispatch.Run(CheatEngineToolNames.ScanListScanners, token =>
 		{
-			List<ScanStatusResult> scanners =
+			List<ScanState> scanners =
 			[
 				Map(_dispatch.ExecuteLua(CheatEngineToolNames.ScanListScanners,
-					MainStatusScript, ScanJsonContext.Default.ScanUiStatus, token))
+					ScanScripts.MainStatusScript, ScanJsonContext.Default.ScanUiStatus, token))
 			];
 			scanners.AddRange(_sessions.OrderBy(static item => item.Key, StringComparer.Ordinal)
 				.Select(item => Describe(item.Key, item.Value)));
@@ -374,26 +340,54 @@ public sealed class ScanTools : IDisposable
 		}, cancellationToken);
 	}
 
-	/// <summary>Resets main or releases an independent scanner session.</summary>
+	/// <summary>Clears a scanner's results so that it accepts a new first scan, keeping the scanner.</summary>
 	[McpServerTool(Name = CheatEngineToolNames.ScanReset, Title = "Reset scan", ReadOnly = false,
 		Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Reset main through Cheat Engine's New Scan action, or release and remove a named independent session. Main cannot be reset while it is running.")]
+		"Clear a scanner's results so that it accepts a new first scan. main runs Cheat Engine's New Scan, showing its window first when hidden, and is refused while it runs. A named scanner keeps its name and its retained resource, which blocks attaching another process, and recovers from Invalidated unless its target or Lua runtime changed, which leaves only scan_delete; release it with scan_delete when done.")]
 	public ScanReleaseResult Reset(
-		[Description("main (default) or the independent scanner name to release.")]
-		string scannerName = "main",
+		[Description("main (default) or the independent scanner name to clear.")]
+		string scannerName = MainScanner,
 		CancellationToken cancellationToken = default)
 	{
 		CheckName(scannerName);
-		if (scannerName == "main")
+		if (scannerName == MainScanner)
 		{
-			ScanStatusResult status = Map(_dispatch.RunLua(CheatEngineToolNames.ScanReset, MainResetScript,
-				ScanJsonContext.Default.ScanUiStatus, cancellationToken));
+			ScanState status = Map(_dispatch.RunLua(CheatEngineToolNames.ScanReset,
+				ScanScripts.MainResetScript, ScanJsonContext.Default.ScanUiStatus, cancellationToken));
 			return new ScanReleaseResult(scannerName, false, false, false, status);
 		}
 
-		return _dispatch.Run(CheatEngineToolNames.ScanReset, token => Release(scannerName, token), cancellationToken);
+		return _dispatch.Run(CheatEngineToolNames.ScanReset, token =>
+		{
+			IValueScanSession session = Find(scannerName);
+			if (session.State is ValueScanSessionState.Scanning or ValueScanSessionState.Closed)
+			{
+				throw CheatEngineToolException.InvalidState(
+					$"The named scanner is {session.State} and accepts only its release.",
+					"Release it with scan_delete, then start a new one with scan_first.");
+			}
+
+			// The Client recovers an Invalidated session only while its target and Lua runtime are unchanged; after
+			// either change the reset fails, and a re-attach would be refused because this very session is retained.
+			if (session.State == ValueScanSessionState.Invalidated && session.Invalidation is
+					ValueScanInvalidationKind.TargetChanged or ValueScanInvalidationKind.RuntimeChanged)
+			{
+				throw CheatEngineToolException.InvalidState(
+					"The named scanner was invalidated by a target or Lua runtime change and accepts only its release.",
+					ChangedReleaseHint);
+			}
+
+			// A session without results is already reset; skipping the Client call keeps the tool idempotent.
+			if (session.State != ValueScanSessionState.Created)
+			{
+				session.Reset(token);
+			}
+
+			_valueTypes.Remove(scannerName);
+			return new ScanReleaseResult(scannerName, false, false, false, Describe(scannerName, session));
+		}, cancellationToken);
 	}
 
 	/// <summary>Deletes an independent scan session.</summary>
@@ -401,14 +395,14 @@ public sealed class ScanTools : IDisposable
 		Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Release and delete one independent Client scan session. main is the visible Cheat Engine scanner; reset it instead.")]
+		"Release and delete one independent Client scan session with its results, ending the retained resource that blocks attaching another process. main is the visible Cheat Engine scanner; reset it instead.")]
 	public ScanReleaseResult Delete(
 		[Description("The independent scanner name to delete; main is not accepted.")]
 		string scannerName,
 		CancellationToken cancellationToken = default)
 	{
 		CheckName(scannerName);
-		if (scannerName == "main")
+		if (scannerName == MainScanner)
 		{
 			throw CheatEngineToolException.InvalidArgument("scannerName",
 				"main is the visible scanner; use scan_reset.");
@@ -422,17 +416,18 @@ public sealed class ScanTools : IDisposable
 		Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Request cancellation of main without waiting for the UI scan to finish, or release an independent Client session. Poll status after stopping main.")]
+		"Ask main's running scan to stop without waiting for it, as Cheat Engine's Cancel button does, and untick its Repeat box so that it does not start again; poll scan_get_status, which reads Scanning until Cheat Engine has ended the scan. A stopped scan keeps only what it found before the stop, so run scan_reset and scan_first again for complete results. stopRequested is false when main was idle. A named scanner scans synchronously, so stopping it releases and deletes it like scan_delete.")]
 	public ScanStopResult Stop(
 		[Description("main (default) or an independent scanner name.")]
-		string scannerName = "main",
+		string scannerName = MainScanner,
 		CancellationToken cancellationToken = default)
 	{
 		CheckName(scannerName);
-		if (scannerName == "main")
+		if (scannerName == MainScanner)
 		{
-			return new ScanStopResult(scannerName, true, false, Map(_dispatch.RunLua(CheatEngineToolNames.ScanStop,
-				MainStopScript, ScanJsonContext.Default.ScanUiStatus, cancellationToken)));
+			ScanUiStop stop = _dispatch.RunLua(CheatEngineToolNames.ScanStop, ScanScripts.MainStopScript,
+				ScanJsonContext.Default.ScanUiStop, cancellationToken);
+			return new ScanStopResult(scannerName, stop.StopRequested, false, Map(stop.Status));
 		}
 
 		return _dispatch.Run(CheatEngineToolNames.ScanStop, token =>
@@ -449,8 +444,15 @@ public sealed class ScanTools : IDisposable
 	internal static bool IsMainScannerBusy(ToolDispatch dispatch, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(dispatch);
-		return dispatch.ExecuteLua("scan_main_transition_guard", MainContext + "return isBusy()",
+		return dispatch.ExecuteLua("scan_main_transition_guard", ScanScripts.MainBusyScript,
 			ScanJsonContext.Default.Boolean, cancellationToken);
+	}
+
+	private IValueScanSession Find(string name)
+	{
+		return _sessions.TryGetValue(name, out IValueScanSession? session)
+			? session
+			: throw CheatEngineToolException.NotFound(MissingMessage, MissingHint);
 	}
 
 	private IValueScanSession GetOrCreate(string name)
@@ -460,25 +462,35 @@ public sealed class ScanTools : IDisposable
 			return existing;
 		}
 
-		if (_sessions.Count >= MaximumScanners)
-		{
-			throw CheatEngineToolException.LimitExceeded("scannerName",
-				"at most 32 named scan sessions may be active.");
-		}
-
+		CheckCapacity(name);
 		IValueScanSession session = _dispatch.Client.ValueScans.CreateSession();
 		_sessions.Add(name, session);
 		_resources.Track(session, "scan", () => Remove(name), name);
 		return session;
 	}
 
+	/// <summary>Refuses a new named scanner when the activation already holds the most.</summary>
+	/// <exception cref="CheatEngineToolException">The limit is reached (<c>limit_exceeded</c>).</exception>
+	private void CheckCapacity(string name)
+	{
+		if (!_sessions.ContainsKey(name) && _sessions.Count >= MaximumScanners)
+		{
+			throw CheatEngineToolException.LimitExceeded("scannerName",
+				"at most 32 named scan sessions may be active.");
+		}
+	}
+
+	private ScanState FirstScan(string name, ValueScanFirstRequest request, CancellationToken cancellationToken)
+	{
+		IValueScanSession session = GetOrCreate(name);
+		session.FirstScan(request, cancellationToken);
+		_valueTypes[name] = request.ValueType;
+		return Describe(name, session);
+	}
+
 	private ScanReleaseResult Release(string name, CancellationToken cancellationToken)
 	{
-		if (!_sessions.TryGetValue(name, out IValueScanSession? session))
-		{
-			throw CheatEngineToolException.NotFound("No scan exists with that scannerName.");
-		}
-
+		IValueScanSession session = Find(name);
 		LeaseReleaseOutcome release = session.Release();
 		if (release.IsComplete)
 		{
@@ -496,12 +508,12 @@ public sealed class ScanTools : IDisposable
 				: "Recover the scan session manually, then release its retained resource.");
 	}
 
-	private ScanStatusResult Describe(string name, IValueScanSession session)
+	private ScanState Describe(string name, IValueScanSession session)
 	{
-		return new ScanStatusResult(name, "independent", session.State.ToString(),
+		return new ScanState(name, "independent", session.State.ToString(),
 			session.State == ValueScanSessionState.Scanning, session.State == ValueScanSessionState.ResultsReady,
 			session.State == ValueScanSessionState.ResultsReady ? session.GetResultCount() : null,
-			_valueTypes.TryGetValue(name, out ValueScanValueType type) ? MainScannerType(type) : null);
+			_valueTypes.TryGetValue(name, out ValueScanValueType type) ? ScanCriteria.Name(type) : null);
 	}
 
 	private void Remove(string name)
@@ -510,9 +522,9 @@ public sealed class ScanTools : IDisposable
 		_valueTypes.Remove(name);
 	}
 
-	private static ScanStatusResult Map(ScanUiStatus value)
+	private static ScanState Map(ScanUiStatus value)
 	{
-		return new ScanStatusResult(value.ScannerName, value.Mode, value.State, value.IsScanning, value.ResultsReady,
+		return new ScanState(value.ScannerName, value.Mode, value.State, value.IsScanning, value.ResultsReady,
 			ToCount(value.Count), value.ValueType, value.ProcessId, value.Error);
 	}
 
@@ -534,160 +546,13 @@ public sealed class ScanTools : IDisposable
 		}
 	}
 
-	private static void CheckValue(string? value, string parameter)
+	private static ValueScanValueType MainValueType(string? valueType)
 	{
-		if (value is { Length: > MaximumScanValueCharacters })
-		{
-			throw CheatEngineToolException.LimitExceeded(parameter, "must not exceed 1048576 characters.");
-		}
-	}
-
-	private static ValueScanFirstRequest CreateFirstRequest(string valueType, string comparison, string? value,
-		string? upperValue)
-	{
-		ValueScanValueType type = ParseValueType(valueType);
-		return NormalizeComparison(comparison) switch
-		{
-			"exact" => ValueScanFirstRequest.Exact(ParseRequiredValue(type, value, "value")),
-			"unknown" => RequireNoValues(value, upperValue, "unknown") is { } error
-				? throw CheatEngineToolException.InvalidArgument("comparison", error)
-				: ValueScanFirstRequest.UnknownInitialValue(type),
-			"between" => ValueScanFirstRequest.Between(ParseRequiredValue(type, value, "value"),
-				ParseRequiredValue(type, upperValue, "upperValue")),
-			"greater" => ValueScanFirstRequest.BiggerThan(ParseRequiredValue(type, value, "value")),
-			"less" => ValueScanFirstRequest.SmallerThan(ParseRequiredValue(type, value, "value")),
-			_ => throw CheatEngineToolException.InvalidArgument("comparison",
-				"must be exact, unknown, between, greater or less.")
-		};
-	}
-
-	private static ValueScanNextRequest CreateNextRequest(ValueScanValueType type, string comparison, string? value,
-		string? upperValue)
-	{
-		return NormalizeComparison(comparison) switch
-		{
-			"exact" => ValueScanNextRequest.Exact(ParseRequiredValue(type, value, "value")),
-			"between" => ValueScanNextRequest.Between(ParseRequiredValue(type, value, "value"),
-				ParseRequiredValue(type, upperValue, "upperValue")),
-			"greater" => ValueScanNextRequest.BiggerThan(ParseRequiredValue(type, value, "value")),
-			"less" => ValueScanNextRequest.SmallerThan(ParseRequiredValue(type, value, "value")),
-			"increased" => RequireNoValues(value, upperValue, "increased") is { } error
-				? throw CheatEngineToolException.InvalidArgument("comparison", error)
-				: ValueScanNextRequest.Increased(),
-			"decreased" => RequireNoValues(value, upperValue, "decreased") is { } error
-				? throw CheatEngineToolException.InvalidArgument("comparison", error)
-				: ValueScanNextRequest.Decreased(),
-			"increasedby" => ValueScanNextRequest.IncreasedBy(ParseRequiredValue(type, value, "value")),
-			"decreasedby" => ValueScanNextRequest.DecreasedBy(ParseRequiredValue(type, value, "value")),
-			"changed" => RequireNoValues(value, upperValue, "changed") is { } error
-				? throw CheatEngineToolException.InvalidArgument("comparison", error)
-				: ValueScanNextRequest.Changed(),
-			"unchanged" => RequireNoValues(value, upperValue, "unchanged") is { } error
-				? throw CheatEngineToolException.InvalidArgument("comparison", error)
-				: ValueScanNextRequest.Unchanged(),
-			_ => throw CheatEngineToolException.InvalidArgument("comparison",
-				"must be exact, between, greater, less, increased, decreased, increasedBy, decreasedBy, changed or unchanged.")
-		};
-	}
-
-	private static string NormalizeComparison(string? comparison)
-	{
-		return comparison?.Trim().ToLowerInvariant().Replace("_", string.Empty, StringComparison.Ordinal) switch
-		{
-			null => string.Empty,
-			"unknowninitial" or "unknowninitialvalue" => "unknown",
-			"greaterthan" or "bigger" or "biggerthan" => "greater",
-			"lessthan" or "smaller" or "smallerthan" => "less",
-			string normalized => normalized
-		};
-	}
-
-	private static string? RequireNoValues(string? value, string? upperValue, string comparison)
-	{
-		return value is null && upperValue is null
-			? null
-			: $"comparison '{comparison}' does not accept value or upperValue.";
-	}
-
-	private static ValueScanValue ParseRequiredValue(ValueScanValueType type, string? value, string parameter)
-	{
-		return value is null
-			? throw CheatEngineToolException.InvalidArgument(parameter, "is required for this comparison.")
-			: ParseValue(type, value, parameter);
-	}
-
-	private static ValueScanValueType ParseValueType(string valueType)
-	{
-		return valueType.ToLowerInvariant() switch
-		{
-			"byte" or "integer8" => ValueScanValueType.Integer8,
-			"int16" or "integer16" => ValueScanValueType.Integer16,
-			"int32" or "integer32" or "int" => ValueScanValueType.Integer32,
-			"int64" or "integer64" or "long" => ValueScanValueType.Integer64,
-			"float" or "singlefloat" => ValueScanValueType.SingleFloat,
-			"double" or "doublefloat" => ValueScanValueType.DoubleFloat,
-			"string" or "utf8string" => ValueScanValueType.Utf8String,
-			"wstring" or "utf16string" => ValueScanValueType.Utf16String,
-			"bytes" or "bytearray" => ValueScanValueType.ByteArray,
-			_ => throw CheatEngineToolException.InvalidArgument("valueType",
-				"must be byte, int16, int32, int64, float, double, string, wstring or bytes.")
-		};
-	}
-
-	private static ValueScanValue ParseValue(ValueScanValueType type, string value, string parameter)
-	{
-		try
-		{
-			return type switch
-			{
-				ValueScanValueType.Integer8 => ValueScanValue.FromByte(byte.Parse(value, CultureInfo.InvariantCulture)),
-				ValueScanValueType.Integer16 => ValueScanValue.FromInt16(short.Parse(value,
-					CultureInfo.InvariantCulture)),
-				ValueScanValueType.Integer32 =>
-					ValueScanValue.FromInt32(int.Parse(value, CultureInfo.InvariantCulture)),
-				ValueScanValueType.Integer64 => ValueScanValue.FromInt64(
-					long.Parse(value, CultureInfo.InvariantCulture)),
-				ValueScanValueType.SingleFloat => ValueScanValue.FromSingle(
-					float.Parse(value, CultureInfo.InvariantCulture), 6),
-				ValueScanValueType.DoubleFloat => ValueScanValue.FromDouble(
-					double.Parse(value, CultureInfo.InvariantCulture), 12),
-				ValueScanValueType.Utf8String => ValueScanValue.FromUtf8String(value),
-				ValueScanValueType.Utf16String => ValueScanValue.FromUtf16String(value),
-				ValueScanValueType.ByteArray => ValueScanValue.FromBytes(ParseBytes(value)),
-				_ => throw new ArgumentOutOfRangeException(nameof(type))
-			};
-		}
-		catch (FormatException)
-		{
-			throw CheatEngineToolException.InvalidArgument(parameter, $"is not a valid {type} value.");
-		}
-		catch (OverflowException)
-		{
-			throw CheatEngineToolException.InvalidArgument(parameter, $"is outside the range of {type}.");
-		}
-	}
-
-	private static byte[] ParseBytes(string value)
-	{
-		return value.Split([' ', ','], StringSplitOptions.RemoveEmptyEntries)
-			.Select(token => byte.Parse(token, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture)).ToArray();
-	}
-
-	private static string MainScannerType(ValueScanValueType type)
-	{
-		return type switch
-		{
-			ValueScanValueType.Integer8 => "byte",
-			ValueScanValueType.Integer16 => "int16",
-			ValueScanValueType.Integer32 => "int32",
-			ValueScanValueType.Integer64 => "int64",
-			ValueScanValueType.SingleFloat => "float",
-			ValueScanValueType.DoubleFloat => "double",
-			ValueScanValueType.Utf8String => "string",
-			ValueScanValueType.Utf16String => "wstring",
-			ValueScanValueType.ByteArray => "bytes",
-			_ => throw new ArgumentOutOfRangeException(nameof(type))
-		};
+		return ScanCriteria.TryParseValueType(valueType, out ValueScanValueType type)
+			? type
+			: throw CheatEngineToolException.InvalidState(
+				"Cheat Engine's main scanner holds a scan of a value type that MCP cannot narrow.",
+				"Narrow it in Cheat Engine, or reset main with scan_reset and start again with scan_first.");
 	}
 
 	private static int FirstComparisonIndex(ValueScanComparison comparison)

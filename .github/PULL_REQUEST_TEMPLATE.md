@@ -7,7 +7,7 @@
 - [ ] Bug fix
 - [ ] New or changed tool, resource or prompt (MCP contract change)
 - [ ] Configuration, packaging or dependency change
-- [ ] Documentation or operator skill only
+- [ ] Documentation or knowledge base only
 - [ ] Build, tests or CI only
 
 ## Gates
@@ -25,20 +25,20 @@ The gates are defined in the Gates section of CONTRIBUTING.md. Tick what you ran
 
 - [ ] No file under `tests/CheatEngine.Mcp.Tests/Contract/Golden` changed
 - [ ] Golden files regenerated with `CHEATENGINE_MCP_UPDATE_GOLDEN=1`, every line of the diff reviewed, and the change explained below
+- [ ] A knowledge document changed, and the `*-resources.json` goldens, which record each document's size, were regenerated with it
 
-<!-- For a contract change: which tools, parameters, results, annotations or files changed, and why. -->
+<!-- For a contract change: which tools, resources, prompts, parameters, results, annotations or files changed, and why. -->
 
 ## Documentation
 
-- [ ] The affected pages under `docs/` are updated
-- [ ] The operator skill (`skills/cheatengine-mcp`, including `references/tool-catalog.md`) is updated when tools or configuration changed
-- [ ] `THIRD-PARTY-NOTICES.md` and `licenses/` are updated when a shipped package changed
+- [ ] `README.md`, `CONTRIBUTING.md`, `SECURITY.md` or a project `README.md` is updated when behavior that users or contributors see changed
+- [ ] The knowledge base under `srcs/CheatEngine.Mcp.Resources/Knowledge` is updated when tools, resources, prompts or configuration changed: `Documents/tool-map.md`, the workflow index in `Documents/workflows.md`, and every affected document or workflow body
+- [ ] `THIRD-PARTY-NOTICES.md` (the package row and its license text) is updated when a shipped package changed
 - [ ] Nothing to update
 
 ## Safety
 
 - [ ] No token, discovery record, personal path or e-mail address in code, tests, logs, screenshots or this description
-- [ ] `skills/cheatengine-mcp/references/local-cheat-engine.md` is not included
 - [ ] No live qualification ran without being announced first
 - [ ] Cheat Engine is still reached only through `CheatEngine.Client`, with `CheatEngine.SDK` referenced directly by the plugin project alone
 - [ ] Formatted with `dotnet format` (not only an IDE formatter)

@@ -173,6 +173,8 @@ internal sealed class StructureToolHarness
 
 	internal StructureCompareTools Comparisons => new(Dispatch);
 
+	internal StructureHeaderTools Headers => new(Dispatch);
+
 	/// <summary>Places bytes in the fake memory.</summary>
 	internal void Map(ulong address, params byte[] bytes)
 	{

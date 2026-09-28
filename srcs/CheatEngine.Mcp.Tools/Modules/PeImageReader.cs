@@ -86,9 +86,11 @@ internal sealed record PeHeaders(
 	ImmutableArray<PeSection> Sections)
 {
 	internal const int ExportDirectory = 0;
+	internal const int ImportDirectory = 1;
 	internal const int BaseRelocationDirectory = 5;
 	internal const int DebugDirectory = 6;
 	internal const int ImportAddressTableDirectory = 12;
+	internal const int DelayImportDirectory = 13;
 	internal const int ClrRuntimeHeaderDirectory = 14;
 
 	/// <summary>Whether the image is a DLL.</summary>
@@ -121,6 +123,23 @@ internal sealed record PeHeaders(
 /// <param name="Rva">The function's relative virtual address; for a forwarder, the forwarder string's.</param>
 /// <param name="Forwarder">The forwarder, such as <c>NTDLL.RtlAllocateHeap</c>, or <see langword="null" />.</param>
 internal sealed record PeExport(string? Name, uint Ordinal, uint Rva, string? Forwarder);
+
+/// <summary>One imported function and its import address table slot.</summary>
+/// <param name="Dll">The DLL name the import descriptor records.</param>
+/// <param name="SlotRva">The relative virtual address of the function's import address table slot.</param>
+/// <param name="DelayLoaded">Whether the import comes from the delay-load directory.</param>
+/// <param name="Name">The imported name, or <see langword="null" /> for an ordinal import or a bound slot.</param>
+/// <param name="Ordinal">The imported ordinal, or <see langword="null" /> for a named import or a bound slot.</param>
+/// <param name="Hint">The export-table hint of a named import, or <see langword="null" />.</param>
+/// <param name="Value">The slot's current pointer value, zero-extended.</param>
+internal sealed record PeImport(
+	string Dll,
+	uint SlotRva,
+	bool DelayLoaded,
+	string? Name,
+	ushort? Ordinal,
+	ushort? Hint,
+	ulong Value);
 
 /// <summary>The CodeView record that names the image's PDB.</summary>
 /// <param name="Path">The PDB path recorded at link time.</param>
@@ -214,6 +233,12 @@ internal static class PeImageReader
 	/// <summary>The most CodeView bytes read.</summary>
 	internal const int MaximumCodeViewBytes = 1024;
 
+	/// <summary>The most descriptors read from the import directory, and again from the delay-load directory.</summary>
+	internal const int MaximumImportDescriptors = 4096;
+
+	/// <summary>The most imported functions read from one module, across both import directories.</summary>
+	internal const int MaximumImports = 65536;
+
 	private const ushort DosSignature = 0x5A4D;
 	private const uint NtSignature = 0x00004550;
 	private const ushort Pe32Magic = 0x10B;
@@ -224,6 +249,9 @@ internal static class PeImageReader
 	private const int DebugEntrySize = 28;
 	private const uint CodeViewType = 2;
 	private const uint RsdsSignature = 0x53445352;
+	private const int ImportDescriptorSize = 20;
+	private const int DelayDescriptorSize = 32;
+	private const uint DelayAttributeRva = 1;
 
 	/// <summary>Parses the DOS, NT and section headers found at the start of <paramref name="image" />.</summary>
 	/// <param name="image">The first bytes of a mapped image or of a PE file, up to <see cref="MaximumHeaderBytes" />.</param>
@@ -395,6 +423,80 @@ internal static class PeImageReader
 			? left.Ordinal.CompareTo(right.Ordinal)
 			: string.CompareOrdinal(left.Name, right.Name));
 		return exports;
+	}
+
+	/// <summary>
+	///     Reads the import directory and, when <paramref name="includeDelayLoaded" /> is set, the delay-load directory:
+	///     one entry per import address table slot, in descriptor then slot order, with the slot's current value. A
+	///     descriptor without an import lookup table (a bound import address table) yields slots without names.
+	/// </summary>
+	/// <param name="headers">The image's headers.</param>
+	/// <param name="image">The mapped image.</param>
+	/// <param name="includeDelayLoaded">Whether to read the delay-load directory as well.</param>
+	/// <param name="imageBase">
+	///     The address the image is mapped at. A PE32 delay-load descriptor without the RVA attribute, as linkers before
+	///     Visual C++ 7 wrote it, holds relocated addresses instead of relative ones, in the descriptor and in its lookup
+	///     table.
+	/// </param>
+	/// <returns>The imports; empty when the image imports nothing.</returns>
+	/// <exception cref="InvalidDataException">A table is malformed or exceeds a ceiling.</exception>
+	internal static List<PeImport> ReadImports(PeHeaders headers, IPeImage image, bool includeDelayLoaded,
+		ulong imageBase)
+	{
+		ArgumentNullException.ThrowIfNull(headers);
+		ArgumentNullException.ThrowIfNull(image);
+		int width = headers.IsPe32Plus ? 8 : 4;
+		List<PeImport> imports = [];
+		PeDataDirectory directory = headers.Directories[PeHeaders.ImportDirectory];
+		if (directory.IsPresent)
+		{
+			byte[] descriptor = new byte[ImportDescriptorSize];
+			for (int index = 0; ; index++)
+			{
+				image.Read(Descriptor(directory, index, ImportDescriptorSize, "import"), descriptor);
+				uint lookupRva = BinaryPrimitives.ReadUInt32LittleEndian(descriptor);
+				uint nameRva = BinaryPrimitives.ReadUInt32LittleEndian(descriptor.AsSpan(12));
+				uint slotsRva = BinaryPrimitives.ReadUInt32LittleEndian(descriptor.AsSpan(16));
+				// The loader stops at the first descriptor without a name or an import address table.
+				if (nameRva == 0 || slotsRva == 0)
+				{
+					break;
+				}
+
+				ReadThunks(image, ReadCString(image, nameRva, MaximumNameBytes), lookupRva, slotsRva, false, width,
+					imports, null);
+			}
+		}
+
+		PeDataDirectory delayed = headers.Directories[PeHeaders.DelayImportDirectory];
+		if (!includeDelayLoaded || !delayed.IsPresent)
+		{
+			return imports;
+		}
+
+		byte[] delayDescriptor = new byte[DelayDescriptorSize];
+		for (int index = 0; ; index++)
+		{
+			image.Read(Descriptor(delayed, index, DelayDescriptorSize, "delay-load"), delayDescriptor);
+			uint attributes = BinaryPrimitives.ReadUInt32LittleEndian(delayDescriptor);
+			uint nameField = BinaryPrimitives.ReadUInt32LittleEndian(delayDescriptor.AsSpan(4));
+			uint slotsField = BinaryPrimitives.ReadUInt32LittleEndian(delayDescriptor.AsSpan(12));
+			uint lookupField = BinaryPrimitives.ReadUInt32LittleEndian(delayDescriptor.AsSpan(16));
+			if (nameField == 0 || slotsField == 0)
+			{
+				break;
+			}
+
+			// Linkers before Visual C++ 7 left the RVA attribute clear and wrote relocated addresses, in the descriptor
+			// and in the lookup table. Only 32-bit linkers did: a PE32+ descriptor is relative as the specification
+			// lays it out, since its 32-bit fields cannot hold the addresses of an image mapped above 4 GiB.
+			ulong? addressBase = headers.IsPe32Plus || (attributes & DelayAttributeRva) != 0 ? null : imageBase;
+			string dll = ReadCString(image, DelayRva(nameField, addressBase), MaximumNameBytes);
+			ReadThunks(image, dll, DelayRva(lookupField, addressBase), DelayRva(slotsField, addressBase), true, width,
+				imports, addressBase);
+		}
+
+		return imports;
 	}
 
 	/// <summary>Finds the image's first RSDS CodeView record, which names its PDB.</summary>
@@ -608,6 +710,116 @@ internal static class PeImageReader
 
 		string? forwarder = directory.Contains(rva) ? ReadCString(image, rva, MaximumNameBytes) : null;
 		return new PeExport(name, ordinal, rva, forwarder);
+	}
+
+	/// <summary>The address of descriptor <paramref name="index" />, refusing a table longer than the ceiling.</summary>
+	private static uint Descriptor(PeDataDirectory directory, int index, int size, string kind)
+	{
+		return index < MaximumImportDescriptors
+			? Advance(directory.Rva, (ulong) index * (uint) size)
+			: throw new InvalidDataException(
+				$"The {kind} directory holds more than {MaximumImportDescriptors} descriptors before its terminator.");
+	}
+
+	/// <summary>
+	///     Converts a delay-load descriptor field to a relative address: an old descriptor, which has an
+	///     <paramref name="addressBase" />, holds an address.
+	/// </summary>
+	private static uint DelayRva(uint field, ulong? addressBase)
+	{
+		return addressBase is { } imageBase && field != 0
+			? Relative(field, imageBase, "A delay-load descriptor")
+			: field;
+	}
+
+	/// <summary>Converts an address inside the image mapped at <paramref name="imageBase" /> to a relative address.</summary>
+	private static uint Relative(ulong address, ulong imageBase, string holder)
+	{
+		return address >= imageBase && address - imageBase <= uint.MaxValue
+			? (uint) (address - imageBase)
+			: throw new InvalidDataException($"{holder} holds the address {address:X}, outside the image.");
+	}
+
+	/// <summary>
+	///     Reads one descriptor's thunks up to the zero terminator: the lookup table names each slot; without one, the
+	///     bound import address table itself is walked and the slots stay unnamed. An old delay-load descriptor, which
+	///     has an <paramref name="addressBase" />, holds addresses in its lookup table.
+	/// </summary>
+	private static void ReadThunks(IPeImage image, string dll, uint lookupRva, uint slotsRva, bool delayLoaded,
+		int width, List<PeImport> imports, ulong? addressBase)
+	{
+		bool named = lookupRva != 0;
+		byte[] raw = new byte[width];
+		for (int index = 0; ; index++)
+		{
+			ulong offset = (ulong) index * (uint) width;
+			ulong entry = ReadThunk(image, Advance(named ? lookupRva : slotsRva, offset), raw);
+			if (entry == 0)
+			{
+				return;
+			}
+
+			if (imports.Count == MaximumImports)
+			{
+				throw new InvalidDataException($"The image imports more than {MaximumImports} functions.");
+			}
+
+			uint slotRva = Advance(slotsRva, offset);
+			ulong value = named ? ReadThunk(image, slotRva, raw) : entry;
+			imports.Add(named
+				? Import(image, dll, slotRva, delayLoaded, entry, width, value, addressBase)
+				: new PeImport(dll, slotRva, delayLoaded, null, null, null, value));
+		}
+	}
+
+	private static PeImport Import(IPeImage image, string dll, uint slotRva, bool delayLoaded, ulong entry,
+		int width, ulong value, ulong? addressBase)
+	{
+		ulong ordinalFlag = 1UL << ((width * 8) - 1);
+		// An ordinal entry sets the flag and keeps the ordinal in its low 16 bits. An old delay-load entry is the
+		// address of the hint and the name, which sets the flag too once the image lies above 2 GiB, but then also
+		// sets bits that an ordinal entry leaves clear.
+		if ((entry & ordinalFlag) != 0 && (addressBase is null || (entry & ~ordinalFlag) <= ushort.MaxValue))
+		{
+			return new PeImport(dll, slotRva, delayLoaded, null, (ushort) entry, null, value);
+		}
+
+		uint hintRva;
+		if (addressBase is { } imageBase)
+		{
+			hintRva = Relative(entry, imageBase, $"A delay-load lookup entry of {dll}");
+		}
+		else if (entry > int.MaxValue)
+		{
+			// Below the ordinal flag, a lookup entry is a 31-bit RVA of the hint and the name.
+			throw new InvalidDataException(
+				$"An import lookup entry of {dll} holds {entry:X}, which is neither an ordinal nor an RVA.");
+		}
+		else
+		{
+			hintRva = (uint) entry;
+		}
+
+		Span<byte> hint = stackalloc byte[2];
+		image.Read(hintRva, hint);
+		return new PeImport(dll, slotRva, delayLoaded, ReadCString(image, Advance(hintRva, 2), MaximumNameBytes),
+			null, BinaryPrimitives.ReadUInt16LittleEndian(hint), value);
+	}
+
+	private static ulong ReadThunk(IPeImage image, uint rva, byte[] raw)
+	{
+		image.Read(rva, raw);
+		return raw.Length == 8
+			? BinaryPrimitives.ReadUInt64LittleEndian(raw)
+			: BinaryPrimitives.ReadUInt32LittleEndian(raw);
+	}
+
+	private static uint Advance(uint rva, ulong offset)
+	{
+		ulong address = rva + offset;
+		return address <= uint.MaxValue
+			? (uint) address
+			: throw new InvalidDataException($"A table at RVA {rva:X} runs past the end of the address range.");
 	}
 
 	private static uint[] ReadUInt32s(IPeImage image, uint rva, int count)

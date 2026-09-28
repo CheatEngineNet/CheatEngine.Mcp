@@ -28,12 +28,17 @@ public sealed class SpeedhackTools
 		_resources = resources;
 	}
 
-	/// <summary>Reads the last configured speed and the observable hook marker.</summary>
+	/// <summary>Reads the last configured speed and whether the speedhack_wantedspeed symbol exists.</summary>
 	[McpServerTool(Name = CheatEngineToolNames.SpeedhackGetState, Title = "Get speedhack state", ReadOnly = true,
 		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Read Cheat Engine's last configured speedhack multiplier and whether its target symbol exists. The speed is configuration, not proof that the target's game clock changed.")]
+		"Read Cheat Engine's last configured speedhack multiplier and whether its speedhack_wantedspeed symbol " +
+		"exists in the target. The speed is configuration, not proof that the target's game clock changed. " +
+		"hooksInstalled reports only that symbol: Cheat Engine creates it during the first activation, also when a " +
+		"time-function hook then fails and when it takes the Unity timeScale path, and once that symbol exists it " +
+		"never retries hooking in the same process, so only a restart of the target retries. While it is absent, " +
+		"the next speedhack_set_speed with a speed other than 1 attempts the hooks again.")]
 	public SpeedhackState GetState(CancellationToken cancellationToken = default)
 	{
 		LuaSpeedhackState state = _dispatch.RunLua(CheatEngineToolNames.SpeedhackGetState, SpeedhackScripts.GetState,
@@ -47,10 +52,20 @@ public sealed class SpeedhackTools
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.MayPrompt)]
 	[RequiresFeature(McpFeature.TargetCodeExecution)]
 	[Description(
-		"Set Cheat Engine's speedhack multiplier from 0.01 through 1000. The first activation can inject code into the target or show a Cheat Engine dialog. While speed differs from 1, MCP tracks a resource that runtime_release_resources restores to 1 before a target change. A failed first activation may have a partial effect; read speedhack_get_state before retrying.")]
+		"Set Cheat Engine's speedhack multiplier from 0.01 through 1000. The first speed other than 1 in a process " +
+		"activates the speedhack, which can inject code into the target or show a Cheat Engine dialog. Once the " +
+		"speedhack_wantedspeed symbol exists, Cheat Engine never hooks that process again, even after a failed hook, " +
+		"so hooksInstalled does not prove working hooks. While speed differs from 1, MCP tracks a resource that " +
+		"runtime_release_resources restores to 1 before a target change. Speed 1 never activates the speedhack or " +
+		"removes hooks: it restores 1 only where that symbol exists, does nothing while Cheat Engine's and the " +
+		"target's speed are 1, and refuses (invalid_state) when Cheat Engine reports another speed for a process " +
+		"without the symbol. The call is refused (invalid_state) without an attached process, and a change also " +
+		"while the target is paused or stopped in the debugger. While hooksInstalled is false after a failed " +
+		"activation, a retry attempts the hooks again.")]
 	public SpeedhackSetResult SetSpeed(
 		[Description(
-			"The finite multiplier from 0.01 through 1000; 1 restores normal configured speed, while 0 is not pause.")]
+			"The finite multiplier from 0.01 through 1000; 1 restores normal speed without ever activating the " +
+			"speedhack, while 0 is not pause.")]
 		double speed,
 		CancellationToken cancellationToken = default)
 	{
@@ -102,7 +117,7 @@ public sealed class SpeedhackTools
 		{
 			LuaSpeedhackState normal = _dispatch.ExecuteLua(CheatEngineToolNames.SpeedhackSetSpeed,
 				SpeedhackScripts.SetNormal, SpeedhackLuaJsonContext.Default.LuaSpeedhackState, cancellationToken);
-			return new SpeedhackSetResult(normal.Speed, normal.HooksInstalled, false);
+			return new SpeedhackSetResult(normal.Speed, normal.HooksInstalled, normal.FirstActivation);
 		}
 
 		string id = _resources.NextId("speedhack");

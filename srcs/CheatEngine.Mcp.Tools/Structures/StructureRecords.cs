@@ -92,6 +92,19 @@ public sealed record StructureDefinition(
 	[property: Description("The offset of the next page; omitted when the listing is complete.")]
 	int? NextOffset);
 
+/// <summary>C declarations generated from Cheat Engine structures.</summary>
+/// <param name="Text">The C declarations.</param>
+/// <param name="Generator">Which generator wrote the text.</param>
+/// <param name="Structures">The structures the text declares.</param>
+public sealed record StructureCHeader(
+	[property: Description("The C declarations, at most 1 MiB of UTF-8.")]
+	string Text,
+	[property: Description("Which generator wrote the text: cheat_engine or managed.")]
+	StructureHeaderGenerator Generator,
+	[property: Description(
+		"The structures the text declares: the requested ones, then the child structures their pointers reach.")]
+	string[] Structures);
+
 /// <summary>A deleted structure.</summary>
 /// <param name="Name">The deleted structure's name.</param>
 public sealed record StructureDeleted(

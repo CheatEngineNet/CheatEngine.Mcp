@@ -20,7 +20,7 @@ body:
         - Gateway
         - Plugin
         - Configuration or capability gates
-        - Documentation or operator skill
+        - Documentation, knowledge resources or prompts
         - Build, packaging or CI
         - Other
     validations:

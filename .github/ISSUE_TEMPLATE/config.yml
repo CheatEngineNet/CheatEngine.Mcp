@@ -6,8 +6,8 @@ contact_links:
     url: https://github.com/CheatEngineNet/CheatEngine.Mcp/blob/main/SECURITY.md
     about: Never report a vulnerability in a public issue; follow the private process in SECURITY.md.
   - name: Documentation
-    url: https://github.com/CheatEngineNet/CheatEngine.Mcp/tree/main/docs
-    about: Installation, client setup, multiple instances, troubleshooting and the security model.
+    url: https://github.com/CheatEngineNet/CheatEngine.Mcp#readme
+    about: Installation, client setup, multiple instances, configuration and troubleshooting. The knowledge documents the server serves are under srcs/CheatEngine.Mcp.Resources/Knowledge.
   - name: CheatEngine.Client issues
     url: https://github.com/CheatEngineNet/CheatEngine.Client/issues
     about: Problems in the CheatEngine.Client package itself.

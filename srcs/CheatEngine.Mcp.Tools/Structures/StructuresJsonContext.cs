@@ -15,6 +15,9 @@ namespace CheatEngine.Mcp.Tools.Structures;
 [JsonSerializable(typeof(StructureReadResult))]
 [JsonSerializable(typeof(StructureWriteResult))]
 [JsonSerializable(typeof(StructureComparison))]
+[JsonSerializable(typeof(StructureCHeader))]
+[JsonSerializable(typeof(StructureHeaderGenerator))]
+[JsonSerializable(typeof(StructureHeaderGenerator?))]
 [JsonSerializable(typeof(StructureElementSpec[]))]
 [JsonSerializable(typeof(StructureElementUpdate[]))]
 [JsonSerializable(typeof(StructureCompareMode))]
@@ -36,4 +39,5 @@ public sealed partial class StructuresJsonContext : JsonSerializerContext;
 [JsonSerializable(typeof(StructureLuaPdbLayout))]
 [JsonSerializable(typeof(StructureLuaValues))]
 [JsonSerializable(typeof(StructureLuaWritten))]
+[JsonSerializable(typeof(StructureLuaHeader))]
 internal sealed partial class StructureLuaJsonContext : JsonSerializerContext;

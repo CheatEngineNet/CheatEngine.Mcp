@@ -6,8 +6,8 @@ using CheatEngine.Mcp.Tools.Modules;
 namespace CheatEngine.Mcp.Tests.Tools.Modules;
 
 /// <summary>
-///     Builds small PE32 and PE32+ images at test time: headers, sections, export, debug and relocation tables, the file
-///     layout and the image a loader would map at another base.
+///     Builds small PE32 and PE32+ images at test time: headers, sections, export, import, debug and relocation
+///     tables, the file layout and the image a loader would map at another base.
 /// </summary>
 internal sealed class TestPe
 {
@@ -301,6 +301,144 @@ internal sealed class TestPe
 		return data;
 	}
 
+	/// <summary>
+	///     Encodes an import directory (or, with <paramref name="delayLoaded" />, a delay-load directory) placed at
+	///     <paramref name="rva" /> as a loader leaves it: the descriptors and their terminator, then per DLL its lookup
+	///     table (unless the DLL has none) and its import address table already holding each function's value, then the
+	///     hint/name entries and the DLL names. Delay-load descriptors take <paramref name="delayForm" />; in the address
+	///     form, the descriptor fields and the named lookup entries hold addresses of the image linked at
+	///     <paramref name="imageBase" />, and <see cref="TestImportTable.AddressFields" /> lists them for relocation.
+	/// </summary>
+	internal static TestImportTable ImportData(uint rva, bool is64, IReadOnlyList<TestImportDll> dlls,
+		bool delayLoaded = false, TestDelayForm delayForm = TestDelayForm.Relative, ulong imageBase = 0)
+	{
+		int width = is64 ? 8 : 4;
+		int descriptorSize = delayLoaded ? 32 : 20;
+		int offset = (int) Align((uint) ((dlls.Count + 1) * descriptorSize), 8);
+		int[] lookupOffsets = new int[dlls.Count];
+		int[] slotOffsets = new int[dlls.Count];
+		for (int index = 0; index < dlls.Count; index++)
+		{
+			int tableSize = (dlls[index].Functions.Count + 1) * width;
+			lookupOffsets[index] = dlls[index].WithoutLookupTable ? -1 : offset;
+			offset += dlls[index].WithoutLookupTable ? 0 : tableSize;
+			slotOffsets[index] = offset;
+			offset += tableSize;
+		}
+
+		int stringsOffset = offset;
+		List<byte> strings = [];
+
+		int Add(IEnumerable<byte> bytes)
+		{
+			int position = stringsOffset + strings.Count;
+			strings.AddRange(bytes);
+			if (strings.Count % 2 != 0)
+			{
+				strings.Add(0);
+			}
+
+			return position;
+		}
+
+		int[][] hintNames =
+		[
+			.. dlls.Select(dll => dll.Functions.Select(function => function.Name is null
+				? -1
+				: Add([
+					(byte) function.Hint, (byte) (function.Hint >> 8), .. Encoding.ASCII.GetBytes(function.Name), 0
+				])).ToArray())
+		];
+		int[] dllNames = [.. dlls.Select(dll => Add([.. Encoding.ASCII.GetBytes(dll.Dll), 0]))];
+		byte[] data = new byte[stringsOffset + strings.Count];
+		ulong ordinalFlag = is64 ? 1UL << 63 : 1UL << 31;
+		bool addresses = delayLoaded && delayForm is TestDelayForm.Addresses;
+		List<(uint Rva, byte Type)> addressFields = [];
+
+		void WriteThunk(int position, ulong value)
+		{
+			if (is64)
+			{
+				BinaryPrimitives.WriteUInt64LittleEndian(data.AsSpan(position), value);
+			}
+			else
+			{
+				BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(position), (uint) value);
+			}
+		}
+
+		// Writes where the table data at dataOffset lies: in the address form, an address the loader relocates.
+		void WriteField(int position, int dataOffset)
+		{
+			uint target = rva + (uint) dataOffset;
+			if (addresses)
+			{
+				target = (uint) (imageBase + target);
+				addressFields.Add((rva + (uint) position, PeRelocations.HighLow));
+			}
+
+			BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(position), target);
+		}
+
+		for (int index = 0; index < dlls.Count; index++)
+		{
+			TestImportDll dll = dlls[index];
+			int descriptor = index * descriptorSize;
+			if (delayLoaded)
+			{
+				BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(descriptor),
+					delayForm is TestDelayForm.Relative ? 1u : 0u);
+				WriteField(descriptor + 4, dllNames[index]);
+				WriteField(descriptor + 12, slotOffsets[index]);
+				if (lookupOffsets[index] >= 0)
+				{
+					WriteField(descriptor + 16, lookupOffsets[index]);
+				}
+			}
+			else
+			{
+				if (lookupOffsets[index] >= 0)
+				{
+					WriteField(descriptor, lookupOffsets[index]);
+				}
+
+				WriteField(descriptor + 12, dllNames[index]);
+				WriteField(descriptor + 16, slotOffsets[index]);
+			}
+
+			for (int function = 0; function < dll.Functions.Count; function++)
+			{
+				TestImport import = dll.Functions[function];
+				WriteThunk(slotOffsets[index] + (function * width), import.Value);
+				if (lookupOffsets[index] < 0)
+				{
+					continue;
+				}
+
+				int lookup = lookupOffsets[index] + (function * width);
+				if (import.Ordinal is { } ordinal)
+				{
+					WriteThunk(lookup, ordinalFlag | ordinal);
+				}
+				else if (addresses)
+				{
+					// The old form's lookup entry is the relocated address of the hint and the name.
+					WriteThunk(lookup, imageBase + rva + (uint) hintNames[index][function]);
+					addressFields.Add((rva + (uint) lookup, is64 ? PeRelocations.Dir64 : PeRelocations.HighLow));
+				}
+				else
+				{
+					WriteThunk(lookup, rva + (uint) hintNames[index][function]);
+				}
+			}
+		}
+
+		strings.CopyTo(data, stringsOffset);
+		return new TestImportTable(data, (uint) ((dlls.Count + 1) * descriptorSize),
+			[.. lookupOffsets.Select(lookup => lookup < 0 ? 0 : rva + (uint) lookup)],
+			[.. slotOffsets.Select(slot => rva + (uint) slot)], [.. addressFields]);
+	}
+
 	internal static uint Align(uint value, uint alignment)
 	{
 		return (value + alignment - 1) & ~(alignment - 1);
@@ -312,6 +450,51 @@ internal sealed class TestPe
 		byte[] Data,
 		uint Characteristics,
 		uint VirtualSize);
+}
+
+/// <summary>One imported function of <see cref="TestPe.ImportData" />.</summary>
+/// <param name="Name">The imported name, or <see langword="null" /> for an import by ordinal.</param>
+/// <param name="Value">The value the loader left in the function's import address table slot.</param>
+/// <param name="Hint">The hint stored with the name.</param>
+/// <param name="Ordinal">The imported ordinal, for an import by ordinal.</param>
+internal sealed record TestImport(string? Name, ulong Value, ushort Hint = 0, ushort? Ordinal = null);
+
+/// <summary>One descriptor of <see cref="TestPe.ImportData" />.</summary>
+/// <param name="Dll">The DLL name.</param>
+/// <param name="Functions">The imported functions in slot order.</param>
+/// <param name="WithoutLookupTable">Whether the descriptor has no lookup table, as a bound import address table.</param>
+internal sealed record TestImportDll(string Dll, IReadOnlyList<TestImport> Functions, bool WithoutLookupTable = false);
+
+/// <summary>An encoded import or delay-load directory.</summary>
+/// <param name="Data">The bytes to place at the directory's relative address.</param>
+/// <param name="DescriptorsSize">The size of the descriptors and their terminator, for the data directory entry.</param>
+/// <param name="LookupRvas">Each descriptor's lookup table address, or zero without one.</param>
+/// <param name="SlotRvas">Each descriptor's first import address table slot.</param>
+/// <param name="AddressFields">
+///     The locations that hold an address of the image, with their relocation type: the descriptor fields and the named
+///     lookup entries of the old delay-load form; empty otherwise.
+/// </param>
+internal sealed record TestImportTable(
+	byte[] Data,
+	uint DescriptorsSize,
+	uint[] LookupRvas,
+	uint[] SlotRvas,
+	(uint Rva, byte Type)[] AddressFields);
+
+/// <summary>How <see cref="TestPe.ImportData" /> lays out a delay-load descriptor.</summary>
+internal enum TestDelayForm
+{
+	/// <summary>As Visual C++ 7 and later link it: the RVA attribute set and relative addresses.</summary>
+	Relative,
+
+	/// <summary>
+	///     As linkers before Visual C++ 7 did: no attribute, and the descriptor and its lookup table hold relocated
+	///     addresses.
+	/// </summary>
+	Addresses,
+
+	/// <summary>As the PE specification lays it out: relative addresses without the RVA attribute.</summary>
+	RelativeWithoutAttribute
 }
 
 /// <summary>A mapped image in a byte array, for the reader's bounds checks.</summary>

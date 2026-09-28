@@ -13,7 +13,9 @@ public sealed record LuaExecuteResult(
 	string? Phase = null,
 	[property: Description("The Lua compiler or runtime message when Ok is false.")]
 	string? Error = null,
-	[property: Description("The confirmed effect of the caller chunk: completed on success, not_applied after a compile error, or unknown after a runtime error.")]
+	[property:
+		Description(
+			"The confirmed effect of the caller chunk: completed on success, not_applied after a compile error, or unknown after a runtime error.")]
 	ToolHostEffect HostEffect = ToolHostEffect.Completed,
 	[property:
 		Description(
@@ -33,7 +35,9 @@ internal sealed record LuaExecuteOutcome(
 public sealed record LuaApiSearchResult(
 	[property: Description("The matching lines found in celua.txt, or in its bounded prefix when truncated is true.")]
 	int Total,
-	[property: Description("The offset to pass for the next page, or null when this is the last page or a source-file bound stopped the search.")]
+	[property:
+		Description(
+			"The offset to pass for the next page, or null when this is the last page or a source-file bound stopped the search.")]
 	int? NextOffset,
 	[property: Description("Whether a reviewed source-file bound prevented a complete search.")]
 	bool Truncated,

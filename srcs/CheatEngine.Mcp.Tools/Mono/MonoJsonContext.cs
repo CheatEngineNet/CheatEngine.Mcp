@@ -19,6 +19,7 @@ namespace CheatEngine.Mcp.Tools.Mono;
 [JsonSerializable(typeof(MonoStaticFieldAddress))]
 [JsonSerializable(typeof(MonoCompiledMethod))]
 [JsonSerializable(typeof(MonoMethodInvocation))]
+[JsonSerializable(typeof(MonoObject))]
 [JsonSerializable(typeof(MonoInstanceSearch))]
 [JsonSerializable(typeof(MonoInstanceSearchPage))]
 [JsonSerializable(typeof(MonoInstanceBatch))]

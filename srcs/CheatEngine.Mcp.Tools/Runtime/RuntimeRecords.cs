@@ -17,7 +17,33 @@ public sealed record RuntimeCapability(
 	[property: Description("The host evidence for the capability state, when present.")]
 	string? Evidence = null);
 
-/// <summary>The stable identity and capability snapshot of this MCP activation.</summary>
+/// <summary>
+///     The <c>Mcp:Enable*</c> exposure switches of this activation. A tool whose switch is off stays listed but is
+///     refused with <c>capability_disabled</c>; they change only when the plugin is disabled and enabled again.
+/// </summary>
+/// <param name="AutoAssembler">Whether <c>Mcp:EnableAutoAssembler</c> is on.</param>
+/// <param name="UnsafeLua">Whether <c>Mcp:EnableUnsafeLua</c> is on.</param>
+/// <param name="TargetCodeExecution">Whether <c>Mcp:EnableTargetCodeExecution</c> is on.</param>
+/// <param name="KernelAccess">Whether <c>Mcp:EnableKernelAccess</c> is on.</param>
+public sealed record RuntimeGates(
+	[property: Description(
+		"Whether Mcp:EnableAutoAssembler is on: callers may check and apply their own Auto Assembler scripts, " +
+		"including Auto Assembler records. Template generation works either way.")]
+	bool AutoAssembler,
+	[property: Description(
+		"Whether Mcp:EnableUnsafeLua is on: callers may run their own Lua and load tables that carry Lua. Fixed " +
+		"tool Lua works either way; with this switch on, the other switches are advisory.")]
+	bool UnsafeLua,
+	[property: Description(
+		"Whether Mcp:EnableTargetCodeExecution is on: tools may run code in the target or in Cheat Engine, such as " +
+		"remote calls, DLL and .NET injection, C and C# compilation, Mono attach and invocation, and the speedhack.")]
+	bool TargetCodeExecution,
+	[property: Description(
+		"Whether Mcp:EnableKernelAccess is on: tools may use the DBK kernel driver and DBVM for physical memory, " +
+		"control and model-specific registers, and kernel-mode reads and writes.")]
+	bool KernelAccess);
+
+/// <summary>The stable identity, capability snapshot and exposure switches of this MCP activation.</summary>
 public sealed record RuntimeInfoResult(
 	[property: Description("The Client runtime epoch. It changes when the host runtime is replaced.")]
 	long Epoch,
@@ -34,7 +60,12 @@ public sealed record RuntimeInfoResult(
 	[property: Description("The plugin application name.")]
 	string ApplicationName,
 	[property: Description("Every Client capability and its evidence.")]
-	RuntimeCapability[] Capabilities);
+	RuntimeCapability[] Capabilities,
+	[property: Description(
+		"The Mcp:Enable* switches of this activation, as booleans; runtime_get_info and runtime_get_overview always " +
+		"report them. A tool whose switch is off stays listed but is refused with capability_disabled, and a " +
+		"change applies only after the plugin is disabled and enabled again.")]
+	RuntimeGates? Gates = null);
 
 /// <summary>The selected target included in a runtime overview.</summary>
 public sealed record RuntimeCurrentProcess(
@@ -51,7 +82,7 @@ public sealed record RuntimeCurrentProcess(
 
 /// <summary>A compact, read-only summary for orientation before target work.</summary>
 public sealed record RuntimeOverviewResult(
-	[property: Description("The activation identity and host capability evidence.")]
+	[property: Description("The activation identity, host capability evidence and Mcp:Enable* switches.")]
 	RuntimeInfoResult Runtime,
 	[property: Description("The currently selected target, if any.")]
 	RuntimeCurrentProcess Process,

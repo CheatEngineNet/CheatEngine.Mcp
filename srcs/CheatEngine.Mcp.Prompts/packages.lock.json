@@ -166,6 +166,19 @@
           "ModelContextProtocol": "[2.2.0, )"
         }
       },
+      "cheatengine.mcp.resources": {
+        "type": "Project",
+        "dependencies": {
+          "CheatEngine.Mcp.Core": "[2.0.0, )",
+          "CheatEngine.Mcp.Tools": "[2.0.0, )"
+        }
+      },
+      "cheatengine.mcp.tools": {
+        "type": "Project",
+        "dependencies": {
+          "CheatEngine.Mcp.Core": "[2.0.0, )"
+        }
+      },
       "CheatEngine.Client": {
         "type": "CentralTransitive",
         "requested": "[1.0.0, )",

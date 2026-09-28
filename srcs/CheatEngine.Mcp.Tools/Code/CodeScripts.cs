@@ -43,17 +43,18 @@ internal static class CodeScripts
 	                                       for from, kind in pairs(source) do
 	                                           count = count + 1
 	                                           if count > a[4] then exact=false; break end
-	                                           all[#all+1] = { fromAddress=string.format('%X', from), toAddress=string.format('%X', address), kind=tostring(kind) }
+	                                           all[#all+1] = { from=from, kind=kind }
 	                                           if count % 256 == 0 and mcp.expired() then
 	                                               return mcp.err('timeout', 'Reading code-dissector references exceeded the dispatch budget.', 'completed',
 	                                                   'Reduce the dissect range, then retry.')
 	                                           end
 	                                       end
-	                                       table.sort(all, function(left, right) return left.fromAddress < right.fromAddress end)
+	                                       table.sort(all, function(left, right) return math.ult(left.from, right.from) end)
+	                                       local target = string.format('%X', address)
 	                                       local page, first, last = {}, a[2] + 1, math.min(#all, a[2] + a[3])
-	                                       for index=first,last do page[#page+1] = all[index] end
+	                                       for index=first,last do page[#page+1] = { fromAddress=string.format('%X', all[index].from), toAddress=target, kind=tostring(all[index].kind) } end
 	                                       local nextOffset = (exact and last < #all) and last or ((not exact and last < #all) and last or nil)
-	                                       return { address=string.format('%X', address), total=count, exact=exact, references=page, nextOffset=nextOffset }
+	                                       return { address=target, total=count, exact=exact, references=page, nextOffset=nextOffset }
 	                                       """;
 
 	internal const string FindStrings = """
@@ -68,16 +69,16 @@ internal static class CodeScripts
 	                                        if scanned > a[4] then exact=false; break end
 	                                        if needle == nil or string.find(string.lower(tostring(text)), needle, 1, true) ~= nil then
 	                                            count = count + 1
-	                                            all[#all+1] = { address=string.format('%X', address), text=tostring(text) }
+	                                            all[#all+1] = { address=address, text=tostring(text) }
 	                                        end
 	                                        if scanned % 256 == 0 and mcp.expired() then
 	                                            return mcp.err('timeout', 'Reading code-dissector strings exceeded the dispatch budget.', 'completed',
 	                                                'Reduce the dissect range or narrow the filter, then retry.')
 	                                        end
 	                                    end
-	                                    table.sort(all, function(left, right) return left.address < right.address end)
+	                                    table.sort(all, function(left, right) return math.ult(left.address, right.address) end)
 	                                    local page, first, last = {}, a[2] + 1, math.min(#all, a[2] + a[3])
-	                                    for index=first,last do page[#page+1] = all[index] end
+	                                    for index=first,last do page[#page+1] = { address=string.format('%X', all[index].address), text=all[index].text } end
 	                                    local nextOffset = (exact and last < #all) and last or ((not exact and last < #all) and last or nil)
 	                                    return { total=count, exact=exact, strings=page, nextOffset=nextOffset }
 	                                    """;

@@ -51,7 +51,8 @@ public sealed record TableFileEntry(
 public sealed record TableFilePage(
 	[property: Description("The configured allowed table roots that were inspected.")]
 	string[] Roots,
-	[property: Description("How many matching files were retained for paging; it is a lower bound when exact is false.")]
+	[property:
+		Description("How many matching files were retained for paging; it is a lower bound when exact is false.")]
 	int Total,
 	[property: Description("Whether every matching file below the roots was considered.")]
 	bool Exact,

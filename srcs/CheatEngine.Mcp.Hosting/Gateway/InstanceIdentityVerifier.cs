@@ -10,6 +10,11 @@ namespace CheatEngine.Mcp.Hosting.Gateway;
 ///     Confirms, over one authenticated loopback GET, that the backend behind a registry record is the activation the
 ///     record names. The gateway runs it before every routed call and for every <c>instance_list</c> candidate.
 /// </summary>
+/// <remarks>
+///     It remembers two things, ids and identities only, never a record, an endpoint or a token: when each id was last
+///     verified (<see cref="RecentlyVerified" />, which completion uses), and the identity each backend last confirmed
+///     (<see cref="IsConfirmed" />, which the resource list uses). A failed check forgets both.
+/// </remarks>
 internal sealed class InstanceIdentityVerifier(TimeProvider time) : IDisposable
 {
 	// An identity body is a few hundred bytes; a larger reply is not an identity.
@@ -25,6 +30,10 @@ internal sealed class InstanceIdentityVerifier(TimeProvider time) : IDisposable
 	internal static readonly TimeSpan VerificationWindow = TimeSpan.FromSeconds(10);
 
 	private readonly HttpClient _http = BackendHttp.CreateClient(MaximumResponseBytes);
+
+	// Instance id to the identity its backend last confirmed, and when; it does not expire with the window, because an
+	// activation's identity never changes while its record stays active.
+	private readonly ConcurrentDictionary<string, Confirmation> _confirmed = new(StringComparer.Ordinal);
 
 	// Instance id to the timestamp of its last successful verification; ids only, never a record or a token.
 	private readonly ConcurrentDictionary<string, long> _verified = new(StringComparer.Ordinal);
@@ -60,6 +69,37 @@ internal sealed class InstanceIdentityVerifier(TimeProvider time) : IDisposable
 		return recent;
 	}
 
+	/// <summary>
+	///     Whether the backend of this record confirmed exactly its identity (id, activation, process, start time and
+	///     plugin version) and no check failed since, however long ago; it never contacts the backend.
+	/// </summary>
+	/// <param name="instance">An active registry record.</param>
+	/// <returns><see langword="true" /> when the last check of this id confirmed this identity.</returns>
+	internal bool IsConfirmed(InstanceDescriptor instance)
+	{
+		ArgumentNullException.ThrowIfNull(instance);
+		return _confirmed.TryGetValue(instance.InstanceId, out Confirmation? confirmation) &&
+			   confirmation.Identity == InstanceIdentity.From(instance);
+	}
+
+	/// <summary>Forgets the confirmed identity of every id whose registry record is no longer active.</summary>
+	/// <param name="active">The ids of the active registry records.</param>
+	/// <param name="readAt">
+	///     A timestamp taken before the registry was read: an identity confirmed after it is kept, since its record may
+	///     be newer than the read.
+	/// </param>
+	internal void ForgetInactive(IReadOnlySet<string> active, long readAt)
+	{
+		ArgumentNullException.ThrowIfNull(active);
+		foreach ((string instanceId, Confirmation confirmation) in _confirmed)
+		{
+			if (!active.Contains(instanceId) && confirmation.ConfirmedAt < readAt)
+			{
+				_confirmed.TryRemove(new KeyValuePair<string, Confirmation>(instanceId, confirmation));
+			}
+		}
+	}
+
 	/// <summary>Verifies the backend's identity against its registry record.</summary>
 	/// <param name="instance">The registry record.</param>
 	/// <param name="cancellationToken">The caller's cancellation, which is rethrown as is.</param>
@@ -74,11 +114,13 @@ internal sealed class InstanceIdentityVerifier(TimeProvider time) : IDisposable
 		catch (InstanceUnavailableException)
 		{
 			_verified.TryRemove(instance.InstanceId, out _);
+			_confirmed.TryRemove(instance.InstanceId, out _);
 			throw;
 		}
 
 		long verifiedAt = time.GetTimestamp();
 		_verified[instance.InstanceId] = verifiedAt;
+		_confirmed[instance.InstanceId] = new Confirmation(InstanceIdentity.From(instance), verifiedAt);
 		PruneExpired(verifiedAt);
 	}
 
@@ -136,4 +178,9 @@ internal sealed class InstanceIdentityVerifier(TimeProvider time) : IDisposable
 				"The instance identity no longer matches its registry record; the plugin was disabled or restarted.");
 		}
 	}
+
+	/// <summary>An identity a backend confirmed.</summary>
+	/// <param name="Identity">The confirmed identity, which never carries the endpoint or the token.</param>
+	/// <param name="ConfirmedAt">The <see cref="TimeProvider" /> timestamp of the confirmation.</param>
+	private sealed record Confirmation(InstanceIdentity Identity, long ConfirmedAt);
 }

@@ -2,7 +2,8 @@
 
 CheatEngine.Mcp gives an AI client Cheat Engine's power over local processes, so its security boundaries matter.
 This page says which versions receive fixes, how to report a vulnerability privately, and what counts as one.
-The threat model, the capability gates and the file policies are described in [docs/security.md](docs/security.md).
+The trust boundary is the Windows user account: each backend listens only on `127.0.0.1` and refuses every request without its per-activation bearer token, which isolates it from unauthenticated HTTP clients but not from programs running as the same user.
+What each capability gate and file policy covers is in the [safety document](srcs/CheatEngine.Mcp.Resources/Knowledge/Documents/safety.md), which agents read as `cheatengine://docs/safety`.
 
 ## Supported versions
 
@@ -44,16 +45,16 @@ In scope:
 - The capability gates `Mcp:EnableUnsafeLua`, `Mcp:EnableAutoAssembler`, `Mcp:EnableTargetCodeExecution` and `Mcp:EnableKernelAccess`: a way to reach a gated capability through MCP while its gate is `false`.
 - The file policies: a write outside `Mcp:Files:AllowedRoots`, a table outside `CheatEngineClient:AllowedTableRoots`, or a path trick that escapes either.
 - Caller input that becomes Lua source or Auto Assembler code outside the tools whose documented purpose is to run it.
-- The build and distribution: a shipped file that the packaging checks should have caught, such as a token, a personal path or `local-cheat-engine.md`.
+- The build and distribution: a shipped file that the packaging checks should have caught, such as a token or a personal path.
 
 The gates are exposure switches, not a sandbox.
 With a gate on, the tools it covers can do anything the Cheat Engine process can do, and that is the intended behavior, not a vulnerability.
-[docs/security.md](docs/security.md#capability-gates) says which gates and file policies the current tools already honor; a pre-2.0.0 tool listed there as not yet covered is a known gap (v2, in progress), not a new report.
+The [tool map](srcs/CheatEngine.Mcp.Resources/Knowledge/Documents/tool-map.md) names the gate that each tool needs, and the [safety document](srcs/CheatEngine.Mcp.Resources/Knowledge/Documents/safety.md#gates-are-switches-not-a-sandbox) lists what each gate and file policy covers.
 
 Out of scope:
 
 - Cheat Engine itself, its kernel driver, DBVM and its Lua API: report those to the Cheat Engine project. Issues in CheatEngine.Client or CheatEngine.SDK belong to those projects.
-- Anything that requires control of the Windows account or administrator rights already, including other programs running as the same user; see the trust boundary in [docs/security.md](docs/security.md#trust-boundary).
+- Anything that requires control of the Windows account or administrator rights already, including other programs running as the same user: they can read the discovery records and call a backend, and authentication is not a boundary against them.
 - Harm caused by a cheat table, Auto Assembler script or Lua script that the user chose to run.
 - Requests to bypass anti-cheat, DRM or license checks, or to hide Cheat Engine from them.
 - Misuse of the software against other people's software, games, accounts or data.
@@ -63,4 +64,4 @@ Out of scope:
 Use CheatEngine.Mcp only on software you own or are authorized to modify: your own programs, single-player or offline games, the Cheat Engine tutorials and disposable test targets.
 Respect each program's license and terms of service.
 Do not use it to cheat in online or multiplayer games, to bypass anti-cheat, DRM or license checks, or to read other people's data.
-The project does not support such use, and its operator skill refuses it.
+The project does not support such use, and the knowledge it serves to agents (`cheatengine://docs/safety`) tells them to refuse it.
