@@ -169,7 +169,7 @@ publish/
 # Note: Comment the next line if you want to checkin your web deploy settings,
 # but database connection strings (with potential passwords) will be unencrypted
 *.pubxml
-!src/CheatEngine.Mcp.Gateway/Properties/PublishProfiles/Standalone.pubxml
+!srcs/CheatEngine.Mcp.Gateway/Properties/PublishProfiles/Standalone.pubxml
 *.publishproj
 
 # Microsoft Azure Web App publish settings. Comment the next line if you want to
@@ -386,3 +386,7 @@ celua.txt
 
 # Claude Code
 .claude/settings.local.json
+.claude/worktrees/
+
+# JetBrains Rider (per-user IDE state)
+.idea/

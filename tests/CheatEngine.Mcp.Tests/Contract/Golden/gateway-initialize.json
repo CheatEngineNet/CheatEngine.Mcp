@@ -1,0 +1,19 @@
+{
+  "protocolVersion": "2025-06-18",
+  "serverInfo": {
+    "name": "CheatEngine.Mcp.Gateway",
+    "version": "2.0.0.0"
+  },
+  "capabilities": {
+    "logging": {},
+    "prompts": {
+      "listChanged": true
+    },
+    "resources": {
+      "listChanged": true
+    },
+    "tools": {},
+    "completions": {}
+  },
+  "instructions": "Controls local Cheat Engine 7.7 instances through one gateway. Call instance_list first and pass its instanceId to every other tool; there is no default instance and no fallback. Use it only on single-player or offline software the user may modify; stop at online games and anti-cheat. Explain each change to the game or to Cheat Engine and get the user\u0027s consent first. Start with runtime_get_info and runtime_get_overview, then process_list and process_attach; call runtime_release_resources before switching processes. Read cheatengine://docs/workflows first: the session rules and the guided workflows, which are also prompts. Address inputs are Cheat Engine expressions such as game.exe\u002B1A2B or 7FF6A1B2C3D0. Outputs use uppercase hex, spaced hex bytes, and strings for 64-bit integers and memory values; pointer offsets follow dereference order. Most lists page with offset and limit. Long operations are jobs that return a jobId; poll it with afterSequence and stop it with runtime_stop_job. Failures set isError and carry error.kind, hostEffect and hint (cheatengine://docs/errors-and-recovery). Never repeat a mutation after a timeout or when hostEffect is started or unknown; inspect state first. Server settings can disable some tools (capability_disabled)."
+}

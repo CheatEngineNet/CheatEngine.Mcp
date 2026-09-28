@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!--
+      The Cheat Engine plugin: the Client plugin profile (CECLIENT001-017, and CECLIENT010-016 for a staged deployment
+      through CheatEnginePluginOutputPath) plus the repository guards, for which McpPluginProject marks this project.
+    -->
+    <CheatEngineClientPluginProject>true</CheatEngineClientPluginProject>
+    <McpPluginProject>true</McpPluginProject>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
+    <!--
+      Measured: the ASP.NET Core 10 shared-framework assemblies carry no IsAotCompatible/IsTrimmable metadata, so the
+      reference checks report IL3058/IL2125 for them alone. This project's own code stays analyzed (CEMCP005); the
+      plugin itself is never published as Native AOT (CEMCP006).
+    -->
+    <VerifyReferenceAotCompatibility>false</VerifyReferenceAotCompatibility>
+    <VerifyReferenceTrimCompatibility>false</VerifyReferenceTrimCompatibility>
+    <!-- The HTTP adapter deliberately opts into the Client's experimental typed APIs. -->
+    <NoWarn>$(NoWarn);CECLIENT5001;CECLIENT5002;CECLIENT5003;CECLIENT5004</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+    <PackageReference Include="CheatEngine.Client"/>
+    <!-- Direct SDK build assets generate the entry point and copy the native Lua bridge. -->
+    <PackageReference Include="CheatEngine.SDK"/>
+    <PackageReference Include="ModelContextProtocol.AspNetCore"/>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../libs/CheatEngine.Mcp.Core/CheatEngine.Mcp.Core.csproj"/>
+    <ProjectReference Include="../CheatEngine.Mcp.Hosting/CheatEngine.Mcp.Hosting.csproj"/>
+    <ProjectReference Include="../CheatEngine.Mcp.Prompts/CheatEngine.Mcp.Prompts.csproj"/>
+    <ProjectReference Include="../CheatEngine.Mcp.Resources/CheatEngine.Mcp.Resources.csproj"/>
+    <ProjectReference Include="../CheatEngine.Mcp.Tools/CheatEngine.Mcp.Tools.csproj"/>
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="CheatEngine.Mcp.Core.Composition"/>
+    <Using Include="CheatEngine.Mcp.Core.Lua"/>
+    <Using Include="CheatEngine.Mcp.Core.Runtime"/>
+    <InternalsVisibleTo Include="CheatEngine.Mcp.Tests"/>
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/>
+    <None Include="../../README.md;../../LICENSE" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,79 @@
+name: Feature request
+description: Suggest a new tool, resource, prompt, setting or improvement.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for the suggestion.
+        CheatEngine.Mcp is for software you own or are authorized to modify.
+        Requests to bypass anti-cheat, DRM or license checks, to hide Cheat Engine from them, or to target online and multiplayer games are closed without discussion.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Tools
+        - Resources
+        - Prompts
+        - Gateway
+        - Plugin
+        - Configuration or capability gates
+        - Documentation, knowledge resources or prompts
+        - Build, packaging or CI
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what is missing or hard today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: |
+        What should CheatEngine.Mcp do? For a tool, suggest a name in the domain_verb form (for example memory_read_batch), its parameters and its result.
+    validations:
+      required: true
+  - type: textarea
+    id: cheat-engine-feature
+    attributes:
+      label: Cheat Engine feature
+      description: The Cheat Engine window, option or Lua function (from celua.txt) that the proposal builds on, if you know it.
+    validations:
+      required: false
+  - type: dropdown
+    id: effect
+    attributes:
+      label: Effect on the target or the machine
+      description: This decides the tool annotations and which capability gate applies.
+      options:
+        - Read-only
+        - Changes the target process or Cheat Engine state
+        - Runs code in the target or in Cheat Engine
+        - Uses the kernel driver or DBVM
+        - Reads or writes files on the host
+        - Not applicable
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: Other ways you considered, including existing tools or lua_execute.
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched the existing issues and the documentation for this request.
+          required: true
+        - label: The proposal serves software I own or am authorized to modify.
+          required: true

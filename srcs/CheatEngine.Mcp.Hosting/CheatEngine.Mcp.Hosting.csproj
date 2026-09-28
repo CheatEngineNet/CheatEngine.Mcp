@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    MCP hosting: the per-activation authenticated loopback backend, its options, the file-based instance discovery
+    contract and the stdio multi-instance gateway. It sees primitives only through the Core manifest; it never references
+    Tools, Resources or Prompts, the Cheat Engine SDK, a logging provider implementation or Cheat Engine UI.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
+    <!--
+      Measured: the ASP.NET Core 10 shared-framework assemblies carry no IsAotCompatible/IsTrimmable metadata, so the
+      reference checks report IL3058/IL2125 for them alone. This project's own code stays analyzed (CEMCP005).
+    -->
+    <VerifyReferenceAotCompatibility>false</VerifyReferenceAotCompatibility>
+    <VerifyReferenceTrimCompatibility>false</VerifyReferenceTrimCompatibility>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+    <PackageReference Include="ModelContextProtocol.AspNetCore"/>
+    <ProjectReference Include="../../libs/CheatEngine.Mcp.Core/CheatEngine.Mcp.Core.csproj"/>
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="CheatEngine.Mcp.Core.Composition"/>
+    <Using Include="CheatEngine.Mcp.Core.Runtime"/>
+    <InternalsVisibleTo Include="CheatEngine.Mcp.Tests"/>
+  </ItemGroup>
+</Project>

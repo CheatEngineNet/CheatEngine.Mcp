@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The stdio gateway entry point: CheatEngine.Mcp.Hosting does the work; this project only composes and runs it. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <!-- The gateway is the Native AOT entry point. Every protocol payload must have generated metadata. -->
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <!-- Keep the implicit SDK tool dependency identical for build and Native AOT publish restores. -->
+    <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
+    <!--
+      Measured: the ASP.NET Core 10 shared-framework assemblies carry no IsAotCompatible/IsTrimmable metadata, so the
+      reference checks report IL3058/IL2125 for them alone. This project's own code stays analyzed (CEMCP005).
+    -->
+    <VerifyReferenceAotCompatibility>false</VerifyReferenceAotCompatibility>
+    <VerifyReferenceTrimCompatibility>false</VerifyReferenceTrimCompatibility>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+    <!-- Native AOT belongs to this executable only. Referenced libraries remain portable and keep their shared locks. -->
+    <ProjectReference Include="../CheatEngine.Mcp.Hosting/CheatEngine.Mcp.Hosting.csproj"
+                      GlobalPropertiesToRemove="PublishAot;RuntimeIdentifier"/>
+    <ProjectReference Include="../CheatEngine.Mcp.Prompts/CheatEngine.Mcp.Prompts.csproj"
+                      GlobalPropertiesToRemove="PublishAot;RuntimeIdentifier"/>
+    <ProjectReference Include="../CheatEngine.Mcp.Resources/CheatEngine.Mcp.Resources.csproj"
+                      GlobalPropertiesToRemove="PublishAot;RuntimeIdentifier"/>
+    <ProjectReference Include="../CheatEngine.Mcp.Tools/CheatEngine.Mcp.Tools.csproj"
+                      GlobalPropertiesToRemove="PublishAot;RuntimeIdentifier"/>
+  </ItemGroup>
+</Project>

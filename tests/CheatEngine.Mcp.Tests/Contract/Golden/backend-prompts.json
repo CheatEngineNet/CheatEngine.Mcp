@@ -1,0 +1,885 @@
+[
+  {
+    "name": "aob_injection",
+    "title": "Write an AOB code injection",
+    "description": "Run custom code at an instruction found by signature: generate, check, apply, verify and release. Needs Mcp:EnableAutoAssembler for its gated steps.",
+    "arguments": [
+      {
+        "name": "instructionAddress",
+        "title": "Instruction address",
+        "description": "The address of the instruction to hook. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": true
+      },
+      {
+        "name": "goal",
+        "title": "Goal",
+        "description": "What the injected code must achieve, such as double the damage dealt.",
+        "required": true
+      },
+      {
+        "name": "symbolName",
+        "title": "Symbol name",
+        "description": "The symbol name of the injection point, such as damageHook: a letter or underscore, then letters, digits or underscores, 64 characters at most.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "attach_and_orient",
+    "title": "Attach to a target and get oriented",
+    "description": "Start of a session: check versions and capabilities, attach to the authorized process, classify its runtime (native, Mono, IL2CPP, .NET) and suggest the next workflow.",
+    "arguments": [
+      {
+        "name": "process",
+        "title": "Process",
+        "description": "The target process name or PID; omit it to choose from the process list.",
+        "required": false
+      },
+      {
+        "name": "goal",
+        "title": "Goal",
+        "description": "What the user wants to achieve, such as infinite health.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "build_robust_table",
+    "title": "Build a robust cheat table",
+    "description": "Turn the address list into a table that survives restarts and updates, test it and save it. Needs Mcp:EnableAutoAssembler for its gated steps.",
+    "arguments": [
+      {
+        "name": "tablePath",
+        "title": "Table path",
+        "description": "The absolute .CT path to save, under an allowed table root.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "call_game_function",
+    "title": "Call a game function once",
+    "description": "Run one game function once, such as one that adds gold: find its arguments at a call site, pass numbers or a buffer, call it with consent and verify the effect. Needs Mcp:EnableTargetCodeExecution for its gated steps.",
+    "arguments": [
+      {
+        "name": "functionAddress",
+        "title": "Function address",
+        "description": "The entry address of the function. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": true
+      },
+      {
+        "name": "purpose",
+        "title": "Purpose",
+        "description": "What the call must achieve, such as add 1000 gold.",
+        "required": true
+      },
+      {
+        "name": "instanceAddress",
+        "title": "Instance address",
+        "description": "The object whose method it is (this); omit it for a free or static function. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "ce_tutorial_walkthrough",
+    "title": "Cheat Engine tutorial walkthrough",
+    "description": "Coach one step of CE\u0027s tutorial or gtutorial with the matching workflow; a safe way to learn or to smoke-test a setup.",
+    "arguments": [
+      {
+        "name": "step",
+        "title": "Step",
+        "description": "The step to coach: 1 to 9 for tutorial, 1 to 3 for gtutorial.",
+        "required": true
+      },
+      {
+        "name": "tutorial",
+        "title": "Tutorial",
+        "description": "tutorial (default, Tutorial-x86_64.exe) or gtutorial (gtutorial-x86_64.exe).",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "cleanup_session",
+    "title": "Clean up this session",
+    "description": "End of session or before a target switch: stop jobs, restore and release everything in a safe order and report what remains. Needs Mcp:EnableTargetCodeExecution for its gated steps.",
+    "arguments": [
+      {
+        "name": "keepAddressList",
+        "title": "Keep address list",
+        "description": "yes (default) keeps the address-list records; no deletes the records this session created, after asking.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "compare_snapshots",
+    "title": "Find what changed in a memory range",
+    "description": "Which fields of a memory range change when the user does one thing in game: a snapshot before, a comparison after, typed changes and cleanup.",
+    "arguments": [
+      {
+        "name": "address",
+        "title": "Start address",
+        "description": "The start of the range. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": true
+      },
+      {
+        "name": "size",
+        "title": "Size in bytes",
+        "description": "How many bytes to snapshot, a decimal number from 1 to 16777216 (default 256).",
+        "required": false
+      },
+      {
+        "name": "valueType",
+        "title": "Value type",
+        "description": "How to read changed slots: int8, uint8, int16, uint16, int32 (default), uint32, int64, uint64, float or double.",
+        "required": false
+      },
+      {
+        "name": "description",
+        "title": "Action between snapshots",
+        "description": "What the user will do between the snapshots, such as take damage.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "dissect_structure",
+    "title": "Dissect a structure",
+    "description": "Name the fields around a base address: RTTI, .NET or PDB layouts or autoguess, then comparison with other instances.",
+    "arguments": [
+      {
+        "name": "baseAddress",
+        "title": "Base address",
+        "description": "The object\u0027s base address. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": true
+      },
+      {
+        "name": "size",
+        "title": "Size in bytes",
+        "description": "How many bytes to dissect, a decimal number from 1 to 65536 (default 256).",
+        "required": false
+      },
+      {
+        "name": "compareWith",
+        "title": "Other instances",
+        "description": "Other instances\u0027 base addresses, separated by commas, to compare with.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "dotnet_recon",
+    "title": "Explore a .NET game",
+    "description": ".NET types, fields, statics and instances through CE\u0027s out-of-process .NET collector.",
+    "arguments": [
+      {
+        "name": "typeName",
+        "title": "Type name",
+        "description": "The type to find, such as Game.Player.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "emulator_memory",
+    "title": "Find values in an emulated console\u0027s memory",
+    "description": "Values inside an emulated console: find the guest RAM base, convert guest addresses and handle big-endian values.",
+    "arguments": [
+      {
+        "name": "emulator",
+        "title": "Emulator",
+        "description": "The emulator: dolphin, pcsx2, ppsspp, rpcs3, cemu or other.",
+        "required": true
+      },
+      {
+        "name": "guestAddress",
+        "title": "Guest address",
+        "description": "A guest address from the user\u0027s own notes, such as 80001234.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "engine_triage",
+    "title": "Identify the game engine and how it stores values",
+    "description": "Right after attaching, before choosing value types: identify the engine or runtime from modules, exports and version strings, and predict how it stores values.",
+    "arguments": [
+      {
+        "name": "goal",
+        "title": "Goal",
+        "description": "What the user wants to find or change, such as the player\u0027s gold.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "explain_error",
+    "title": "Explain a failure and recover safely",
+    "description": "After a failed call: explain its error kind and host effect, inspect the state it touched and decide whether a single retry is safe.",
+    "arguments": [
+      {
+        "name": "kind",
+        "title": "Error kind",
+        "description": "The error.kind of the failure, such as busy, timeout or capability_disabled.",
+        "required": true
+      },
+      {
+        "name": "hostEffect",
+        "title": "Host effect",
+        "description": "The failure\u0027s hostEffect: not_started, not_applied, started, completed, cleanup_unconfirmed or unknown.",
+        "required": false
+      },
+      {
+        "name": "tool",
+        "title": "Failed tool",
+        "description": "The tool that failed, such as memory_write.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "find_code_by_string",
+    "title": "Find the code that uses a text",
+    "description": "A visible message or log line leads to the logic: find the text in the module, the code that references it and the function around that code.",
+    "arguments": [
+      {
+        "name": "text",
+        "title": "Visible text",
+        "description": "The exact visible text, case preserved, such as Not enough gold.",
+        "required": true
+      },
+      {
+        "name": "module",
+        "title": "Module",
+        "description": "The module to search, such as game.exe; omit it for the main module.",
+        "required": false
+      },
+      {
+        "name": "encoding",
+        "title": "Encoding",
+        "description": "auto (default) tries UTF-8 and UTF-16; utf8 or utf16 searches one encoding.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "find_entity_list",
+    "title": "Find the list that holds entities",
+    "description": "From one known entity, find the array or list that holds all of them and its count, then anchor it with a pointer path.",
+    "arguments": [
+      {
+        "name": "entityAddress",
+        "title": "Entity address",
+        "description": "The base address of one known entity. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": true
+      },
+      {
+        "name": "runtime",
+        "title": "Runtime",
+        "description": "The target\u0027s runtime: auto (default), native, mono or dotnet.",
+        "required": false
+      },
+      {
+        "name": "expectedCount",
+        "title": "Entity count",
+        "description": "How many entities the game shows, when known, as a decimal number.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "find_flag",
+    "title": "Find a boolean flag or toggle",
+    "description": "An on/off state such as god mode, a key or an unlocked feature: exact scans while the user toggles it, then its bits and the code that tests it.",
+    "arguments": [
+      {
+        "name": "state",
+        "title": "Current state",
+        "description": "The flag\u0027s state in game now: on or off.",
+        "required": true
+      },
+      {
+        "name": "width",
+        "title": "Scan type",
+        "description": "The scan type: auto (default: byte, then int32), byte or int32.",
+        "required": false
+      },
+      {
+        "name": "description",
+        "title": "What the flag controls",
+        "description": "What the flag controls, such as god mode.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "find_float_value",
+    "title": "Find a floating-point value",
+    "description": "Floats, doubles, percentages and positions: range scans around the displayed value, then neighbouring fields.",
+    "arguments": [
+      {
+        "name": "displayedValue",
+        "title": "Displayed value",
+        "description": "The value the game shows, such as 87.3 or 75%; omit it for a bar without a number.",
+        "required": false
+      },
+      {
+        "name": "description",
+        "title": "What the value is",
+        "description": "What the value is, such as the player\u0027s X position.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "find_known_value",
+    "title": "Find a known value",
+    "description": "The value is shown as a number: exact first and next scans, verification one candidate at a time, then a record.",
+    "arguments": [
+      {
+        "name": "currentValue",
+        "title": "Current value",
+        "description": "The number the game shows now, such as 100 or 87.5.",
+        "required": true
+      },
+      {
+        "name": "valueType",
+        "title": "Value type",
+        "description": "The scan type: auto (default), byte, int16, int32, int64, float, double, string or wstring. byte is unsigned (-1 is 255); scan an unsigned value above the signed maximum as the signed type of the same width, which util_convert_value computes.",
+        "required": false
+      },
+      {
+        "name": "description",
+        "title": "What the value is",
+        "description": "What the value is, such as player health.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "find_position",
+    "title": "Find coordinates and teleport",
+    "description": "Coordinates to save, restore or teleport in a single-player game: unknown scans while the user moves along one axis, then the neighbouring axes and a verified write.",
+    "arguments": [
+      {
+        "name": "valueType",
+        "title": "Coordinate type",
+        "description": "The coordinate type: auto (default; double on UE5, float otherwise), float or double.",
+        "required": false
+      },
+      {
+        "name": "address",
+        "title": "X coordinate address",
+        "description": "The address of the X coordinate, when known, to skip the scan. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": false
+      },
+      {
+        "name": "description",
+        "title": "Whose position",
+        "description": "Whose position it is, such as the player.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "find_text",
+    "title": "Find and edit text in memory",
+    "description": "Text in memory such as a player name or a dialogue buffer: UTF-8 and UTF-16 byte searches, its container and owner, and an in-place edit with consent.",
+    "arguments": [
+      {
+        "name": "text",
+        "title": "Text",
+        "description": "The exact text, case preserved, such as the player\u0027s name.",
+        "required": true
+      },
+      {
+        "name": "encoding",
+        "title": "Encoding",
+        "description": "auto (default) tries UTF-8 and UTF-16; utf8 or utf16 searches one encoding.",
+        "required": false
+      },
+      {
+        "name": "purpose",
+        "title": "Purpose",
+        "description": "find (default) locates the text; edit also changes it in place, at the same length or shorter.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "find_timer",
+    "title": "Find a timer or cooldown",
+    "description": "A timer or cooldown: scans while it runs and when it is ready, then the code that sets and decrements it, and the remedy.",
+    "arguments": [
+      {
+        "name": "kind",
+        "title": "Timer shape",
+        "description": "The timer\u0027s shape: countdown, countup, cooldown or unknown (default).",
+        "required": false
+      },
+      {
+        "name": "displayedValue",
+        "title": "Displayed time",
+        "description": "The time the game shows, such as 30, when it shows one.",
+        "required": false
+      },
+      {
+        "name": "description",
+        "title": "What the timer controls",
+        "description": "What the timer controls, such as the dash cooldown.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "find_unknown_value",
+    "title": "Find an unknown value",
+    "description": "Only a bar or a change is visible: an unknown first scan, then increased, decreased, changed and unchanged scans.",
+    "arguments": [
+      {
+        "name": "valueType",
+        "title": "Value type",
+        "description": "The value type: auto (default), int32, float or double.",
+        "required": false
+      },
+      {
+        "name": "description",
+        "title": "What the value is",
+        "description": "What the value is, such as the stamina bar.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "find_writer",
+    "title": "Find what writes or accesses an address",
+    "description": "Which instructions write or read an address: a debugger capture job, disassembly and module offsets.",
+    "arguments": [
+      {
+        "name": "address",
+        "title": "Value address",
+        "description": "The address of the value. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": true
+      },
+      {
+        "name": "trigger",
+        "title": "Trigger",
+        "description": "write (default) captures writers; access also captures readers.",
+        "required": false
+      },
+      {
+        "name": "size",
+        "title": "Value size",
+        "description": "The value size in bytes: 1, 2, 4 (default) or 8.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "freeze_value",
+    "title": "Freeze a value",
+    "description": "Hold a value constant with an address-list record, verify that the freeze holds and undo it.",
+    "arguments": [
+      {
+        "name": "address",
+        "title": "Value address",
+        "description": "The address of the value. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": true
+      },
+      {
+        "name": "valueType",
+        "title": "Value type",
+        "description": "The value type: int8, uint8, int16, uint16, int32, uint32, int64, uint64, float, double, string (UTF-8), wstring (UTF-16) or bytes (a byte array). The prompt shows the matching record_create variableType code.",
+        "required": true
+      },
+      {
+        "name": "value",
+        "title": "Value to hold",
+        "description": "The value to hold, as text or, for bytes, hexadecimal byte pairs such as 90 90; omit it to hold the current value.",
+        "required": false
+      },
+      {
+        "name": "description",
+        "title": "Record description",
+        "description": "The record description, such as Infinite health.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "group_scan",
+    "title": "Find an object by several known values",
+    "description": "Several known values sit at fixed offsets in one object, such as health and ammo: search them as one byte pattern, then narrow and verify.",
+    "arguments": [
+      {
+        "name": "values",
+        "title": "Values and offsets",
+        "description": "The values as type:value@hexOffset separated by commas, such as int32:100@0,int32:12@10.",
+        "required": true
+      },
+      {
+        "name": "region",
+        "title": "Region",
+        "description": "heap (default) searches writable private memory; module searches one module; any searches everything.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "identify_address",
+    "title": "Explain what is at an address",
+    "description": "Classify an address as code, static data, a heap object, a stack or an unreadable page, with its symbol, its owners and the next workflow.",
+    "arguments": [
+      {
+        "name": "address",
+        "title": "Address",
+        "description": "The address to explain. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": true
+      }
+    ]
+  },
+  {
+    "name": "injection_copy_base",
+    "title": "Capture a base pointer by injection",
+    "description": "Copy the object base an instruction uses into a registered symbol, so records can use [symbol]\u002Boffset. Needs Mcp:EnableAutoAssembler for its gated steps.",
+    "arguments": [
+      {
+        "name": "instructionAddress",
+        "title": "Instruction address",
+        "description": "The address of an instruction that handles only the player. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": true
+      },
+      {
+        "name": "symbolName",
+        "title": "Base symbol",
+        "description": "The symbol that receives the base (default playerBase): a letter or underscore, then letters, digits or underscores, 60 characters at most, because the injection point is named after it plus Hook.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "make_aob_signature",
+    "title": "Make a unique AOB signature",
+    "description": "A byte pattern that finds an instruction exactly once in its module, with wildcards over bytes that change between builds.",
+    "arguments": [
+      {
+        "name": "address",
+        "title": "Instruction address",
+        "description": "The address of the instruction. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": true
+      },
+      {
+        "name": "module",
+        "title": "Module",
+        "description": "The module to search, such as game.exe; omit it for the module that contains the address.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "manual_pointer_chain",
+    "title": "Build a pointer chain manually",
+    "description": "Walk back from the code that accesses a value to a static base, one level at a time, and verify the chain after a restart.",
+    "arguments": [
+      {
+        "name": "address",
+        "title": "Value address",
+        "description": "The dynamic address of the value. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": true
+      },
+      {
+        "name": "maxLevels",
+        "title": "Maximum levels",
+        "description": "The most pointer levels to walk: 1 to 8 (default 4).",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "nop_patch",
+    "title": "Replace code with NOPs",
+    "description": "Disable an instruction reversibly with a tracked NOP patch, verify it and release it. Needs Mcp:EnableAutoAssembler for its gated steps.",
+    "arguments": [
+      {
+        "name": "instructionAddress",
+        "title": "Instruction address",
+        "description": "The address of the instruction. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": true
+      }
+    ]
+  },
+  {
+    "name": "patch_branch",
+    "title": "Force or invert a conditional branch",
+    "description": "A comparison and a conditional jump decide an outcome: force the jump, remove it or invert it with a tracked code patch of the same length. Needs Mcp:EnableAutoAssembler for its gated steps.",
+    "arguments": [
+      {
+        "name": "address",
+        "title": "Jump address",
+        "description": "The address of the conditional jump. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": true
+      },
+      {
+        "name": "mode",
+        "title": "Mode",
+        "description": "always makes the jump unconditional, never removes it, invert reverses its condition.",
+        "required": true
+      }
+    ]
+  },
+  {
+    "name": "plan_cheat",
+    "title": "Plan a cheat from a goal",
+    "description": "The user states a goal but not a technique: choose the data or code route for that goal, the workflows to run, how to verify the result and the scope limits.",
+    "arguments": [
+      {
+        "name": "goal",
+        "title": "Cheat goal",
+        "description": "The goal: infinite_health, infinite_ammo, currency, one_hit_kill, no_cooldown, teleport, game_speed, toggle_feature, unlock_items or other.",
+        "required": true
+      },
+      {
+        "name": "description",
+        "title": "Goal in your words",
+        "description": "The goal in the user\u0027s words, such as never run out of arrows.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "pointer_scan",
+    "title": "Find a static pointer with the pointer scanner",
+    "description": "Pointer map, path scan and rescans across restarts to find a static path to a value.",
+    "arguments": [
+      {
+        "name": "address",
+        "title": "Value address",
+        "description": "The dynamic address of the value. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": true
+      },
+      {
+        "name": "maxDepth",
+        "title": "Maximum depth",
+        "description": "The deepest path to search: 1 to 8 (default 5).",
+        "required": false
+      },
+      {
+        "name": "maxOffset",
+        "title": "Maximum offset",
+        "description": "The largest offset per level, a decimal number from 0 to 1048576 (default 4096).",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "repair_after_update",
+    "title": "Repair a table after a game update",
+    "description": "A game update broke a record: find the new code, rebuild the signature and offsets, test and save a new table. Needs Mcp:EnableAutoAssembler for its gated steps.",
+    "arguments": [
+      {
+        "name": "tablePath",
+        "title": "Table path",
+        "description": "The absolute .CT, .XML or .CETRAINER path of the table, under an allowed table root, when it is not loaded yet.",
+        "required": false
+      },
+      {
+        "name": "recordDescription",
+        "title": "Broken record",
+        "description": "The description of the broken record, such as Infinite ammo.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "review_aa_script",
+    "title": "Review an Auto Assembler script before applying it",
+    "description": "Before applying an Auto Assembler script or enabling a script record: check its syntax, signatures, original bytes and cleanup, without applying it. Needs Mcp:EnableAutoAssembler for its gated steps.",
+    "arguments": [
+      {
+        "name": "recordId",
+        "title": "Record ID",
+        "description": "The id of the script record to review; omit it to review the script in the conversation.",
+        "required": false
+      },
+      {
+        "name": "site",
+        "title": "Injection address",
+        "description": "The injection address to compare with. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "session_report",
+    "title": "Report what this session found and changed",
+    "description": "End of a session or a hand-off, before cleanup: a read-only report of the target, the findings, the changes still applied and what cleanup would release.",
+    "arguments": [
+      {
+        "name": "detail",
+        "title": "Detail",
+        "description": "summary (default) or full, which also lists every record, structure and scanner.",
+        "required": false
+      },
+      {
+        "name": "tablePath",
+        "title": "Table path",
+        "description": "The absolute .CT, .XML or .CETRAINER path to save the table to, under an allowed table root; omit it to save nothing.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "shared_code_filter",
+    "title": "Filter shared code by entity",
+    "description": "One instruction serves the player and enemies: find a field that tells them apart and filter the injection on it.",
+    "arguments": [
+      {
+        "name": "instructionAddress",
+        "title": "Instruction address",
+        "description": "The address of the shared instruction. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": true
+      },
+      {
+        "name": "playerAddress",
+        "title": "Player value address",
+        "description": "The player\u0027s value address, when known. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "speedhack",
+    "title": "Change game speed",
+    "description": "Change the game speed with CE\u0027s speedhack, verify it and restore normal speed. Needs Mcp:EnableTargetCodeExecution for its gated steps.",
+    "arguments": [
+      {
+        "name": "speed",
+        "title": "Speed multiplier",
+        "description": "The speed multiplier between 0.01 and 1000, such as 0.5 or 2.",
+        "required": true
+      }
+    ]
+  },
+  {
+    "name": "trace_logic",
+    "title": "Trace the logic of an instruction",
+    "description": "Find the comparison and branch that decide an outcome by reading and tracing the code. Needs Mcp:EnableAutoAssembler for its gated steps.",
+    "arguments": [
+      {
+        "name": "address",
+        "title": "Start address",
+        "description": "The address where the logic starts. A hex address such as 7FF6A1B2C3D0 or a Cheat Engine expression such as game.exe\u002B1A2B.",
+        "required": true
+      },
+      {
+        "name": "question",
+        "title": "Question",
+        "description": "The question to answer, such as why the player dies at zero shield.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "unity_il2cpp_recon",
+    "title": "Explore a Unity (IL2CPP) game",
+    "description": "Unity IL2CPP classes and fields: offline from offsets the user supplies, or through CE\u0027s data collector after explicit consent. Needs Mcp:EnableTargetCodeExecution for its gated steps.",
+    "arguments": [
+      {
+        "name": "mode",
+        "title": "Mode",
+        "description": "offline (default) reads memory only; collector injects CE\u0027s data collector into the game.",
+        "required": false
+      },
+      {
+        "name": "className",
+        "title": "Class name",
+        "description": "The class to find, such as PlayerController.",
+        "required": false
+      },
+      {
+        "name": "fieldName",
+        "title": "Field name",
+        "description": "The field to find, such as health.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "unity_mono_recon",
+    "title": "Explore a Unity (Mono) game",
+    "description": "Unity Mono classes, fields, statics and methods through CE\u0027s Mono data collector, after explicit consent. Needs Mcp:EnableTargetCodeExecution for its gated steps.",
+    "arguments": [
+      {
+        "name": "className",
+        "title": "Class name",
+        "description": "The class to find, such as PlayerController.",
+        "required": false
+      },
+      {
+        "name": "fieldName",
+        "title": "Field name",
+        "description": "The field to find, such as health.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "unreal_recon",
+    "title": "Explore a UE4 or UE5 game",
+    "description": "Unreal Engine 4 or 5 objects and names: the version string, the object header and the name pool, then an anchor for a value found by scanning.",
+    "arguments": [
+      {
+        "name": "ueVersion",
+        "title": "UE version",
+        "description": "auto (default) reads the version string; ue4 or ue5 skips that step.",
+        "required": false
+      },
+      {
+        "name": "goal",
+        "title": "Goal",
+        "description": "What the user wants to find, such as the player\u0027s health.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "use_cheat_table",
+    "title": "Load and use a cheat table",
+    "description": "Load a table the user trusts, review its scripts, activate one cheat at a time with consent, verify it in game and undo it. Needs Mcp:EnableAutoAssembler for its gated steps.",
+    "arguments": [
+      {
+        "name": "tablePath",
+        "title": "Table path",
+        "description": "The absolute .CT, .XML or .CETRAINER path of the table, under an allowed table root; omit it to choose one with table_list_files.",
+        "required": false
+      },
+      {
+        "name": "cheat",
+        "title": "Cheat to use",
+        "description": "The cheat to use, as the table describes it, such as Infinite health; omit it to list the cheats first.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "write_lua_script",
+    "title": "Write and run a lua_execute script safely",
+    "description": "Only when no tool covers a Cheat Engine feature: draft, show and run a bounded Lua script, then report what it left behind. Needs Mcp:EnableUnsafeLua for its gated steps.",
+    "arguments": [
+      {
+        "name": "purpose",
+        "title": "Purpose",
+        "description": "What the script must do, such as list the loaded plugins.",
+        "required": true
+      },
+      {
+        "name": "effect",
+        "title": "Effect",
+        "description": "read_only (default) or mutating: whether the script changes the game or Cheat Engine.",
+        "required": false
+      }
+    ]
+  }
+]

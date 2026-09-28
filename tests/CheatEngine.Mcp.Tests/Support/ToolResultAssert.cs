@@ -1,4 +1,4 @@
-namespace CheatEngine.Mcp.Tests;
+namespace CheatEngine.Mcp.Tests.Support;
 
 internal static class ToolResultAssert
 {

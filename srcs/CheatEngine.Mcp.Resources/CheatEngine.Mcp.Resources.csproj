@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Cheat Engine MCP resources. The only public composition entry point is ICheatEngineMcpBuilder.AddResources().
+    Resources are declared with AddResourceType<T>(). This project owns the knowledge base: the documents in
+    Knowledge/Documents/ (served as cheatengine://docs/{slug}) and the guided workflow bodies in Knowledge/Workflows/
+    (served as cheatengine://docs/workflows/{workflow} and rendered by the Prompts project), embedded here once.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../libs/CheatEngine.Mcp.Core/CheatEngine.Mcp.Core.csproj"/>
+    <ProjectReference Include="../CheatEngine.Mcp.Tools/CheatEngine.Mcp.Tools.csproj"/>
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="CheatEngine.Mcp.Core.Composition"/>
+    <InternalsVisibleTo Include="CheatEngine.Mcp.Tests"/>
+  </ItemGroup>
+  <!--
+    CheatEngineKnowledge.DocumentSlugs lists the served documents in reading order; a test keeps it equal to the files
+    embedded here. WithCulture=false: a file name must never be read as a culture, which would create a satellite
+    assembly.
+  -->
+  <ItemGroup>
+    <None Remove="Knowledge/**/*.md"/>
+    <EmbeddedResource Include="Knowledge/Documents/*.md" LogicalName="CheatEngine.Mcp.Knowledge/docs/%(Filename)%(Extension)" WithCulture="false"/>
+    <EmbeddedResource Include="Knowledge/Workflows/*.md" LogicalName="CheatEngine.Mcp.Knowledge/workflows/%(Filename)%(Extension)" WithCulture="false"/>
+  </ItemGroup>
+</Project>

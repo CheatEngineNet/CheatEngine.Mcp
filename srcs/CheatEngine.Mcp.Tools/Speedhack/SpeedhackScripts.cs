@@ -1,0 +1,139 @@
+using CheatEngine.Mcp.Core.Jobs;
+
+namespace CheatEngine.Mcp.Tools.Speedhack;
+
+/// <summary>Fixed, bounded Lua bodies used by the speedhack tools.</summary>
+internal static class SpeedhackScripts
+{
+	/// <summary>Reads the configured speed and the durable target symbol without changing Cheat Engine.</summary>
+	internal const string GetState = """
+	                                 local speed = speedhack_getSpeed()
+	                                 if type(speed) ~= 'number' or speed ~= speed or speed == math.huge or speed == -math.huge then
+	                                     return mcp.err('host_refused', 'Cheat Engine did not return a finite speedhack speed.', 'not_started')
+	                                 end
+	                                 local hasSymbol = false
+	                                 if type(getAddressSafe) == 'function' then
+	                                     local ok, address = pcall(getAddressSafe, 'speedhack_wantedspeed')
+	                                     hasSymbol = ok and math.type(address) == 'integer'
+	                                 end
+	                                 return { speed = speed, hooksInstalled = hasSymbol }
+	                                 """;
+
+	/// <summary>
+	///     Restores speed 1 without recording a second restore resource and without ever activating the speedhack.
+	///     Cheat Engine's <c>speedhack_setSpeed</c> ticks its Enable Speedhack checkbox for every speed, 1 included,
+	///     and that activation hooks a process that has no speedhack_wantedspeed symbol yet, so the body calls it only
+	///     in a process that has the symbol: there the activation never hooks again. Without the symbol it changes
+	///     nothing at speed 1 and refuses another configured speed, which then belongs to a speedhack of another
+	///     process. <c>speedhack_getSpeed</c> reports 1 also after a process switch freed Cheat Engine's speedhack
+	///     while the target kept its speed, so with the symbol the body skips the call only when the target's own speed
+	///     is 1 too. It refuses, like a speed change, while the debugger is stopped or the target is paused, because
+	///     the Unity path restores through <c>mono_invoke_method</c>.
+	/// </summary>
+	internal const string SetNormal = """
+		local pid = getOpenedProcessID()
+		if math.type(pid) ~= 'integer' or pid <= 0 then
+			return mcp.err('invalid_state', 'No process is attached.', 'not_started',
+				'Attach a local process with process_attach first.')
+		end
+		local function symbol()
+			if type(getAddressSafe) ~= 'function' then return nil end
+			local ok, address = pcall(getAddressSafe, 'speedhack_wantedspeed')
+			if ok and math.type(address) == 'integer' then return address end
+			return nil
+		end
+		local function finite(value)
+			return type(value) == 'number' and value == value and value ~= math.huge and value ~= -math.huge
+		end
+		local address = symbol()
+		local current = speedhack_getSpeed()
+		if not finite(current) then
+			return mcp.err('host_refused', 'Cheat Engine did not return a finite speedhack speed.', 'not_started')
+		end
+		local normal = math.abs(current - 1) <= 0.000001
+		if address == nil then
+			-- Never sped up: setting 1 would tick Enable Speedhack and hook this process.
+			if normal then return { speed = current, hooksInstalled = false, firstActivation = false } end
+			return mcp.err('invalid_state', string.format('Cheat Engine reports speed %g, but the opened process has '
+				.. 'no speedhack_wantedspeed symbol, so setting 1 would activate the speedhack here.', current),
+				'not_started', 'If another process was sped up, open it again and set speed 1 there; otherwise '
+				.. 'untick Enable Speedhack in Cheat Engine.')
+		end
+		if normal and type(readFloat) == 'function' then
+			-- Cheat Engine also reports 1 once a process switch freed its speedhack; the target keeps its own speed.
+			local read, wanted = pcall(readFloat, address)
+			if read and finite(wanted) and math.abs(wanted - 1) <= 0.000001 then
+				return { speed = current, hooksInstalled = true, firstActivation = false }
+			end
+		end
+		if type(debug_isBroken) == 'function' and debug_isBroken() then
+			return mcp.err('invalid_state', 'The debugger is stopped at a breakpoint.', 'not_started',
+				'Continue the debugger before changing speed.')
+		end
+		if type(isPaused) == 'function' and isPaused() then
+			return mcp.err('invalid_state', 'The target is paused.', 'not_started',
+				'Resume it with process_set_paused before changing speed.')
+		end
+		speedhack_setSpeed(1)
+		local speed = speedhack_getSpeed()
+		if not finite(speed) then
+			return mcp.err('host_refused', 'Cheat Engine did not return a finite speed after restoring it.', 'started')
+		end
+		return { speed = speed, hooksInstalled = symbol() ~= nil, firstActivation = false }
+		""";
+
+	/// <summary>
+	///     Sets one valid speed and records a restore action in the Core-owned Lua state root. Arguments are speed, resource
+	///     id and activation namespace. The body is deliberately fixed; callers only provide the number in <c>a[1]</c>.
+	/// </summary>
+	internal static readonly string SetSpeed = LuaJobKernelScripts.Kernel + "\n" + """
+		local pid = getOpenedProcessID()
+		if math.type(pid) ~= 'integer' or pid <= 0 then
+			return mcp.err('invalid_state', 'No process is attached.', 'not_started', 'Attach a local process with process_attach first.')
+		end
+		if type(debug_isBroken) == 'function' and debug_isBroken() then
+			return mcp.err('invalid_state', 'The debugger is stopped at a breakpoint.', 'not_started', 'Continue the debugger before changing speed.')
+		end
+		if type(isPaused) == 'function' and isPaused() then
+			return mcp.err('invalid_state', 'The target is paused.', 'not_started', 'Resume it with process_set_paused before changing speed.')
+		end
+		if type(targetIsX86) == 'function' and not targetIsX86() then
+			return mcp.err('unsupported', 'Cheat Engine speedhack requires an x86 or x64 target.', 'not_started')
+		end
+		local before = false
+		if type(getAddressSafe) == 'function' then
+			local ok, address = pcall(getAddressSafe, 'speedhack_wantedspeed')
+			before = ok and math.type(address) == 'integer'
+		end
+		speedhack_setSpeed(a[1])
+		local speed = speedhack_getSpeed()
+		if type(speed) ~= 'number' or speed ~= speed or speed == math.huge or speed == -math.huge then
+			return mcp.err('host_refused', 'Cheat Engine did not return a finite speed after changing it.', 'started')
+		end
+		local after = before
+		if type(getAddressSafe) == 'function' then
+			local ok, address = pcall(getAddressSafe, 'speedhack_wantedspeed')
+			after = ok and math.type(address) == 'integer'
+		end
+		resourceRecord(a[3], a[2], 'speedhack', { name = 'speedhack', detail = 'Restores the configured speed to 1.' }, function()
+			-- Opening another process unticks Enable Speedhack without restoring this one; ticking it again would
+			-- hook the newly opened process instead, so the restore needs manual recovery then.
+			assert(getOpenedProcessID() == pid, 'The sped-up process is no longer the opened process')
+			-- Cheat Engine reports 1 also once a process switch freed its speedhack, while this process keeps its
+			-- speed, so the call is skipped only when the target has no hooks or its own speed is 1 too.
+			local configured = speedhack_getSpeed()
+			if type(configured) == 'number' and math.abs(configured - 1) <= 0.000001 then
+				local found, address = pcall(getAddressSafe, 'speedhack_wantedspeed')
+				if not found or math.type(address) ~= 'integer' then return end
+				local read, wanted = pcall(readFloat, address)
+				if read and type(wanted) == 'number' and math.abs(wanted - 1) <= 0.000001 then return end
+			end
+			speedhack_setSpeed(1)
+			local restored = speedhack_getSpeed()
+			assert(type(restored) == 'number' and restored == restored and restored ~= math.huge and restored ~= -math.huge,
+				'Cheat Engine did not return a finite speed while restoring speedhack')
+			assert(math.abs(restored - 1) <= 0.000001, 'Cheat Engine did not restore speedhack to 1')
+		end)
+		return { speed = speed, hooksInstalled = after, firstActivation = not before }
+		""";
+}

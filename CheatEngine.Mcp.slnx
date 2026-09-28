@@ -1,11 +1,33 @@
 <Solution>
-  <Folder Name="/src/">
-    <Project Path="src/CheatEngine.Mcp.Bootstrap/CheatEngine.Mcp.Bootstrap.csproj" />
-    <Project Path="src/CheatEngine.Mcp/CheatEngine.Mcp.csproj" />
-    <Project Path="src/CheatEngine.Mcp.Gateway/CheatEngine.Mcp.Gateway.csproj" />
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig"/>
+    <File Path="CONTRIBUTING.md"/>
+    <File Path="Directory.Build.props"/>
+    <File Path="Directory.Build.targets"/>
+    <File Path="Directory.Packages.props"/>
+    <File Path="global.json"/>
+    <File Path="nuget.config"/>
+    <File Path="README.md"/>
+    <File Path="SECURITY.md"/>
+    <File Path="THIRD-PARTY-NOTICES.md"/>
+  </Folder>
+  <Folder Name="/eng/">
+    <File Path="eng/Publish.ps1"/>
+    <File Path="eng/Tests.props"/>
+  </Folder>
+  <Folder Name="/libs/">
+    <Project Path="libs/CheatEngine.Mcp.Core/CheatEngine.Mcp.Core.csproj"/>
+  </Folder>
+  <Folder Name="/srcs/">
+    <Project Path="srcs/CheatEngine.Mcp.Gateway/CheatEngine.Mcp.Gateway.csproj"/>
+    <Project Path="srcs/CheatEngine.Mcp.Hosting/CheatEngine.Mcp.Hosting.csproj"/>
+    <Project Path="srcs/CheatEngine.Mcp.Plugin/CheatEngine.Mcp.Plugin.csproj"/>
+    <Project Path="srcs/CheatEngine.Mcp.Prompts/CheatEngine.Mcp.Prompts.csproj"/>
+    <Project Path="srcs/CheatEngine.Mcp.Resources/CheatEngine.Mcp.Resources.csproj"/>
+    <Project Path="srcs/CheatEngine.Mcp.Tools/CheatEngine.Mcp.Tools.csproj"/>
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/CheatEngine.Mcp.LiveTarget/CheatEngine.Mcp.LiveTarget.csproj" />
-    <Project Path="tests/CheatEngine.Mcp.Tests/CheatEngine.Mcp.Tests.csproj" />
+    <Project Path="tests/CheatEngine.Mcp.LiveTarget/CheatEngine.Mcp.LiveTarget.csproj"/>
+    <Project Path="tests/CheatEngine.Mcp.Tests/CheatEngine.Mcp.Tests.csproj"/>
   </Folder>
 </Solution>

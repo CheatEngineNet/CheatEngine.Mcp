@@ -1,0 +1,58 @@
+using System.Collections.Immutable;
+
+using CheatEngine.Client;
+using CheatEngine.Client.Inspection;
+using CheatEngine.Client.Results;
+using CheatEngine.Mcp.Core.Contract;
+using CheatEngine.Mcp.Core.Execution;
+using CheatEngine.SDK.Engine.Inspection;
+
+namespace CheatEngine.Mcp.Core.Composition;
+
+/// <summary>
+///     The Cheat Engine reads behind the completions of live resource templates, for containers that cannot call the
+///     Client themselves: each is one short dispatch reported as <see cref="Operation" />, never a tool call. It takes
+///     one of the activation's dispatch slots like a tool call does, so the completion handler runs at most one such
+///     read at a time.
+/// </summary>
+public static class McpCompletionReads
+{
+	/// <summary>The operation name completion dispatches report in dispatch statistics and logs.</summary>
+	public const string Operation = "completion/complete";
+
+	/// <summary>The most module names one read copies; a larger module list offers no module names.</summary>
+	public const int MaximumModules = 4096;
+
+	/// <summary>
+	///     Reads the attached process's module names and the target-selection epoch they belong to, in one dispatch.
+	/// </summary>
+	/// <param name="dispatch">The activation's dispatch facade.</param>
+	/// <param name="cancellationToken">The token of the listing.</param>
+	/// <returns>The distinct module names in Cheat Engine's order, ignoring case, and the selection epoch.</returns>
+	/// <exception cref="CheatEngineToolException">
+	///     <c>not_attached</c> without a process, <c>busy</c> when the dispatch limit is reached, or the Client's
+	///     failure.
+	/// </exception>
+	public static McpCompletionValues ModuleNames(ToolDispatch dispatch, CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(dispatch);
+		ICheatEngineClient client = dispatch.Client;
+		return dispatch.Run(Operation, token =>
+		{
+			// Both reads run in the same main-thread callback, so the names belong to the epoch read first.
+			long epoch = client.Processes.GetCurrentProcess(token).SelectionEpoch;
+			if (!client.Inspection.TryGetModules(new InspectionCollectionRequest(MaximumModules), null,
+					out ImmutableArray<ModuleInfo> modules, out CheatEngineFailure failure, token))
+			{
+				throw CheatEngineToolException.FromFailure(failure, client.Stopping.IsCancellationRequested);
+			}
+
+			string[] names =
+			[
+				.. modules.Select(static module => module.Name).Where(static name => !string.IsNullOrEmpty(name))
+					.Distinct(StringComparer.OrdinalIgnoreCase)
+			];
+			return new McpCompletionValues(names, epoch);
+		}, cancellationToken);
+	}
+}

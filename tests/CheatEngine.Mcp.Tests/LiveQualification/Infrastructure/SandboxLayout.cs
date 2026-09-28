@@ -1,17 +1,21 @@
-// Adapted from CheatEngine.Client; see NOTICE.md and licenses/CheatEngine.Client.LICENSE.
+// Adapted from CheatEngine.Client (MIT); see NOTICE.md.
+
 using System.Globalization;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
 
-namespace CheatEngine.Mcp.Tests.LiveQualification;
+namespace CheatEngine.Mcp.Tests.LiveQualification.Infrastructure;
 
 /// <summary>
 ///     The directory of one live run, below the run root and outside the repository:
-///     <c>&lt;runRoot&gt;/&lt;yyyyMMddTHHmmssZ&gt;-&lt;4 hex&gt;/</c> holds <c>ce/</c> (the sandboxed Cheat Engine copy, with
-///     the generated autorun driver), <c>plugins/&lt;bundle&gt;/</c>, <c>sessions/&lt;id&gt;/</c> (transcript, debug output,
+///     <c>&lt;runRoot&gt;/&lt;yyyyMMddTHHmmssZ&gt;-&lt;4 hex&gt;/</c> holds <c>ce/</c> (the sandboxed Cheat Engine copy,
+///     with
+///     the generated autorun driver), <c>plugins/&lt;bundle&gt;/</c>, <c>sessions/&lt;id&gt;/</c> (transcript, debug
+///     output,
 ///     authorization manifest), <c>receipts.jsonl</c>, <c>summary.json</c> and the user state backups
 ///     (<c>hkcu-backup.json</c>, <c>appdata-backup.json</c> and <c>appdata-backup/</c>). The crash marker
-///     <c>registry-restore-pending.json</c> sits in the run root, where the next run finds it. Nothing in a run directory is
+///     <c>registry-restore-pending.json</c> sits in the run root, where the next run finds it. Nothing in a run directory
+///     is
 ///     ever committed as is: evidence is redacted first (the run path becomes <c>&lt;run&gt;</c>).
 /// </summary>
 [SupportedOSPlatform("windows")]

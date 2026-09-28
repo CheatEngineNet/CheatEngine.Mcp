@@ -258,16 +258,6 @@
         "resolved": "5.0.0",
         "contentHash": "dDoKi0PnDz31yAyETfRntsLArTlVAVzUzCIvvEDsDsucrl33Dl8pIJG06ePTJTI3tGpeyHS9Cq7Foc/s4EeKcg=="
       },
-      "ModelContextProtocol": {
-        "type": "Transitive",
-        "resolved": "2.2.0",
-        "contentHash": "4Pb9u02Nwsp0poueDsqNdyGRojFxOYpljB7zDBsq+aHL+Afou3OgxlBc3GWFVnsRMRJrUtWqDh3s6k2JgPzmrQ==",
-        "dependencies": {
-          "Microsoft.Extensions.Caching.Abstractions": "10.0.10",
-          "Microsoft.Extensions.Hosting.Abstractions": "10.0.10",
-          "ModelContextProtocol.Core": "[2.2.0]"
-        }
-      },
       "ModelContextProtocol.Core": {
         "type": "Transitive",
         "resolved": "2.2.0",
@@ -340,23 +330,60 @@
           "xunit.v3.runner.common": "[4.0.1]"
         }
       },
-      "CheatEngine.Mcp": {
-        "type": "Project"
+      "cheatengine.mcp.core": {
+        "type": "Project",
+        "dependencies": {
+          "CheatEngine.Client": "[1.0.0, )",
+          "ModelContextProtocol": "[2.2.0, )"
+        }
       },
       "cheatengine.mcp.gateway": {
         "type": "Project",
         "dependencies": {
-          "CheatEngine.Mcp.Runtime": "[2.0.0, )"
+          "CheatEngine.Mcp.Hosting": "[2.0.0, )",
+          "CheatEngine.Mcp.Prompts": "[2.0.0, )",
+          "CheatEngine.Mcp.Resources": "[2.0.0, )",
+          "CheatEngine.Mcp.Tools": "[2.0.0, )"
         }
       },
-      "CheatEngine.Mcp.Runtime": {
+      "cheatengine.mcp.hosting": {
+        "type": "Project",
+        "dependencies": {
+          "CheatEngine.Mcp.Core": "[2.0.0, )",
+          "ModelContextProtocol.AspNetCore": "[2.2.0, )"
+        }
+      },
+      "cheatengine.mcp.plugin": {
         "type": "Project",
         "dependencies": {
           "CheatEngine.Client": "[1.0.0, )",
+          "CheatEngine.Mcp.Core": "[2.0.0, )",
+          "CheatEngine.Mcp.Hosting": "[2.0.0, )",
+          "CheatEngine.Mcp.Prompts": "[2.0.0, )",
+          "CheatEngine.Mcp.Resources": "[2.0.0, )",
+          "CheatEngine.Mcp.Tools": "[2.0.0, )",
           "CheatEngine.SDK": "[2.0.0, )",
-          "ModelContextProtocol.AspNetCore": "[2.2.0, )",
-          "NLog": "[6.2.1, )",
-          "NLog.Extensions.Logging": "[6.2.1, )"
+          "ModelContextProtocol.AspNetCore": "[2.2.0, )"
+        }
+      },
+      "cheatengine.mcp.prompts": {
+        "type": "Project",
+        "dependencies": {
+          "CheatEngine.Mcp.Core": "[2.0.0, )",
+          "CheatEngine.Mcp.Resources": "[2.0.0, )"
+        }
+      },
+      "cheatengine.mcp.resources": {
+        "type": "Project",
+        "dependencies": {
+          "CheatEngine.Mcp.Core": "[2.0.0, )",
+          "CheatEngine.Mcp.Tools": "[2.0.0, )"
+        }
+      },
+      "cheatengine.mcp.tools": {
+        "type": "Project",
+        "dependencies": {
+          "CheatEngine.Mcp.Core": "[2.0.0, )"
         }
       },
       "CheatEngine.Client": {
@@ -434,6 +461,17 @@
           "Microsoft.Extensions.Logging.Abstractions": "10.0.12"
         }
       },
+      "ModelContextProtocol": {
+        "type": "CentralTransitive",
+        "requested": "[2.2.0, )",
+        "resolved": "2.2.0",
+        "contentHash": "4Pb9u02Nwsp0poueDsqNdyGRojFxOYpljB7zDBsq+aHL+Afou3OgxlBc3GWFVnsRMRJrUtWqDh3s6k2JgPzmrQ==",
+        "dependencies": {
+          "Microsoft.Extensions.Caching.Abstractions": "10.0.10",
+          "Microsoft.Extensions.Hosting.Abstractions": "10.0.10",
+          "ModelContextProtocol.Core": "[2.2.0]"
+        }
+      },
       "ModelContextProtocol.AspNetCore": {
         "type": "CentralTransitive",
         "requested": "[2.2.0, )",
@@ -441,23 +479,6 @@
         "contentHash": "3JelDMuFIwFzXybsh6K30G6wXu5gmqKnuRnieqgBMuR0FkqqXRv4B+NYZuPgthSyNq5UwRyvv2U2VJBE3RD3PQ==",
         "dependencies": {
           "ModelContextProtocol": "[2.2.0]"
-        }
-      },
-      "NLog": {
-        "type": "CentralTransitive",
-        "requested": "[6.2.1, )",
-        "resolved": "6.2.1",
-        "contentHash": "fTGNuJyzkgDc1TBEGXF+FMT4b6kB7gygkSN3dLei2Ziiwx/rugXA+OyyFWZ60P1G/+SzzSKiWHlQ4OklC8AgRg=="
-      },
-      "NLog.Extensions.Logging": {
-        "type": "CentralTransitive",
-        "requested": "[6.2.1, )",
-        "resolved": "6.2.1",
-        "contentHash": "VVISyXM6nU6akAK9dzit/Yy/Q050PVpW0FZM6ceSA7oZUvMtQZlE0VlNx1VUBe3Uo540/9Ee05RiKlPvyR8dUQ==",
-        "dependencies": {
-          "Microsoft.Extensions.Configuration.Abstractions": "10.0.0",
-          "Microsoft.Extensions.Logging": "10.0.0",
-          "NLog": "6.2.1"
         }
       }
     }

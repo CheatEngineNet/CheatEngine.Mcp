@@ -1,0 +1,19 @@
+# Blank issues stay available for a "Request for a private security contact" until the maintainer enables GitHub
+# private vulnerability reporting (see SECURITY.md); switch this to false afterwards if only the forms should remain.
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/CheatEngineNet/CheatEngine.Mcp/blob/main/SECURITY.md
+    about: Never report a vulnerability in a public issue; follow the private process in SECURITY.md.
+  - name: Documentation
+    url: https://github.com/CheatEngineNet/CheatEngine.Mcp#readme
+    about: Installation, client setup, multiple instances, configuration and troubleshooting. The knowledge documents the server serves are under srcs/CheatEngine.Mcp.Resources/Knowledge.
+  - name: CheatEngine.Client issues
+    url: https://github.com/CheatEngineNet/CheatEngine.Client/issues
+    about: Problems in the CheatEngine.Client package itself.
+  - name: CheatEngine.SDK issues
+    url: https://github.com/CheatEngineNet/CheatEngine.SDK/issues
+    about: Problems in the CheatEngine.SDK package, its plugin entry point or its native Lua bridge.
+  - name: Cheat Engine issues
+    url: https://github.com/cheat-engine/cheat-engine/issues
+    about: Problems in Cheat Engine itself, its kernel driver or DBVM.

@@ -4,24 +4,23 @@
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="CheatEngine.Client" Version="1.0.0" />
-    <PackageVersion Include="CheatEngine.SDK" Version="2.0.0" />
-    <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="2.2.0" />
-    <PackageVersion Include="NLog" Version="6.2.1" />
-    <PackageVersion Include="NLog.Extensions.Logging" Version="6.2.1" />
-    <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.1" />
-    <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.11.2" />
-    <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="2.4.1" />
-    <PackageVersion Include="Microsoft.Testing.Extensions.GitHubActionsReport" Version="2.4.1" />
-    <PackageVersion Include="Microsoft.Testing.Extensions.HangDump" Version="2.4.1" />
-    <PackageVersion Include="Microsoft.Testing.Extensions.CrashDump" Version="2.4.1" />
+    <PackageVersion Include="CheatEngine.Client" Version="1.0.0"/>
+    <PackageVersion Include="CheatEngine.SDK" Version="2.0.0"/>
+    <PackageVersion Include="ModelContextProtocol" Version="2.2.0"/>
+    <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="2.2.0"/>
+    <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.1"/>
+    <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.11.2"/>
+    <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="2.4.1"/>
+    <PackageVersion Include="Microsoft.Testing.Extensions.GitHubActionsReport" Version="2.4.1"/>
+    <PackageVersion Include="Microsoft.Testing.Extensions.HangDump" Version="2.4.1"/>
+    <PackageVersion Include="Microsoft.Testing.Extensions.CrashDump" Version="2.4.1"/>
     <!-- Pin compatible transitive dependency versions alongside the published Client package. -->
-    <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.10.1" />
-    <PackageVersion Include="Microsoft.DiaSymReader" Version="2.2.12" />
-    <PackageVersion Include="Microsoft.Extensions.Caching.Abstractions" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyModel" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.Extensions.Diagnostics.Abstractions" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.Extensions.FileProviders.Abstractions" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.10.1"/>
+    <PackageVersion Include="Microsoft.DiaSymReader" Version="2.2.12"/>
+    <PackageVersion Include="Microsoft.Extensions.Caching.Abstractions" Version="10.0.12"/>
+    <PackageVersion Include="Microsoft.Extensions.DependencyModel" Version="10.0.12"/>
+    <PackageVersion Include="Microsoft.Extensions.Diagnostics.Abstractions" Version="10.0.12"/>
+    <PackageVersion Include="Microsoft.Extensions.FileProviders.Abstractions" Version="10.0.12"/>
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.12"/>
   </ItemGroup>
 </Project>

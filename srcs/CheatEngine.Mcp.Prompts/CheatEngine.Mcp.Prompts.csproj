@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Cheat Engine MCP prompts and the initialize server instructions. The only public composition entry point is
+    ICheatEngineMcpBuilder.AddPrompts(). Prompts are declared with AddPromptType<T>(); every prompt is a static (Local)
+    method that renders one guided workflow body of the Resources knowledge base (CheatEngineKnowledge) and links the
+    documents it serves, so the text has a single source and is embedded once.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../libs/CheatEngine.Mcp.Core/CheatEngine.Mcp.Core.csproj"/>
+    <ProjectReference Include="../CheatEngine.Mcp.Resources/CheatEngine.Mcp.Resources.csproj"/>
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="CheatEngine.Mcp.Core.Composition"/>
+    <InternalsVisibleTo Include="CheatEngine.Mcp.Tests"/>
+  </ItemGroup>
+</Project>

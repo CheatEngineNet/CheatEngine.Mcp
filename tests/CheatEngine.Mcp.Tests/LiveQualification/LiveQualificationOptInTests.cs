@@ -13,7 +13,7 @@ public sealed class LiveQualificationOptInTests
 	[InlineData("true")]
 	public void Evaluate_MissingExactAcknowledgement_RefusesWithRunInstructions(string? acknowledgement)
 	{
-		LiveQualificationDecision decision = Evaluate(new()
+		LiveQualificationDecision decision = Evaluate(new Dictionary<string, string?>
 		{
 			[LiveQualificationOptIn.OptInVariable] = acknowledgement
 		});
@@ -29,7 +29,8 @@ public sealed class LiveQualificationOptInTests
 		Dictionary<string, string?> variables = Authorized();
 		variables["CI"] = "true";
 		LiveQualificationDecision decision = LiveQualificationOptIn.Evaluate(variables.GetValueOrDefault,
-			Repository, LocalData, Installation, _ => throw new InvalidOperationException("No directory inspection expected."));
+			Repository, LocalData, Installation,
+			_ => throw new InvalidOperationException("No directory inspection expected."));
 		Assert.False(decision.IsAuthorized);
 		Assert.Contains("CI", decision.Refusal, StringComparison.Ordinal);
 	}
@@ -68,12 +69,17 @@ public sealed class LiveQualificationOptInTests
 		Assert.False(Evaluate(variables).IsAuthorized);
 	}
 
-	private static Dictionary<string, string?> Authorized() => new()
+	private static Dictionary<string, string?> Authorized()
 	{
-		[LiveQualificationOptIn.OptInVariable] = LiveQualificationOptIn.Acknowledgement
-	};
+		return new Dictionary<string, string?>
+		{
+			[LiveQualificationOptIn.OptInVariable] = LiveQualificationOptIn.Acknowledgement
+		};
+	}
 
-	private static LiveQualificationDecision Evaluate(Dictionary<string, string?> variables) =>
-		LiveQualificationOptIn.Evaluate(variables.GetValueOrDefault, Repository, LocalData, Installation,
+	private static LiveQualificationDecision Evaluate(Dictionary<string, string?> variables)
+	{
+		return LiveQualificationOptIn.Evaluate(variables.GetValueOrDefault, Repository, LocalData, Installation,
 			path => string.Equals(path, Installation, StringComparison.OrdinalIgnoreCase));
+	}
 }

@@ -10,13 +10,33 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    <!-- Symbols travel inside every assembly: the plugin folder ships no .pdb, yet stack traces keep file and line data. -->
+    <DebugType>embedded</DebugType>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
+    <!-- Audit-source outages and low/moderate advisories are reported without blocking; high and critical fail. -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1900;NU1901;NU1902;NU1905</WarningsNotAsErrors>
     <PlatformTarget>x64</PlatformTarget>
     <Version>2.0.0-beta.1</Version>
     <Authors>CheatEngineNet</Authors>
     <Company>CheatEngineNet</Company>
     <RepositoryUrl>https://github.com/CheatEngineNet/CheatEngine.Mcp</RepositoryUrl>
     <IsPackable>false</IsPackable>
+    <!-- Product projects are the libraries under libs/ and the applications under srcs/; tests/ never ship. -->
+    <_CeMcpProjectFolder>$([MSBuild]::MakeRelative('$(RepoRoot)', '$(MSBuildProjectDirectory)').Replace('\', '/'))</_CeMcpProjectFolder>
+    <CeMcpProductProject Condition="$(_CeMcpProjectFolder.StartsWith('libs/')) or $(_CeMcpProjectFolder.StartsWith('srcs/'))">true</CeMcpProductProject>
   </PropertyGroup>
-  <Import Project="$(RepoRoot)eng/Tests.props" Condition="$(MSBuildProjectName.EndsWith('.Tests'))" />
+  <!--
+    Every product project is analyzed for Native AOT and trimming (CEMCP005): an AOT/trim-unsafe API is a build error.
+    Only the gateway is ever published that way; the plugin stays the framework-dependent folder CE loads (CEMCP006).
+  -->
+  <PropertyGroup Label="Native AOT analysis" Condition="'$(CeMcpProductProject)' == 'true'">
+    <IsAotCompatible>true</IsAotCompatible>
+    <VerifyReferenceAotCompatibility>true</VerifyReferenceAotCompatibility>
+    <VerifyReferenceTrimCompatibility>true</VerifyReferenceTrimCompatibility>
+  </PropertyGroup>
+  <Import Project="$(RepoRoot)eng/Tests.props" Condition="$(MSBuildProjectName.EndsWith('.Tests'))"/>
 </Project>

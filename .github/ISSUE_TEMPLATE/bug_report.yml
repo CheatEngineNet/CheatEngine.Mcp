@@ -1,0 +1,137 @@
+name: Bug report
+description: Report a defect in the plugin, the gateway, a tool, the build or the documentation.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for the report.
+        Do not report a security vulnerability here: follow [SECURITY.md](https://github.com/CheatEngineNet/CheatEngine.Mcp/blob/main/SECURITY.md) instead.
+        Many connection and startup problems are covered in the README's [Troubleshooting](https://github.com/CheatEngineNet/CheatEngine.Mcp#troubleshooting) section and in [connection troubleshooting](https://github.com/CheatEngineNet/CheatEngine.Mcp/blob/main/srcs/CheatEngine.Mcp.Resources/Knowledge/Documents/connection-troubleshooting.md).
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Where does the problem appear?
+      options:
+        - Plugin (loading, enable or disable, status menu item)
+        - Gateway (stdio server, instance discovery, routing)
+        - A tool, resource or prompt
+        - Configuration or capability gates
+        - Build, tests or packaging
+        - Documentation, knowledge resources or prompts
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: ce-version
+    attributes:
+      label: Cheat Engine version and build
+      description: Shown in Cheat Engine's Help > About, or in the file properties of cheatengine-x86_64.exe. The qualified build is 7.7.0.10621 x64.
+      placeholder: 7.7.0.10621 x64
+    validations:
+      required: true
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      description: The file version of CheatEngine.Mcp.Plugin.dll (Properties > Details), or the commit you built.
+      placeholder: 2.0.0 or a commit hash
+    validations:
+      required: true
+  - type: input
+    id: gateway-version
+    attributes:
+      label: Gateway version
+      description: The file version of CheatEngine.Mcp.Gateway.exe, or the commit you built. Write "not used" if the gateway is not involved.
+      placeholder: 2.0.0 or a commit hash
+    validations:
+      required: false
+  - type: input
+    id: mcp-client
+    attributes:
+      label: MCP client and version
+      description: The AI client that launches the gateway.
+      placeholder: Claude Code, Claude Desktop, VS Code, Codex, Cursor... with its version
+    validations:
+      required: false
+  - type: input
+    id: windows-version
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 24H2 x64
+    validations:
+      required: false
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Describe the problem, including the exact error message.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The smallest sequence that shows the problem, on a target you own or are authorized to modify.
+      placeholder: |
+        1. Enable the plugin in Cheat Engine.
+        2. Call instance_list, then ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: tool-call
+    attributes:
+      label: Tool call and result
+      description: For a tool problem, the tool name, its arguments and the result or error envelope (kind, operation, hostEffect). Remove memory contents you do not want to share.
+      render: json
+    validations:
+      required: false
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Relevant settings
+      description: Non-default Mcp settings from your user appsettings.json, capability gates and MCP_* environment variables. Never paste a token or a discovery record.
+      render: json
+    validations:
+      required: false
+  - type: textarea
+    id: runtimes
+    attributes:
+      label: .NET runtimes
+      description: For plugin loading problems, the 10.0 lines of `dotnet --list-runtimes`.
+      render: text
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        The plugin log is `%APPDATA%/CheatEngine.Mcp/CheatEngine.Mcp.<pid>.log`, where `<pid>` is the Cheat Engine process ID, or the same file under `MCP_DATA_DIRECTORY` when it is set.
+        The gateway logs to standard error, which your MCP client usually keeps in its MCP server log.
+        Paste only the relevant lines.
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I removed tokens and personal paths from logs.
+          required: true
+        - label: I searched the existing issues for this problem.
+          required: true
+        - label: This is not a security vulnerability; those go to SECURITY.md.
+          required: true
+        - label: I used CheatEngine.Mcp only on software I own or am authorized to modify.
+          required: true

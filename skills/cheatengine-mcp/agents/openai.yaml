@@ -1,4 +1,0 @@
-interface:
-  display_name: "CheatEngine.Mcp"
-  short_description: "Operate named Cheat Engine instances through MCP"
-  default_prompt: "Use $cheatengine-mcp to discover the intended Cheat Engine instance and inspect its authorized target."

@@ -5,9 +5,25 @@
     <NoWarn>$(NoWarn);CECLIENT5001;CECLIENT5002;CECLIENT5003;CECLIENT5004</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/CheatEngine.Mcp.Bootstrap/CheatEngine.Mcp.Bootstrap.csproj" />
-    <ProjectReference Include="../../src/CheatEngine.Mcp/CheatEngine.Mcp.csproj" />
-    <ProjectReference Include="../../src/CheatEngine.Mcp.Gateway/CheatEngine.Mcp.Gateway.csproj" />
-    <ProjectReference Include="../CheatEngine.Mcp.LiveTarget/CheatEngine.Mcp.LiveTarget.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../srcs/CheatEngine.Mcp.Plugin/CheatEngine.Mcp.Plugin.csproj"/>
+    <ProjectReference Include="../../srcs/CheatEngine.Mcp.Gateway/CheatEngine.Mcp.Gateway.csproj"/>
+    <ProjectReference Include="../../srcs/CheatEngine.Mcp.Hosting/CheatEngine.Mcp.Hosting.csproj"/>
+    <ProjectReference Include="../../srcs/CheatEngine.Mcp.Prompts/CheatEngine.Mcp.Prompts.csproj"/>
+    <ProjectReference Include="../../srcs/CheatEngine.Mcp.Resources/CheatEngine.Mcp.Resources.csproj"/>
+    <ProjectReference Include="../../srcs/CheatEngine.Mcp.Tools/CheatEngine.Mcp.Tools.csproj"/>
+    <ProjectReference Include="../../libs/CheatEngine.Mcp.Core/CheatEngine.Mcp.Core.csproj"/>
+    <ProjectReference Include="../CheatEngine.Mcp.LiveTarget/CheatEngine.Mcp.LiveTarget.csproj" ReferenceOutputAssembly="false"/>
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="CheatEngine.Mcp.Core.Composition"/>
+    <Using Include="CheatEngine.Mcp.Core.Execution"/>
+    <Using Include="CheatEngine.Mcp.Core.Lua"/>
+    <Using Include="CheatEngine.Mcp.Core.Runtime"/>
+    <Using Include="CheatEngine.Mcp.Core.Targets"/>
+    <Using Include="CheatEngine.Mcp.Plugin.Lua"/>
+    <Using Include="CheatEngine.Mcp.Hosting.Backend"/>
+    <Using Include="CheatEngine.Mcp.Hosting.Configuration"/>
+    <Using Include="CheatEngine.Mcp.Hosting.Discovery"/>
+    <Using Include="CheatEngine.Mcp.Hosting.Gateway"/>
   </ItemGroup>
 </Project>
