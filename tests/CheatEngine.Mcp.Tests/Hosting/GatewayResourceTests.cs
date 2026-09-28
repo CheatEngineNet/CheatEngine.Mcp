@@ -229,7 +229,10 @@ public sealed class GatewayResourceTests
 		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync(extraPrimitives: RoutedProbe);
 		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "stale");
 		await using McpClient client = await gateway.ConnectAsync();
-		backend.ReportedIdentity = backend.Descriptor with { ActivationId = Guid.NewGuid() };
+		backend.ReportedIdentity = backend.Descriptor with
+		{
+			ActivationId = Guid.NewGuid()
+		};
 
 		McpProtocolException unknown = await ReadFailureAsync(client,
 			"cheatengine://instances/ce-404-00000000000000000000000000000000/probes/alpha");
@@ -323,7 +326,10 @@ public sealed class GatewayResourceTests
 		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync(extraPrimitives: RoutedProbe);
 		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "completed");
 		await using McpClient client = await gateway.ConnectAsync();
-		ResourceTemplateReference reference = new() { Uri = RoutedTemplate };
+		ResourceTemplateReference reference = new()
+		{
+			Uri = RoutedTemplate
+		};
 
 		CompleteResult beforeDiscovery = await client.CompleteAsync(reference, "instanceId", "ce-",
 			cancellationToken: TestContext.Current.CancellationToken);
@@ -356,7 +362,10 @@ public sealed class GatewayResourceTests
 		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync(extraPrimitives: RoutedProbe);
 		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "withdrawn");
 		await using McpClient client = await gateway.ConnectAsync();
-		ResourceTemplateReference reference = new() { Uri = RoutedTemplate };
+		ResourceTemplateReference reference = new()
+		{
+			Uri = RoutedTemplate
+		};
 
 		await client.CallToolAsync(CheatEngineToolNames.InstanceList, new Dictionary<string, object?>(),
 			cancellationToken: TestContext.Current.CancellationToken);

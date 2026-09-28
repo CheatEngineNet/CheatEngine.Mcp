@@ -39,8 +39,8 @@ internal sealed class GatewayResourceCatalog(GatewayPrimitiveCatalog primitives)
 			Name = "instances",
 			Title = "Cheat Engine instances",
 			Description = "The local Cheat Engine instances whose plugin is enabled and verified: ids, names, CE " +
-			              "process IDs and plugin versions, like " + CheatEngineToolNames.InstanceList +
-			              ". Never tokens or endpoints.",
+						  "process IDs and plugin versions, like " + CheatEngineToolNames.InstanceList +
+						  ". Never tokens or endpoints.",
 			MimeType = McpResourceUris.JsonMimeType,
 			Annotations = new Annotations { Audience = [Role.Assistant, Role.User], Priority = InstancesPriority },
 			Meta = new JsonObject { [McpSourceToolAttribute.MetaKey] = CheatEngineToolNames.InstanceList }
