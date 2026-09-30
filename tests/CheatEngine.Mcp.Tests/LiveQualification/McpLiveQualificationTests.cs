@@ -339,7 +339,20 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			Assert.Equal(expected["count"]!.GetValue<long>(), scanner["count"]!.GetValue<long>());
 			JsonNode status = await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanGetStatus,
 				new Dictionary<string, object?> { ["scannerName"] = name });
-			Assert.True(JsonNode.DeepEquals(scanner, status));
+			if (name == "main")
+			{
+				Assert.IsType<JsonObject>(status["settings"]);
+			}
+			else
+			{
+				Assert.Null(status["settings"]);
+			}
+
+			// Main status adds read-only UI settings; compare the shared scanner state separately.
+			JsonObject statusState = status.DeepClone().AsObject();
+			statusState.Remove("settings");
+			Assert.True(JsonNode.DeepEquals(scanner, statusState),
+				$"Scanner '{name}' state differs between scan_list_scanners and scan_get_status.");
 		}
 
 		Assert.Single(
