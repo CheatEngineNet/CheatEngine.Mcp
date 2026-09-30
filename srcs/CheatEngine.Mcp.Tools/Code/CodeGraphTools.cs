@@ -142,14 +142,15 @@ public sealed class CodeGraphTools
 	/// <param name="entry">The graph's entry, whose decode failure fails the call, or <see langword="null" />.</param>
 	/// <param name="cancellationToken">The token of the enclosing dispatch body.</param>
 	/// <returns>The instruction, or <see langword="null" /> when that address alone cannot be decoded.</returns>
-	private static AssemblyInstructionSnapshot? Decode(ICheatEngineClient client, ulong address, ulong? entry,
+	private AssemblyInstructionSnapshot? Decode(ICheatEngineClient client, ulong address, ulong? entry,
 		CancellationToken cancellationToken)
 	{
 		if (client.Assembly.TryDisassemble(new Address(address), out AssemblyInstructionSnapshot instruction,
 				out CheatEngineFailure failure, cancellationToken))
 		{
 			return instruction.Length > 0
-				? instruction
+				? CodeTools.CorrectColumns(_dispatch, instruction, CheatEngineToolNames.CodeGetFunctionGraph,
+					cancellationToken)
 				: throw CodeTools.NonPositiveLength(CheatEngineToolNames.CodeGetFunctionGraph);
 		}
 

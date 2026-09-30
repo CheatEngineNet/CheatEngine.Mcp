@@ -66,7 +66,18 @@ internal static class SpeedhackScripts
 				return { speed = current, hooksInstalled = true, firstActivation = false }
 			end
 		end
-		if type(debug_isBroken) == 'function' and debug_isBroken() then
+		-- CE 7.7 can return an opaque value from debug_isBroken when no debugger is attached.
+		-- A stopped context is the authoritative check before executing code in the target.
+		local debugging = debug_isDebugging()
+		if type(debugging) ~= 'boolean' then
+			return mcp.err('host_refused', 'Cheat Engine did not return a boolean debugger state.', 'not_started')
+		end
+		local stopped = false
+		if debugging then stopped = debug_getContext(false) end
+		if type(stopped) ~= 'boolean' then
+			return mcp.err('host_refused', 'Cheat Engine did not return a boolean stopped-context state.', 'not_started')
+		end
+		if stopped then
 			return mcp.err('invalid_state', 'The debugger is stopped at a breakpoint.', 'not_started',
 				'Continue the debugger before changing speed.')
 		end
@@ -91,7 +102,18 @@ internal static class SpeedhackScripts
 		if math.type(pid) ~= 'integer' or pid <= 0 then
 			return mcp.err('invalid_state', 'No process is attached.', 'not_started', 'Attach a local process with process_attach first.')
 		end
-		if type(debug_isBroken) == 'function' and debug_isBroken() then
+		-- CE 7.7 can return an opaque value from debug_isBroken when no debugger is attached.
+		-- A stopped context is the authoritative check before executing code in the target.
+		local debugging = debug_isDebugging()
+		if type(debugging) ~= 'boolean' then
+			return mcp.err('host_refused', 'Cheat Engine did not return a boolean debugger state.', 'not_started')
+		end
+		local stopped = false
+		if debugging then stopped = debug_getContext(false) end
+		if type(stopped) ~= 'boolean' then
+			return mcp.err('host_refused', 'Cheat Engine did not return a boolean stopped-context state.', 'not_started')
+		end
+		if stopped then
 			return mcp.err('invalid_state', 'The debugger is stopped at a breakpoint.', 'not_started', 'Continue the debugger before changing speed.')
 		end
 		if type(isPaused) == 'function' and isPaused() then

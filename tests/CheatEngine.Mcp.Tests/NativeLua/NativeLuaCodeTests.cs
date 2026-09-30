@@ -1,5 +1,6 @@
 using System.Text;
 
+using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Features;
 using CheatEngine.Mcp.Core.Jobs;
 using CheatEngine.Mcp.Tests.Support;
@@ -31,6 +32,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 
 	public static TheoryData<string, string> CodeScriptBodies => new()
 	{
+		{ nameof(CodeScripts.DisassemblyColumns), CodeScripts.DisassemblyColumns },
 		{ nameof(CodeScripts.DisassembleBytes), CodeScripts.DisassembleBytes },
 		{ nameof(CodeScripts.GetFunction), CodeScripts.GetFunction },
 		{ nameof(CodeScripts.Dissect), CodeScripts.Dissect },
@@ -49,6 +51,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 		using RuntimeScope scope = CreateScope();
 		object?[] arguments = name switch
 		{
+			nameof(CodeScripts.DisassemblyColumns) => [0x401000UL, "90"],
 			nameof(CodeScripts.DisassembleBytes) => ["488B05", "1000"],
 			nameof(CodeScripts.GetFunction) => ["game.exe+10", 4096],
 			nameof(CodeScripts.Dissect) => [0x140001000UL, 4096],
@@ -63,6 +66,47 @@ public sealed partial class NativeLuaToolRuntimeTests
 		LuaFixedScriptAssert.NeverLoadsCode(body);
 		Assert.Empty(LuaFeatureScan.Scan(body));
 		CodeAssertCompiles(name, LuaToolRuntime.BuildSource(body, 100, arguments));
+	}
+
+	[Fact]
+	public void CodeDisassemblyColumns_Ce77StackOrder_PreservesDisplayColumns()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs("""
+		             disassemble = function(address) assert(address == 0x401000); return 'game.exe+1000 - 90 - nop' end
+		             splitDisassembledString = function(text)
+		                 assert(text == 'game.exe+1000 - 90 - nop')
+		                 return 'annotation', 'nop', '90', 'game.exe+1000'
+		             end
+		             """);
+		ToolDispatch dispatch = CreateNativeDispatch(new McpFeatureOptions());
+
+		CodeLuaDisassemblyColumns columns = dispatch.RunLua("code_decode", CodeScripts.DisassemblyColumns,
+			CodeLuaJsonContext.Default.CodeLuaDisassemblyColumns, CancellationToken.None, 0x401000UL, "90");
+
+		Assert.Equal(new CodeLuaDisassemblyColumns("game.exe+1000", "nop", "annotation"), columns);
+	}
+
+	[Theory]
+	[InlineData("91")]
+	[InlineData("90 90")]
+	[InlineData("")]
+	public void CodeDisassemblyColumns_InstructionBytesChanged_RefusesInconsistentColumns(string bytes)
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs("""
+			disassemble = function(_) return 'changed instruction' end
+			splitDisassembledString = function(_) return '', 'changed opcode', changedBytes, '401000' end
+			""" + "\nchangedBytes = " + System.Text.Json.JsonSerializer.Serialize(bytes));
+		ToolDispatch dispatch = CreateNativeDispatch(new McpFeatureOptions());
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			dispatch.RunLua("code_decode", CodeScripts.DisassemblyColumns,
+				CodeLuaJsonContext.Default.CodeLuaDisassemblyColumns, CancellationToken.None, 0x401000UL, "90"));
+
+		Assert.Equal((ToolErrorKind.HostRefused, ToolHostEffect.Completed),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Contains("instruction changed", exception.Error.Message, StringComparison.Ordinal);
 	}
 
 	[Fact]

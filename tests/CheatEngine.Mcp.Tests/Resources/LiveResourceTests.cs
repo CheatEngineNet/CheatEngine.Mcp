@@ -797,6 +797,7 @@ public sealed class LiveResourceTests
 	{
 		internal DisassemblyTarget()
 		{
+			Address current = new(0x401000);
 			IInspectionClient inspection = ClientTestDouble.Create<IInspectionClient>(static (method, arguments) =>
 			{
 				Assert.Equal(nameof(IInspectionClient.TryResolveAddress), method.Name);
@@ -804,15 +805,20 @@ public sealed class LiveResourceTests
 				arguments[3] = default(CheatEngineFailure);
 				return true;
 			});
-			IAssemblyClient assembly = ClientTestDouble.Create<IAssemblyClient>(static (method, arguments) =>
+			IAssemblyClient assembly = ClientTestDouble.Create<IAssemblyClient>((method, arguments) =>
 			{
 				Assert.Equal(nameof(IAssemblyClient.Disassemble), method.Name);
-				return new AssemblyInstructionSnapshot((Address) arguments![0]!, 1, string.Empty, "90", "nop", [0x90]);
+				current = (Address) arguments![0]!;
+				return new AssemblyInstructionSnapshot(current, 1, string.Empty, "90", "nop", [0x90]);
 			});
 			ICheatEngineClient client = ClientTestDouble.Client(new RecordingDispatcher().Dispatcher,
 				CancellationToken.None, (nameof(ICheatEngineClient.Inspection), inspection),
 				(nameof(ICheatEngineClient.Assembly), assembly));
-			Dispatch = ModuleSymbolTarget.CreateDispatch(client);
+			StateTestHarness lua = new();
+			lua.Answer<CodeLuaDisassemblyColumns>(_ => new CodeLuaDisassemblyColumns(HexFormat.Address(current), "nop", string.Empty));
+			IOptions<McpExecutionOptions> execution = Options.Create(new McpExecutionOptions());
+			Dispatch = new ToolDispatch(client, new McpFeatureGate(Options.Create(new McpFeatureOptions())), execution,
+				new DispatchStatistics(execution), TimeProvider.System, new RecordingLogger<ToolDispatch>(), lua.FixedLua);
 			Jobs = LiveResourceTests.Jobs(Dispatch, new TargetResources());
 		}
 

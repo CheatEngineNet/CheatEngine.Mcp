@@ -4,10 +4,10 @@ CheatEngine.Mcp connects a local AI client to Cheat Engine 7.7 x64 through the M
 It combines a plugin loaded by Cheat Engine with a standalone stdio gateway.
 One gateway can discover several Cheat Engine processes and route each request to the instance you choose.
 
-> **Using the current source?**
-> Build the distribution from this checkout.
-> Assets on the [releases page](https://github.com/CheatEngineNet/CheatEngine.Mcp/releases) may target an earlier version or tool contract.
-> Keep the plugin folder and gateway executable from the same build.
+> **Beta release:** Download [2.0.0-beta.2](https://github.com/CheatEngineNet/CheatEngine.Mcp/releases/tag/v2.0.0-beta.2) for Windows x64.
+> Extract the complete distribution ZIP and keep the plugin folder and gateway executable together.
+> This beta changes the plugin layout and tool contract from beta.1; replace the old installation rather than mixing its files with this release.
+> To use later source changes, build the distribution from the matching checkout.
 
 ## How it works
 
@@ -33,7 +33,11 @@ Run the gateway and Cheat Engine under the same Windows user account.
 
 ### 1. Get the deployment files
 
-From the repository root, build the current source distribution with .NET SDK **10.0.401**, PowerShell 7, and the Windows C++ build tools required by Native AOT:
+Download and extract `CheatEngine.Mcp-2.0.0-beta.2-win-x64.zip` from the [beta release](https://github.com/CheatEngineNet/CheatEngine.Mcp/releases/tag/v2.0.0-beta.2).
+The ZIP includes the complete plugin folder, gateway executable, installation instructions, and licenses.
+When upgrading from beta.1, disable the plugin, close Cheat Engine and the gateway, and remove the old single-DLL plugin entry. Replace the complete plugin folder and gateway executable with the matching files from this release; do not mix versions. Then add `CheatEngine.Mcp.Plugin.dll` from the new folder as described below.
+
+To build the same layout from source instead, run this from the repository root with .NET SDK **10.0.401**, PowerShell 7, and the Windows C++ build tools required by Native AOT:
 
 ```powershell
 pwsh -NoProfile -File eng/Publish.ps1 -Configuration Release

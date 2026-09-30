@@ -263,6 +263,25 @@ public sealed partial class NativeLuaToolRuntimeTests
 	}
 
 	[Fact]
+	public void DebuggerV2_Status_UnattachedWithOpaqueBrokenResult_IsValidAndNotStopped()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs("""
+			debug_isDebugging = function() return false end
+			debug_canBreak = function() return false end
+			debug_isBroken = function() error('An unattached debugger has no broken state') end
+			debug_isStepping = function() return false end
+			debug_getContext = function(_) error('An unattached debugger has no context') end
+			""");
+		ToolDispatch dispatch = CreateNativeDispatch(new McpFeatureOptions());
+
+		DebuggerStatus status = dispatch.RunLua("debugger_get_status", DebuggerLuaScripts.Status,
+			DebuggerJsonContext.Default.DebuggerStatus, Token);
+
+		Assert.Equal(new DebuggerStatus(true, false, false, false, false, false), status);
+	}
+
+	[Fact]
 	public void DebuggerV2_Attach_EmitsContractInterfaceNames()
 	{
 		using RuntimeScope scope = CreateScope();

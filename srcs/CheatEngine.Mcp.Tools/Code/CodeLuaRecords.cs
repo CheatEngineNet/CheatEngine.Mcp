@@ -2,6 +2,8 @@ namespace CheatEngine.Mcp.Tools.Code;
 
 internal sealed record CodeLuaByteDisassembly(string Origin, string Text);
 
+internal sealed record CodeLuaDisassemblyColumns(string AddressText, string Opcode, string Extra);
+
 internal sealed record CodeLuaFunction(
 	bool Found,
 	string Address,

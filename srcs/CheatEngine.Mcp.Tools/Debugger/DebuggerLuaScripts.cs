@@ -26,7 +26,7 @@ internal static class DebuggerLuaScripts
 	                                  end
 	                                  return {stateValid = true, attached = attached, canBreak = read('debug_canBreak'),
 	                                     broken = attached and read('debug_getContext', false) or false,
-	                                     reportedBroken = read('debug_isBroken'), stepping = read('debug_isStepping'),
+	                                     reportedBroken = attached and read('debug_isBroken') or false, stepping = read('debug_isStepping'),
 	                                     activeInterface = active}
 	                               end)
 	                               if not ok then return {stateValid = false, attached = false, canBreak = false, broken = false,

@@ -33,6 +33,8 @@ public sealed partial class NativeLuaToolRuntimeTests
 	                                      getOpenedProcessID = function() return openedProcess end
 	                                      isPaused = function() return paused or broken end
 	                                      debug_isBroken = function() return broken end
+	                                      debug_isDebugging = function() return broken end
+	                                      debug_getContext = function(_) return broken end
 	                                      targetIsX86 = function() return true end
 	                                      speedhack_getSpeed = function() return configuredSpeed end
 	                                      speedhack_setSpeed = function(speed)
@@ -190,6 +192,73 @@ public sealed partial class NativeLuaToolRuntimeTests
 		Assert.Equal((setCalls, requestedSpeed, 1L), (ReadGlobal("setCalls"), ReadGlobal("requestedSpeed"),
 			ReadGlobal("hookAttempts")));
 		Assert.Equal(complete ? null : ResourceReleaseKind.CleanupFailed, release.Failed?.Release.Kind);
+	}
+
+	[Theory]
+	[InlineData(2)]
+	[InlineData(1)]
+	public void SpeedhackV2_UnattachedDebuggerReturnsOpaqueValue_ChangesSpeed(double speed)
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(JobHostStubs + "\n" + SpeedhackStubs + """
+
+			debug_isBroken = function() return debug_isBroken end
+			debug_getContext = function(_) error('An unattached debugger has no context') end
+			speedhackSymbol = 0x7FF6A0000000
+			configuredSpeed = 2.5
+			wantedSpeed = 2.5
+			""");
+		ToolDispatch dispatch = CreateNativeDispatch(new McpFeatureOptions());
+		TargetResources resources = new(new McpStateLedger(dispatch, TimeProvider.System));
+		SpeedhackTools tools = new(dispatch, resources);
+
+		SpeedhackSetResult result = tools.SetSpeed(speed, Token);
+
+		Assert.Equal(speed, result.Speed);
+		Assert.Equal((1L, 0L), (ReadGlobal("setCalls"), ReadGlobal("hookAttempts")));
+		Assert.Equal(speed, Convert.ToDouble(ReadGlobal("wantedSpeed"), System.Globalization.CultureInfo.InvariantCulture));
+	}
+
+	[Theory]
+	[InlineData(2)]
+	[InlineData(1)]
+	public void SpeedhackV2_StoppedContextWithOpaqueReportedState_RefusesBeforeChangingSpeed(double speed)
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(SpeedhackStubs + """
+
+			debug_isBroken = function() return debug_isBroken end
+			broken = true
+			speedhackSymbol = 0x7FF6A0000000
+			configuredSpeed = 2.5
+			wantedSpeed = 2.5
+			""");
+		SpeedhackTools tools = new(CreateNativeDispatch(new McpFeatureOptions()), new TargetResources());
+
+		CheatEngineToolException exception =
+			Assert.Throws<CheatEngineToolException>(() => tools.SetSpeed(speed, Token));
+
+		Assert.Equal((ToolErrorKind.InvalidState, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Contains("stopped at a breakpoint", exception.Error.Message, StringComparison.Ordinal);
+		Assert.Equal((0L, 0L), (ReadGlobal("setCalls"), ReadGlobal("hookAttempts")));
+	}
+
+	[Theory]
+	[InlineData("debug_isDebugging = function() return debug_isDebugging end")]
+	[InlineData("broken = true; debug_getContext = function(_) return debug_getContext end")]
+	public void SpeedhackV2_InvalidDebuggerState_RefusesBeforeChangingSpeed(string stubs)
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(SpeedhackStubs + "\n" + stubs);
+		SpeedhackTools tools = new(CreateNativeDispatch(new McpFeatureOptions()), new TargetResources());
+
+		CheatEngineToolException exception =
+			Assert.Throws<CheatEngineToolException>(() => tools.SetSpeed(2, Token));
+
+		Assert.Equal((ToolErrorKind.HostRefused, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Equal((0L, 0L), (ReadGlobal("setCalls"), ReadGlobal("hookAttempts")));
 	}
 
 	private static string LuaBoolean(bool value)

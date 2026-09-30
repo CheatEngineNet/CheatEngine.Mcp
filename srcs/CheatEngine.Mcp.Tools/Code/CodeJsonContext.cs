@@ -30,6 +30,7 @@ public sealed partial class CodeJsonContext : JsonSerializerContext;
 /// <summary>Source-generated metadata for the fixed Lua results that remain internal to the code tools.</summary>
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(CodeLuaByteDisassembly))]
+[JsonSerializable(typeof(CodeLuaDisassemblyColumns))]
 [JsonSerializable(typeof(CodeLuaFunction))]
 [JsonSerializable(typeof(CodeLuaReferencePage))]
 [JsonSerializable(typeof(CodeLuaStringPage))]

@@ -99,7 +99,7 @@ public sealed class SpeedhackToolsTests
 		int normal = body.IndexOf("math.abs(current - 1) <= 0.000001", StringComparison.Ordinal);
 		int unhooked = body.IndexOf("if address == nil then", StringComparison.Ordinal);
 		int target = body.IndexOf("pcall(readFloat, address)", StringComparison.Ordinal);
-		int broken = body.IndexOf("debug_isBroken()", StringComparison.Ordinal);
+		int broken = body.IndexOf("debug_getContext(false)", StringComparison.Ordinal);
 		int paused = body.IndexOf("isPaused()", StringComparison.Ordinal);
 		int set = body.IndexOf("speedhack_setSpeed(1)", StringComparison.Ordinal);
 

@@ -3,6 +3,19 @@ namespace CheatEngine.Mcp.Tools.Code;
 /// <summary>Fixed, bounded Lua bodies for Cheat Engine code-view APIs absent from the typed Client.</summary>
 internal static class CodeScripts
 {
+	internal const string DisassemblyColumns = """
+	                                          local text = disassemble(a[1])
+	                                          local extra, opcode, bytes, addressText = splitDisassembledString(text)
+	                                          if type(addressText) ~= 'string' or type(opcode) ~= 'string' or type(extra) ~= 'string' or type(bytes) ~= 'string' then
+	                                              return mcp.err('host_refused', 'Cheat Engine returned invalid disassembly columns.', 'completed')
+	                                          end
+	                                          if bytes:gsub('%s', ''):upper() ~= a[2] then
+	                                              return mcp.err('host_refused', 'The instruction changed while its disassembly columns were read.', 'completed',
+	                                                  'Retry the disassembly while the target code is stable.')
+	                                          end
+	                                          return { addressText=addressText, opcode=opcode, extra=extra }
+	                                          """;
+
 	internal const string DisassembleBytes = """
 	                                         local origin = 0
 	                                         if a[2] ~= nil then
