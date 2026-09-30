@@ -23,10 +23,11 @@ public sealed class FileOptionsTests : IDisposable
 	}
 
 	[Fact]
-	public void ReadFileOptions_BundledDefaults_RefuseEveryWrite()
+	public void ReadFileOptions_ExampleDefaults_RefuseEveryWrite()
 	{
 		string plugin = _scratch.CreateFolder("plugin");
-		File.Copy(Path.Combine(AppContext.BaseDirectory, "appsettings.json"), Path.Combine(plugin, "appsettings.json"));
+		File.Copy(Path.Combine(RepositoryPaths.Root, "srcs", "CheatEngine.Mcp.Plugin", "appsettings.json"),
+			Path.Combine(plugin, "appsettings.json"));
 		using ConfigurationManager configuration = Layer(plugin, null);
 
 		McpFileOptions options = McpPluginServiceCollectionExtensions.ReadFileOptions(configuration);
@@ -37,10 +38,11 @@ public sealed class FileOptionsTests : IDisposable
 	}
 
 	[Fact]
-	public void ReadFileOptions_UserRoots_AreBoundOverTheShippedEmptyList()
+	public void ReadFileOptions_UserRoots_AreBoundOverTheExampleEmptyList()
 	{
 		string plugin = _scratch.CreateFolder("plugin");
-		File.Copy(Path.Combine(AppContext.BaseDirectory, "appsettings.json"), Path.Combine(plugin, "appsettings.json"));
+		File.Copy(Path.Combine(RepositoryPaths.Root, "srcs", "CheatEngine.Mcp.Plugin", "appsettings.json"),
+			Path.Combine(plugin, "appsettings.json"));
 		using ConfigurationManager configuration = Layer(plugin,
 			"""{"Mcp":{"Files":{"AllowedRoots":["C:\\Dumps","D:/Saved/"]}}}""");
 

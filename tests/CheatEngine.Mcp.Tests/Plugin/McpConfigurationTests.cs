@@ -37,12 +37,12 @@ public sealed class McpConfigurationTests
 	[Theory]
 	[InlineData(false)]
 	[InlineData(true)]
-	public void Load_Defaults_AreLoopbackAndAllExecutionIsEnabled(bool useBundledDefaults)
+	public void Load_Defaults_AreLoopbackAndAllExecutionIsEnabled(bool useExampleSettings)
 	{
 		using SettingsFixture fixture = new();
-		if (useBundledDefaults)
+		if (useExampleSettings)
 		{
-			fixture.CopyBundledDefaults();
+			fixture.CopyExampleSettings();
 		}
 
 		McpSettings settings = fixture.Load();
@@ -72,7 +72,7 @@ public sealed class McpConfigurationTests
 		bool enableCodeExecution, bool enableKernel)
 	{
 		using SettingsFixture fixture = new();
-		fixture.CopyBundledDefaults();
+		fixture.CopyExampleSettings();
 		fixture.WriteUserSettings(JsonSerializer.Serialize(new
 		{
 			Mcp = new
@@ -96,7 +96,7 @@ public sealed class McpConfigurationTests
 	public void Load_ExecutionSection_BindsEveryLimit()
 	{
 		using SettingsFixture fixture = new();
-		fixture.CopyBundledDefaults();
+		fixture.CopyExampleSettings();
 		fixture.WriteUserSettings("""
 		                          {"Mcp":{"Execution":{"DispatchBudgetMilliseconds":250,"MaxConcurrentDispatches":2,
 		                          "MaxJobs":8,"JobDefaultTtlSeconds":30,"JobMaxTtlSeconds":60,"JobBufferLimit":512}}}
@@ -250,7 +250,7 @@ public sealed class McpConfigurationTests
 	public void Load_LogMinimumLevel_OverridesTheInformationDefault(string value, LogLevel expected)
 	{
 		using SettingsFixture fixture = new();
-		fixture.CopyBundledDefaults();
+		fixture.CopyExampleSettings();
 		fixture.WriteUserSettings(
 			JsonSerializer.Serialize(new
 			{
@@ -316,9 +316,9 @@ public sealed class McpConfigurationTests
 			Directory.Delete(Root, true);
 		}
 
-		public void CopyBundledDefaults()
+		public void CopyExampleSettings()
 		{
-			File.Copy(Path.Combine(AppContext.BaseDirectory, "appsettings.json"),
+			File.Copy(Path.Combine(RepositoryPaths.Root, "srcs", "CheatEngine.Mcp.Plugin", "appsettings.json"),
 				Path.Combine(PluginDirectory, "appsettings.json"));
 		}
 

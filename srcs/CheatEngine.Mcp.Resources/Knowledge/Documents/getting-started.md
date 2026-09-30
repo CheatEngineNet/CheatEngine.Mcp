@@ -7,7 +7,7 @@ leave Cheat Engine (CE) clean. The rules for every session and the index of guid
 
 ## What the server is
 
-- **A plugin in each CE instance.** CE 7.7 x64 loads `CheatEngine.Mcp.Plugin.dll` (Edit > Settings > Plugins). Once
+- **A plugin in each CE instance.** CE 7.7 x64 loads `CheatEngine.Mcp.dll` (Edit > Settings > Plugins). Once
   enabled, it runs a local MCP backend inside that CE process, protected by a per-activation access token, registers
   it as an instance and shows **MCP: Enabled** in CE's main menu bar. It attaches to no process by itself.
 - **A gateway for the AI client.** The client starts `CheatEngine.Mcp.Gateway.exe` as a local stdio MCP server. It

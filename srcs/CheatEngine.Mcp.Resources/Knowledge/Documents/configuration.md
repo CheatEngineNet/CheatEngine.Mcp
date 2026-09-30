@@ -12,7 +12,7 @@ the [glossary](glossary.md).
 The plugin reads its settings at every enable, from these layers; a later layer wins:
 
 1. Built-in defaults, the values on this page.
-2. `appsettings.json` in the plugin folder: the shipped defaults, replaced by every update.
+2. Optional `appsettings.json` beside the plugin DLL; defaults are built in and no settings file ships with the DLL.
 3. `appsettings.json` in the data directory, `%APPDATA%\CheatEngine.Mcp`, or the absolute folder named by
    `MCP_DATA_DIRECTORY`. Personal settings belong here, because they survive updates.
 4. The environment variables `MCP_HOST`, `MCP_PORT`, `MCP_INSTANCE_NAME` and `MCP_INSTANCE_DIRECTORY`, mapped onto the

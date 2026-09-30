@@ -11,10 +11,9 @@ AI client --stdio--> CheatEngine.Mcp.Gateway.exe --HTTP on 127.0.0.1, bearer tok
 ```
 
 - **Distribution.** One folder holds:
-  - `CheatEngine.Mcp/`, the plugin: `CheatEngine.Mcp.Plugin.dll`, its dependency and runtime configuration files,
-    `appsettings.json`, the native Lua bridge, a README and the license files;
+  - `CheatEngine.Mcp.dll`, the plugin with its managed dependencies and native Lua bridge embedded using Costura/Fody;
   - `CheatEngine.Mcp.Gateway.exe`, a Native AOT executable that needs no .NET runtime;
-  - `LICENSE` and `THIRD-PARTY-NOTICES.md`.
+  - `README.md`, `LICENSE` and `THIRD-PARTY-NOTICES.md`.
 - **Plugin.** Each enable starts one backend in that CE process. It listens on `127.0.0.1` (a free port by default),
   answers only requests that carry that activation's new random bearer token, and writes a discovery record into the
   per-user instance registry. A disable deletes the record and stops the backend. Enabling attaches to no process.
@@ -35,8 +34,8 @@ AI client --stdio--> CheatEngine.Mcp.Gateway.exe --HTTP on 127.0.0.1, bearer tok
    `LatestMinor` never cross a major version) or leaves out ASP.NET Core. To fix it, with the user's consent: close CE,
    back the file up, edit only `runtimeOptions`, restart CE. A Program Files install may need an elevated editor.
 3. **Enable the plugin.** In CE, open **Edit > Settings > Plugins**, choose **Add new**, select
-   `CheatEngine.Mcp.Plugin.dll` in the deployed `CheatEngine.Mcp` folder, tick its checkbox and close the dialog. Keep
-   the folder complete and the DLL name unchanged: CE needs the files next to it.
+   the deployed `CheatEngine.Mcp.dll`, tick its checkbox and close the dialog. Keep the DLL name unchanged. No plugin
+   dependency or runtime configuration sidecars are required; CE's own runtime configuration is still required.
 4. **The status item.** CE's main menu bar shows **MCP: Starting**, then **MCP: Enabled** or **MCP: Start failed**,
    and **MCP: Disabled** after a disable. Click it for the instance name, the listening address (when enabled) and the
    log file name. **Enabled** means that the backend accepts requests, not that an AI client is connected. The item
@@ -227,7 +226,7 @@ that a backend is healthy. Restart the client session when new tools do not appe
 - **MCP: Start failed**: the settings were accepted but the backend could not start, for example because a fixed port
   is already in use. Check the plugin log, fix the cause, then disable and re-enable the plugin.
 - No status item, or one still showing an earlier state: the load or the enable failed before the backend started.
-  Check the host configuration (setup step 2), that the plugin folder is complete and from one build, and the DLL
+  Check the host configuration (setup step 2), that the plugin DLL and gateway come from one build, and the DLL
   name.
 - When the plugin loads but an enable fails, CheatEngine.SDK writes the reason to the Windows debug output by default,
   which a viewer such as Sysinternals DebugView shows; the plugin log may not contain it.
@@ -254,7 +253,7 @@ that a backend is healthy. Restart the client session when new tools do not appe
 ## Settings, logs and files
 
 - **Settings layers**, where the later one wins:
-  1. the plugin folder's `appsettings.json` (shipped defaults, replaced by updates);
+  1. optional `appsettings.json` beside the plugin DLL (defaults are built in);
   2. `%APPDATA%\CheatEngine.Mcp\appsettings.json`, or the one in `MCP_DATA_DIRECTORY`;
   3. `MCP_HOST`, `MCP_PORT`, `MCP_INSTANCE_NAME`, `MCP_INSTANCE_DIRECTORY`.
 

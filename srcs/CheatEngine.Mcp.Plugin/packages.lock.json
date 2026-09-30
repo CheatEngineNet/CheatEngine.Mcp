@@ -18,6 +18,21 @@
         "resolved": "2.0.0",
         "contentHash": "NLEdZYJ9LKW3EFNB4X5snKCQf7ZS86GkCQ+El7o+S1XQcxHQGjS45Q1ap8lfjQuIwm004mQ3TPxo+ph1yvRrlQ=="
       },
+      "Costura.Fody": {
+        "type": "Direct",
+        "requested": "[6.2.0, )",
+        "resolved": "6.2.0",
+        "contentHash": "jaX+A6sw6pI7lkLDTvxN7zU8Ja/a50N2xPKF6RYy0J6QF62wVg+hJMXJph2K8XarDaAlxQ82EaKv3fAvUNyRpg==",
+        "dependencies": {
+          "Fody": "6.9.3"
+        }
+      },
+      "Fody": {
+        "type": "Direct",
+        "requested": "[6.9.3, )",
+        "resolved": "6.9.3",
+        "contentHash": "1CUGgFdyECDKgi5HaUBhdv6k+VG9Iy4OCforGfHyar3xQXAJypZkzymgKtWj/4SPd6nSG0Qi7NH71qHrDSZLaA=="
+      },
       "Microsoft.NET.ILLink.Tasks": {
         "type": "Direct",
         "requested": "[10.0.12, )",
@@ -94,28 +109,28 @@
       "cheatengine.mcp.hosting": {
         "type": "Project",
         "dependencies": {
-          "CheatEngine.Mcp.Core": "[2.0.0, )",
+          "CheatEngine.Mcp.Core": "[2.0.0-beta.2, )",
           "ModelContextProtocol.AspNetCore": "[2.2.0, )"
         }
       },
       "cheatengine.mcp.prompts": {
         "type": "Project",
         "dependencies": {
-          "CheatEngine.Mcp.Core": "[2.0.0, )",
-          "CheatEngine.Mcp.Resources": "[2.0.0, )"
+          "CheatEngine.Mcp.Core": "[2.0.0-beta.2, )",
+          "CheatEngine.Mcp.Resources": "[2.0.0-beta.2, )"
         }
       },
       "cheatengine.mcp.resources": {
         "type": "Project",
         "dependencies": {
-          "CheatEngine.Mcp.Core": "[2.0.0, )",
-          "CheatEngine.Mcp.Tools": "[2.0.0, )"
+          "CheatEngine.Mcp.Core": "[2.0.0-beta.2, )",
+          "CheatEngine.Mcp.Tools": "[2.0.0-beta.2, )"
         }
       },
       "cheatengine.mcp.tools": {
         "type": "Project",
         "dependencies": {
-          "CheatEngine.Mcp.Core": "[2.0.0, )"
+          "CheatEngine.Mcp.Core": "[2.0.0-beta.2, )"
         }
       },
       "Microsoft.Extensions.AI.Abstractions": {

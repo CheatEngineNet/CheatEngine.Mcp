@@ -13,7 +13,7 @@ namespace CheatEngine.Mcp.Tests.LiveQualification;
 [SupportedOSPlatform("windows")]
 internal sealed class LiveSandboxSession : IAsyncDisposable
 {
-	private const string PluginFileName = "CheatEngine.Mcp.Plugin.dll";
+	private const string PluginFileName = "CheatEngine.Mcp.dll";
 
 	private static readonly string[] RemovedEnvironmentPrefixes =
 		["DOTNET_", "MSBUILD", "TESTINGPLATFORM", "VSTEST", "CHEATENGINE_", "CE_SDK_", "CECLIENT_", "MCP_"];
@@ -288,7 +288,7 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 #else
 		const string configuration = "release";
 #endif
-		string distribution = Path.Combine(repository, "artifacts", "dist", configuration);
+		string distribution = DistributionDirectory(repository, configuration);
 		string gatewaySource = Path.Combine(distribution, "CheatEngine.Mcp.Gateway.exe");
 		if (!File.Exists(gatewaySource))
 		{
@@ -341,8 +341,8 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 #else
 		const string configuration = "release";
 #endif
-		string distribution = Path.Combine(repository, "artifacts", "dist", configuration);
-		string pluginSource = Path.Combine(distribution, "CheatEngine.Mcp");
+		string distribution = DistributionDirectory(repository, configuration);
+		string pluginSource = distribution;
 		if (!File.Exists(Path.Combine(pluginSource, PluginFileName)))
 		{
 			throw new FileNotFoundException("Publish the plugin distribution before live qualification.",
@@ -350,7 +350,9 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 		}
 
 		string pluginDirectory = Path.Combine(_layout.PluginsDirectory, name, "CheatEngine.Mcp");
-		CopyDirectory(pluginSource, pluginDirectory);
+		RequireInsideRun(pluginDirectory);
+		Directory.CreateDirectory(pluginDirectory);
+		File.Copy(Path.Combine(pluginSource, PluginFileName), Path.Combine(pluginDirectory, PluginFileName));
 		string pluginPath = Path.Combine(pluginDirectory, PluginFileName);
 		VerifyDistributionStaging(name, pluginSource, pluginDirectory);
 		Record($"plugin_{name}_sha256", CheatEngineInstallation.Sha256(pluginPath));
@@ -445,17 +447,25 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 		}
 	}
 
+	private static string DistributionDirectory(string repository, string configuration)
+	{
+		string? custom = Environment.GetEnvironmentVariable("CHEATENGINE_MCP_LIVE_QUALIFICATION_DISTRIBUTION_DIRECTORY");
+		if (custom is not null && !Path.IsPathFullyQualified(custom))
+		{
+			throw new InvalidOperationException("The live qualification distribution directory must be absolute.");
+		}
+
+		return custom ?? Path.Combine(repository, "artifacts", "dist", configuration);
+	}
+
 	private void VerifyDistributionStaging(string name, string pluginSource, string pluginDirectory)
 	{
 		string[] pluginFiles = RelativeFiles(pluginDirectory);
-		if (!pluginFiles.SequenceEqual(RelativeFiles(pluginSource), StringComparer.Ordinal)
-			|| !new[]
-			{
-				PluginFileName, "CheatEngine.Mcp.Plugin.deps.json", "CheatEngine.Mcp.Plugin.runtimeconfig.json",
-				"cheatengine-sdk-lua-bridge.dll"
-			}.All(file => pluginFiles.Contains(file, StringComparer.Ordinal)))
+		if (!pluginFiles.SequenceEqual([PluginFileName], StringComparer.Ordinal)
+			|| CheatEngineInstallation.Sha256(Path.Combine(pluginSource, PluginFileName)) !=
+			CheatEngineInstallation.Sha256(Path.Combine(pluginDirectory, PluginFileName)))
 		{
-			throw new InvalidOperationException($"Live host {name} did not stage exactly the published plugin folder.");
+			throw new InvalidOperationException($"Live host {name} did not stage exactly the published single plugin DLL.");
 		}
 
 		string gatewayDirectory = Path.GetDirectoryName(GatewayExecutablePath)!;
@@ -478,17 +488,6 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 	{
 		return Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories)
 			.Select(path => Path.GetRelativePath(directory, path)).Order(StringComparer.Ordinal).ToArray();
-	}
-
-	private void CopyDirectory(string source, string destination)
-	{
-		RequireInsideRun(destination);
-		foreach (string file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
-		{
-			string target = Path.Combine(destination, Path.GetRelativePath(source, file));
-			Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-			File.Copy(file, target);
-		}
 	}
 
 	private async Task<InstanceDescriptor> WaitForInstanceAsync(OwnedHost host, TimeSpan timeout)

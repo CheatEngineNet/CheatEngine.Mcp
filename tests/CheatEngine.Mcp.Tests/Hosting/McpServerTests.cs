@@ -222,7 +222,7 @@ public sealed class McpServerTests
 			static key => Environment.GetEnvironmentVariable(key));
 		McpRuntimeInfo runtime = TestRuntime.Info with
 		{
-			RuntimeLocation = Path.Combine(directory, "CheatEngine.Mcp.Plugin.dll")
+			RuntimeLocation = Path.Combine(directory, "CheatEngine.Mcp.dll")
 		};
 		McpBackendOptions options = new()
 		{

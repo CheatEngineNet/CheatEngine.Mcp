@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>CheatEngine.Mcp</AssemblyName>
+    <FodyGenerateXsd>false</FodyGenerateXsd>
     <!--
       The Cheat Engine plugin: the Client plugin profile (CECLIENT001-017, and CECLIENT010-016 for a staged deployment
       through CheatEnginePluginOutputPath) plus the repository guards, for which McpPluginProject marks this project.
@@ -26,6 +28,8 @@
     <PackageReference Include="CheatEngine.Client"/>
     <!-- Direct SDK build assets generate the entry point and copy the native Lua bridge. -->
     <PackageReference Include="CheatEngine.SDK"/>
+    <PackageReference Include="Costura.Fody" PrivateAssets="all"/>
+    <PackageReference Include="Fody" PrivateAssets="all"/>
     <PackageReference Include="ModelContextProtocol.AspNetCore"/>
   </ItemGroup>
   <ItemGroup>
@@ -42,7 +46,15 @@
     <InternalsVisibleTo Include="CheatEngine.Mcp.Tests"/>
   </ItemGroup>
   <ItemGroup>
-    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/>
-    <None Include="../../README.md;../../LICENSE" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/>
+    <!-- Costura extracts and preloads the SDK's native bridge with its embedded managed dependencies. -->
+    <Content Update="$(_CheatEngineSdkLuaBridgePath)" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never"/>
+    <CustomAdditionalCompileInputs Include="$(_CheatEngineSdkLuaBridgePath)"/>
   </ItemGroup>
+  <!-- SDK exposes the bridge as Content; Costura needs a copy-local input to generate its checksum and preload list. -->
+  <Target Name="McpIncludeNativeBridgeForCostura" BeforeTargets="FodyTarget"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <ReferenceCopyLocalPaths Include="$(_CheatEngineSdkLuaBridgePath)"/>
+    </ItemGroup>
+  </Target>
 </Project>

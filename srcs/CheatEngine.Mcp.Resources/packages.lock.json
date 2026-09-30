@@ -169,7 +169,7 @@
       "cheatengine.mcp.tools": {
         "type": "Project",
         "dependencies": {
-          "CheatEngine.Mcp.Core": "[2.0.0, )"
+          "CheatEngine.Mcp.Core": "[2.0.0-beta.2, )"
         }
       },
       "CheatEngine.Client": {

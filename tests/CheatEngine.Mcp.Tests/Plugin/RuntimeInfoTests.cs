@@ -19,10 +19,10 @@ public sealed class RuntimeInfoTests
 	{
 		McpRuntimeInfo runtime = CheatEngineMcpPlugin.CreateRuntimeInfo(AppContext.BaseDirectory);
 
-		Assert.Equal(Path.Combine(AppContext.BaseDirectory, "CheatEngine.Mcp.Plugin.dll"), runtime.RuntimeLocation);
+		Assert.Equal(Path.Combine(AppContext.BaseDirectory, "CheatEngine.Mcp.dll"), runtime.RuntimeLocation);
 		Assert.True(File.Exists(runtime.Location), runtime.Location);
 		Assert.Equal(runtime.RuntimeLocation, runtime.Location);
-		Assert.Equal("CheatEngine.Mcp.Plugin", runtime.ApplicationName);
+		Assert.Equal("CheatEngine.Mcp", runtime.ApplicationName);
 		Assert.Equal(typeof(CheatEngineMcpPlugin).Assembly.GetName().Version?.ToString(), runtime.Version);
 		Assert.False(string.IsNullOrWhiteSpace(runtime.Version));
 	}
@@ -41,7 +41,7 @@ public sealed class RuntimeInfoTests
 		McpRuntimeInfo registered = Assert.IsType<McpRuntimeInfo>(Assert.Single(services,
 			static service => service.ServiceType == typeof(McpRuntimeInfo)).ImplementationInstance);
 		Assert.Equal(CheatEngineMcpPlugin.CreateRuntimeInfo(folder), registered);
-		Assert.Equal(Path.Combine(folder, "CheatEngine.Mcp.Plugin.dll"), registered.Location);
+		Assert.Equal(Path.Combine(folder, "CheatEngine.Mcp.dll"), registered.Location);
 	}
 
 	[Theory]
@@ -89,11 +89,11 @@ public sealed class RuntimeInfoTests
 	{
 		string folder = Path.Combine(Path.GetTempPath(), "CheatEngine.Mcp.Tests-PluginFolder", "plugins");
 		McpRuntimeInfo runtime =
-			McpRuntimeInfo.ForPlugin(new AssemblyName("CheatEngine.Mcp.Plugin, Version=2.1.0.0"), folder);
+			McpRuntimeInfo.ForPlugin(new AssemblyName("CheatEngine.Mcp, Version=2.1.0.0"), folder);
 
-		Assert.Equal(Path.Combine(folder, "CheatEngine.Mcp.Plugin.dll"), runtime.Location);
+		Assert.Equal(Path.Combine(folder, "CheatEngine.Mcp.dll"), runtime.Location);
 		Assert.Equal(runtime.Location, runtime.RuntimeLocation);
-		Assert.Equal("CheatEngine.Mcp.Plugin", runtime.ApplicationName);
+		Assert.Equal("CheatEngine.Mcp", runtime.ApplicationName);
 		Assert.Equal("2.1.0.0", runtime.Version);
 	}
 
@@ -104,7 +104,7 @@ public sealed class RuntimeInfoTests
 	public void ForPlugin_EmptyOrRelativeDirectory_IsRejected(string directory)
 	{
 		Assert.Throws<ArgumentException>(() =>
-			McpRuntimeInfo.ForPlugin(new AssemblyName("CheatEngine.Mcp.Plugin"), directory));
+			McpRuntimeInfo.ForPlugin(new AssemblyName("CheatEngine.Mcp"), directory));
 	}
 
 	[Fact]

@@ -6,6 +6,8 @@
   <ItemGroup>
     <PackageVersion Include="CheatEngine.Client" Version="1.0.0"/>
     <PackageVersion Include="CheatEngine.SDK" Version="2.0.0"/>
+    <PackageVersion Include="Costura.Fody" Version="6.2.0"/>
+    <PackageVersion Include="Fody" Version="6.9.3"/>
     <PackageVersion Include="ModelContextProtocol" Version="2.2.0"/>
     <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="2.2.0"/>
     <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.1"/>

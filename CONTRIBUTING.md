@@ -62,8 +62,8 @@ dotnet format whitespace CheatEngine.Mcp.slnx --no-restore --verify-no-changes
 
 - Warnings are errors, code style is enforced in the build, and NuGet audit fails the restore on high and critical advisories.
 - `eng/Publish.ps1` publishes Release by default; pass `-Configuration Debug` for the Debug distribution; CI publishes both.
-  It writes `artifacts/dist/<configuration>/`: the `CheatEngine.Mcp/` plugin folder, `CheatEngine.Mcp.Gateway.exe`, `LICENSE` and `THIRD-PARTY-NOTICES.md`, and it refuses to run when any other file is there.
-  It also checks that every file the plugin's `deps.json` names is present and that the plugin folder holds no `.pdb` file; the layout is described in [Get the deployment files](README.md#1-get-the-deployment-files).
+  It writes `artifacts/dist/<configuration>/`: `CheatEngine.Mcp.dll`, `CheatEngine.Mcp.Gateway.exe`, `README.md`, `LICENSE` and `THIRD-PARTY-NOTICES.md`, and it refuses to run when any other file is there. `-OutputDirectory` selects an isolated distribution folder when a running gateway locks the default executable.
+  Standard `dotnet publish` builds the framework-dependent plugin; Costura embeds managed dependencies and the native bridge. The component manifests remain build outputs and are not installed. The layout is described in [Get the deployment files](README.md#1-get-the-deployment-files).
 - `--fail-skips on` turns a skipped test into a failure: tests that cannot run in an environment are excluded by trait, never skipped.
 
 ### NativeLua tests
@@ -97,6 +97,7 @@ Remove-Item Env:CHEATENGINE_MCP_LIVE_QUALIFICATION
 ```
 
 - The runner copies the installed Cheat Engine into two private folders and never edits the installation; `CHEATENGINE_MCP_LIVE_QUALIFICATION_CE_DIRECTORY` selects another installation.
+- `CHEATENGINE_MCP_LIVE_QUALIFICATION_DISTRIBUTION_DIRECTORY` selects an absolute distribution path made with `eng/Publish.ps1 -OutputDirectory`; this avoids replacing a gateway executable currently used by an MCP client.
 - It backs up and restores Cheat Engine's user settings, and keeps reports and backups under `%LOCALAPPDATA%\CheatEngine.Mcp.LiveQualification\runs`, outside the checkout.
 - It stops when a stock autorun script such as `monoscript.lua` differs from the reviewed version; never update the expected hash without a review.
 - Kernel, hypervisor and code-execution tools are never exercised live.
@@ -121,7 +122,7 @@ A pull request needs V+ at least, and VN when it touches Lua.
 
 [`eng/Release.ps1`](eng/Release.ps1) is the maintained release entry point.
 Every release contains exactly two uploaded assets: `CheatEngine.Mcp-<version>-win-x64.zip` and `SHA256SUMS.txt`.
-The ZIP contains the complete `CheatEngine.Mcp/` plugin folder, including `CheatEngine.Mcp.Plugin.dll` and its dependencies, the gateway executable, installation instructions and licenses.
+The ZIP contains exactly `CheatEngine.Mcp.dll`, the gateway executable, installation instructions and licenses. The packager verifies Costura's embedded resource inventory without executing the plugin. The cold-load probe and live qualification each install only the single plugin DLL.
 Operator guidance is served as MCP resources and prompts; there is no separate skill ZIP.
 
 1. Set `Version` in `Directory.Build.props`, merge the change into `main`, and pass the required checks.

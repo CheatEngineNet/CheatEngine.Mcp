@@ -149,20 +149,13 @@ public sealed class ContractSnapshotTests
 	}
 
 	[Fact]
-	public void PluginOutput_StagedDeploymentFiles_MatchGoldenManifest()
+	public void PluginOutput_BundledDeploymentFiles_MatchGoldenManifest()
 	{
-		// PrepareCheatEnginePluginDeployment copies exactly the plugin output's top-level *.dll, *.json and *.pdb files.
-		string output = Path.GetDirectoryName(typeof(CheatEngineMcpPlugin).Assembly.Location)!;
-		string pluginOutput = Path.Combine(RepositoryPaths.Root, "artifacts", "bin", "CheatEngine.Mcp.Plugin",
-			Path.GetFileName(output));
-		Assert.True(Directory.Exists(pluginOutput), $"The plugin build output is missing: {pluginOutput}");
-		string[] files = Directory.EnumerateFiles(pluginOutput)
-			.Select(static path => Path.GetFileName(path))
-			.Where(static name => name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
-								  || name.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ||
-								  name.EndsWith(".pdb", StringComparison.OrdinalIgnoreCase))
-			.Order(StringComparer.Ordinal).ToArray();
-		GoldenFile.AssertMatches("plugin-files.txt", string.Join('\n', files));
+		// Publish installs only the woven DLL; build-only component manifests are not deployment dependencies.
+		// Build outputs can retain compiler manifests and copy-local files. Publish installs only this bundled assembly;
+		// PluginBundleTests verifies its dependency closure, and ReleaseScriptTests verifies the complete ZIP layout.
+		string file = Path.GetFileName(typeof(CheatEngineMcpPlugin).Assembly.Location);
+		GoldenFile.AssertMatches("plugin-files.txt", file);
 	}
 
 	private static async Task<string> ListBackendToolsAsync(string endpoint, string protocolVersion)

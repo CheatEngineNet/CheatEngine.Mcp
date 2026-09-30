@@ -1,0 +1,5 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Weavers>
+  <Costura CreateTemporaryAssemblies="false" DisableEventSubscription="true" IncludeDebugSymbols="false" UseRuntimeReferencePaths="false"
+           IgnoreSatelliteAssemblies="true" UnmanagedWinX64Assemblies="cheatengine-sdk-lua-bridge"/>
+</Weavers>

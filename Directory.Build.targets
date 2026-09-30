@@ -67,8 +67,9 @@
     VerifyReferenceAotCompatibility or VerifyReferenceTrimCompatibility: the ASP.NET Core 10 shared-framework assemblies
     carry no IsAotCompatible/IsTrimmable metadata (IL3058, IL2125) although ASP.NET Core supports Native AOT. The
     framework reference is an item, so it is evaluated inside the target.
-    CEMCP006: the plugin (McpPluginProject) is the framework-dependent folder CE loads through hostfxr: never Native AOT,
-    self-contained, single-file, trimmed or ReadyToRun, and its symbols stay embedded (no .pdb in the plugin folder).
+    CEMCP006: the plugin (McpPluginProject) is the framework-dependent component CE loads through hostfxr. Costura bundles
+    its dependencies in the managed DLL. PublishSingleFile is an executable-only SDK feature, and Native AOT,
+    self-contained, trimmed or ReadyToRun publication would change the managed host contract. Symbols stay embedded.
   -->
   <Target Name="CeMcpVerifyAotProfile" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
@@ -82,6 +83,6 @@
            Text="$(MSBuildProjectName) must keep VerifyReferenceAotCompatibility and VerifyReferenceTrimCompatibility; only a project with a FrameworkReference to Microsoft.AspNetCore.App may turn them off."/>
     <Error Code="CEMCP006"
            Condition="'$(McpPluginProject)' == 'true' and ('$(PublishAot)' == 'true' or '$(SelfContained)' == 'true' or '$(PublishSingleFile)' == 'true' or '$(PublishTrimmed)' == 'true' or '$(PublishReadyToRun)' == 'true' or '$(DebugType)' != 'embedded')"
-           Text="The plugin is the framework-dependent folder CE loads through hostfxr: remove PublishAot, SelfContained, PublishSingleFile, PublishTrimmed and PublishReadyToRun, and keep DebugType=embedded."/>
+           Text="CE loads a framework-dependent managed plugin bundled with Costura: remove PublishAot, SelfContained, PublishSingleFile, PublishTrimmed and PublishReadyToRun, and keep DebugType=embedded."/>
   </Target>
 </Project>

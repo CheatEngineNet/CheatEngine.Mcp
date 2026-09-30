@@ -14,7 +14,7 @@
     <PackageReference Include="ModelContextProtocol"/>
   </ItemGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="CheatEngine.Mcp.Plugin"/>
+    <InternalsVisibleTo Include="CheatEngine.Mcp"/>
     <InternalsVisibleTo Include="CheatEngine.Mcp.Tests"/>
   </ItemGroup>
 </Project>

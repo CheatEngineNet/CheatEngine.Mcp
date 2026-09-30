@@ -1,4 +1,7 @@
-param([ValidateSet('Debug', 'Release')][string] $Configuration = 'Release')
+param(
+    [ValidateSet('Debug', 'Release')][string] $Configuration = 'Release',
+    [string] $OutputDirectory
+)
 $ErrorActionPreference = 'Stop'
 
 function Invoke-GatewayNativeAotSmoke([string] $gateway) {
@@ -74,8 +77,15 @@ $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 Push-Location $repoRoot
 try {
     $variant = $Configuration.ToLowerInvariant()
-    $dist = Join-Path $repoRoot "artifacts/dist/$variant"
+    $dist = if ($OutputDirectory) { [IO.Path]::GetFullPath($OutputDirectory) } else { Join-Path $repoRoot "artifacts/dist/$variant" }
+    $allowedDistRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot 'artifacts/dist')) + [IO.Path]::DirectorySeparatorChar
+    if (-not $dist.StartsWith($allowedDistRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Distribution output must be a subdirectory of artifacts/dist.'
+    }
     [IO.Directory]::CreateDirectory($dist) | Out-Null
+    if ((Get-Item -LiteralPath $dist).Attributes -band [IO.FileAttributes]::ReparsePoint) {
+        throw 'Distribution output must not be a symbolic link or junction.'
+    }
     $distRoot = [IO.Path]::GetFullPath($dist) + [IO.Path]::DirectorySeparatorChar
     $binRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot 'artifacts/bin')) + [IO.Path]::DirectorySeparatorChar
 
@@ -93,24 +103,29 @@ try {
     # An interrupted Client deployment can leave its staging folder beside the plugin folder.
     Get-ChildItem -LiteralPath $dist -Directory -Force -Filter '.CheatEngine.Mcp.ceclient-staging-*' |
         ForEach-Object { Remove-Contained $_.FullName $distRoot | Out-Null }
-    # Earlier layouts also wrote skills/ and licenses/; the knowledge now ships inside the plugin (MCP resources and
-    # prompts) and THIRD-PARTY-NOTICES.md carries the license texts, so those folders are only stale output.
-    foreach ($stale in @('skills', 'licenses')) { Remove-Contained (Join-Path $dist $stale) $distRoot | Out-Null }
-    $folders = @('CheatEngine.Mcp')
-    $expected = $folders + @('CheatEngine.Mcp.Gateway.exe', 'LICENSE', 'THIRD-PARTY-NOTICES.md')
-    $unexpected = @(Get-ChildItem -LiteralPath $dist | Where-Object { $_.Name -notin $expected -or $_.PSIsContainer -ne ($_.Name -in $folders) })
+    # Remove only known obsolete layouts. Operator guidance is served through MCP resources and prompts.
+    foreach ($stale in @('CheatEngine.Mcp', 'skills', 'licenses')) { Remove-Contained (Join-Path $dist $stale) $distRoot | Out-Null }
+    $expected = @('CheatEngine.Mcp.dll', 'CheatEngine.Mcp.Gateway.exe', 'README.md', 'LICENSE', 'THIRD-PARTY-NOTICES.md')
+    $unexpected = @(Get-ChildItem -LiteralPath $dist -Force | Where-Object { $_.Name -notin $expected -or $_.PSIsContainer -or ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) })
     if ($unexpected.Count -ne 0) { throw "Unexpected files in distribution folder $dist. Move them before publishing." }
 
-    # The plugin folder is the CheatEngine.Client staged deployment: it validates the plugin profile (CECLIENT010-016)
-    # and copies every top-level *.dll, *.json and *.pdb of the plugin output. Symbols are embedded (DebugType=embedded),
-    # so there is no .pdb to copy. Start both folders empty so no stale or foreign file survives an update.
-    # ContinuousIntegrationBuild maps source paths to /_/, so no local path reaches the distributed assemblies.
+    # Use standard framework-dependent dotnet publish. Costura embeds copy-local managed dependencies and the SDK's
+    # native bridge; only the resulting DLL is installed. Build-only component manifests stay in artifacts/publish.
+    # CheatEnginePluginOutputPath selects Client's folder deployment, so it is deliberately not used for this bundle.
     Remove-Contained (Join-Path $repoRoot "artifacts/bin/CheatEngine.Mcp.Plugin/$variant") $binRoot | Out-Null
-    $pluginDestination = Remove-Contained (Join-Path $dist 'CheatEngine.Mcp') $distRoot
-    dotnet build srcs/CheatEngine.Mcp.Plugin -c $Configuration -p:RestoreLockedMode=true -p:ContinuousIntegrationBuild=true "-p:CheatEnginePluginOutputPath=$pluginDestination"
-    if ($LASTEXITCODE -ne 0) { throw 'Plugin deployment build failed.' }
-    Copy-Item -LiteralPath (Join-Path $repoRoot 'srcs/CheatEngine.Mcp.Plugin/Distribution/README.md') -Destination (Join-Path $pluginDestination 'README.md')
-    Copy-Item -LiteralPath (Join-Path $repoRoot 'LICENSE'), (Join-Path $repoRoot 'THIRD-PARTY-NOTICES.md') -Destination $pluginDestination
+    $publishRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot 'artifacts/publish')) + [IO.Path]::DirectorySeparatorChar
+    $pluginOutput = Remove-Contained (Join-Path $repoRoot "artifacts/publish/CheatEngine.Mcp.Plugin/$variant") $publishRoot
+    dotnet publish srcs/CheatEngine.Mcp.Plugin -c $Configuration -p:RestoreLockedMode=true -p:ContinuousIntegrationBuild=true -o $pluginOutput
+    if ($LASTEXITCODE -ne 0) { throw 'Bundled plugin publish failed.' }
+    Copy-Item -LiteralPath (Join-Path $pluginOutput 'CheatEngine.Mcp.dll') -Destination (Join-Path $dist 'CheatEngine.Mcp.dll') -Force
+    Copy-Item -LiteralPath (Join-Path $repoRoot 'srcs/CheatEngine.Mcp.Plugin/Distribution/README.md') -Destination (Join-Path $dist 'README.md') -Force
+    # Probe the exact installed DLL from a fresh process, with no adjacent dependency or runtime configuration files.
+    # The runtimeconfig below belongs to the probe host and remains a build output, never a distributed sidecar.
+    dotnet build tests/CheatEngine.Mcp.LiveTarget -c $Configuration -p:RestoreLockedMode=true -p:ContinuousIntegrationBuild=true
+    if ($LASTEXITCODE -ne 0) { throw 'Plugin bundle probe build failed.' }
+    $probe = Join-Path $repoRoot "artifacts/bin/CheatEngine.Mcp.LiveTarget/$variant/CheatEngine.Mcp.LiveTarget.dll"
+    dotnet exec --runtimeconfig (Join-Path $pluginOutput 'CheatEngine.Mcp.runtimeconfig.json') $probe --probe-plugin (Join-Path $dist 'CheatEngine.Mcp.dll')
+    if ($LASTEXITCODE -ne 0) { throw 'The published single-DLL plugin failed the isolated load probe.' }
 
     dotnet publish srcs/CheatEngine.Mcp.Gateway -c $Configuration -p:PublishProfile=Standalone -p:RestoreLockedMode=true -p:ContinuousIntegrationBuild=true
     if ($LASTEXITCODE -ne 0) { throw 'Native AOT gateway publish failed.' }
@@ -120,30 +135,16 @@ try {
     # The native gateway has no managed runtime beside it and shares the packages' notices with the plugin.
     Copy-Item -LiteralPath (Join-Path $repoRoot 'LICENSE'), (Join-Path $repoRoot 'THIRD-PARTY-NOTICES.md') -Destination $dist -Force
 
-    # CE resolves the plugin through its deps.json: every asset it names must sit where the host probes for it.
-    $deps = Get-Content -Raw -LiteralPath (Join-Path $pluginDestination 'CheatEngine.Mcp.Plugin.deps.json') | ConvertFrom-Json -AsHashtable
-    $required = [Collections.Generic.List[string]]::new()
-    foreach ($target in $deps.targets.Values) {
-        foreach ($library in $target.Values) {
-            if ($library.runtime) { $library.runtime.Keys | ForEach-Object { $required.Add([IO.Path]::GetFileName($_)) } }
-            if ($library.native) { $library.native.Keys | ForEach-Object { $required.Add([IO.Path]::GetFileName($_)) } }
-            if ($library.resources) { $library.resources.GetEnumerator() | ForEach-Object { $required.Add((Join-Path $_.Value.locale ([IO.Path]::GetFileName($_.Key)))) } }
-            if ($library.runtimeTargets) { $library.runtimeTargets.Keys | ForEach-Object { $required.Add($_) } }
-        }
-    }
-    # THIRD-PARTY-NOTICES.md is self-contained (it reproduces the MIT and Apache-2.0 texts); it ships with LICENSE both in
-    # the plugin folder and beside the gateway.
+    # THIRD-PARTY-NOTICES.md reproduces the redistributed license texts. The release packager also verifies the
+    # embedded dependency inventory without executing the plugin, then checks every ZIP entry and its checksum.
     $noticesText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'THIRD-PARTY-NOTICES.md')
     foreach ($heading in @('## MIT License', '## Apache License 2.0')) {
         if (-not $noticesText.Contains($heading)) { throw "THIRD-PARTY-NOTICES.md lacks the '$heading' section." }
     }
-    $notices = @('LICENSE', 'THIRD-PARTY-NOTICES.md')
-    $required.AddRange([string[]] (@('CheatEngine.Mcp.Plugin.runtimeconfig.json', 'cheatengine-sdk-lua-bridge.dll', 'appsettings.json', 'README.md') + $notices))
-    $missing = @($required | Where-Object { -not (Test-Path -LiteralPath (Join-Path $pluginDestination $_) -PathType Leaf) } | ForEach-Object { "CheatEngine.Mcp/$_" })
-    $missing += @((@('CheatEngine.Mcp.Gateway.exe') + $notices) | Where-Object { -not (Test-Path -LiteralPath (Join-Path $dist $_) -PathType Leaf) })
+    $missing = @($expected | Where-Object { -not (Test-Path -LiteralPath (Join-Path $dist $_) -PathType Leaf) })
     if ($missing.Count -ne 0) { throw "Incomplete distribution in ${dist}; missing: $($missing -join ', ')" }
-    $symbols = @(Get-ChildItem -LiteralPath $pluginDestination -File -Recurse -Filter '*.pdb')
-    if ($symbols.Count -ne 0) { throw "The plugin folder must not ship .pdb files (symbols are embedded): $($symbols.Name -join ', ')" }
+    $files = @(Get-ChildItem -LiteralPath $dist -Force)
+    if ($files.Count -ne $expected.Count) { throw 'The distribution must contain exactly the single plugin DLL, gateway, instructions and notices.' }
     Get-ChildItem -LiteralPath $dist | Select-Object Name, Length
 }
 finally { Pop-Location }

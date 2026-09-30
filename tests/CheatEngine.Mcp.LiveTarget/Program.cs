@@ -11,6 +11,11 @@ internal static class Program
 
 	private static int Main(string[] args)
 	{
+		if (args.Length == 2 && string.Equals(args[0], "--probe-plugin", StringComparison.Ordinal))
+		{
+			return PluginBundleProbe.Run(args[1]);
+		}
+
 		if (args.Length != 1 || string.IsNullOrWhiteSpace(args[0]))
 		{
 			return 64;

@@ -62,7 +62,7 @@
       "uri": "cheatengine://docs/configuration",
       "description": "Every plugin and gateway setting with its default and bounds: precedence, the capability gates and what each refuses, execution limits, file and table roots, environment variables and log files.",
       "mimeType": "text/markdown",
-      "size": 22374
+      "size": 22399
     },
     {
       "name": "doc_connection_troubleshooting",
@@ -70,7 +70,7 @@
       "uri": "cheatengine://docs/connection-troubleshooting",
       "description": "Plugin, gateway and AI-client setup, and what to check when instance_list is empty, an instance is unavailable, or a call times out, is busy or is refused by a setting.",
       "mimeType": "text/markdown",
-      "size": 22360
+      "size": 22321
     },
     {
       "name": "doc_debugger",
@@ -110,7 +110,7 @@
       "uri": "cheatengine://docs/getting-started",
       "description": "Start here when new: what the plugin and gateway are, the first calls of a session, the settings that gate features, where the docs and prompts live, scope and consent, and how to release what MCP holds.",
       "mimeType": "text/markdown",
-      "size": 17391
+      "size": 17384
     },
     {
       "name": "doc_glossary",

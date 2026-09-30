@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Security.Cryptography;
+using System.Text;
 
+using CheatEngine.Mcp.Plugin;
 using CheatEngine.Mcp.Tests.Support;
 
 namespace CheatEngine.Mcp.Tests.Contract;
@@ -20,9 +22,9 @@ public sealed class ReleaseScriptTests
 		Assert.Equal([fixture.ZipName, "SHA256SUMS.txt"],
 			Directory.GetFiles(fixture.Output).Select(Path.GetFileName).Order(StringComparer.Ordinal));
 		using ZipArchive archive = ZipFile.OpenRead(fixture.Zip);
-		Assert.Contains(archive.Entries, static entry => entry.FullName == "CheatEngine.Mcp/CheatEngine.Mcp.Plugin.dll");
+		Assert.Contains(archive.Entries, static entry => entry.FullName == "CheatEngine.Mcp.dll");
 		Assert.Contains(archive.Entries, static entry => entry.FullName == "CheatEngine.Mcp.Gateway.exe");
-		Assert.Contains(archive.Entries, static entry => entry.FullName == "CheatEngine.Mcp/Dependency.dll");
+		Assert.DoesNotContain(archive.Entries, static entry => entry.FullName.Contains('/'));
 		Assert.Equal(Directory.GetFiles(fixture.Distribution, "*", SearchOption.AllDirectories).Length,
 			archive.Entries.Count);
 		foreach (ZipArchiveEntry entry in archive.Entries)
@@ -41,7 +43,7 @@ public sealed class ReleaseScriptTests
 		await using DistributionFixture fixture = new();
 		Assert.Equal(0, (await fixture.RunAsync()).ExitCode);
 		string original = FileHash(fixture.Zip);
-		await File.WriteAllTextAsync(Path.Combine(fixture.Output, "CheatEngine.Mcp.Gateway.exe"), "obsolete",
+		await File.WriteAllTextAsync(Path.Combine(fixture.Output, "CheatEngine.Mcp.Plugin.dll"), "obsolete",
 			TestContext.Current.CancellationToken);
 
 		Assert.Equal(0, (await fixture.RunAsync()).ExitCode);
@@ -54,8 +56,11 @@ public sealed class ReleaseScriptTests
 	}
 
 	[Theory]
-	[InlineData("missing dependency", "Missing plugin dependencies")]
-	[InlineData("foreign file", "Unexpected plugin file")]
+	[InlineData("missing plugin", "Incomplete distribution")]
+	[InlineData("missing embedded dependency", "Missing embedded plugin dependencies")]
+	[InlineData("loose dependency", "Unexpected distribution entries")]
+	[InlineData("folder deployment", "Unexpected distribution entries")]
+	[InlineData("foreign file", "Unexpected distribution entries")]
 	[InlineData("mixed binaries", "same version and commit")]
 	public async Task Package_InvalidDistribution_RefusesAndPreservesExistingAssets(string condition, string message)
 	{
@@ -64,11 +69,31 @@ public sealed class ReleaseScriptTests
 		string original = FileHash(fixture.Zip);
 		switch (condition)
 		{
-			case "missing dependency":
-				File.Delete(Path.Combine(fixture.Distribution, "CheatEngine.Mcp", "Dependency.dll"));
+			case "missing plugin":
+				File.Delete(Path.Combine(fixture.Distribution, "CheatEngine.Mcp.dll"));
+				break;
+			case "missing embedded dependency":
+				string plugin = Path.Combine(fixture.Distribution, "CheatEngine.Mcp.dll");
+				byte[] contents = File.ReadAllBytes(plugin);
+				// Remove the complete name from both Costura's lookup data and the manifest resource table.
+				byte[] resource = Encoding.UTF8.GetBytes("costura.cheatengine.sdk.hosting.dll.compressed\0");
+				int offset = contents.AsSpan().IndexOf(resource);
+				Assert.True(offset >= 0, "The fixture has no SDK.Hosting resource to corrupt.");
+				while (offset >= 0)
+				{
+					contents[offset] = (byte) 'x';
+					offset = contents.AsSpan().IndexOf(resource);
+				}
+				File.WriteAllBytes(plugin, contents);
+				break;
+			case "loose dependency":
+				File.Copy(typeof(ToolDispatch).Assembly.Location, Path.Combine(fixture.Distribution, "Dependency.dll"));
+				break;
+			case "folder deployment":
+				Directory.CreateDirectory(Path.Combine(fixture.Distribution, "CheatEngine.Mcp"));
 				break;
 			case "foreign file":
-				await File.WriteAllTextAsync(Path.Combine(fixture.Distribution, "CheatEngine.Mcp", "private.txt"),
+				await File.WriteAllTextAsync(Path.Combine(fixture.Distribution, "private.txt"),
 					"private", TestContext.Current.CancellationToken);
 				break;
 			case "mixed binaries":
@@ -93,7 +118,7 @@ public sealed class ReleaseScriptTests
 		Assert.Equal(0, (await fixture.RunAsync()).ExitCode);
 
 		using ZipArchive archive = ZipFile.OpenRead(fixture.Zip);
-		Assert.Contains(archive.Entries, static entry => entry.FullName == "CheatEngine.Mcp/CheatEngine.Mcp.Plugin.dll");
+		Assert.Contains(archive.Entries, static entry => entry.FullName == "CheatEngine.Mcp.dll");
 		Assert.DoesNotContain(Directory.GetFiles(fixture.Output), static path => path.EndsWith(".tmp", StringComparison.Ordinal));
 	}
 
@@ -147,26 +172,16 @@ public sealed class ReleaseScriptTests
 
 		internal DistributionFixture()
 		{
-			string plugin = Directory.CreateDirectory(Path.Combine(Distribution, "CheatEngine.Mcp")).FullName;
-			// These are metadata fixtures, not loadable plugin or gateway deployments.
-			string assembly = typeof(ToolDispatch).Assembly.Location;
-			foreach (string name in new[] { "CheatEngine.Mcp.Plugin.dll", "Dependency.dll", "cheatengine-sdk-lua-bridge.dll" })
-			{
-				File.Copy(assembly, Path.Combine(plugin, name));
-			}
+			Directory.CreateDirectory(Distribution);
+			// Metadata fixtures only: the gateway copy is not an executable qualification.
+			string assembly = typeof(CheatEngineMcpPlugin).Assembly.Location;
+			File.Copy(assembly, Path.Combine(Distribution, "CheatEngine.Mcp.dll"));
 			File.Copy(assembly, Path.Combine(Distribution, "CheatEngine.Mcp.Gateway.exe"));
 			foreach (string name in new[] { "LICENSE", "THIRD-PARTY-NOTICES.md" })
 			{
 				File.WriteAllText(Path.Combine(Distribution, name), "fixture notices");
-				File.WriteAllText(Path.Combine(plugin, name), "fixture notices");
 			}
-			foreach (string name in new[] { "README.md", "appsettings.json", "CheatEngine.Mcp.Plugin.runtimeconfig.json" })
-			{
-				File.WriteAllText(Path.Combine(plugin, name), "{}");
-			}
-			File.WriteAllText(Path.Combine(plugin, "CheatEngine.Mcp.Plugin.deps.json"), """
-				{"targets":{"net10.0":{"fixture/1.0.0":{"runtime":{"CheatEngine.Mcp.Plugin.dll":{},"Dependency.dll":{}}}}}}
-				""");
+			File.WriteAllText(Path.Combine(Distribution, "README.md"), "fixture README");
 			string version = FileVersionInfo.GetVersionInfo(assembly).ProductVersion!.Split('+')[0];
 			ZipName = $"CheatEngine.Mcp-{version}-win-x64.zip";
 		}

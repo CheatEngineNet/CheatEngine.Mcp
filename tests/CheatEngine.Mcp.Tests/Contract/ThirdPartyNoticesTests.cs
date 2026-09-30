@@ -37,8 +37,9 @@ public sealed class ThirdPartyNoticesTests
 	{
 		// Tests run after the solution build, so the project output of the test's own configuration must exist.
 		string configuration = Path.GetFileName(Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory));
+		string assemblyName = project == "CheatEngine.Mcp.Plugin" ? "CheatEngine.Mcp" : project;
 		string deps = Path.Combine(RepositoryPaths.Root, "artifacts", "bin", project, configuration,
-			project + ".deps.json");
+			assemblyName + ".deps.json");
 		Assert.True(File.Exists(deps), $"The build output is missing: {deps}");
 		using JsonDocument document = JsonDocument.Parse(File.ReadAllText(deps));
 		List<(string Id, string Version)> packages = [];

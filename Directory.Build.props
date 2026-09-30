@@ -31,7 +31,7 @@
   </PropertyGroup>
   <!--
     Every product project is analyzed for Native AOT and trimming (CEMCP005): an AOT/trim-unsafe API is a build error.
-    Only the gateway is ever published that way; the plugin stays the framework-dependent folder CE loads (CEMCP006).
+    Only the gateway is ever published that way; CE hosts the framework-dependent, Costura-bundled plugin (CEMCP006).
   -->
   <PropertyGroup Label="Native AOT analysis" Condition="'$(CeMcpProductProject)' == 'true'">
     <IsAotCompatible>true</IsAotCompatible>

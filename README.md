@@ -4,10 +4,9 @@ CheatEngine.Mcp connects a local AI client to Cheat Engine 7.7 x64 through the M
 It combines a plugin loaded by Cheat Engine with a standalone stdio gateway.
 One gateway can discover several Cheat Engine processes and route each request to the instance you choose.
 
-> **Beta release:** Download [2.0.0-beta.2](https://github.com/CheatEngineNet/CheatEngine.Mcp/releases/tag/v2.0.0-beta.2) for Windows x64.
-> Extract the complete distribution ZIP and keep the plugin folder and gateway executable together.
-> This beta changes the plugin layout and tool contract from beta.1; replace the old installation rather than mixing its files with this release.
-> To use later source changes, build the distribution from the matching checkout.
+> **Beta:** The current source builds one plugin DLL and a separate gateway executable for Windows x64.
+> Published builds are listed under [Releases](https://github.com/CheatEngineNet/CheatEngine.Mcp/releases); follow the instructions included with that version.
+> Build from this checkout to test the current single-DLL packaging.
 
 ## How it works
 
@@ -33,10 +32,10 @@ Run the gateway and Cheat Engine under the same Windows user account.
 
 ### 1. Get the deployment files
 
-Download and extract `CheatEngine.Mcp-2.0.0-beta.2-win-x64.zip` from the [beta release](https://github.com/CheatEngineNet/CheatEngine.Mcp/releases/tag/v2.0.0-beta.2).
-The ZIP includes **`CheatEngine.Mcp/CheatEngine.Mcp.Plugin.dll`**, every plugin dependency, the gateway executable, installation instructions, and licenses.
+Each packaged release uses `CheatEngine.Mcp-<version>-win-x64.zip`.
+The ZIP includes **`CheatEngine.Mcp.dll`**, the gateway executable, installation instructions, and licenses.
 Each release has one complete Windows x64 ZIP and `SHA256SUMS.txt`; separate plugin, skill, DLL, or EXE downloads are unnecessary.
-When upgrading from beta.1, disable the plugin, close Cheat Engine and the gateway, and remove the old single-DLL plugin entry. Replace the complete plugin folder and gateway executable with the matching files from this release; do not mix versions. Then add `CheatEngine.Mcp.Plugin.dll` from the new folder as described below.
+When upgrading, disable the plugin, close Cheat Engine and the gateway, and remove the old plugin entry. Replace the plugin DLL and gateway executable with the matching files from one build; do not mix versions. Then add `CheatEngine.Mcp.dll` as described below. An old folder deployment is no longer needed.
 
 To build the same layout from source instead, run this from the repository root with .NET SDK **10.0.401**, PowerShell 7, and the Windows C++ build tools required by Native AOT:
 
@@ -48,12 +47,14 @@ The result is in `artifacts/dist/release/`:
 
 | Item | Purpose |
 | --- | --- |
-| `CheatEngine.Mcp/` | Complete plugin folder, including `CheatEngine.Mcp.Plugin.dll`, dependencies, the native Lua bridge, and default settings. |
+| `CheatEngine.Mcp.dll` | Cheat Engine plugin with its managed dependencies and native Lua bridge embedded by Costura/Fody. |
 | `CheatEngine.Mcp.Gateway.exe` | Standalone Windows x64 MCP server launched by your AI client. |
+| `README.md` | Installation and configuration instructions. |
 | `LICENSE` and `THIRD-PARTY-NOTICES.md` | License and dependency notices for the distribution. |
 
 Copy these items together to a stable location, for example `C:\Tools\CheatEngine.Mcp`.
-Keep the plugin folder intact and the DLL name unchanged.
+Keep the DLL name unchanged. No SDK DLL, Core DLL, plugin `.deps.json`, or plugin `.runtimeconfig.json` is installed beside it.
+The plugin still needs the installed .NET 10 frameworks described below. Costura extracts the native Lua bridge to its per-user temporary cache when loading it.
 A normal solution build creates development outputs; `eng/Publish.ps1` creates the deployable layout and smoke-tests the gateway.
 See [Build from source](#build-from-source) for the full development commands.
 
@@ -87,7 +88,7 @@ Installing .NET 10 alone does not change a host configuration that selects anoth
 
 ### 3. Enable the plugin
 
-In Cheat Engine, open **Edit > Settings > Plugins**, add `CheatEngine.Mcp.Plugin.dll` from the deployed `CheatEngine.Mcp` folder, and enable it.
+In Cheat Engine, open **Edit > Settings > Plugins**, add the deployed `CheatEngine.Mcp.dll`, and enable it.
 The menu bar shows **MCP: Enabled** after the backend starts and its instance is published.
 Click the indicator for its instance name, listening address, and log location.
 Enabling the plugin does not attach Cheat Engine to a target process.
@@ -172,9 +173,9 @@ The [connection guide](srcs/CheatEngine.Mcp.Resources/Knowledge/Documents/connec
 
 The defaults work without creating a file.
 To change plugin settings, create `%APPDATA%\CheatEngine.Mcp\appsettings.json` and disable/re-enable the plugin.
-The plugin reads, in increasing priority: built-in defaults, its shipped `appsettings.json`, the user file, then the dedicated `MCP_*` environment overrides.
+The plugin reads, in increasing priority: built-in defaults, an optional `appsettings.json` beside the DLL, the user file, then the dedicated `MCP_*` environment overrides. No settings file is required for the default setup.
 It reads settings once per activation.
-Keep personal changes out of the shipped plugin folder because updates replace it.
+Keep personal changes in the user file so updates preserve them.
 
 A small optional user file looks like this:
 
@@ -234,7 +235,7 @@ The [session workflows](srcs/CheatEngine.Mcp.Resources/Knowledge/Documents/workf
 | --- | --- |
 | The client shows no CheatEngine.Mcp tools | Confirm the gateway path and stdio registration, then inspect the client's MCP startup log. The gateway writes diagnostics to stderr. |
 | `instance_list` is empty | Enable the plugin in Cheat Engine, confirm **MCP: Enabled**, use the same Windows account, and check that both sides use the same instance directory. |
-| Cheat Engine cannot load the plugin | Check Cheat Engine 7.7 x64, the intact plugin folder, all three x64 .NET 10 runtimes, and `ce.runtimeconfig.json`. |
+| Cheat Engine cannot load the plugin | Check Cheat Engine 7.7 x64, `CheatEngine.Mcp.dll`, all three x64 .NET 10 runtimes, and CE's `ce.runtimeconfig.json`. |
 | One of several instances fails to start | Leave the port at `0`, or give each process a distinct fixed port. |
 | A previously working ID is unavailable | Refresh `instance_list`; restart and re-enable create new IDs. Do not redirect a failed call to another instance. |
 | A tool reports no target | Select the intended target in Cheat Engine or attach through the chosen instance's process tools. |
@@ -247,7 +248,7 @@ See [connection troubleshooting](srcs/CheatEngine.Mcp.Resources/Knowledge/Docume
 
 ### Updating or removing the installation
 
-To update, finish task cleanup, close Cheat Engine, stop the client's MCP connection, and replace the plugin folder and gateway together from one build.
+To update, finish task cleanup, close Cheat Engine, stop the client's MCP connection, and replace the plugin DLL and gateway together from one build.
 Restart Cheat Engine, enable the plugin, reconnect the client, and refresh `instance_list`.
 User settings survive because they are outside the distribution.
 

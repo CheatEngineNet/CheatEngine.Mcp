@@ -2,8 +2,8 @@
 
 CheatEngine.Mcp is licensed under the MIT License (see `LICENSE`). Its distribution also redistributes the third-party
 components listed below. This file is self-contained: it names each component with its copyright and license, and it
-reproduces the license texts at the end. It ships twice, with `LICENSE`: in the plugin folder (`CheatEngine.Mcp/`) and
-beside the gateway executable (`CheatEngine.Mcp.Gateway.exe`).
+reproduces the license texts at the end. It ships with `LICENSE` beside the bundled plugin (`CheatEngine.Mcp.dll`) and
+the gateway executable (`CheatEngine.Mcp.Gateway.exe`).
 
 ## NuGet packages
 
@@ -13,16 +13,17 @@ shipped package has no row.
 | Package | Version | License | Copyright | Shipped in | License text |
 |---|---|---|---|---|---|
 | CheatEngine.Client | 1.0.0 | MIT | Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.Client contributors | Metapackage, no files | [MIT License](#mit-license) |
-| CheatEngine.Client.Abstractions | 1.0.0 | MIT | Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.Client contributors | Plugin folder, gateway | [MIT License](#mit-license) |
-| CheatEngine.Client.Core | 1.0.0 | MIT | Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.Client contributors | Plugin folder, gateway | [MIT License](#mit-license) |
-| CheatEngine.Client.Extensions.DependencyInjection | 1.0.0 | MIT | Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.Client contributors | Plugin folder, gateway | [MIT License](#mit-license) |
-| CheatEngine.Client.Fluent | 1.0.0 | MIT | Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.Client contributors | Plugin folder, gateway | [MIT License](#mit-license) |
-| CheatEngine.Client.Hosting | 1.0.0 | MIT | Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.Client contributors | Plugin folder, gateway | [MIT License](#mit-license) |
-| CheatEngine.SDK | 2.0.0 | MIT | Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.SDK contributors | Plugin folder: the seven `CheatEngine.SDK*.dll` assemblies and the native `cheatengine-sdk-lua-bridge.dll`. Gateway: the managed assemblies only | [MIT License](#mit-license) |
-| Microsoft.Extensions.AI.Abstractions | 10.10.1 | MIT | Copyright (c) .NET Foundation; © Microsoft Corporation | Plugin folder, gateway | [MIT License](#mit-license) |
-| ModelContextProtocol | 2.2.0 | Apache-2.0 (MIT for earlier contributions not yet relicensed) | © Model Context Protocol a Series of LF Projects, LLC. | Plugin folder, gateway | [Apache License 2.0](#apache-license-20), [MIT License](#mit-license) |
-| ModelContextProtocol.AspNetCore | 2.2.0 | Apache-2.0 (MIT for earlier contributions not yet relicensed) | © Model Context Protocol a Series of LF Projects, LLC. | Plugin folder, gateway | [Apache License 2.0](#apache-license-20), [MIT License](#mit-license) |
-| ModelContextProtocol.Core | 2.2.0 | Apache-2.0 (MIT for earlier contributions not yet relicensed) | © Model Context Protocol a Series of LF Projects, LLC. | Plugin folder, gateway | [Apache License 2.0](#apache-license-20), [MIT License](#mit-license) |
+| CheatEngine.Client.Abstractions | 1.0.0 | MIT | Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.Client contributors | Embedded plugin dependencies, gateway | [MIT License](#mit-license) |
+| CheatEngine.Client.Core | 1.0.0 | MIT | Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.Client contributors | Embedded plugin dependencies, gateway | [MIT License](#mit-license) |
+| CheatEngine.Client.Extensions.DependencyInjection | 1.0.0 | MIT | Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.Client contributors | Embedded plugin dependencies, gateway | [MIT License](#mit-license) |
+| CheatEngine.Client.Fluent | 1.0.0 | MIT | Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.Client contributors | Embedded plugin dependencies, gateway | [MIT License](#mit-license) |
+| CheatEngine.Client.Hosting | 1.0.0 | MIT | Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.Client contributors | Embedded plugin dependencies, gateway | [MIT License](#mit-license) |
+| CheatEngine.SDK | 2.0.0 | MIT | Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.SDK contributors | Embedded plugin dependencies: the seven `CheatEngine.SDK*.dll` assemblies and the native `cheatengine-sdk-lua-bridge.dll`. Gateway: the managed assemblies only | [MIT License](#mit-license) |
+| Costura.Fody | 6.2.0 | MIT | Copyright (c) 2012 Simon Cropp and contributors | Plugin: embedded dependencies and injected loader code | [MIT License](#mit-license) |
+| Microsoft.Extensions.AI.Abstractions | 10.10.1 | MIT | Copyright (c) .NET Foundation; © Microsoft Corporation | Embedded plugin dependencies, gateway | [MIT License](#mit-license) |
+| ModelContextProtocol | 2.2.0 | Apache-2.0 (MIT for earlier contributions not yet relicensed) | © Model Context Protocol a Series of LF Projects, LLC. | Embedded plugin dependencies, gateway | [Apache License 2.0](#apache-license-20), [MIT License](#mit-license) |
+| ModelContextProtocol.AspNetCore | 2.2.0 | Apache-2.0 (MIT for earlier contributions not yet relicensed) | © Model Context Protocol a Series of LF Projects, LLC. | Embedded plugin dependencies, gateway | [Apache License 2.0](#apache-license-20), [MIT License](#mit-license) |
+| ModelContextProtocol.Core | 2.2.0 | Apache-2.0 (MIT for earlier contributions not yet relicensed) | © Model Context Protocol a Series of LF Projects, LLC. | Embedded plugin dependencies, gateway | [Apache License 2.0](#apache-license-20), [MIT License](#mit-license) |
 
 Notes:
 
@@ -37,7 +38,7 @@ Notes:
 ## .NET runtime in the gateway
 
 The gateway is a self-contained Native AOT executable. It includes parts of the .NET runtime and of the ASP.NET Core
-shared framework, compiled from the win-x64 runtime packs of the SDK pinned in `global.json`. The plugin folder
+shared framework, compiled from the win-x64 runtime packs of the SDK pinned in `global.json`. The plugin DLL
 contains neither: Cheat Engine hosts the plugin on the .NET runtimes installed on the machine.
 
 | Framework | Version | License | Copyright | Shipped in | License text |
@@ -55,7 +56,7 @@ SDK changes the runtime version, update this table.
 - Cheat Engine, and the .NET 10 runtimes it needs to host the plugin (Microsoft.NETCore.App, Microsoft.AspNetCore.App
   and Microsoft.WindowsDesktop.App). The user installs them.
 - Build-only and test-only packages: analyzers, source generators, the test framework and its extensions. They never
-  reach the plugin folder or the gateway.
+  reach the plugin or the gateway. Fody 6.9.3 runs only during the build; Costura's injected runtime code is listed above.
 
 ## Where the texts come from
 

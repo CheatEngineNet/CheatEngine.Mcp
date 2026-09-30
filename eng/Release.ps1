@@ -65,6 +65,36 @@ function Assert-UploadedAsset($Asset, [string] $Path) {
         $Asset.digest -ne $hash) { throw "GitHub asset does not match the local file: $($Asset.name)" }
 }
 
+function Assert-CosturaResourceInventory([string] $Path) {
+    $stream = [IO.File]::OpenRead($Path)
+    try {
+        $pe = [Reflection.PortableExecutable.PEReader]::new($stream)
+        try {
+            $metadata = [Reflection.Metadata.PEReaderExtensions]::GetMetadataReader($pe)
+            $resources = @($metadata.ManifestResources | ForEach-Object {
+                $metadata.GetString($metadata.GetManifestResource($_).Name)
+            })
+            $required = @(
+                'CheatEngine.Client.Abstractions', 'CheatEngine.Client.Core', 'CheatEngine.Client.Extensions.DependencyInjection',
+                'CheatEngine.Client.Fluent', 'CheatEngine.Client.Hosting',
+                'CheatEngine.SDK', 'CheatEngine.SDK.Abi', 'CheatEngine.SDK.Annotations', 'CheatEngine.SDK.Engine',
+                'CheatEngine.SDK.Hosting', 'CheatEngine.SDK.Lua', 'CheatEngine.SDK.Lua.Interop',
+                'CheatEngine.Mcp.Core', 'CheatEngine.Mcp.Hosting', 'CheatEngine.Mcp.Tools',
+                'CheatEngine.Mcp.Resources', 'CheatEngine.Mcp.Prompts',
+                'ModelContextProtocol', 'ModelContextProtocol.Core', 'ModelContextProtocol.AspNetCore',
+                'Microsoft.Extensions.AI.Abstractions'
+            ) | ForEach-Object { 'costura.' + $_.ToLowerInvariant() + '.dll.compressed' }
+            $required += 'costura_win_x64.cheatengine-sdk-lua-bridge.dll.compressed'
+            $missing = @($required | Where-Object { $_ -cnotin $resources })
+            if ($missing.Count) {
+                throw "Missing embedded plugin dependencies: $($missing -join ', ')"
+            }
+        }
+        finally { $pe.Dispose() }
+    }
+    finally { $stream.Dispose() }
+}
+
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 Push-Location $repoRoot
 try {
@@ -83,13 +113,12 @@ try {
         $DistributionPath = Join-Path $repoRoot 'artifacts/dist/release'
     }
     $dist = (Resolve-Path -LiteralPath $DistributionPath).Path
-    $plugin = Join-Path $dist 'CheatEngine.Mcp'
-    $dll = Join-Path $plugin 'CheatEngine.Mcp.Plugin.dll'
+    $dll = Join-Path $dist 'CheatEngine.Mcp.dll'
     $gateway = Join-Path $dist 'CheatEngine.Mcp.Gateway.exe'
-    $expectedRoot = @('CheatEngine.Mcp', 'CheatEngine.Mcp.Gateway.exe', 'LICENSE', 'THIRD-PARTY-NOTICES.md')
-    $unexpected = @(Get-ChildItem -LiteralPath $dist -Force | Where-Object { $_.Name -notin $expectedRoot })
+    $expectedRoot = @('CheatEngine.Mcp.dll', 'CheatEngine.Mcp.Gateway.exe', 'README.md', 'LICENSE', 'THIRD-PARTY-NOTICES.md')
+    $unexpected = @(Get-ChildItem -LiteralPath $dist -Force | Where-Object { $_.PSIsContainer -or $_.Name -notin $expectedRoot })
     if ($unexpected.Count) { throw "Unexpected distribution entries: $($unexpected.Name -join ', ')" }
-    foreach ($path in @($dll, $gateway, (Join-Path $dist 'LICENSE'), (Join-Path $dist 'THIRD-PARTY-NOTICES.md'))) {
+    foreach ($path in @($dll, $gateway, (Join-Path $dist 'README.md'), (Join-Path $dist 'LICENSE'), (Join-Path $dist 'THIRD-PARTY-NOTICES.md'))) {
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Incomplete distribution: $path" }
     }
     $identity = [Diagnostics.FileVersionInfo]::GetVersionInfo($dll).ProductVersion
@@ -102,49 +131,16 @@ try {
     if ([Diagnostics.FileVersionInfo]::GetVersionInfo($gateway).ProductVersion -ne $identity) {
         throw 'Plugin and gateway were not built from the same version and commit.'
     }
-    $depsPath = Join-Path $plugin 'CheatEngine.Mcp.Plugin.deps.json'
-    $deps = Get-Content -Raw -LiteralPath $depsPath | ConvertFrom-Json -AsHashtable
-    $required = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-    foreach ($name in @('CheatEngine.Mcp.Plugin.dll', 'CheatEngine.Mcp.Plugin.deps.json',
-            'CheatEngine.Mcp.Plugin.runtimeconfig.json', 'cheatengine-sdk-lua-bridge.dll',
-            'appsettings.json', 'README.md', 'LICENSE', 'THIRD-PARTY-NOTICES.md')) {
-        [void] $required.Add($name)
-    }
-    foreach ($target in $deps.targets.Values) {
-        foreach ($library in $target.Values) {
-            foreach ($kind in @('runtime', 'native')) {
-                if ($library.ContainsKey($kind)) {
-                    foreach ($asset in $library[$kind].Keys) { [void] $required.Add([IO.Path]::GetFileName($asset)) }
-                }
-            }
-            if ($library.ContainsKey('resources')) {
-                foreach ($asset in $library.resources.GetEnumerator()) {
-                    [void] $required.Add(($asset.Value.locale + '/' + [IO.Path]::GetFileName($asset.Key)))
-                }
-            }
-            if ($library.ContainsKey('runtimeTargets')) {
-                foreach ($asset in $library.runtimeTargets.Keys) { [void] $required.Add($asset.Replace('\', '/')) }
-            }
-        }
-    }
+    Assert-CosturaResourceInventory $dll
     $inventory = [Collections.Generic.Dictionary[string, object]]::new([StringComparer]::Ordinal)
-    $allEntries = @(Get-ChildItem -LiteralPath $dist -Recurse -Force)
+    $allEntries = @(Get-ChildItem -LiteralPath $dist -Force)
     if (@($allEntries | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint }).Count) {
         throw 'The distribution must not contain symbolic links or junctions.'
     }
     foreach ($file in @($allEntries | Where-Object { -not $_.PSIsContainer })) {
         $relative = [IO.Path]::GetRelativePath($dist, $file.FullName).Replace('\', '/')
-        if ($relative.StartsWith('CheatEngine.Mcp/', [StringComparison]::Ordinal) -and
-            -not $required.Remove($relative.Substring('CheatEngine.Mcp/'.Length))) {
-            throw "Unexpected plugin file: $relative"
-        }
-        if ($file.Name -like 'CheatEngine.Mcp*.dll' -and
-            [Diagnostics.FileVersionInfo]::GetVersionInfo($file.FullName).ProductVersion -ne $identity) {
-            throw "Mixed product versions in the plugin folder: $($file.Name)"
-        }
         $inventory.Add($relative, @{ Path = $file.FullName; Hash = (Get-FileHash -LiteralPath $file.FullName).Hash })
     }
-    if ($required.Count) { throw "Missing plugin dependencies: $($required -join ', ')" }
     if ($Upload -or $Publish) {
         $ref = (Invoke-GitHub @('api', "repos/$Repository/git/ref/tags/$tag")) | ConvertFrom-Json
         for ($depth = 0; $ref.object.type -eq 'tag' -and $depth -lt 4; $depth++) {
@@ -206,7 +202,7 @@ try {
         $path = Join-Path $output $name
         if (Test-Path -LiteralPath $path -PathType Leaf) { Remove-Item -LiteralPath $path -Force }
     }
-    Write-Host "Verified $($inventory.Count) files, including CheatEngine.Mcp/CheatEngine.Mcp.Plugin.dll."
+    Write-Host "Verified $($inventory.Count) flat files, including CheatEngine.Mcp.dll."
     Get-ChildItem -LiteralPath $output | Select-Object Name, Length
     if (-not ($Upload -or $Publish)) { return }
 
@@ -217,10 +213,9 @@ try {
         if ($version.Contains('-')) { $arguments += '--prerelease' }
         if ($NotesFile) { $arguments += @('--notes-file', (Resolve-Path -LiteralPath $NotesFile).Path) }
         else {
-            $notes = "Download $zipName and extract the complete folder. The plugin DLL is " +
-                'CheatEngine.Mcp/CheatEngine.Mcp.Plugin.dll; keep its dependencies beside it. ' +
+            $notes = "Download $zipName and extract the complete folder. Install CheatEngine.Mcp.dll as the single plugin DLL. " +
                 'Configure your AI client to start CheatEngine.Mcp.Gateway.exe as a stdio MCP server. ' +
-                "See the included README for installation and runtime requirements. Verify the ZIP using SHA256SUMS.txt.`n`n" +
+                "See the included README for installed .NET prerequisites. Verify the ZIP using SHA256SUMS.txt.`n`n" +
                 "Built from $sourceCommit. Operator guidance ships as MCP resources and prompts; no separate skill is required."
             $arguments += @('--notes', $notes)
         }
@@ -255,7 +250,7 @@ try {
     }
     $zipAsset = @($release.assets | Where-Object { $_.name -eq $zipName })[0]
     Invoke-GitHub @('api', '--method', 'PATCH', "repos/$Repository/releases/assets/$($zipAsset.id)",
-        '-f', 'label=Windows x64: plugin DLL, dependencies, gateway and instructions') | Out-Null
+        '-f', 'label=Windows x64: single plugin DLL, gateway and instructions') | Out-Null
     # Delete only the named obsolete assets, after both standard assets have been verified on GitHub.
     foreach ($asset in @($release.assets | Where-Object { $_.name -in $obsolete })) {
         Invoke-GitHub @('api', '--method', 'DELETE', "repos/$Repository/releases/assets/$($asset.id)") | Out-Null

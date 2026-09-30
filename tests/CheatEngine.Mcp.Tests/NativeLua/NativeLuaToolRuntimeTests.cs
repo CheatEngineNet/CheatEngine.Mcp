@@ -103,6 +103,9 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 
 	private static RuntimeScope CreateScope()
 	{
+		// Standalone NativeLua runs attach SDK Lua before invoking plugin code. Initialize its bundled bridge first,
+		// as CE does when loading the plugin; no loose SDK bridge is part of the installed plugin anymore.
+		RuntimeHelpers.RunModuleConstructor(typeof(PluginLuaToolRuntime).Module.ModuleHandle);
 		string? path = Environment.GetEnvironmentVariable(LuaPathVariable);
 		if (string.IsNullOrWhiteSpace(path))
 		{

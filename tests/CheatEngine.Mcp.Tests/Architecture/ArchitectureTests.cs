@@ -46,7 +46,7 @@ public sealed class ArchitectureTests
 		},
 		// The composition root; its log is the plugin's own rolling file writer, never a logging library (NLog).
 		{
-			"CheatEngine.Mcp.Plugin", [
+			"CheatEngine.Mcp", [
 				"CheatEngine.Mcp.Core", "CheatEngine.Mcp.Hosting", "CheatEngine.Mcp.Tools", "CheatEngine.Mcp.Resources",
 				"CheatEngine.Mcp.Prompts", "CheatEngine.Client", "CheatEngine.SDK"
 			]
@@ -84,7 +84,7 @@ public sealed class ArchitectureTests
 		foreach (Assembly subject in Product)
 		{
 			string[] expected = subject == Core
-				? ["CheatEngine.Mcp.Plugin", "CheatEngine.Mcp.Tests"]
+				? ["CheatEngine.Mcp", "CheatEngine.Mcp.Tests"]
 				: subject == Gateway
 					? []
 					: ["CheatEngine.Mcp.Tests"];

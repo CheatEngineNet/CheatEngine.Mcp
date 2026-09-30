@@ -52,6 +52,8 @@ Direct package references are:
 - `CheatEngine.SDK`, which generates the plugin entry point and deploys the
   native Lua bridge.
 - `ModelContextProtocol.AspNetCore`, which supplies the backend transport.
+- `Costura.Fody` and `Fody`, build-time weaving packages that embed managed
+  dependencies and the SDK's native Lua bridge in `CheatEngine.Mcp.dll`.
 - `Microsoft.AspNetCore.App`, through a framework reference for the loopback
   HTTP host.
 
@@ -66,6 +68,13 @@ allows unsafe code because the SDK bridge requires it. ASP.NET Core shared
 framework references are exempted from reference AOT and trim compatibility
 checks because they do not publish the metadata those checks require; the
 plugin's own code remains analyzed.
+
+`eng/Publish.ps1` uses standard framework-dependent `dotnet publish` and installs
+only the woven DLL. The SDK continues to generate `CESDK.CESDK`; there is no
+separate bootstrap assembly or ZIP payload. Costura extracts and preloads the
+native bridge in its temporary cache. `McpPluginDependencyResolver` loads the
+managed Costura resources in CE's actual assembly context, preserving each
+plugin's SDK state while sharing the installed .NET frameworks.
 
 ## Activation lifecycle
 
@@ -121,8 +130,8 @@ Settings are read once per activation; none of the sources reload. Disable and
 enable the plugin after changing a setting. Sources are applied in this order,
 where later values win:
 
-1. `appsettings.json` beside the loaded plugin assembly. This ships safe
-   defaults and is replaced during an update.
+1. Optional `appsettings.json` beside the loaded plugin assembly. Defaults are
+   built into the options classes; no settings file ships with the plugin.
 2. `%APPDATA%\CheatEngine.Mcp\appsettings.json`, or
    `<MCP_DATA_DIRECTORY>\appsettings.json` when `MCP_DATA_DIRECTORY` names an
    absolute directory.
@@ -251,7 +260,7 @@ Plugin-specific portable coverage is in:
 Run that area with:
 
 ```powershell
-dotnet test --project tests/CheatEngine.Mcp.Tests --no-restore --filter "FullyQualifiedName~CheatEngine.Mcp.Tests.Plugin"
+dotnet test --project tests/CheatEngine.Mcp.Tests --no-restore --filter-class "CheatEngine.Mcp.Tests.Plugin.*"
 ```
 
 Those tests use Client doubles and loopback hosts. They validate the managed
@@ -261,6 +270,8 @@ real Cheat Engine installation described in the
 
 For deployment contents, runtime prerequisites, installation, and update
 instructions, see [`Distribution/README.md`](Distribution/README.md). The
-published plugin folder must stay intact: Cheat Engine needs the assembly's
-dependency files, runtime configuration, and native Lua bridge beside the main
-DLL.
+installed plugin is the single `CheatEngine.Mcp.dll`; the gateway remains a
+separate executable. The cold-load probe installs only that DLL and checks
+managed context isolation, shared framework identity, the generated ABI, and
+native bridge resolution. CE's own `ce.runtimeconfig.json` still selects the
+required .NET 10 frameworks.
