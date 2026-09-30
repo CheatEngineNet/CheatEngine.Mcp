@@ -11,9 +11,9 @@ internal static class Program
 
 	private static int Main(string[] args)
 	{
-		if (args.Length == 2 && string.Equals(args[0], "--probe-plugin", StringComparison.Ordinal))
+		if (args.Length is 2 or 3 && string.Equals(args[0], "--probe-plugin", StringComparison.Ordinal))
 		{
-			return PluginBundleProbe.Run(args[1]);
+			return PluginBundleProbe.Run(args[1], args.Length == 3 ? args[2] : null);
 		}
 
 		if (args.Length != 1 || string.IsNullOrWhiteSpace(args[0]))

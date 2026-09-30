@@ -1,8 +1,11 @@
+using System.Collections;
 using System.IO.Compression;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Loader;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace CheatEngine.Mcp.LiveTarget;
 
@@ -15,7 +18,7 @@ internal static class PluginBundleProbe
 	private const string NativeLuaBridge = "cheatengine-sdk-lua-bridge";
 	private const string NativeLuaBridgeExport = "cheatengine_sdk_lua_protected";
 
-	internal static int Run(string pluginPath)
+	internal static int Run(string pluginPath, string? goldenDirectory = null)
 	{
 		try
 		{
@@ -37,6 +40,8 @@ internal static class PluginBundleProbe
 			PluginLoadContext secondContext = new(pluginPath, "second");
 			LoadedPlugin second = LoadPlugin(secondContext, pluginPath);
 			VerifyContextIsolation(first, second);
+			VerifyReflectedCatalog(first, goldenDirectory);
+			VerifyReflectedCatalog(second, goldenDirectory);
 			Console.WriteLine("PLUGIN_BUNDLE_PROBE_OK");
 			return 0;
 		}
@@ -45,6 +50,61 @@ internal static class PluginBundleProbe
 			Console.Error.WriteLine("PLUGIN_BUNDLE_PROBE_FAILED");
 			Console.Error.WriteLine(exception);
 			return 1;
+		}
+	}
+
+	private static void VerifyReflectedCatalog(LoadedPlugin loaded, string? goldenDirectory)
+	{
+		Assembly core = FindAssembly(loaded.Context.Assemblies, "CheatEngine.Mcp.Core", "plugin context");
+		Type composition = core.GetType("CheatEngine.Mcp.Core.Composition.CheatEngineMcpComposition", throwOnError: true)!;
+		MethodInfo createManifest = composition.GetMethod("CreateManifest")!;
+		ParameterInfo[] parameters = createManifest.GetParameters();
+		Type entry = loaded.Plugin.GetType("CheatEngine.Mcp.Plugin.CheatEngineMcpPlugin", throwOnError: true)!;
+		MethodInfo compose = entry.GetMethod("ComposePrimitives", BindingFlags.Static | BindingFlags.NonPublic)!;
+		// Bridge the plugin's isolated builder identity without referencing any product assembly from the probe host.
+		Action<object> configure = builder => { _ = compose.Invoke(null, [builder]); };
+		Delegate callback = configure.Method.CreateDelegate(parameters[1].ParameterType, configure.Target);
+		object manifest = createManifest.Invoke(null, [Enum.Parse(parameters[0].ParameterType, "Backend"), callback])!;
+		Type json = core.GetType("CheatEngine.Mcp.Core.Composition.CheatEngineMcpJson", throwOnError: true)!;
+		JsonSerializerOptions options = (JsonSerializerOptions) json.GetMethod("CreateOptions")!.Invoke(null, [manifest])!;
+		Type catalogType = core.GetType("CheatEngine.Mcp.Core.Composition.McpPrimitiveCatalog", throwOnError: true)!;
+		object catalog = catalogType.GetMethod("Create")!.Invoke(null, [manifest])!;
+		JsonArray tools = CatalogItems(catalog, "Tools", options);
+		JsonArray resources = CatalogItems(catalog, "Resources", options);
+		JsonArray templates = CatalogItems(catalog, "ResourceTemplates", options);
+		JsonArray prompts = CatalogItems(catalog, "Prompts", options);
+		if (tools.Count == 0 || resources.Count == 0 || templates.Count == 0 || prompts.Count == 0)
+		{
+			throw new InvalidOperationException("The bundled plugin's reflected MCP catalog is incomplete.");
+		}
+
+		if (goldenDirectory is not null)
+		{
+			AssertCatalogSnapshot(goldenDirectory, "backend-tools.json", tools);
+			AssertCatalogSnapshot(goldenDirectory, "backend-resources.json", new JsonObject
+			{
+				["resources"] = resources,
+				["resourceTemplates"] = templates
+			});
+			AssertCatalogSnapshot(goldenDirectory, "backend-prompts.json", prompts);
+		}
+
+		Console.WriteLine($"PLUGIN_BUNDLE_REFLECTION_OK tools={tools.Count} resources={resources.Count} templates={templates.Count} prompts={prompts.Count}");
+	}
+
+	private static JsonArray CatalogItems(object catalog, string property, JsonSerializerOptions options)
+	{
+		IEnumerable items = (IEnumerable) catalog.GetType().GetProperty(property)!.GetValue(catalog)!;
+		return new JsonArray(items.Cast<object>()
+			.Select(item => JsonSerializer.SerializeToNode(item, item.GetType(), options)).ToArray());
+	}
+
+	private static void AssertCatalogSnapshot(string directory, string fileName, JsonNode actual)
+	{
+		JsonNode? expected = JsonNode.Parse(File.ReadAllText(Path.Combine(directory, fileName)));
+		if (!JsonNode.DeepEquals(expected, actual))
+		{
+			throw new InvalidOperationException($"The bundled plugin's reflected catalog differs from '{fileName}'.");
 		}
 	}
 

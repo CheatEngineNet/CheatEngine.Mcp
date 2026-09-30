@@ -21,6 +21,22 @@ public sealed class PluginBundleTests
 		Assert.Contains("PLUGIN_BUNDLE_PROBE_OK", result.Output, StringComparison.Ordinal);
 	}
 
+	[Fact]
+	public async Task InstalledPlugin_LoneDll_ReflectedCatalogMatchesReviewedContractInBothContexts()
+	{
+		await using PluginBundleFixture fixture = new();
+		Assert.Equal([Path.GetFileName(fixture.PluginPath)],
+			Directory.GetFiles(fixture.InstallDirectory).Select(Path.GetFileName).Order(StringComparer.Ordinal));
+		string goldenDirectory = Path.Combine(RepositoryPaths.Root, "tests", "CheatEngine.Mcp.Tests", "Contract", "Golden");
+
+		ProbeResult result = await fixture.RunProbeAsync(goldenDirectory);
+
+		Assert.True(result.ExitCode == 0, result.Output);
+		Assert.Equal(2, result.Output.Split('\n').Count(static line =>
+			line.StartsWith("PLUGIN_BUNDLE_REFLECTION_OK ", StringComparison.Ordinal)));
+		Assert.Contains("PLUGIN_BUNDLE_PROBE_OK", result.Output, StringComparison.Ordinal);
+	}
+
 	private sealed class PluginBundleFixture : IAsyncDisposable
 	{
 		private readonly string _root = Path.Combine(RepositoryPaths.Root, "artifacts", "test-results", "plugin-bundle",
@@ -48,7 +64,7 @@ public sealed class PluginBundleTests
 			return new ValueTask(TestDirectory.DeleteAsync(_root));
 		}
 
-		internal async Task<ProbeResult> RunProbeAsync()
+		internal async Task<ProbeResult> RunProbeAsync(string? goldenDirectory = null)
 		{
 			string target = FindLiveTarget();
 			string runtimeConfig = Path.ChangeExtension(typeof(PluginBundleTests).Assembly.Location, ".runtimeconfig.json");
@@ -71,6 +87,10 @@ public sealed class PluginBundleTests
 			start.ArgumentList.Add(target);
 			start.ArgumentList.Add("--probe-plugin");
 			start.ArgumentList.Add(PluginPath);
+			if (goldenDirectory is not null)
+			{
+				start.ArgumentList.Add(goldenDirectory);
+			}
 
 			using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
 			timeout.CancelAfter(TimeSpan.FromSeconds(30));
