@@ -78,7 +78,8 @@ public sealed class CodeTools
 			Address current = first;
 			for (int index = 0; index < instructions.Length; index++)
 			{
-				AssemblyInstructionSnapshot decoded = client.Assembly.Disassemble(current, token);
+				AssemblyInstructionSnapshot decoded = CorrectColumns(_dispatch,
+					client.Assembly.Disassemble(current, token), CheatEngineToolNames.CodeDisassemble, token);
 				instructions[index] = Instruction(decoded, CheatEngineToolNames.CodeDisassemble);
 				current = decoded.Address + decoded.Length;
 			}
@@ -102,7 +103,8 @@ public sealed class CodeTools
 		return _dispatch.Run(CheatEngineToolNames.CodeDecode, token =>
 		{
 			Address target = MemoryTargets.Resolve(_dispatch.Client, expression, "address", token);
-			AssemblyInstructionSnapshot decoded = _dispatch.Client.Assembly.Disassemble(target, token);
+			AssemblyInstructionSnapshot decoded = CorrectColumns(_dispatch,
+				_dispatch.Client.Assembly.Disassemble(target, token), CheatEngineToolNames.CodeDecode, token);
 			CodeInstruction instruction = Instruction(decoded, CheatEngineToolNames.CodeDecode);
 			return new CodeDecodeResult(instruction, instruction.Size);
 		}, cancellationToken);
@@ -454,7 +456,8 @@ public sealed class CodeTools
 				{
 					ICheatEngineClient client = _dispatch.Client;
 					MemoryTargets.RequireSameTarget(client, epoch, CheatEngineToolNames.CodeStartSearch, token);
-					return client.Assembly.Disassemble(current, token);
+					return CorrectColumns(_dispatch, client.Assembly.Disassemble(current, token),
+						CheatEngineToolNames.CodeStartSearch, token);
 				}, cancellationToken).ConfigureAwait(false);
 			CodeInstruction instruction = Instruction(decoded, CheatEngineToolNames.CodeStartSearch);
 			if (instruction.Text.Contains(textContains, StringComparison.OrdinalIgnoreCase))
@@ -466,6 +469,27 @@ public sealed class CodeTools
 			writer.Progress(Math.Min(consumed, size), size);
 			current = decoded.Address + decoded.Length;
 		}
+	}
+
+	/// <summary>Copies CE's actual display columns while retaining Client-owned instruction bytes and length.</summary>
+	/// <param name="dispatch">The enclosing Client dispatch.</param>
+	/// <param name="instruction">The typed instruction snapshot.</param>
+	/// <param name="operation">The tool name.</param>
+	/// <param name="cancellationToken">The enclosing dispatch token.</param>
+	/// <returns>The snapshot with corrected display columns.</returns>
+	internal static AssemblyInstructionSnapshot CorrectColumns(ToolDispatch dispatch,
+		AssemblyInstructionSnapshot instruction, string operation, CancellationToken cancellationToken)
+	{
+		if (instruction.Length <= 0)
+		{
+			throw NonPositiveLength(operation);
+		}
+
+		// Client 1.0 / SDK 2.0 follows the documented split order; CE 7.7 returns extra, opcode, bytes, address.
+		CodeLuaDisassemblyColumns columns = dispatch.ExecuteLua(operation, CodeScripts.DisassemblyColumns,
+			CodeLuaJsonContext.Default.CodeLuaDisassemblyColumns, cancellationToken, instruction.Address.Value);
+		return new AssemblyInstructionSnapshot(instruction.Address, instruction.Length, columns.AddressText,
+			columns.Opcode, columns.Extra, instruction.Bytes.AsSpan());
 	}
 
 	/// <summary>Copies one decoded instruction into the contract form.</summary>

@@ -8,6 +8,7 @@ using CheatEngine.Client.Results;
 using CheatEngine.Mcp.Core.Features;
 using CheatEngine.Mcp.Core.Values;
 using CheatEngine.Mcp.Tests.Support;
+using CheatEngine.Mcp.Tools.Code;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Values;
@@ -34,8 +35,14 @@ internal sealed class CodeGraphTarget
 			(nameof(ICheatEngineClient.Processes), ClientTestDouble.Create<IProcessClient>(Process)),
 			(nameof(ICheatEngineClient.Assembly), ClientTestDouble.Create<IAssemblyClient>(Disassemble)));
 		IOptions<McpExecutionOptions> execution = Options.Create(new McpExecutionOptions());
+		StateTestHarness lua = new();
+		lua.Answer<CodeLuaDisassemblyColumns>(_ =>
+		{
+			ulong address = Decoded[^1];
+			return new CodeLuaDisassemblyColumns(HexFormat.Address(address), _code[address].Opcode, string.Empty);
+		});
 		Dispatch = new ToolDispatch(Client, new McpFeatureGate(Options.Create(new McpFeatureOptions())), execution,
-			new DispatchStatistics(execution), TimeProvider.System, new RecordingLogger<ToolDispatch>());
+			new DispatchStatistics(execution), TimeProvider.System, new RecordingLogger<ToolDispatch>(), lua.FixedLua);
 	}
 
 	internal ICheatEngineClient Client

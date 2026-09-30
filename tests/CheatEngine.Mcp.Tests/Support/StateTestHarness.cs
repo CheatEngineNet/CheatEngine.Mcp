@@ -53,7 +53,7 @@ internal sealed class StateTestHarness
 		Client = ClientTestDouble.Client(dispatcher, Stopping.Token, (nameof(ICheatEngineClient.Lua), lua));
 		IOptions<McpExecutionOptions> execution = Options.Create(options ?? new McpExecutionOptions());
 		Dispatch = new ToolDispatch(Client, new McpFeatureGate(Options.Create(new McpFeatureOptions())), execution,
-			new DispatchStatistics(execution), Time, new RecordingLogger<ToolDispatch>(), new FixedLuaExecutor(this));
+			new DispatchStatistics(execution), Time, new RecordingLogger<ToolDispatch>(), FixedLua);
 		Ledger = withLedger ? new McpStateLedger(Dispatch, Time) : null;
 		Resources = new TargetResources(Ledger, Time);
 		Jobs = new JobRegistry(Dispatch, Resources, execution, Time);
@@ -81,6 +81,8 @@ internal sealed class StateTestHarness
 	{
 		get;
 	}
+
+	internal IFixedLuaExecutor FixedLua => new FixedLuaExecutor(this);
 
 	internal McpStateLedger? Ledger
 	{

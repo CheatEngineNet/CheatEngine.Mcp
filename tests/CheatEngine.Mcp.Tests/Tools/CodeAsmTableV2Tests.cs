@@ -37,6 +37,23 @@ public sealed class CodeAsmTableV2Tests : IDisposable
 	}
 
 	[Fact]
+	public void DisassemblyColumns_ClientColumnsMisordered_RetainsTypedBytesAndLength()
+	{
+		StateTestHarness harness = new();
+		harness.Answer<CodeLuaDisassemblyColumns>(_ => new CodeLuaDisassemblyColumns("game.exe+1000", "nop", "annotation"));
+		AssemblyInstructionSnapshot typed = new(new Address(0x401000), 1, "annotation", "90", "nop", [0x90]);
+
+		AssemblyInstructionSnapshot corrected = harness.Dispatch.Run("code_decode",
+			token => CodeTools.CorrectColumns(harness.Dispatch, typed, "code_decode", token), Token);
+
+		Assert.Equal((typed.Address, typed.Length), (corrected.Address, corrected.Length));
+		Assert.Equal(typed.Bytes, corrected.Bytes);
+		Assert.Equal(("game.exe+1000", "nop", "annotation"),
+			(corrected.AddressText, corrected.Opcode, corrected.Extra));
+		Assert.Equal(1, harness.Dispatches);
+	}
+
+	[Fact]
 	public void DisassembleBytes_UsesFixedBoundedLuaScript()
 	{
 		StateTestHarness harness = new();
@@ -602,8 +619,10 @@ public sealed class CodeAsmTableV2Tests : IDisposable
 				(nameof(ICheatEngineClient.Inspection), inspection), (nameof(ICheatEngineClient.Processes), processes),
 				(nameof(ICheatEngineClient.Assembly), assembly));
 			IOptions<McpExecutionOptions> execution = Options.Create(new McpExecutionOptions());
+			StateTestHarness lua = new();
+			lua.Answer<CodeLuaDisassemblyColumns>(_ => new CodeLuaDisassemblyColumns("401000", "nop", string.Empty));
 			Dispatch = new ToolDispatch(Client, new McpFeatureGate(Options.Create(new McpFeatureOptions())), execution,
-				new DispatchStatistics(execution), TimeProvider.System, new RecordingLogger<ToolDispatch>());
+				new DispatchStatistics(execution), TimeProvider.System, new RecordingLogger<ToolDispatch>(), lua.FixedLua);
 			Resources = new TargetResources();
 			Jobs = new JobRegistry(Dispatch, Resources, execution, TimeProvider.System);
 		}
