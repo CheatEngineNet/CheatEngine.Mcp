@@ -20,7 +20,7 @@
     <!-- Audit-source outages and low/moderate advisories are reported without blocking; high and critical fail. -->
     <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1900;NU1901;NU1902;NU1905</WarningsNotAsErrors>
     <PlatformTarget>x64</PlatformTarget>
-    <Version>2.0.0-beta.1</Version>
+    <Version>2.0.0-beta.2</Version>
     <Authors>CheatEngineNet</Authors>
     <Company>CheatEngineNet</Company>
     <RepositoryUrl>https://github.com/CheatEngineNet/CheatEngine.Mcp</RepositoryUrl>
