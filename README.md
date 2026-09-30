@@ -35,7 +35,7 @@ Run the gateway and Cheat Engine under the same Windows user account.
 
 Download and extract `CheatEngine.Mcp-2.0.0-beta.2-win-x64.zip` from the [beta release](https://github.com/CheatEngineNet/CheatEngine.Mcp/releases/tag/v2.0.0-beta.2).
 The ZIP includes the complete plugin folder, gateway executable, installation instructions, and licenses.
-Remove the old single-DLL plugin entry when upgrading from beta.1, then add `CheatEngine.Mcp.Plugin.dll` from the new folder as described below.
+When upgrading from beta.1, disable the plugin, close Cheat Engine and the gateway, and remove the old single-DLL plugin entry. Replace the complete plugin folder and gateway executable with the matching files from this release; do not mix versions. Then add `CheatEngine.Mcp.Plugin.dll` from the new folder as described below.
 
 To build the same layout from source instead, run this from the repository root with .NET SDK **10.0.401**, PowerShell 7, and the Windows C++ build tools required by Native AOT:
 

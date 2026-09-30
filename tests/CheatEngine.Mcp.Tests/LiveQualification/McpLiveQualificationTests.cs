@@ -140,6 +140,10 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			Assert.Empty((await SuccessfulCallAsync(instanceB, CheatEngineToolNames.RecordList))["records"]!.AsArray());
 
 			step = "instance A speedhack";
+			JsonNode debuggerState = await SuccessfulCallAsync(instanceA, CheatEngineToolNames.DebuggerGetStatus);
+			Assert.True(debuggerState["stateValid"]!.GetValue<bool>());
+			Assert.False(debuggerState["attached"]!.GetValue<bool>());
+			Assert.False(debuggerState["broken"]!.GetValue<bool>());
 			speedhackAttempted = true;
 			await AssertSpeedAsync(instanceA, 0.5);
 			Assert.Equal(1.0,

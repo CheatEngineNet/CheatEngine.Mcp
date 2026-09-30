@@ -487,7 +487,8 @@ public sealed class CodeTools
 
 		// Client 1.0 / SDK 2.0 follows the documented split order; CE 7.7 returns extra, opcode, bytes, address.
 		CodeLuaDisassemblyColumns columns = dispatch.ExecuteLua(operation, CodeScripts.DisassemblyColumns,
-			CodeLuaJsonContext.Default.CodeLuaDisassemblyColumns, cancellationToken, instruction.Address.Value);
+			CodeLuaJsonContext.Default.CodeLuaDisassemblyColumns, cancellationToken, instruction.Address.Value,
+			Convert.ToHexString(instruction.Bytes.AsSpan()));
 		return new AssemblyInstructionSnapshot(instruction.Address, instruction.Length, columns.AddressText,
 			columns.Opcode, columns.Extra, instruction.Bytes.AsSpan());
 	}
