@@ -34,7 +34,8 @@ Run the gateway and Cheat Engine under the same Windows user account.
 ### 1. Get the deployment files
 
 Download and extract `CheatEngine.Mcp-2.0.0-beta.2-win-x64.zip` from the [beta release](https://github.com/CheatEngineNet/CheatEngine.Mcp/releases/tag/v2.0.0-beta.2).
-The ZIP includes the complete plugin folder, gateway executable, installation instructions, and licenses.
+The ZIP includes **`CheatEngine.Mcp/CheatEngine.Mcp.Plugin.dll`**, every plugin dependency, the gateway executable, installation instructions, and licenses.
+Each release has one complete Windows x64 ZIP and `SHA256SUMS.txt`; separate plugin, skill, DLL, or EXE downloads are unnecessary.
 When upgrading from beta.1, disable the plugin, close Cheat Engine and the gateway, and remove the old single-DLL plugin entry. Replace the complete plugin folder and gateway executable with the matching files from this release; do not mix versions. Then add `CheatEngine.Mcp.Plugin.dll` from the new folder as described below.
 
 To build the same layout from source instead, run this from the repository root with .NET SDK **10.0.401**, PowerShell 7, and the Windows C++ build tools required by Native AOT:
@@ -269,6 +270,16 @@ pwsh -NoProfile -File eng/Publish.ps1 -Configuration Release
 Project dependencies are centrally versioned in [`Directory.Packages.props`](Directory.Packages.props) and locked per project.
 The plugin is framework-dependent inside Cheat Engine; the gateway is published as a self-contained Windows x64 Native AOT executable.
 The [contributor guide](CONTRIBUTING.md#build-and-test) covers CI checks, formatting, contract snapshots, and packaging.
+
+To build and package the standard release downloads, use:
+
+```powershell
+pwsh -NoProfile -File eng/Release.ps1
+```
+
+This runs the publish pipeline and writes one verified ZIP plus `SHA256SUMS.txt` under `artifacts/releases/<version>/`.
+To package an already published distribution without rebuilding it, pass `-DistributionPath artifacts/dist/release`.
+GitHub upload is explicit; see [Releases](CONTRIBUTING.md#releases).
 
 ## Verification
 
