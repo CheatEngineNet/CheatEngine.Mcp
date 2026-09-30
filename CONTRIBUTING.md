@@ -117,6 +117,34 @@ Maintainers name the checks a change must pass with these gates:
 
 A pull request needs V+ at least, and VN when it touches Lua.
 
+## Releases
+
+[`eng/Release.ps1`](eng/Release.ps1) is the maintained release entry point.
+Every release contains exactly two uploaded assets: `CheatEngine.Mcp-<version>-win-x64.zip` and `SHA256SUMS.txt`.
+The ZIP contains the complete `CheatEngine.Mcp/` plugin folder, including `CheatEngine.Mcp.Plugin.dll` and its dependencies, the gateway executable, installation instructions and licenses.
+Operator guidance is served as MCP resources and prompts; there is no separate skill ZIP.
+
+1. Set `Version` in `Directory.Build.props`, merge the change into `main`, and pass the required checks.
+2. From the clean tested checkout, build and package with `pwsh -NoProfile -File eng/Release.ps1`.
+   This invokes `eng/Publish.ps1`, including its native gateway smoke check, then verifies every ZIP entry against the distribution and generates checksums.
+3. Create and push the annotated `v<version>` tag at the binaries' source commit. The script validates that the plugin, product DLLs, gateway and remote tag agree; it never creates or moves tags.
+4. Upload a draft, review its notes and files, then publish:
+
+```powershell
+pwsh -NoProfile -File eng/Release.ps1 -DistributionPath artifacts/dist/release -Upload
+pwsh -NoProfile -File eng/Release.ps1 -DistributionPath artifacts/dist/release -Upload -Publish
+```
+
+Use `-NotesFile <path>` for reviewed release notes; existing notes are preserved when it is omitted.
+Prerelease status follows the version suffix. Upload alone leaves new releases as drafts and preserves an existing release's published status.
+`-WhatIf` performs no build, writes or GitHub changes.
+
+Assets are staged under `artifacts/releases/<version>/`; `-OutputDirectory` selects another output folder.
+The script reuses a valid existing ZIP, writes newly packaged ZIPs with stable ordering and timestamps, verifies uploaded SHA-256 digests and skips matching assets on repeat runs.
+Changed binary assets are refused: issue a new version instead of replacing a published payload.
+The checksum file can be updated, and known old standalone DLL, EXE, plugin ZIP and skill ZIP assets are removed only after the standard downloads have been verified on GitHub.
+Unrecognized output files or release assets stop the operation for review.
+
 ## Packages and lock files
 
 - Package versions are managed centrally in [`Directory.Packages.props`](Directory.Packages.props), with transitive pinning; a `PackageReference` never carries a `Version`.
