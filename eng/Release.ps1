@@ -72,8 +72,12 @@ try {
         return
     }
     if (-not $DistributionPath) {
-        if (($Upload -or $Publish) -and @(git status --porcelain).Count) {
-            throw 'Building a GitHub release requires a clean checkout; commit or preserve local changes first.'
+        if ($Upload -or $Publish) {
+            $status = @(git status --porcelain)
+            if ($LASTEXITCODE -ne 0) { throw 'git status failed; cannot confirm a clean checkout.' }
+            if ($status.Count) {
+                throw 'Building a GitHub release requires a clean checkout; commit or preserve local changes first.'
+            }
         }
         & (Join-Path $PSScriptRoot 'Publish.ps1') -Configuration Release
         $DistributionPath = Join-Path $repoRoot 'artifacts/dist/release'

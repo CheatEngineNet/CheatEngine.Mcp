@@ -109,6 +109,18 @@ public sealed class ReleaseScriptTests
 	}
 
 	[Fact]
+	public async Task Package_FailedCheckoutInspection_RefusesBeforeBuildOrOutput()
+	{
+		await using DistributionFixture fixture = new();
+
+		RunResult run = await fixture.RunWithFailedCheckoutAsync();
+
+		Assert.NotEqual(0, run.ExitCode);
+		Assert.Contains("git status failed; cannot confirm a clean checkout", run.Output, StringComparison.Ordinal);
+		Assert.False(Directory.Exists(fixture.Output));
+	}
+
+	[Fact]
 	public async Task Package_OutputInsideDistribution_RefusesWithoutWritingAssets()
 	{
 		await using DistributionFixture fixture = new();
@@ -172,7 +184,17 @@ public sealed class ReleaseScriptTests
 			return new ValueTask(TestDirectory.DeleteAsync(_root));
 		}
 
-		internal async Task<RunResult> RunAsync(params string[] extra)
+		internal Task<RunResult> RunWithFailedCheckoutAsync()
+		{
+			return RunAsync(true, ["-Upload"]);
+		}
+
+		internal Task<RunResult> RunAsync(params string[] extra)
+		{
+			return RunAsync(false, extra);
+		}
+
+		private async Task<RunResult> RunAsync(bool invalidCheckout, string[] extra)
 		{
 			ProcessStartInfo start = new("pwsh")
 			{
@@ -182,11 +204,24 @@ public sealed class ReleaseScriptTests
 				RedirectStandardError = true,
 				WorkingDirectory = RepositoryPaths.Root
 			};
-			string[] arguments = ["-NoProfile", "-File", Path.Combine(RepositoryPaths.Root, "eng", "Release.ps1"),
-				"-DistributionPath", Distribution];
+			string script = Path.Combine(RepositoryPaths.Root, "eng", "Release.ps1");
+			if (invalidCheckout)
+			{
+				string scripts = Directory.CreateDirectory(Path.Combine(_root, "eng")).FullName;
+				string copy = Path.Combine(scripts, "Release.ps1");
+				File.Copy(script, copy);
+				script = copy;
+				start.Environment["GIT_DIR"] = Path.Combine(_root, "missing-git-directory");
+			}
+			string[] arguments = ["-NoProfile", "-File", script];
 			foreach (string argument in arguments)
 			{
 				start.ArgumentList.Add(argument);
+			}
+			if (!invalidCheckout)
+			{
+				start.ArgumentList.Add("-DistributionPath");
+				start.ArgumentList.Add(Distribution);
 			}
 			if (!extra.Contains("-OutputDirectory", StringComparer.Ordinal))
 			{
