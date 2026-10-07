@@ -93,6 +93,11 @@ Only the gateway's local stdio and authenticated loopback backend connections ar
 6. Record CE A and B process identifiers, activation identities, instance identifiers, private bytes, handle counts, and runtime capability evidence.
 7. Refuse the run if a path escapes the run directory, a payload hash differs, a private copy differs, or an unrelated CE-like process appears.
 
+CE's scanner creates an exclusive four-byte PID lease at `Cheat Engine/{GUID}/inuse.lock` below each private temporary root.
+When that exact path and length produce a Windows sharing violation, record its path, length, and exclusive-lease status with an unavailable hash; never claim its unreadable bytes were compared.
+All other unreadable files still stop qualification, and this exception never applies to an assembly, output, or reference file.
+Temporary-inventory comparisons cover readable file hashes and the path/length of these explicitly recorded leases.
+
 ## Phase 1: disabled gate before compiler admission
 
 1. Start host A with `EnableTargetCodeExecution=false` and the other three effect gates false.

@@ -50,7 +50,9 @@ internal static class LiveCompilerQualification
 		{
 			noCompilerReceipt = true,
 			noOutput = true,
-			tempUnchanged = true
+			tempInventoryUnchanged = true,
+			exclusiveScanLeases = before.Count(file => file.ExclusiveScanLease),
+			limitation = "Exclusive CE scan leases are compared by path and length; their bytes cannot be read while CE holds them."
 		});
 		sandbox.MarkPassed();
 	}
@@ -345,7 +347,21 @@ internal static class LiveCompilerQualification
 				else
 				{
 					Assert.True(files.Count < 256, "The compiler scratch tree exceeds the bounded file inventory.");
-					files.Add(ReadFile(sandbox, entry, root));
+					try
+					{
+						files.Add(ReadFile(sandbox, entry, root));
+					}
+					catch (IOException exception) when ((exception.HResult & 0xffff) == 32 &&
+						(root == sandbox.CompilerA.Temp || root == sandbox.CompilerB.Temp))
+					{
+						RequireOwnedPath(sandbox, entry, root);
+						long length = new FileInfo(entry).Length;
+						if (!IsExpectedScanLease(Path.GetRelativePath(root, entry), length))
+						{
+							throw;
+						}
+						files.Add(new FileFact(Path.GetRelativePath(sandbox.RunDirectory, entry), length, null, true));
+					}
 				}
 			}
 		}
@@ -381,5 +397,11 @@ internal static class LiveCompilerQualification
 		}
 	}
 
-	private sealed record FileFact(string Path, long Length, string Sha256);
+	internal static bool IsExpectedScanLease(string relativePath, long length)
+	{
+		string[] parts = relativePath.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar]);
+		return length == 4 && parts is ["Cheat Engine", var id, "inuse.lock"] && Guid.TryParseExact(id, "B", out _);
+	}
+
+	private sealed record FileFact(string Path, long Length, string? Sha256, bool ExclusiveScanLease = false);
 }
