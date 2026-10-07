@@ -21,6 +21,11 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 	public async Task OneGateway_TwoOwnedInstances_RoutesStateAndSurvivesOneHostShutdown()
 	{
 		LiveQualificationInputs inputs = fixture.RequireAuthorization();
+		if (inputs.Scenario == LiveQualificationScenario.Compiler)
+		{
+			await LiveCompilerQualification.RunAsync(inputs);
+			return;
+		}
 		await using LiveSandboxSession sandbox = await LiveSandboxSession.StartAsync(inputs);
 		await using LiveMcpClient gateway = await LiveMcpClient.ConnectGatewayAsync(sandbox.GatewayExecutablePath,
 				sandbox.InstanceDirectory,

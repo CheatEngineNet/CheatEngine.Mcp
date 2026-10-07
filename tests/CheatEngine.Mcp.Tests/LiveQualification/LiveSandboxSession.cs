@@ -24,6 +24,7 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 	private readonly SandboxLayout _layout;
 	private readonly Dictionary<string, object?> _report = new(StringComparer.Ordinal);
 	private readonly FileStream _runLock;
+	private readonly LiveSandboxOptions _options;
 	private DebugOutputCapture? _debugOutput;
 	private bool _disposed;
 	private InstallationFingerprint? _fingerprint;
@@ -37,10 +38,11 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 	private CheatEngineRegistryGuard? _stateGuard;
 	private ICheatEngineUserStateScope? _userState;
 
-	private LiveSandboxSession(SandboxLayout layout, FileStream runLock)
+	private LiveSandboxSession(SandboxLayout layout, FileStream runLock, LiveSandboxOptions options)
 	{
 		_layout = layout;
 		_runLock = runLock;
+		_options = options;
 		_report["schema"] = "cheatengine-mcp-live-multi-instance/v1";
 		_report["runId"] = layout.RunId;
 		InstanceDirectory = Path.Combine(layout.RunDirectory, "instances");
@@ -58,6 +60,12 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 	}
 
 	public string TargetArchitecture => _targetArchitecture;
+
+	public string RunDirectory => _layout.RunDirectory;
+
+	public LiveCompilerRoots CompilerA => CompilerRoots("A");
+
+	public LiveCompilerRoots CompilerB => CompilerRoots("B");
 
 	public LiveSandboxHost HostA => GetHost("A");
 	public LiveSandboxHost HostB => GetHost("B");
@@ -133,6 +141,11 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 					}
 				}, failures);
 			}
+
+			if (_options.CompilerQualification && failures.Count == 0 && _hosts.Values.All(host => host.Stopped))
+			{
+				TryCleanup(CleanupCompilerRoots, failures);
+			}
 		}
 		finally
 		{
@@ -155,8 +168,20 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 		}
 	}
 
-	public static async Task<LiveSandboxSession> StartAsync(LiveQualificationInputs inputs)
+	public static async Task<LiveSandboxSession> StartAsync(LiveQualificationInputs inputs,
+		LiveSandboxOptions? options = null)
 	{
+		LiveSandboxOptions selected = options ?? LiveSandboxOptions.Smoke;
+		if (selected.CompilerQualification != (inputs.Scenario == LiveQualificationScenario.Compiler))
+		{
+			throw new InvalidOperationException("Compiler sandbox options must exactly match the authorized live scenario.");
+		}
+		if (selected.CompilerQualification)
+		{
+			LiveCompilerPayload.RequireReviewedHashes();
+			LiveCompilerBridge.RequireReviewedHash();
+		}
+
 		RequireNoCheatEngine();
 		FileStream runLock = new(Path.Combine(Path.GetTempPath(), "CheatEngine.Mcp.LiveTests.lock"),
 			FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
@@ -164,7 +189,7 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 		try
 		{
 			SandboxLayout layout = SandboxLayout.Create(inputs.RunRoot, DateTimeOffset.UtcNow);
-			sandbox = new LiveSandboxSession(layout, runLock);
+			sandbox = new LiveSandboxSession(layout, runLock, selected);
 			Console.WriteLine($"Live evidence: {layout.RunDirectory}");
 			await sandbox.StartCoreAsync(inputs);
 			return sandbox;
@@ -235,6 +260,46 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 		{
 			throw new AggregateException($"Live host {name} did not stop cleanly.", failures);
 		}
+	}
+
+	/// <summary>Runs one fixed compiler availability or compile probe through the test-owned private autorun bridge.</summary>
+	public async Task<JsonNode> CompilerProbeAsync(string hostName, string command)
+	{
+		if (!_options.CompilerQualification || command is not ("status" or "compile"))
+		{
+			throw new ArgumentOutOfRangeException(nameof(command));
+		}
+
+		if (!_hosts.TryGetValue(hostName, out OwnedHost? host) || host.Process is null || host.Stopped)
+		{
+			throw new InvalidOperationException($"Owned host '{hostName}' is not running.");
+		}
+
+		string request = Path.Combine(_layout.RunDirectory, $"compiler-request-{hostName}.txt");
+		string response = Path.Combine(_layout.RunDirectory, $"compiler-response-{hostName}.txt");
+		RequireInsideRun(request);
+		RequireInsideRun(response);
+		File.Delete(response);
+		await File.WriteAllTextAsync(request, command);
+		await WaitUntilAsync(() => File.Exists(response), host.Process, TimeSpan.FromSeconds(10));
+		string[] lines = await File.ReadAllLinesAsync(response);
+		if (lines.Length is < 3 or > 4 || lines[0] != "ok" || !bool.TryParse(lines[1], out bool available) ||
+			!int.TryParse(lines[2], NumberStyles.None, CultureInfo.InvariantCulture, out int receipts))
+		{
+			throw new InvalidOperationException("Fixed compiler bridge returned an invalid bounded response.");
+		}
+
+		JsonObject result = new()
+		{
+			["available"] = available,
+			["receiptCount"] = receipts
+		};
+		if (lines.Length == 4)
+		{
+			result[available ? "assemblyPath" : "diagnostic"] = lines[3];
+		}
+
+		return result;
 	}
 
 	/// <summary>Restarts only the disposable target for one still-running private CE host and publishes a fresh manifest.</summary>
@@ -358,6 +423,18 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 		_fingerprint = CheatEngineInstallation.Fingerprint(_source, _profile);
 		_runtimeHash = HashIfExists(Path.Combine(_source, "ce.runtimeconfig.json"));
 		Record("host", _profile);
+		if (_options.CompilerQualification)
+		{
+			CreateCompilerRoots("A");
+			CreateCompilerRoots("B");
+			Record("compiler_configuration", new
+			{
+				targetCodeExecution = _options.EnableTargetCodeExecution,
+				unsafeLua = false,
+				autoAssembler = false,
+				kernelAccess = false
+			});
+		}
 		Directory.CreateDirectory(InstanceDirectory);
 		PrepareDistribution(repository);
 		PrepareHostInstallation("A");
@@ -457,6 +534,28 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 		RequireInsideRun(pluginDirectory);
 		Directory.CreateDirectory(pluginDirectory);
 		File.Copy(Path.Combine(pluginSource, PluginFileName), Path.Combine(pluginDirectory, PluginFileName));
+		if (_options.CompilerQualification)
+		{
+			LiveCompilerRoots roots = CompilerRoots(name);
+			File.WriteAllText(Path.Combine(pluginDirectory, "appsettings.json"), JsonSerializer.Serialize(new
+			{
+				Mcp = new
+				{
+					EnableUnsafeLua = false,
+					EnableAutoAssembler = false,
+					EnableTargetCodeExecution = _options.EnableTargetCodeExecution,
+					EnableKernelAccess = false,
+					Files = new
+					{
+						AllowedRoots = new[] { roots.Output }
+					}
+				},
+				CheatEngineClient = new
+				{
+					AllowedTableRoots = Array.Empty<string>()
+				}
+			}));
+		}
 		string pluginPath = Path.Combine(pluginDirectory, PluginFileName);
 		VerifyDistributionStaging(name, pluginSource, pluginDirectory);
 		Record($"plugin_{name}_sha256", CheatEngineInstallation.Sha256(pluginPath));
@@ -484,6 +583,12 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 			hostStart.Environment["MCP_DATA_DIRECTORY"] = Path.Combine(_layout.RunDirectory, "plugin-data", name);
 			hostStart.Environment["MCP_INSTANCE_DIRECTORY"] = InstanceDirectory;
 			hostStart.Environment["MCP_INSTANCE_NAME"] = $"Live Qualification {name}";
+			if (_options.CompilerQualification)
+			{
+				LiveCompilerRoots roots = CompilerRoots(name);
+				hostStart.Environment["TEMP"] = roots.Temp;
+				hostStart.Environment["TMP"] = roots.Temp;
+			}
 			host = Process.Start(hostStart) ??
 				   throw new InvalidOperationException($"Private CE host {name} did not start.");
 			owned.Process = host;
@@ -602,7 +707,7 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 			manifest["zeroPointerRootAddress"]!.GetValue<string>(), manifest["unreadableRootAddress"]!.GetValue<string>());
 	}
 
-	private static string DistributionDirectory(string repository, string configuration)
+	internal static string DistributionDirectory(string repository, string configuration)
 	{
 		string? custom = Environment.GetEnvironmentVariable("CHEATENGINE_MCP_LIVE_QUALIFICATION_DISTRIBUTION_DIRECTORY");
 		if (custom is not null && !Path.IsPathFullyQualified(custom))
@@ -616,7 +721,10 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 	private void VerifyDistributionStaging(string name, string pluginSource, string pluginDirectory)
 	{
 		string[] pluginFiles = RelativeFiles(pluginDirectory);
-		if (!pluginFiles.SequenceEqual([PluginFileName], StringComparer.Ordinal)
+		string[] expectedPluginFiles = _options.CompilerQualification
+			? [PluginFileName, "appsettings.json"]
+			: [PluginFileName];
+		if (!pluginFiles.SequenceEqual(expectedPluginFiles, StringComparer.Ordinal)
 			|| CheatEngineInstallation.Sha256(Path.Combine(pluginSource, PluginFileName)) !=
 			CheatEngineInstallation.Sha256(Path.Combine(pluginDirectory, PluginFileName)))
 		{
@@ -799,6 +907,10 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 
 	private string BuildDriver(string stopPath, string pluginPath, string name)
 	{
+		string compilerProbe = _options.CompilerQualification
+			? LiveCompilerBridge.Render(Path.Combine(_layout.RunDirectory, $"compiler-request-{name}.txt"),
+				Path.Combine(_layout.RunDirectory, $"compiler-response-{name}.txt"), LiveCompilerPayload.ValidSource, LuaString)
+			: "local function compilerProbe() end";
 		return $$"""
 		         local output = {{LuaString(Path.Combine(_layout.RunDirectory, $"driver-{name}.log"))}}
 		         local function log(value)
@@ -841,6 +953,7 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 		           response:write(ok and answer or ('error: '..tostring(answer))); response:close()
 		           os.rename(responsePath..'.tmp',responsePath)
 		         end
+		         {{compilerProbe}}
 		         local timer = createTimer(nil, false)
 		         timer.Interval = 100
 		         timer.OnTimer = function()
@@ -852,7 +965,7 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 		             pcall(function() getAddressList().clear() end)
 		             closeCE(); return
 		           end
-		           if loaded then scanProbe(); return end
+		           if loaded then scanProbe(); compilerProbe(); return end
 		           if not getMainForm() then return end
 		           loaded = true
 		           hideAllCEWindows()
@@ -1013,6 +1126,72 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 	private string HostInstallationDirectory(string name)
 	{
 		return Path.Combine(_layout.RunDirectory, $"ce-{name}");
+	}
+
+	private LiveCompilerRoots CompilerRoots(string name)
+	{
+		if (!_options.CompilerQualification)
+		{
+			throw new InvalidOperationException("Compiler roots were not admitted for this live session.");
+		}
+
+		string root = Path.Combine(_layout.RunDirectory, "compiler", name);
+		return new LiveCompilerRoots(Path.Combine(root, "temp"), Path.Combine(root, "references"),
+			Path.Combine(root, "output"));
+	}
+
+	private void CreateCompilerRoots(string name)
+	{
+		LiveCompilerRoots roots = CompilerRoots(name);
+		foreach (string path in new[] { roots.Temp, roots.References, roots.Output })
+		{
+			RequireInsideRun(path);
+			Directory.CreateDirectory(path);
+		}
+	}
+
+	private void CleanupCompilerRoots()
+	{
+		string compilerRoot = Path.Combine(_layout.RunDirectory, "compiler");
+		RequireInsideRun(compilerRoot);
+		if (!Directory.Exists(compilerRoot))
+		{
+			return;
+		}
+
+		RequireNoReparseAncestors(compilerRoot);
+		CleanupCompilerDirectory(compilerRoot);
+		Directory.Delete(compilerRoot, false);
+		Record("ownedCompilerFilesRemoved", true);
+	}
+
+	private void CleanupCompilerDirectory(string directory)
+	{
+		foreach (string entry in Directory.EnumerateFileSystemEntries(directory))
+		{
+			RequireInsideRun(entry);
+			FileAttributes attributes = File.GetAttributes(entry);
+			if ((attributes & FileAttributes.ReparsePoint) != 0)
+			{
+				throw new IOException("Compiler cleanup refused a reparse-point entry.");
+			}
+
+			if ((attributes & FileAttributes.Directory) != 0)
+			{
+				CleanupCompilerDirectory(entry);
+				Directory.Delete(entry, false);
+			}
+			else
+			{
+				File.Delete(entry);
+			}
+		}
+	}
+
+	private void RequireNoReparseAncestors(string path)
+	{
+		RequireInsideRun(path);
+		LiveCompilerCandidate.RequireNoReparseAncestors(path);
 	}
 
 	private static string? HashIfExists(string path)

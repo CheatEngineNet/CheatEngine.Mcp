@@ -1,10 +1,10 @@
 # Local roadmap implementation checkpoint
 
 Date: 2026-10-08.
-Status: Working-tree evidence, not a stable release or a clean-commit qualification.
+Status: Historical working-tree evidence, not a stable release or a clean-commit qualification.
 
-The branch is `codex/roadmap-v2`, based on `c51a0ec3af373c852cda062a91888ad94fa0cce9`, with uncommitted implementation changes.
-The binaries still identify as `2.0.0-beta.2` and embed that base commit; that identity does not identify the modified source tree.
+These checks ran on `codex/roadmap-v2`, based on `c51a0ec3af373c852cda062a91888ad94fa0cce9`, before the implementation was committed locally as `b0e42752958b6b2b861d56f4e87b0d48d48d0514`.
+The tested binaries identify as `2.0.0-beta.2` and embed the earlier base commit; that identity does not identify the modified source tree.
 The package hashes below identify the actual tested bytes.
 A future clean candidate must repeat the final-source and final-package gates in [release-signoff.md](release-signoff.md).
 
@@ -77,7 +77,8 @@ No native compiler, injection, debugger capture, kernel, or hypervisor probe ran
 
 ## Remaining release work
 
-The compiler's actual availability, diagnostics, prerequisites, raw temporary-file lifetime, and separate injection remain pending the [proposed compiler policy](compiler-probe-policy.md).
+At this checkpoint, the compiler's actual availability, diagnostics, prerequisites, raw temporary-file lifetime, and separate injection remained unqualified.
+Compiler-only phases 1 through 4 of the [compiler policy](compiler-probe-policy.md) were subsequently approved for this session; separate injection remains unapproved.
 The broader workflow matrix, repeated activation recovery, measured performance baselines, two-hour soak, installation/upgrade/rollback, named MCP clients, CI and analysis, clean final source identity, version/tag change, and public release verification remain open.
 The completed working-tree checks do not close any of those requirements.
 See [release notes](release-notes.md) for the draft migration path and [release-signoff.md](release-signoff.md) for final gates.

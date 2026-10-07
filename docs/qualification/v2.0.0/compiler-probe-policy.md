@@ -21,8 +21,9 @@ An injection phase is a separate exception within this policy and remains disabl
 
 The runner must continue to require the existing live acknowledgement and every existing VL safety check.
 The runner must also require a second exact acknowledgement dedicated to this exception.
-The proposed variable is `CHEATENGINE_MCP_LIVE_CODE_EXECUTION_QUALIFICATION`.
-The proposed value is `I_AUTHORIZE_FIXED_COMPILECS_PROBES_ON_PRIVATE_CE_AND_OWNED_TARGETS`.
+The variable is `CHEATENGINE_MCP_LIVE_CODE_EXECUTION_QUALIFICATION`.
+The value is `I_AUTHORIZE_FIXED_COMPILECS_PROBES_ON_PRIVATE_CE_AND_OWNED_TARGETS`.
+The runner must also select `CHEATENGINE_MCP_LIVE_QUALIFICATION_SCENARIO=compiler`; ordinary smoke qualification remains the default.
 The second acknowledgement must be absent by default, refused in CI, and evaluated before a CE process, target, run directory, or user-state backup is created.
 The run report must record that both acknowledgements were present without recording their environment blocks or any discovery token.
 Approval applies to one reviewed candidate commit, package hash, policy revision, fixed payload hash set, and operator session.
@@ -31,6 +32,7 @@ Changing any of those facts requires a new review before another run.
 ## Fixed compiler payloads
 
 The valid payload is the following exact source with UTF-8 encoding and LF line endings inside the compiler argument.
+It has no trailing newline.
 
 ```csharp
 public static class CheatEngineMcpCompileCsProbe
@@ -61,13 +63,15 @@ The runner must compare the runtime payload hashes with the reviewed expected ha
 - The existing registry and application-data backup guard is armed before either private CE copy starts.
 - Private CE copies A and B use only the candidate plugin copy, one shared private instance registry, and the candidate gateway copy.
 - Owned disposable managed fixtures exist for x86 and x64 and contain no input, window, network listener, persistent state, or unrelated workload.
-- Each fixture loads the runtime required by `exec_inject_dotnet`, publishes only its process identity and bounded stop marker, and exits on that marker or its deadline.
+- Each fixture publishes its owned process identity and bounded stop marker and exits on that marker or its deadline; the runtime required by `exec_inject_dotnet` is a separate prerequisite of optional phase 5.
 - The compiler prerequisite inventory is read-only and records whether CE exposes `compileCS` and which compiler or framework dependency CE reports.
 - No dependency, framework, compiler, certificate, registry value, driver, or runtime is installed or changed during the run.
 
 ## Run-owned paths and configuration
 
 Each host receives a distinct `TEMP` and `TMP` directory below its live run directory before process start.
+Refuse compiler admission when Cheat Engine's saved `Don't use tempdir` setting is enabled, because its `Scanfolder` value can override those environment variables.
+Do not alter that setting to admit a run.
 Host A uses `<run>/compiler/A/temp`, `<run>/compiler/A/references`, and `<run>/compiler/A/output`.
 Host B uses `<run>/compiler/B/temp`, `<run>/compiler/B/references`, and `<run>/compiler/B/output`.
 The fixed invalid-reference file is created only below host A's reference directory.
@@ -123,6 +127,10 @@ Only the gateway's local stdio and authenticated loopback backend connections ar
 8. Repeat the missing and invalid cases for `coreAssembly` only when the supported CE signature accepts that optional argument.
 9. Stop the phase if CE loads or executes an invalid reference, publishes an output after a reported failure, or changes a file outside host A's run-owned roots.
 
+Expected compiler diagnostics currently report `host_refused` with `hostEffect=unknown`, because CE may have created temporary compiler files before failing.
+Require that exact bounded error shape for invalid compiler inputs, record the changed owned temporary files, and prove that no destination or protected partial output was published.
+This expected failure case does not authorize continuing after a timeout, lost response, unexpected error shape, or unaccounted file effect.
+
 ## Phase 4: raw CE temporary output lifetime
 
 This phase uses one reviewed qualification-only fixed bridge that calls `compileCS` with the valid payload and returns only the generated filename.
@@ -134,7 +142,7 @@ The bridge must not inject, load, invoke, delete, rename, or copy the generated 
 3. Stop immediately if the raw path is outside A's run-owned temp directory, and do not read, delete, or otherwise modify an out-of-scope path.
 4. Record the raw file's length and SHA-256 through a read-only held handle.
 5. Keep the exported `<run>/compiler/A/output/probe.dll` from phase 2 and record its length and SHA-256 again.
-6. Stop private host B normally while A and both owned fixtures remain under harness control.
+6. Stop private host B and its owned fixture normally while A and A's owned fixture remain under harness control.
 7. Wait for B to exit and for a fixed two-second filesystem quiet interval.
 8. Record whether the raw A artifact exists, and record its length and hash again only when it still exists.
 9. Require the exported artifact to exist with its original length and hash after B exits.
@@ -148,6 +156,7 @@ The bridge must not inject, load, invoke, delete, rename, or copy the generated 
 This sequence distinguishes raw CE expiry from export retention because the raw file and exported file have separate paths, hashes, observations, and ownership.
 No missing raw file may be reported as a missing exported file.
 No retained exported file may be used to claim that CE's raw file survived.
+Because A and B use distinct temporary directories, this sequence qualifies that isolated configuration only; it does not establish cleanup behavior when CE instances share a temporary directory.
 
 ## Optional phase 5: separate managed injection
 
@@ -181,8 +190,9 @@ It must not record bearer tokens, discovery-record bodies, absolute personal pat
 
 Stop before launch when approval, either acknowledgement, a required gate, a candidate hash, a payload hash, or a fixture identity is missing or different.
 Stop before the compiler call when the source installation, reviewed autorun set, private copy, backup guard, run roots, or process inventory fails validation.
-Stop during the run on any kernel, DBVM, debugger, Auto Assembler, unsafe-Lua, external-network, shell, process-launch, or non-fixture target activity.
-Stop on an out-of-root raw path, cross-instance effect, cross-target effect, unexpected file, unbounded diagnostic, crash, hang, timeout, lost response, unknown mutation, or false success.
+Stop during the run on any kernel, DBVM, debugger, Auto Assembler, unsafe-Lua, external-network, shell, unexpected process-launch, or non-fixture target activity.
+The reviewed CodeDOM compiler backend may start its installed C# compiler as part of compilation; this exception does not permit source-controlled process launches or execution of the generated assembly.
+Stop on an out-of-root raw path, cross-instance effect, cross-target effect, unexpected file, unbounded diagnostic, crash, hang, timeout, lost response, unexpected or unaccounted mutation, or false success.
 Stop on failure to withdraw a stopped instance, stop an owned process, restore user state, preserve the source installation, or account for an owned output.
 After a stop, do not retry a compile or injection automatically.
 

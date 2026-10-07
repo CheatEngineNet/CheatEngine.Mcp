@@ -6,6 +6,17 @@ public sealed class LiveQualificationOptInTests
 	private const string Installation = "C:/Program Files/Cheat Engine";
 	private const string LocalData = "C:/Users/test/AppData/Local";
 
+	[Fact]
+	public void CompilerPayload_ReviewedUtf8LfSource_MatchesExpectedHash()
+	{
+		Assert.DoesNotContain("\r", LiveCompilerPayload.ValidSource, StringComparison.Ordinal);
+		Assert.Equal(LiveCompilerPayload.ValidSha256, LiveCompilerPayload.Sha256(LiveCompilerPayload.ValidSource));
+		Assert.Equal(LiveCompilerPayload.InvalidSourceSha256, LiveCompilerPayload.Sha256(LiveCompilerPayload.InvalidSource));
+		Assert.Equal(LiveCompilerPayload.InvalidReferenceSha256, LiveCompilerPayload.Sha256(LiveCompilerPayload.InvalidReference));
+		LiveCompilerPayload.RequireReviewedHashes();
+		LiveCompilerBridge.RequireReviewedHash();
+	}
+
 	[Theory]
 	[InlineData(null)]
 	[InlineData("")]
@@ -57,7 +68,70 @@ public sealed class LiveQualificationOptInTests
 		Assert.Equal(Path.GetFullPath(Installation), decision.Inputs!.CheatEngineDirectory);
 		Assert.Equal(Path.GetFullPath(LocalData + "/CheatEngine.Mcp.LiveQualification/runs"), decision.Inputs.RunRoot);
 		Assert.Equal("x64", decision.Inputs.TargetArchitecture);
+		Assert.Equal(LiveQualificationScenario.Smoke, decision.Inputs.Scenario);
 		Assert.False(LiveQualificationOptIn.IsSameOrBelow(decision.Inputs.RunRoot, Repository));
+	}
+
+	[Fact]
+	public void Evaluate_CompilerScenarioWithSecondAcknowledgement_Authorizes()
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.ScenarioVariable] = "compiler";
+		variables[LiveQualificationOptIn.CodeExecutionOptInVariable] = LiveQualificationOptIn.CodeExecutionAcknowledgement;
+
+		LiveQualificationDecision decision = Evaluate(variables);
+
+		Assert.True(decision.IsAuthorized, decision.Refusal);
+		Assert.Equal(LiveQualificationScenario.Compiler, decision.Inputs!.Scenario);
+	}
+
+	[Theory]
+	[InlineData(null)]
+	[InlineData("")]
+	[InlineData("I_AUTHORIZE_SOMETHING_ELSE")]
+	public void Evaluate_CompilerScenarioWithoutExactSecondAcknowledgement_RefusesBeforeDirectoryInspection(
+		string? acknowledgement)
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.ScenarioVariable] = "compiler";
+		variables[LiveQualificationOptIn.CodeExecutionOptInVariable] = acknowledgement;
+
+		LiveQualificationDecision decision = LiveQualificationOptIn.Evaluate(variables.GetValueOrDefault,
+			Repository, LocalData, Installation, _ => throw new InvalidOperationException("No directory inspection expected."));
+
+		Assert.False(decision.IsAuthorized);
+		Assert.Contains(LiveQualificationOptIn.CodeExecutionOptInVariable, decision.Refusal, StringComparison.Ordinal);
+	}
+
+	[Theory]
+	[InlineData("COMpiler")]
+	[InlineData("inject")]
+	[InlineData("compiler ")]
+	public void Evaluate_UnknownScenario_RefusesBeforeDirectoryInspection(string scenario)
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.ScenarioVariable] = scenario;
+
+		LiveQualificationDecision decision = LiveQualificationOptIn.Evaluate(variables.GetValueOrDefault,
+			Repository, LocalData, Installation, _ => throw new InvalidOperationException("No directory inspection expected."));
+
+		Assert.False(decision.IsAuthorized);
+		Assert.Contains(LiveQualificationOptIn.ScenarioVariable, decision.Refusal, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Evaluate_CompilerScenarioWithTempdirDisabled_RefusesBeforeDirectoryInspection()
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.ScenarioVariable] = "compiler";
+		variables[LiveQualificationOptIn.CodeExecutionOptInVariable] = LiveQualificationOptIn.CodeExecutionAcknowledgement;
+
+		LiveQualificationDecision decision = LiveQualificationOptIn.Evaluate(variables.GetValueOrDefault,
+			Repository, LocalData, Installation, _ => throw new InvalidOperationException("No directory inspection expected."),
+			static () => false);
+
+		Assert.False(decision.IsAuthorized);
+		Assert.Contains("Don't use tempdir", decision.Refusal, StringComparison.Ordinal);
 	}
 
 	[Fact]

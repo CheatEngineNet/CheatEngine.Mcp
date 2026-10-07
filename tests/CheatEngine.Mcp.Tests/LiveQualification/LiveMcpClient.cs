@@ -30,15 +30,23 @@ internal sealed class LiveMcpClient : IAsyncDisposable, ILiveMcpToolClient
 
 	public async Task<JsonNode?> CallToolAsync(string name, IReadOnlyDictionary<string, object?>? arguments = null)
 	{
+		LiveMcpToolResult result = await CallToolRawAsync(name, arguments);
+		if (result.IsError)
+		{
+			throw new InvalidOperationException($"Tool '{name}' returned an MCP error: {result.ErrorText}");
+		}
+
+		return result.Payload;
+	}
+
+	public async Task<LiveMcpToolResult> CallToolRawAsync(string name,
+		IReadOnlyDictionary<string, object?>? arguments = null)
+	{
 		using CancellationTokenSource timeout = CreateTimeout(cancellationToken);
 		CallToolResult result = await client.CallToolAsync(name, arguments ?? new Dictionary<string, object?>(),
 			cancellationToken: timeout.Token);
-		if (result.IsError == true)
-		{
-			throw new InvalidOperationException($"Tool '{name}' returned an MCP error: {FormatContent(result)}");
-		}
-
-		return ExtractToolPayload(result);
+		return new LiveMcpToolResult(result.IsError == true, ExtractToolPayload(result),
+			result.IsError == true ? FormatContent(result) : null);
 	}
 
 	public static Task<LiveMcpClient> ConnectAsync(string serverUrl, CancellationToken cancellationToken = default)
