@@ -14,6 +14,8 @@ namespace CheatEngine.Mcp.Tests.LiveQualification;
 public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 {
 	private static readonly TimeSpan McpTimeout = TimeSpan.FromSeconds(15);
+	private static readonly string[] SignedPointerOffsets = ["-10", "20"];
+	private static readonly string[] ZeroPointerOffsets = ["0"];
 
 	[Fact]
 	public async Task OneGateway_TwoOwnedInstances_RoutesStateAndSurvivesOneHostShutdown()
@@ -139,6 +141,12 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			AssertMemoryValue(await ReadMemoryAsync(instanceB, sandbox.HostB.TargetAddress), 20260926);
 			Assert.Empty((await SuccessfulCallAsync(instanceB, CheatEngineToolNames.RecordList))["records"]!.AsArray());
 
+			step = "supplied pointer access facts";
+			await AssertPointerAccessFactsAsync(sandbox, instanceA);
+
+			step = "pointer-chain outcomes and instance isolation";
+			await AssertPointerChainsAsync(sandbox, instanceA, instanceB);
+
 			step = "instance A speedhack";
 			JsonNode debuggerState = await SuccessfulCallAsync(instanceA, CheatEngineToolNames.DebuggerGetStatus);
 			Assert.True(debuggerState["stateValid"]!.GetValue<bool>());
@@ -184,6 +192,21 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 					AInstanceId = sandbox.HostA.InstanceId,
 					BInstanceId = sandbox.HostB.InstanceId
 				});
+
+			step = "target A restart and fresh pointer chain";
+			string oldRoot = sandbox.HostA.PointerRootAddress;
+			int oldTargetProcess = sandbox.HostA.TargetProcessId;
+			int oldIncarnation = sandbox.HostA.TargetIncarnation;
+			await sandbox.RestartTargetAsync("A");
+			Assert.Equal(oldIncarnation + 1, sandbox.HostA.TargetIncarnation);
+			await OpenTargetAsync(instanceA, sandbox.HostA);
+			await AssertPointerChainsAsync(sandbox, instanceA, null);
+			sandbox.Record("target_a_restart_pointer_chain", new
+			{
+				oldTargetProcess,
+				newTargetProcess = sandbox.HostA.TargetProcessId,
+				rootReused = string.Equals(oldRoot, sandbox.HostA.PointerRootAddress, StringComparison.OrdinalIgnoreCase)
+			});
 
 			scenarioCompleted = true;
 		}
@@ -242,6 +265,76 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 				sandbox.MarkPassed();
 			}
 		}
+	}
+
+	private static async Task AssertPointerChainsAsync(LiveSandboxSession sandbox, ILiveMcpToolClient instanceA,
+		ILiveMcpToolClient? instanceB)
+	{
+		JsonNode result = await SuccessfulCallAsync(instanceA, CheatEngineToolNames.PointerReadChains,
+			new Dictionary<string, object?>
+			{
+				["candidates"] = new[]
+				{
+					new { id = "match", @base = sandbox.HostA.PointerRootAddress, offsets = SignedPointerOffsets },
+					new { id = "hop", @base = sandbox.HostA.UnreadableRootAddress, offsets = ZeroPointerOffsets },
+					new { id = "zero", @base = sandbox.HostA.ZeroPointerRootAddress, offsets = ZeroPointerOffsets }
+				},
+				["target"] = sandbox.HostA.PointerTargetAddress,
+				["valueType"] = "int32"
+			});
+		JsonArray candidates = result["candidates"]!.AsArray();
+		JsonNode match = Assert.Single(candidates, item => item!["id"]!.GetValue<string>() == "match")!;
+		JsonNode hop = Assert.Single(candidates, item => item!["id"]!.GetValue<string>() == "hop")!;
+		JsonNode zero = Assert.Single(candidates, item => item!["id"]!.GetValue<string>() == "zero")!;
+		Assert.Equal(("resolved", "match", "read", "20260926"), (match["chainStatus"]!.GetValue<string>(),
+			match["comparisonStatus"]!.GetValue<string>(), match["valueStatus"]!.GetValue<string>(), match["value"]!.GetValue<string>()));
+		Assert.Equal(("unreadable", 0), (hop["chainStatus"]!.GetValue<string>(), hop["failedHop"]!.GetValue<int>()));
+		Assert.Equal(("resolved", "0", "miss", "failed"), (zero["chainStatus"]!.GetValue<string>(),
+			zero["address"]!.GetValue<string>(), zero["comparisonStatus"]!.GetValue<string>(), zero["valueStatus"]!.GetValue<string>()));
+		Assert.Equal((3, 3, 2, 1, 1), (result["summary"]!["submitted"]!.GetValue<int>(),
+			result["summary"]!["processed"]!.GetValue<int>(), result["summary"]!["resolved"]!.GetValue<int>(),
+			result["summary"]!["unreadable"]!.GetValue<int>(), result["summary"]!["valueErrors"]!.GetValue<int>()));
+		if (instanceB is not null)
+		{
+			await WriteMemoryAsync(instanceA, sandbox.HostA.PointerTargetAddress, 20260933);
+			JsonNode isolated = await SuccessfulCallAsync(instanceB, CheatEngineToolNames.PointerReadChains,
+				new Dictionary<string, object?> { ["candidates"] = new[] { new { id = "b-root", @base = sandbox.HostB.PointerRootAddress, offsets = SignedPointerOffsets } }, ["target"] = sandbox.HostB.PointerTargetAddress, ["valueType"] = "int32" });
+			JsonNode bRoot = Assert.Single(isolated["candidates"]!.AsArray())!;
+			Assert.Equal(("resolved", "match", "20260926"), (bRoot["chainStatus"]!.GetValue<string>(), bRoot["comparisonStatus"]!.GetValue<string>(), bRoot["value"]!.GetValue<string>()));
+			AssertMemoryValue(await ReadMemoryAsync(instanceB, sandbox.HostB.PointerTargetAddress), 20260926);
+			await WriteMemoryAsync(instanceA, sandbox.HostA.PointerTargetAddress, 20260926);
+		}
+		sandbox.Record("pointer_read_chains", result.DeepClone());
+	}
+
+	private static async Task AssertPointerAccessFactsAsync(LiveSandboxSession sandbox, ILiveMcpToolClient client)
+	{
+		JsonNode x86 = await SuccessfulCallAsync(client, CheatEngineToolNames.PointerGetAccessInfo,
+			new Dictionary<string, object?>
+			{
+				["instructionText"] = "mov eax,[eax-10]",
+				["instructionAddress"] = "401000",
+				["instructionLength"] = 3,
+				["architecture"] = "x86",
+				["registers"] = new Dictionary<string, string> { ["EAX"] = "1000" }
+			});
+		JsonNode x64 = await SuccessfulCallAsync(client, CheatEngineToolNames.PointerGetAccessInfo,
+			new Dictionary<string, object?>
+			{
+				["instructionText"] = "mov eax,[rax+10]",
+				["instructionAddress"] = "140001000",
+				["instructionLength"] = 3,
+				["architecture"] = "x64",
+				["registers"] = new Dictionary<string, string> { ["RAX"] = "1000" }
+			});
+		Assert.Equal(("supported", "FF0"), (x86["status"]!.GetValue<string>(), x86["effectiveAddress"]!.GetValue<string>()));
+		Assert.Equal(("supported", "1010"), (x64["status"]!.GetValue<string>(), x64["effectiveAddress"]!.GetValue<string>()));
+		sandbox.Record("pointer_get_access_info_supplied_facts", new
+		{
+			x86 = x86.DeepClone(),
+			x64 = x64.DeepClone(),
+			nativeTargetArchitecture = sandbox.TargetArchitecture
+		});
 	}
 
 	private static async Task AssertDisassemblyAsync(LiveSandboxSession sandbox, ILiveMcpToolClient instance)

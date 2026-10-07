@@ -16,6 +16,7 @@ modify only.
    value; read the hits with `debugger_poll_capture(jobId=..., afterSequence=0)`, then `runtime_stop_job(jobId=...)`.
 4. Pick a hit whose `disassembly` has a `[reg+off]` operand, such as `mov [rbx+000004C8],eax`: `4C8` is this
    level's offset; the watched address minus it is the object base, whatever the registers show.
+   `pointer_get_access_info` takes supplied instruction/register facts and explicit symbols; use `contextPhase="post_execution"` for data hits and check uncertainty.
 5. `pointer_find_references(target="<address>-4C8", maxOffset=0)`: `target` is the base, `references` its holders.
    One with a `symbol` (such as `game.exe+1A2B30`) lies in a module image, a static root: go to step 7.
 6. Only heap holders: capture one that a second search still returns:
@@ -23,6 +24,7 @@ modify only.
    `mov rbx,[rsi+18]` gives the offset `18`; the base is `<holder>-18`. Repeat 4-6, at most `{maxLevels}` levels.
 7. Verify: `pointer_read_chain(base="game.exe+1A2B30", offsets=["18", "4C8"], valueType="int32")`: hex offsets in
    dereference order, the one found last first; `address` must equal `{address}`.
+   For several candidates, use `pointer_read_chains` with `{id,base,offsets}`, optional `target` and `valueType`; inspect all three outcome statuses.
 8. Stop every capture with `runtime_stop_job(jobId=...)`, then `debugger_detach()`.
 9. The user restarts the game; `process_attach(process="<processName>")`, find the value again and repeat step 7: the
    new `address` must hold it.

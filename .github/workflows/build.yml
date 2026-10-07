@@ -26,7 +26,7 @@ jobs:
         run: dotnet restore CheatEngine.Mcp.slnx --locked-mode
       - name: Build Debug
         run: dotnet build CheatEngine.Mcp.slnx --no-restore
-      - name: Test
+      - name: Test Debug
         run: dotnet test --solution CheatEngine.Mcp.slnx --no-restore --no-build --filter-not-trait Category=LiveQualification --filter-not-trait Category=NativeLua --fail-skips on
       - name: Check formatting
         run: |
@@ -34,6 +34,8 @@ jobs:
           dotnet format whitespace CheatEngine.Mcp.slnx --no-restore --verify-no-changes
       - name: Build Release
         run: dotnet build CheatEngine.Mcp.slnx -c Release --no-restore
+      - name: Test Release
+        run: dotnet test --solution CheatEngine.Mcp.slnx -c Release --no-restore --no-build --filter-not-trait Category=LiveQualification --filter-not-trait Category=NativeLua --fail-skips on
       - name: Publish Debug distribution
         run: pwsh -NoProfile -File eng/Publish.ps1 -Configuration Debug
       - name: Publish Release distribution

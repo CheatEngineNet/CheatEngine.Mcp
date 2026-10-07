@@ -21,7 +21,7 @@ public sealed class McpContractRulesTests
 		"""{"type":"object","properties":{"address":{"description":"Address expression.","type":"string"}},"required":["address"]}""";
 
 	/// <summary>
-	///     The 190 backend tool names of the v2 catalog, including four pointer file operations.
+	///     The reviewed backend tool names of the v2 catalog.
 	/// </summary>
 	public static TheoryData<string> PlanCatalogNames => new(
 		"runtime_get_info", "runtime_get_overview", "runtime_list_resources", "runtime_release_resources",
@@ -34,7 +34,7 @@ public sealed class McpContractRulesTests
 		"scan_first", "scan_next", "scan_get_status", "scan_list_results", "scan_list_scanners", "scan_reset",
 		"scan_delete", "scan_stop",
 		"aob_find", "aob_generate_signature",
-		"pointer_read_chain", "pointer_find_references", "pointer_create_map", "pointer_list_maps",
+		"pointer_read_chain", "pointer_read_chains", "pointer_get_access_info", "pointer_find_references", "pointer_create_map", "pointer_list_maps",
 		"pointer_delete_map", "pointer_find_paths", "pointer_rescan_paths", "pointer_list_paths", "pointer_list_scans",
 		"pointer_delete_scan", "pointer_save_map", "pointer_load_map", "pointer_save_scan", "pointer_load_scan",
 		"module_list", "module_get", "module_list_exports", "module_find_patches",
@@ -61,7 +61,7 @@ public sealed class McpContractRulesTests
 		"debugger_get_stack_trace", "debugger_start_capture", "debugger_poll_capture", "debugger_start_trace",
 		"debugger_poll_trace", "debugger_run_to",
 		"exec_inject_library", "exec_inject_dotnet", "exec_call_remote", "exec_call_method", "exec_call_local",
-		"exec_compile_c",
+		"exec_compile_c", "exec_compile_csharp",
 		"dotnet_get_status", "dotnet_list_domains", "dotnet_list_modules", "dotnet_list_types", "dotnet_get_type",
 		"dotnet_list_methods", "dotnet_get_object", "dotnet_start_instance_search", "dotnet_poll_instance_search",
 		"mono_attach", "mono_detach", "mono_get_status", "mono_list_assemblies", "mono_list_classes",
@@ -77,10 +77,10 @@ public sealed class McpContractRulesTests
 		"mono_get_object");
 
 	[Fact]
-	public void PlanCatalogNames_Count_Is190()
+	public void PlanCatalogNames_Count_Is193()
 	{
-		Assert.Equal(190, PlanCatalogNames.Count);
-		Assert.Equal(190, PlanCatalogNames.Select(static row => row.Data).Distinct(StringComparer.Ordinal).Count());
+		Assert.Equal(193, PlanCatalogNames.Count);
+		Assert.Equal(193, PlanCatalogNames.Select(static row => row.Data).Distinct(StringComparer.Ordinal).Count());
 	}
 
 	[Fact]

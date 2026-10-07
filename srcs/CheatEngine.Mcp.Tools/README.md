@@ -40,7 +40,7 @@ preserve the complete catalog and its ordering.
 
 ## Tool domains
 
-The current v2 catalog contains 190 backend tools in 21 domains.
+The current v2 catalog contains 193 backend tools in 21 domains.
 
 | Folder and registration | Tools | Scope |
 | --- | ---: | --- |
@@ -49,7 +49,7 @@ The current v2 catalog contains 190 backend tools in 21 domains.
 | `Memory/` - `AddMemoryTools()` | 19 | Reads, writes, protection, allocations, files, snapshots, and samples. |
 | `Scan/` - `AddScanTools()` | 8 | Main value-scanner lifecycle, criteria, results, and named scanners. |
 | `Aob/` - `AddAobTools()` | 3 | Array-of-bytes search and signature generation. |
-| `Pointer/` - `AddPointerTools()` | 14 | Pointer chains, maps, references, scans, and persisted scan files. |
+| `Pointer/` - `AddPointerTools()` | 16 | Supplied access facts, batch chains, maps, references, scans, and persisted scan files. |
 | `Modules/` - `AddModuleTools()` | 5 | Module inventory, PE exports and imports, and patch inspection. |
 | `Symbol/` - `AddSymbolTools()` | 10 | Symbol resolution, search, sources, modules, and registrations. |
 | `Speedhack/` - `AddSpeedhackTools()` | 2 | Speedhack state and speed changes. |
@@ -60,7 +60,7 @@ The current v2 catalog contains 190 backend tools in 21 domains.
 | `Table/` - `AddTableTools()` | 3 | Cheat-table loading, saving, and file listing. |
 | `Structures/` - `AddStructureTools()` | 15 | Structure Dissect definitions, elements, values, comparison, and C headers. |
 | `Debugger/` - `AddDebuggerTools()` | 18 | Debugger sessions, breakpoints, threads, context, capture, traces, and stepping. |
-| `Exec/` - `AddExecTools()` | 6 | Native and managed injection, calls, and C compilation. |
+| `Exec/` - `AddExecTools()` | 7 | Native and managed injection, calls, and C/C# compilation. |
 | `DotNet/` - `AddDotNetTools()` | 10 | Managed-runtime domains, types, methods, objects, and instance searches. |
 | `Mono/` - `AddMonoTools()` | 15 | Mono attachment, metadata, fields, invocation, objects, and instance searches. |
 | `Kernel/` - `AddKernelTools()` | 7 | DBVM, address translation, physical memory, and watches. |

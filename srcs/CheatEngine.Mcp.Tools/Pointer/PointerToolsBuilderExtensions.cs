@@ -2,7 +2,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace CheatEngine.Mcp.Tools.Pointer;
 
-/// <summary>The composition entry point of the <c>pointer</c> tool domain (14 tools in the v2 catalog).</summary>
+/// <summary>The composition entry point of the <c>pointer</c> tool domain.</summary>
 public static class PointerToolsBuilderExtensions
 {
 	extension(ICheatEngineMcpBuilder builder)
@@ -22,7 +22,11 @@ public static class PointerToolsBuilderExtensions
 
 			return builder
 				.AddJsonTypeInfoResolver(PointerJsonContext.Default)
+				.AddJsonTypeInfoResolver(PointerBatchJsonContext.Default)
+				.AddJsonTypeInfoResolver(PointerAccessJsonContext.Default)
 				.AddToolType<PointerChainTools>()
+				.AddToolType<PointerBatchTools>()
+				.AddToolType<PointerAccessTools>()
 				.AddToolType<PointerReferenceTools>()
 				.AddToolType<PointerMapTools>()
 				.AddToolType<PointerScanTools>()

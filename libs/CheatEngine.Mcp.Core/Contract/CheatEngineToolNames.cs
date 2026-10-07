@@ -3,7 +3,7 @@ using System.Collections.Frozen;
 namespace CheatEngine.Mcp.Core.Contract;
 
 /// <summary>
-///     The reviewed names of the v2 tool contract: 186 backend tools in 21 domains, in catalog order, and the gateway's
+///     The reviewed names of the v2 tool contract, in catalog order, and the gateway's
 ///     own
 ///     <see cref="InstanceList" />. Tools, prompts, server instructions and error hints cite these constants, so a rename
 ///     breaks the build instead of the contract, and the startup validator refuses a v2 tool whose name is not listed.
@@ -168,6 +168,12 @@ public static class CheatEngineToolNames
 
 	/// <summary>The <c>pointer_read_chain</c> tool.</summary>
 	public const string PointerReadChain = "pointer_read_chain";
+
+	/// <summary>Resolve supplied pointer chains in a bounded batch.</summary>
+	public const string PointerReadChains = "pointer_read_chains";
+
+	/// <summary>Analyze supplied instruction and register facts for pointer access.</summary>
+	public const string PointerGetAccessInfo = "pointer_get_access_info";
 
 	/// <summary>The <c>pointer_find_references</c> tool.</summary>
 	public const string PointerFindReferences = "pointer_find_references";
@@ -521,6 +527,9 @@ public static class CheatEngineToolNames
 	/// <summary>The <c>exec_compile_c</c> tool.</summary>
 	public const string ExecCompileC = "exec_compile_c";
 
+	/// <summary>Compile C# through Cheat Engine and export the resulting assembly.</summary>
+	public const string ExecCompileCSharp = "exec_compile_csharp";
+
 	// dotnet (10)
 
 	/// <summary>The <c>dotnet_get_status</c> tool.</summary>
@@ -631,7 +640,7 @@ public static class CheatEngineToolNames
 	/// <summary>The <c>lua_find_api</c> tool.</summary>
 	public const string LuaFindApi = "lua_find_api";
 
-	/// <summary>The 186 backend tool names; every tool a Cheat Engine instance serves.</summary>
+	/// <summary>The reviewed backend tool names; every tool a Cheat Engine instance serves.</summary>
 	public static FrozenSet<string> Backend
 	{
 		get;
@@ -682,6 +691,8 @@ public static class CheatEngineToolNames
 		AobGenerateSignature,
 		AobFindValue,
 		PointerReadChain,
+		PointerReadChains,
+		PointerGetAccessInfo,
 		PointerFindReferences,
 		PointerCreateMap,
 		PointerListMaps,
@@ -792,6 +803,7 @@ public static class CheatEngineToolNames
 		ExecCallMethod,
 		ExecCallLocal,
 		ExecCompileC,
+		ExecCompileCSharp,
 		DotNetGetStatus,
 		DotNetListDomains,
 		DotNetListModules,

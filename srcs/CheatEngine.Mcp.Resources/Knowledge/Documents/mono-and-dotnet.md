@@ -270,6 +270,15 @@ them after the game or the collector restarts.
 
 ## Loading your own managed code
 
+`exec_compile_csharp(source="<C#>", outputPath="<approved-root assembly path>")` compiles and exports without invocation.
+It requires TCE, CE compiler prerequisites, at most 131,072 source characters and 32 held `referencePaths`; optional `coreAssembly` is also checked and held.
+It returns path/length/SHA-256, caps output at 16 MiB, and requires `overwrite=true` to replace a file.
+Compiler errors carry `{text,truncated}` capped at 16 KiB; prerequisites and syntax errors may share the same diagnostic outcome.
+CE owns its temporary file, which another CE instance closing may remove; missing/expired export is explicit.
+Use the exported copy for separately authorized injection, inspect partial/unknown effects before retrying, and do not assume unload or native compiler qualification.
+
+### Explicit injection
+
 `exec_inject_dotnet` loads a managed assembly into a .NET Framework or .NET Core target and calls its
 `public static int Method(string)`. Use it only on explicit request:
 

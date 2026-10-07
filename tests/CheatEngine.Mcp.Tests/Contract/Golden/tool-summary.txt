@@ -57,6 +57,7 @@ exec_call_local | Call Cheat Engine function | false,true,false,true | blocking_
 exec_call_method | Call target instance method | false,true,false,true | blocking_native | target_code_execution
 exec_call_remote | Call target function | false,true,false,true | blocking_native | target_code_execution
 exec_compile_c | Compile C source | false,true,false,true | blocking_native | target_code_execution
+exec_compile_csharp | Compile managed source | false,true,false,true | blocking_native | target_code_execution
 exec_inject_dotnet | Inject managed assembly | false,true,false,true | blocking_native | target_code_execution
 exec_inject_library | Inject native library | false,true,false,true | blocking_native | target_code_execution
 instance_list | List Cheat Engine instances | true,false,true,false | gateway | -
@@ -113,12 +114,14 @@ pointer_delete_map | Delete a pointer map | false,true,true,false | short | -
 pointer_delete_scan | Delete a pointer scan | false,true,true,false | short | -
 pointer_find_paths | Find pointer paths | false,false,false,false | short | -
 pointer_find_references | Find pointer references | true,false,true,false | host_scan | -
+pointer_get_access_info | Analyze pointer access | true,false,true,false | short | -
 pointer_list_maps | List pointer maps | true,false,true,false | short | -
 pointer_list_paths | List pointer paths | true,false,true,false | short | -
 pointer_list_scans | List pointer scans | true,false,true,false | short | -
 pointer_load_map | Load pointer map | false,false,false,true | short | -
 pointer_load_scan | Load pointer scan | false,false,false,true | short | -
 pointer_read_chain | Read a pointer chain | true,false,true,false | short | -
+pointer_read_chains | Read pointer chains | true,false,true,false | short | -
 pointer_rescan_paths | Rescan pointer paths | false,true,false,false | short | -
 pointer_save_map | Save pointer map | false,true,false,true | short | -
 pointer_save_scan | Save pointer scan | false,true,false,true | short | -

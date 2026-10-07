@@ -11,7 +11,7 @@ using ModelContextProtocol.Protocol;
 namespace CheatEngine.Mcp.Tests.Contract;
 
 /// <summary>
-///     The frozen v2 catalog: the 191 names, their fit with the naming rules, the map from every pre-v2 name, the reviewed
+///     The reviewed v2 catalog: the names, their fit with the naming rules, the map from every pre-v2 name, the reviewed
 ///     open-world list and the per-tool summary that the reference documentation is generated from.
 /// </summary>
 public sealed class ToolCatalogContractTests
@@ -28,7 +28,7 @@ public sealed class ToolCatalogContractTests
 		{ "memory", 19 },
 		{ "scan", 8 },
 		{ "aob", 3 },
-		{ "pointer", 14 },
+		{ "pointer", 16 },
 		{ "module", 5 },
 		{ "symbol", 10 },
 		{ "speedhack", 2 },
@@ -39,7 +39,7 @@ public sealed class ToolCatalogContractTests
 		{ "table", 3 },
 		{ "structure", 15 },
 		{ "debugger", 18 },
-		{ "exec", 6 },
+		{ "exec", 7 },
 		{ "dotnet", 10 },
 		{ "mono", 15 },
 		{ "kernel", 7 },
@@ -47,16 +47,16 @@ public sealed class ToolCatalogContractTests
 	};
 
 	[Fact]
-	public void ToolNames_Constants_Are191UniqueNamesSplitBetweenBackendAndGateway()
+	public void ToolNames_Constants_Are194UniqueNamesSplitBetweenBackendAndGateway()
 	{
 		string[] constants = typeof(CheatEngineToolNames).GetFields(BindingFlags.Public | BindingFlags.Static)
 			.Where(static field => field.IsLiteral)
 			.Select(static field => (string) field.GetRawConstantValue()!)
 			.ToArray();
 
-		Assert.Equal(191, constants.Length);
+		Assert.Equal(194, constants.Length);
 		Assert.Equal(constants.Order(StringComparer.Ordinal), CheatEngineToolNames.All.Order(StringComparer.Ordinal));
-		Assert.Equal(190, CheatEngineToolNames.Backend.Count);
+		Assert.Equal(193, CheatEngineToolNames.Backend.Count);
 		Assert.Equal([CheatEngineToolNames.InstanceList],
 			CheatEngineToolNames.All.Except(CheatEngineToolNames.Backend));
 	}

@@ -59,6 +59,27 @@ The table shows one chain in each place you meet it: step 8 of the x64 tutorial 
   address for this session, not a live chain. After the object moves, `symbol_unregister(name="playerBase")` and
   register it again (a name in use is refused). A record with offsets follows its chain on every read.
 
+## Analyze supplied access facts
+
+`pointer_get_access_info` takes instruction text/address/length, x86/x64 `architecture`, `registers`, and optional `symbols` and `observedAccessAddress`.
+Text is authoritative; optional `instructionBytes` checks length/address-size prefixes without decoding text.
+RIP/EIP use the next instruction's address; EIP wraps to 32 bits.
+No live memory or symbol lookup occurs.
+Use `contextPhase="post_execution"` for data hits and an execute capture when registers may have changed.
+Check `status`, `contextMayHaveChanged`, `observedAddressMismatch`, and `uncertainty` before using `candidateStructureBase` or `nextPointerSearchValue`.
+`dynamicOffset=true` identifies indexed access rather than a stable chain offset.
+Stack-relative POP, BT/BTC/BTR/BTS, and prefixed text are unsupported; bracket arithmetic is insufficient.
+
+## Validate several supplied chains
+
+`pointer_read_chains` accepts `{id,base,offsets}` candidates, optional `target` comparison and `valueType`, without changing scans.
+Bounds: 128 candidates, 64 offsets each, 4,096 pointer/value reads, 65,536 final-value bytes; each dispatch allows 32 candidates and 128 reads.
+`chainStatus`, `comparisonStatus`, and `valueStatus` are independent: failed value reads retain the resolved address and comparison.
+`matchesOnly=true` retains all error/miss counts in `summary`.
+Cancellation preserves completed candidates; submitted minus processed is unprocessed, and `cancelled` reports interruption.
+`target_changed` discards mixed-target results.
+Module roots rebase; absolute roots remain absolute, so revalidate after restarts.
+
 ## Manual method: from a writer back to a static root
 
 Use it when you can make the game change the value. It needs the debugger (see [debugger](debugger.md)); the guided

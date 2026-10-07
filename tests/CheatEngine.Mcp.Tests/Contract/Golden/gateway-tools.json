@@ -5700,6 +5700,86 @@
     }
   },
   {
+    "name": "exec_compile_csharp",
+    "title": "Compile managed source",
+    "description": "Compile up to 131072 characters of C# source with Cheat Engine\u0027s compileCS bridge and immediately copy its generated assembly to outputPath under an approved write root. The compiler uses the optional checked coreAssembly and up to 32 checked reference assemblies. Compilation does not inject or invoke the assembly. Cheat Engine owns its original generated file and may remove it when Cheat Engine, or another instance, closes; MCP never deletes that file. Compiler availability still depends on Cheat Engine\u0027s supported .NET Framework compiler prerequisites.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
+        "source": {
+          "description": "C# source, 1 to 131072 characters.",
+          "type": "string"
+        },
+        "outputPath": {
+          "description": "Approved-root destination for the exported compiled assembly. It must not already exist unless overwrite is true.",
+          "type": "string"
+        },
+        "referencePaths": {
+          "description": "0 to 32 absolute local reference-assembly paths held against changes while Cheat Engine compiles.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": null
+        },
+        "coreAssembly": {
+          "description": "Optional absolute local core assembly path held against changes while Cheat Engine compiles.",
+          "type": "string",
+          "default": null
+        },
+        "overwrite": {
+          "description": "Allow the approved-root outputPath to atomically replace an existing file.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "instanceId",
+        "source",
+        "outputPath"
+      ]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "outputPath": {
+          "description": "The anchored approved-root path where MCP copied the compiled assembly.",
+          "type": "string"
+        },
+        "length": {
+          "description": "The exported assembly length in bytes.",
+          "type": "integer"
+        },
+        "sha256": {
+          "description": "The uppercase SHA-256 hash of the exported assembly bytes.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "outputPath",
+        "length",
+        "sha256"
+      ]
+    },
+    "annotations": {
+      "title": "Compile managed source",
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false
+    },
+    "_meta": {
+      "cheatengine/requires": [
+        "target_code_execution"
+      ],
+      "cheatengine/dispatchClass": "blocking_native"
+    }
+  },
+  {
     "name": "exec_inject_dotnet",
     "title": "Inject managed assembly",
     "description": "Inject a managed assembly into the selected .NET Framework or .NET Core target and call its public static int method that takes one string. The absolute local path is checked and held while Cheat Engine opens it. Cheat Engine copies assemblyPath, className, methodName and parameter into fixed Auto Assembler strings, so control characters, quotes and braces are refused, as are more than 255 UTF-8 bytes for the path and 127 for the others. Cheat Engine then waits on its main thread, with no time limit, until the method returns: only the MCP call timeout (45 s by default in the gateway) bounds the request, and Cheat Engine stays blocked after it. A target with an active Cheat Engine Mono data collector is refused as unsupported. A timeout or failure after admission has hostEffect unknown; inspect the target before retrying.",
@@ -11547,6 +11627,171 @@
     }
   },
   {
+    "name": "pointer_get_access_info",
+    "title": "Analyze pointer access",
+    "description": "Analyzes one supplied x86 or x64 memory operand and captured registers without resolving live symbols or reading target memory. instructionText is authoritative disassembly; instructionBytes checks length and address-size prefixes, but is not decoded or compared with the text. Indexed operands report a dynamic offset and are not stable pointer-chain claims.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
+        "instructionText": {
+          "description": "The authoritative disassembly text, such as mov eax,[rax\u002B10].",
+          "type": "string"
+        },
+        "instructionAddress": {
+          "description": "The instruction address as uppercase or 0x-prefixed hexadecimal.",
+          "type": "string"
+        },
+        "instructionLength": {
+          "description": "The supplied instruction length in bytes, 1 through 15.",
+          "type": "integer"
+        },
+        "architecture": {
+          "description": "x86 or x64.",
+          "type": "string"
+        },
+        "registers": {
+          "description": "Captured register names and hexadecimal values. A 32-bit alias cannot supply unknown upper bits for a 64-bit operand.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "instructionBytes": {
+          "description": "Optional instruction bytes. Their count must equal instructionLength; they are not decoded by this supplied-text mode.",
+          "type": "string",
+          "default": null
+        },
+        "observedAccessAddress": {
+          "description": "An optional observed accessed address for mismatch reporting.",
+          "type": "string",
+          "default": null
+        },
+        "contextPhase": {
+          "description": "Whether registers are from before execution or from a post-execution access/write event.",
+          "type": "string",
+          "enum": [
+            "pre_execution",
+            "post_execution"
+          ],
+          "default": "pre_execution"
+        },
+        "symbols": {
+          "description": "Optional bounded caller-supplied symbol or module-base map. No live symbol resolution occurs.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": null
+        }
+      },
+      "required": [
+        "instanceId",
+        "instructionText",
+        "instructionAddress",
+        "instructionLength",
+        "architecture",
+        "registers"
+      ]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "description": "Whether the supplied facts were supported, missing, contradictory, or unsupported.",
+          "type": "string",
+          "enum": [
+            "supported",
+            "missing_facts",
+            "contradictory_facts",
+            "unsupported"
+          ]
+        },
+        "instruction": {
+          "description": "The supplied instruction text used as the authoritative representation.",
+          "type": "string"
+        },
+        "memoryOperand": {
+          "description": "The evaluated memory operand, when supported.",
+          "type": "string",
+          "default": null
+        },
+        "baseRegister": {
+          "description": "The canonical base register, when present.",
+          "type": "string",
+          "default": null
+        },
+        "indexRegister": {
+          "description": "The canonical index register, when present.",
+          "type": "string",
+          "default": null
+        },
+        "scale": {
+          "description": "The index scale, when present.",
+          "type": "integer",
+          "default": null
+        },
+        "displacement": {
+          "description": "The signed displacement, uppercase hexadecimal.",
+          "type": "string",
+          "default": null
+        },
+        "effectiveAddress": {
+          "description": "The computed effective address, uppercase hexadecimal.",
+          "type": "string",
+          "default": null
+        },
+        "candidateStructureBase": {
+          "description": "The candidate structure base before a stable displacement, uppercase hexadecimal.",
+          "type": "string",
+          "default": null
+        },
+        "nextPointerSearchValue": {
+          "description": "The value to search for in a pointer map: candidateStructureBase when stable.",
+          "type": "string",
+          "default": null
+        },
+        "dynamicOffset": {
+          "description": "Whether index addressing makes the displacement dynamic rather than a stable pointer-chain offset.",
+          "type": "boolean",
+          "default": false
+        },
+        "observedAddressMismatch": {
+          "description": "Whether the supplied observed address differs from the computed effective address.",
+          "type": "boolean",
+          "default": false
+        },
+        "contextMayHaveChanged": {
+          "description": "Whether post-execution registers may have changed before capture.",
+          "type": "boolean",
+          "default": false
+        },
+        "uncertainty": {
+          "description": "A bounded explanation of missing, contradictory, or unsupported facts.",
+          "type": "string",
+          "default": null
+        }
+      },
+      "required": [
+        "status",
+        "instruction"
+      ]
+    },
+    "annotations": {
+      "title": "Analyze pointer access",
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "_meta": {
+      "cheatengine/dispatchClass": "short"
+    }
+  },
+  {
     "name": "pointer_list_maps",
     "title": "List pointer maps",
     "description": "Lists the pointer maps with their capture progress, oldest first, without any Cheat Engine call. Poll it after pointer_create_map: a map is usable when state is ready, or stopped or expired with what it read. Check incomplete and unreadableBytes before trusting an absence.",
@@ -12293,6 +12538,356 @@
     },
     "annotations": {
       "title": "Read a pointer chain",
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "_meta": {
+      "cheatengine/dispatchClass": "short"
+    }
+  },
+  {
+    "name": "pointer_read_chains",
+    "title": "Read pointer chains",
+    "description": "Validates up to 128 supplied pointer chains without creating a scan. Each chain dereferences then adds its signed hexadecimal offset. Module expressions are resolved afresh in every bounded slice; absolute roots remain absolute after a target restart. An unreadable hop, target comparison, and optional final-value read are reported independently per candidate.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance id from instance_list."
+        },
+        "candidates": {
+          "description": "One to 128 candidates with a unique id, base expression and one to 64 signed hexadecimal offsets.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "description": "A stable caller-chosen identifier, unique within this request.",
+                "type": "string"
+              },
+              "base": {
+                "description": "The address expression that holds the first pointer.",
+                "type": "string"
+              },
+              "offsets": {
+                "description": "One to 64 signed hexadecimal offsets in dereference order.",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "id",
+              "base",
+              "offsets"
+            ]
+          }
+        },
+        "target": {
+          "description": "Optionally compare each resolved final address with this current-target expression.",
+          "type": "string",
+          "default": null
+        },
+        "valueType": {
+          "description": "The optional type of the value read after comparison.",
+          "type": "string",
+          "enum": [
+            "int8",
+            "uint8",
+            "int16",
+            "uint16",
+            "int32",
+            "uint32",
+            "int64",
+            "uint64",
+            "float",
+            "double",
+            "pointer",
+            "string",
+            "wstring",
+            "bytes"
+          ],
+          "default": null
+        },
+        "length": {
+          "description": "For bytes, the required byte count; for string and wstring, the maximum length.",
+          "type": "integer",
+          "default": null
+        },
+        "matchesOnly": {
+          "description": "Return only matching candidate entries while summary counts still include misses and errors.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "instanceId",
+        "candidates"
+      ]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "candidates": {
+          "description": "Candidate outcomes, or only matches when matchesOnly was requested.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "description": "The stable identifier supplied by the caller.",
+                "type": "string"
+              },
+              "chainStatus": {
+                "description": "Whether every pointer hop resolved.",
+                "type": "string",
+                "enum": [
+                  "resolved",
+                  "unreadable",
+                  "error"
+                ]
+              },
+              "address": {
+                "description": "The final address when the chain resolved, uppercase hexadecimal.",
+                "type": "string"
+              },
+              "failedHop": {
+                "description": "The zero-based hop that could not be read, when chainStatus is unreadable.",
+                "type": "integer"
+              },
+              "failedReadAt": {
+                "description": "The address that could not be read, when chainStatus is unreadable.",
+                "type": "string"
+              },
+              "chainError": {
+                "description": "The per-candidate chain error when chainStatus is error.",
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "invalid_argument",
+                      "invalid_state",
+                      "not_found",
+                      "not_attached",
+                      "busy",
+                      "timeout",
+                      "cancelled",
+                      "capability_disabled",
+                      "unsupported",
+                      "target_changed",
+                      "host_refused",
+                      "memory_read_failed",
+                      "memory_write_failed",
+                      "limit_exceeded",
+                      "partial_effect",
+                      "stopping",
+                      "instance_unavailable",
+                      "internal"
+                    ]
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "operation": {
+                    "type": "string"
+                  },
+                  "hostEffect": {
+                    "type": "string",
+                    "enum": [
+                      "not_started",
+                      "not_applied",
+                      "started",
+                      "completed",
+                      "cleanup_unconfirmed",
+                      "unknown"
+                    ]
+                  },
+                  "retryable": {
+                    "type": "boolean"
+                  },
+                  "hint": {
+                    "type": "string",
+                    "default": null
+                  },
+                  "details": {
+                    "default": null
+                  }
+                },
+                "required": [
+                  "kind",
+                  "message",
+                  "hostEffect",
+                  "retryable"
+                ]
+              },
+              "comparisonStatus": {
+                "description": "Whether the resolved address matched target.",
+                "type": "string",
+                "enum": [
+                  "not_requested",
+                  "not_resolved",
+                  "not_attempted",
+                  "match",
+                  "miss"
+                ]
+              },
+              "valueStatus": {
+                "description": "Whether the optional final value was read.",
+                "type": "string",
+                "enum": [
+                  "not_requested",
+                  "not_resolved",
+                  "not_attempted",
+                  "read",
+                  "failed"
+                ]
+              },
+              "value": {
+                "description": "The final value as text when valueStatus is read.",
+                "type": "string"
+              },
+              "valueError": {
+                "description": "The final-value read error when valueStatus is failed.",
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "invalid_argument",
+                      "invalid_state",
+                      "not_found",
+                      "not_attached",
+                      "busy",
+                      "timeout",
+                      "cancelled",
+                      "capability_disabled",
+                      "unsupported",
+                      "target_changed",
+                      "host_refused",
+                      "memory_read_failed",
+                      "memory_write_failed",
+                      "limit_exceeded",
+                      "partial_effect",
+                      "stopping",
+                      "instance_unavailable",
+                      "internal"
+                    ]
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "operation": {
+                    "type": "string"
+                  },
+                  "hostEffect": {
+                    "type": "string",
+                    "enum": [
+                      "not_started",
+                      "not_applied",
+                      "started",
+                      "completed",
+                      "cleanup_unconfirmed",
+                      "unknown"
+                    ]
+                  },
+                  "retryable": {
+                    "type": "boolean"
+                  },
+                  "hint": {
+                    "type": "string",
+                    "default": null
+                  },
+                  "details": {
+                    "default": null
+                  }
+                },
+                "required": [
+                  "kind",
+                  "message",
+                  "hostEffect",
+                  "retryable"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "chainStatus",
+              "comparisonStatus",
+              "valueStatus"
+            ]
+          }
+        },
+        "summary": {
+          "description": "Counts over all processed candidates, including hidden errors and misses.",
+          "type": "object",
+          "properties": {
+            "submitted": {
+              "description": "How many candidates were submitted.",
+              "type": "integer"
+            },
+            "processed": {
+              "description": "How many candidates were validated before this response ended.",
+              "type": "integer"
+            },
+            "resolved": {
+              "description": "How many chains resolved.",
+              "type": "integer"
+            },
+            "unreadable": {
+              "description": "How many chains had an unreadable hop.",
+              "type": "integer"
+            },
+            "errors": {
+              "description": "How many chains ended with another per-candidate error.",
+              "type": "integer"
+            },
+            "matches": {
+              "description": "How many resolved chains matched target.",
+              "type": "integer"
+            },
+            "misses": {
+              "description": "How many resolved chains missed target.",
+              "type": "integer"
+            },
+            "valuesRead": {
+              "description": "How many optional final values were read.",
+              "type": "integer"
+            },
+            "valueErrors": {
+              "description": "How many optional final values could not be read.",
+              "type": "integer"
+            },
+            "cancelled": {
+              "description": "Whether caller cancellation stopped validation before every candidate was processed.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "submitted",
+            "processed",
+            "resolved",
+            "unreadable",
+            "errors",
+            "matches",
+            "misses",
+            "valuesRead",
+            "valueErrors",
+            "cancelled"
+          ]
+        }
+      },
+      "required": [
+        "candidates",
+        "summary"
+      ]
+    },
+    "annotations": {
+      "title": "Read pointer chains",
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": false,

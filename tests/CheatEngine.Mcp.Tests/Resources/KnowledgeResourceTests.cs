@@ -156,11 +156,12 @@ public sealed partial class KnowledgeResourceTests
 		foreach (string slug in CheatEngineKnowledge.DocumentSlugs)
 		{
 			int size = Encoding.UTF8.GetByteCount(Embedded(McpKnowledgeText.DocumentsLogicalPrefix + slug + ".md"));
-			// Pointer persistence and the tool inventory need small, specific allowances; other budgets stay unchanged.
+			// Detailed pointer, compiler, and inventory contracts need bounded per-document allowances.
 			int budget = slug switch
 			{
 				"pointers" => PointerDocumentBudgetBytes,
 				"tool-map" => ToolMapDocumentBudgetBytes,
+				"mono-and-dotnet" => DocumentBudgetBytes + 1024,
 				_ => DocumentBudgetBytes
 			};
 			Assert.True(size <= budget, $"{slug} is {size} bytes; the budget is {budget}.");

@@ -126,6 +126,8 @@ Guide: [pointers](pointers.md). Offsets are hex strings in dereference order, th
 | Tool | Gate | Purpose |
 |---|---|---|
 | `pointer_read_chain` | | Follow a pointer chain hop by hop and read the final value. |
+| `pointer_read_chains` | | Validate up to 128 supplied chains with independent resolution, comparison, and value outcomes. |
+| `pointer_get_access_info` | | Analyze supplied instruction/register facts without live memory or symbol lookup. |
 | `pointer_find_references` | | Find the addresses pointing at or just below a target, live or in a map. `host_scan` |
 | `pointer_create_map` | | Start a job that captures a pointer map; poll `pointer_list_maps`. |
 | `pointer_list_maps` | | List pointer maps and their capture state. |
@@ -320,6 +322,7 @@ Guide: [calling a game function once](x64-injection.md#calling-a-game-function-o
 | `exec_call_method` | TCE | Call a target instance method on a new thread; waits at most 10 s. `blocking_native` |
 | `exec_call_local` | TCE | Call a function in CE's own process; no timeout. `blocking_native` |
 | `exec_compile_c` | TCE →KA | Compile C source into new memory or at an address you own. `blocking_native` |
+| `exec_compile_csharp` | TCE | Compile C# through CE and export to a required approved-root assembly path; does not inject. `blocking_native` |
 
 - `exec_call_remote` and `exec_call_method` take up to 16 typed arguments, each value a JSON string:
   `exec_call_remote(functionAddress="<address>", arguments=[{type="integer", value="10"}])`. A buffer is

@@ -158,7 +158,7 @@
       "uri": "cheatengine://docs/mono-and-dotnet",
       "description": "Choosing between the Mono and .NET collectors, what mono_attach and the Uses Mono option change, reading classes, fields, statics, instances and methods, and invoking or injecting managed code safely.",
       "mimeType": "text/markdown",
-      "size": 24608
+      "size": 25424
     },
     {
       "name": "doc_pointers",
@@ -166,7 +166,7 @@
       "uri": "cheatengine://docs/pointers",
       "description": "Pointer notation and offset order, reading a chain, manual chains from a writer, pointer maps, path searches, rescans and their limits, ranking chains, storing them in records, and fallbacks.",
       "mimeType": "text/markdown",
-      "size": 27334
+      "size": 28953
     },
     {
       "name": "doc_safety",
@@ -198,7 +198,7 @@
       "uri": "cheatengine://docs/tool-map",
       "description": "Every tool by domain with its purpose, the setting (gate) it needs and its dispatch class; the running schema stays the authority for parameters and results.",
       "mimeType": "text/markdown",
-      "size": 25382
+      "size": 25769
     },
     {
       "name": "doc_troubleshooting_scans",

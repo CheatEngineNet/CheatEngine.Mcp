@@ -7,6 +7,7 @@ internal static class LiveQualificationOptIn
 	internal const string Acknowledgement = "I_AUTHORIZE_CE77_LIVE_PROBES_ON_A_DISPOSABLE_TARGET";
 	internal const string CheatEngineDirectoryVariable = "CHEATENGINE_MCP_LIVE_QUALIFICATION_CE_DIRECTORY";
 	internal const string RunRootVariable = "CHEATENGINE_MCP_LIVE_QUALIFICATION_RUN_ROOT";
+	internal const string TargetArchitectureVariable = "CHEATENGINE_MCP_LIVE_QUALIFICATION_TARGET_ARCHITECTURE";
 
 	internal const string LocalCommand =
 		"dotnet test --project tests/CheatEngine.Mcp.Tests -c Release --filter-trait Category=LiveQualification --fail-skips on";
@@ -58,10 +59,15 @@ internal static class LiveQualificationOptIn
 			return Refuse(
 				"The run root must lie outside the repository and apart from the installed Cheat Engine directory.");
 		}
+		string architecture = variables(TargetArchitectureVariable) ?? "x64";
+		if (architecture is not ("x64" or "x86"))
+		{
+			return Refuse($"{TargetArchitectureVariable} must be x64 or x86.");
+		}
 
 		return new LiveQualificationDecision(
 			new LiveQualificationInputs(Path.GetFullPath(repositoryRoot), Path.GetFullPath(source),
-				Path.GetFullPath(runRoot)), null);
+				Path.GetFullPath(runRoot), architecture), null);
 	}
 
 	internal static bool IsSameOrBelow(string path, string directory)

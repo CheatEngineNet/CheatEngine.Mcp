@@ -56,6 +56,7 @@ internal sealed class PointerFixture : IAsyncDisposable
 	private readonly ServiceProvider _root;
 	private readonly AsyncServiceScope _scope;
 	private int _dispatches;
+	private int _primitiveReads;
 	private long _epoch = 1;
 
 	internal PointerFixture(McpExecutionOptions? options = null, ulong? largeRegionSize = null,
@@ -91,6 +92,7 @@ internal sealed class PointerFixture : IAsyncDisposable
 			if (method.Name.StartsWith("Invoke", StringComparison.Ordinal) && arguments?[0] is Delegate callback)
 			{
 				Interlocked.Increment(ref _dispatches);
+				OnDispatch?.Invoke();
 				return callback.DynamicInvoke();
 			}
 
@@ -167,6 +169,16 @@ internal sealed class PointerFixture : IAsyncDisposable
 	/// <summary>How many dispatches were requested.</summary>
 	internal int Dispatches => Volatile.Read(ref _dispatches);
 
+	/// <summary>How many pointer-sized primitive reads the Client received.</summary>
+	internal int PrimitiveReads => Volatile.Read(ref _primitiveReads);
+
+	/// <summary>Runs immediately before a Client dispatch callback executes.</summary>
+	internal Action? OnDispatch
+	{
+		get;
+		set;
+	}
+
 	/// <summary>Every Client member called, in order, as <c>Service.Member</c>.</summary>
 	internal IReadOnlyCollection<string> Calls => _calls;
 
@@ -193,6 +205,13 @@ internal sealed class PointerFixture : IAsyncDisposable
 
 	/// <summary>The index of the address where the next primitive batch re-read fails, if any.</summary>
 	internal int? PrimitiveBatchReadFailureIndex
+	{
+		get;
+		set;
+	}
+
+	/// <summary>When set, every pointer-sized primitive read returns this failure without reading memory.</summary>
+	internal CheatEngineFailureKind? PrimitiveReadFailureKind
 	{
 		get;
 		set;
@@ -371,6 +390,15 @@ internal sealed class PointerFixture : IAsyncDisposable
 				}
 			case nameof(IMemoryClient.TryReadPrimitive) when method.GetGenericArguments()[0] == typeof(Address):
 				{
+					Interlocked.Increment(ref _primitiveReads);
+					if (PrimitiveReadFailureKind is { } failureKind)
+					{
+						arguments![1] = default(Address);
+						arguments[2] = new CheatEngineFailure(failureKind, "Memory.ReadPrimitive", failureKind.ToString(),
+							hostEffect: CheatEngineHostEffect.NotStarted);
+						return false;
+					}
+
 					byte[] bytes = Read(((Address) arguments![0]!).ToUInt64(), _pointerWidth);
 					arguments[1] = bytes.Length == _pointerWidth
 						? new Address(_pointerWidth == 8

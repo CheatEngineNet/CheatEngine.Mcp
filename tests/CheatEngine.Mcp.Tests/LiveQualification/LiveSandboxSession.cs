@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Reflection.PortableExecutable;
 using System.Runtime.Versioning;
 using System.Text;
 using System.Text.Json;
@@ -29,6 +30,9 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 	private bool _passed;
 	private CheatEngineProfile? _profile;
 	private string? _runtimeHash;
+	private string? _targetHostPath;
+	private string? _targetPath;
+	private string _targetArchitecture = "x64";
 	private string? _source;
 	private CheatEngineRegistryGuard? _stateGuard;
 	private ICheatEngineUserStateScope? _userState;
@@ -52,6 +56,8 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 	{
 		get;
 	}
+
+	public string TargetArchitecture => _targetArchitecture;
 
 	public LiveSandboxHost HostA => GetHost("A");
 	public LiveSandboxHost HostB => GetHost("B");
@@ -231,9 +237,107 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 		}
 	}
 
+	/// <summary>Restarts only the disposable target for one still-running private CE host and publishes a fresh manifest.</summary>
+	public async Task RestartTargetAsync(string name)
+	{
+		if (!_hosts.TryGetValue(name, out OwnedHost? host) || host.Stopped || host.Process is null || host.Process.HasExited)
+		{
+			throw new InvalidOperationException($"Owned host '{name}' is not running.");
+		}
+
+		List<Exception> failures = [];
+		TryCleanup(() => File.WriteAllText(host.TargetManifest + ".stop", "stop"), failures);
+		bool previousStopped = await StopOwnedAsync(host.Target, failures);
+		if (previousStopped)
+		{
+			host.Target = null;
+		}
+		if (!previousStopped || failures.Count != 0)
+		{
+			throw new AggregateException($"Disposable target {name} did not stop cleanly.", failures);
+		}
+
+		int incarnation = host.TargetIncarnation + 1;
+		string manifest = Path.Combine(_layout.RunDirectory, $"target-{name}-{incarnation}.json");
+		RequireInsideRun(manifest);
+		Process target = StartTarget(manifest, name);
+		host.Target = target;
+		try
+		{
+			await WaitUntilAsync(() => File.Exists(manifest), target, TimeSpan.FromSeconds(10));
+			LiveTargetManifest facts = ReadTargetManifest(JsonNode.Parse(await File.ReadAllTextAsync(manifest))!, target.Id, name);
+			host.TargetManifest = manifest;
+			host.TargetIncarnation = incarnation;
+			host.Public = host.Public with
+			{
+				TargetIncarnation = incarnation,
+				TargetProcessId = target.Id,
+				TargetAddress = facts.Address,
+				PointerRootAddress = facts.PointerRootAddress,
+				PointerTargetAddress = facts.PointerTargetAddress,
+				ZeroPointerRootAddress = facts.ZeroPointerRootAddress,
+				UnreadableRootAddress = facts.UnreadableRootAddress
+			};
+			Record($"target_{name}_restart", new
+			{
+				incarnation,
+				processId = target.Id,
+				address = facts.Address
+			});
+		}
+		catch (Exception exception)
+		{
+			List<Exception> cleanupFailures = [];
+			bool stopped = await StopOwnedAsync(target, cleanupFailures);
+			if (stopped)
+			{
+				host.Target = null;
+			}
+			Record($"target_{name}_restart_failure", new
+			{
+				exception = exception.ToString(),
+				cleanupFailures = cleanupFailures.Select(item => item.ToString()).ToArray()
+			});
+			if (cleanupFailures.Count != 0)
+			{
+				throw new AggregateException($"Disposable target {name} restart and cleanup failed.", [exception, .. cleanupFailures]);
+			}
+
+			throw;
+		}
+	}
+
 	private async Task StartCoreAsync(LiveQualificationInputs inputs)
 	{
 		string repository = inputs.RepositoryRoot;
+		_targetArchitecture = inputs.TargetArchitecture;
+		_targetPath = TargetExecutablePath(repository, _targetArchitecture);
+		if (!File.Exists(_targetPath))
+		{
+			throw new FileNotFoundException("Build the selected disposable live target before live qualification.", _targetPath);
+		}
+		if (_targetArchitecture == "x86")
+		{
+			_targetHostPath = X86DotnetHostPath();
+			if (!File.Exists(_targetHostPath))
+			{
+				throw new FileNotFoundException("The x86 .NET host is required for the selected disposable target.",
+					_targetHostPath);
+			}
+			using FileStream targetStream = File.OpenRead(_targetPath);
+			using PEReader targetImage = new(targetStream);
+			if (PortableExecutableInspector.Instance.Describe(_targetHostPath).Machine != "I386"
+				|| targetImage.PEHeaders.CoffHeader.Machine != Machine.I386
+				|| targetImage.PEHeaders.CorHeader is not { } managedHeader
+				|| (managedHeader.Flags & CorFlags.Requires32Bit) == 0)
+			{
+				throw new InvalidOperationException("The selected x86 fixture must require 32-bit execution and use an x86 .NET host.");
+			}
+		}
+		else if (PortableExecutableInspector.Instance.Describe(_targetPath).Machine != "Amd64")
+		{
+			throw new InvalidOperationException("The selected x64 fixture must use an x64 application host.");
+		}
 		_source = inputs.CheatEngineDirectory;
 		if (LiveQualificationOptIn.IsSameOrBelow(_layout.RunRoot, _source)
 			|| LiveQualificationOptIn.IsSameOrBelow(_source, _layout.RunRoot))
@@ -360,28 +464,19 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 		string targetManifest = Path.Combine(_layout.RunDirectory, $"target-{name}.json");
 		string driverPath = Path.Combine(HostInstallationDirectory(name), "autorun", "zz_cheatengine_mcp_live.lua");
 		File.WriteAllText(driverPath, BuildDriver(stopPath, pluginPath, name));
-		string targetPath = Path.Combine(repository, "artifacts", "bin", "CheatEngine.Mcp.LiveTarget", configuration,
-			"CheatEngine.Mcp.LiveTarget.exe");
 		Process? target = null;
 		Process? host = null;
 		OwnedHost? owned = null;
 		try
 		{
-			ProcessStartInfo targetStart = CreateStartInfo(targetPath);
-			targetStart.ArgumentList.Add(targetManifest);
-			target = Process.Start(targetStart) ??
-					 throw new InvalidOperationException($"Disposable target {name} did not start.");
+			target = StartTarget(targetManifest, name);
 			owned = new OwnedHost(null, target, stopPath, targetManifest,
-				new LiveSandboxHost(name, 0, target.Id, string.Empty, pluginPath, string.Empty, string.Empty));
+				new LiveSandboxHost(name, 0, target.Id, string.Empty, string.Empty, string.Empty, string.Empty,
+					string.Empty, pluginPath, string.Empty, string.Empty));
 			_hosts.Add(name, owned);
 			await WaitUntilAsync(() => File.Exists(targetManifest), target, TimeSpan.FromSeconds(10));
 			JsonNode manifest = JsonNode.Parse(await File.ReadAllTextAsync(targetManifest))!;
-			if (manifest["processId"]!.GetValue<int>() != target.Id)
-			{
-				throw new InvalidOperationException($"Target manifest {name} belongs to a different process.");
-			}
-
-			string targetAddress = manifest["address"]!.GetValue<string>();
+			LiveTargetManifest targetFacts = ReadTargetManifest(manifest, target.Id, name);
 			ProcessStartInfo hostStart =
 				CreateStartInfo(Path.Combine(HostInstallationDirectory(name), _profile!.HostExecutable));
 			hostStart.Environment["MCP_HOST"] = "127.0.0.1";
@@ -396,7 +491,11 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 			owned.Public = owned.Public with
 			{
 				ProcessId = host.Id,
-				TargetAddress = targetAddress
+				TargetAddress = targetFacts.Address,
+				PointerRootAddress = targetFacts.PointerRootAddress,
+				PointerTargetAddress = targetFacts.PointerTargetAddress,
+				ZeroPointerRootAddress = targetFacts.ZeroPointerRootAddress,
+				UnreadableRootAddress = targetFacts.UnreadableRootAddress
 			};
 			InstanceDescriptor descriptor = await WaitForInstanceAsync(owned, TimeSpan.FromSeconds(45));
 			owned.Public = owned.Public with
@@ -407,7 +506,9 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 			Record($"target_{name}", new
 			{
 				processId = target.Id,
-				address = targetAddress
+				address = targetFacts.Address,
+				pointerRootAddress = targetFacts.PointerRootAddress,
+				pointerTargetAddress = targetFacts.PointerTargetAddress
 			});
 		}
 		catch (Exception exception)
@@ -445,6 +546,60 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 
 			throw;
 		}
+	}
+
+	private static string TargetExecutablePath(string repository, string architecture)
+	{
+#if DEBUG
+		const string configuration = "debug";
+#else
+		const string configuration = "release";
+#endif
+		return architecture == "x86"
+			? Path.Combine(repository, "artifacts", "live-target-x86", "bin", "CheatEngine.Mcp.LiveTarget", configuration,
+				"CheatEngine.Mcp.LiveTarget.dll")
+			: Path.Combine(repository, "artifacts", "bin", "CheatEngine.Mcp.LiveTarget", configuration,
+				"CheatEngine.Mcp.LiveTarget.exe");
+	}
+
+	private static string X86DotnetHostPath() =>
+		Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "dotnet", "dotnet.exe");
+
+	private Process StartTarget(string manifest, string name)
+	{
+		string target = _targetPath ?? throw new InvalidOperationException("Live target path was not prepared.");
+		ProcessStartInfo start;
+		if (_targetArchitecture == "x86")
+		{
+			start = CreateStartInfo(_targetHostPath ??
+				throw new InvalidOperationException("The x86 .NET host was not prepared."));
+			start.ArgumentList.Add(target);
+		}
+		else
+		{
+			start = CreateStartInfo(target);
+		}
+
+		start.ArgumentList.Add(manifest);
+		return Process.Start(start) ?? throw new InvalidOperationException($"Disposable target {name} did not start.");
+	}
+
+	private LiveTargetManifest ReadTargetManifest(JsonNode manifest, int processId, string name)
+	{
+		if (manifest["processId"]!.GetValue<int>() != processId)
+		{
+			throw new InvalidOperationException($"Target manifest {name} belongs to a different process.");
+		}
+
+		int width = manifest["pointerWidth"]!.GetValue<int>();
+		if (width != (_targetArchitecture == "x86" ? 32 : 64))
+		{
+			throw new InvalidOperationException($"Target manifest {name} reported pointer width {width}, not the requested {_targetArchitecture} width.");
+		}
+
+		return new LiveTargetManifest(manifest["address"]!.GetValue<string>(),
+			manifest["pointerRootAddress"]!.GetValue<string>(), manifest["pointerTargetAddress"]!.GetValue<string>(),
+			manifest["zeroPointerRootAddress"]!.GetValue<string>(), manifest["unreadableRootAddress"]!.GetValue<string>());
 	}
 
 	private static string DistributionDirectory(string repository, string configuration)
@@ -886,7 +1041,14 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 		public string TargetManifest
 		{
 			get;
+			set;
 		} = targetManifest;
+
+		public int TargetIncarnation
+		{
+			get;
+			set;
+		}
 
 		public Process? Process
 		{
@@ -912,4 +1074,7 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 			set;
 		}
 	}
+
+	private sealed record LiveTargetManifest(string Address, string PointerRootAddress, string PointerTargetAddress,
+		string ZeroPointerRootAddress, string UnreadableRootAddress);
 }

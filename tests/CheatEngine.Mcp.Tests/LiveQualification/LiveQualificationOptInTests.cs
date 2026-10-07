@@ -56,7 +56,32 @@ public sealed class LiveQualificationOptInTests
 		Assert.True(decision.IsAuthorized, decision.Refusal);
 		Assert.Equal(Path.GetFullPath(Installation), decision.Inputs!.CheatEngineDirectory);
 		Assert.Equal(Path.GetFullPath(LocalData + "/CheatEngine.Mcp.LiveQualification/runs"), decision.Inputs.RunRoot);
+		Assert.Equal("x64", decision.Inputs.TargetArchitecture);
 		Assert.False(LiveQualificationOptIn.IsSameOrBelow(decision.Inputs.RunRoot, Repository));
+	}
+
+	[Fact]
+	public void Evaluate_X86TargetArchitecture_AuthorizesTheBoundedFixtureChoice()
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.TargetArchitectureVariable] = "x86";
+
+		LiveQualificationDecision decision = Evaluate(variables);
+
+		Assert.True(decision.IsAuthorized, decision.Refusal);
+		Assert.Equal("x86", decision.Inputs!.TargetArchitecture);
+	}
+
+	[Theory]
+	[InlineData("X86")]
+	[InlineData("arm64")]
+	[InlineData("C:/other.exe")]
+	public void Evaluate_UnsupportedTargetArchitecture_Refuses(string architecture)
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.TargetArchitectureVariable] = architecture;
+
+		Assert.False(Evaluate(variables).IsAuthorized);
 	}
 
 	[Theory]

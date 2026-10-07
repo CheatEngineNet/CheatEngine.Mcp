@@ -2,6 +2,7 @@ exec_call_local
 exec_call_method
 exec_call_remote
 exec_compile_c
+exec_compile_csharp
 exec_inject_dotnet
 exec_inject_library
 lua_execute
