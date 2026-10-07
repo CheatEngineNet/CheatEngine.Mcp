@@ -113,7 +113,7 @@ internal static class LiveCompilerQualification
 		receipts = await ReceiptCountAsync(sandbox, "A");
 		FileFact[] beforeRaw = Snapshot(sandbox, sandbox.CompilerA.Temp);
 		JsonNode rawResult = await sandbox.CompilerProbeAsync("A", "compile");
-		Assert.Equal(receipts + 1, rawResult["receiptCount"]!.GetValue<long>());
+		Assert.Equal(receipts + 1, rawResult["receiptCount"]!.GetValue<int>());
 		string rawPath = rawResult["assemblyPath"]?.GetValue<string>()
 			?? throw new InvalidOperationException("The fixed raw compiler bridge returned no assembly; qualification stops.");
 		// Containment and every existing path component are checked before any read of the CE-returned path.
@@ -210,7 +210,7 @@ internal static class LiveCompilerQualification
 	}
 
 	private static async Task<long> ReceiptCountAsync(LiveSandboxSession sandbox, string name) =>
-		(await sandbox.CompilerProbeAsync(name, "status"))["receiptCount"]!.GetValue<long>();
+		(await sandbox.CompilerProbeAsync(name, "status"))["receiptCount"]!.GetValue<int>();
 
 	private static Dictionary<string, object?> Arguments(string source, string output, string[]? references = null, string? core = null) =>
 		new()

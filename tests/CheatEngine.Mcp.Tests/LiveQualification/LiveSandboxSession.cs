@@ -280,26 +280,10 @@ internal sealed class LiveSandboxSession : IAsyncDisposable
 		RequireInsideRun(request);
 		RequireInsideRun(response);
 		File.Delete(response);
-		await File.WriteAllTextAsync(request, command);
+		await File.WriteAllTextAsync(request + ".tmp", command);
+		File.Move(request + ".tmp", request);
 		await WaitUntilAsync(() => File.Exists(response), host.Process, TimeSpan.FromSeconds(10));
-		string[] lines = await File.ReadAllLinesAsync(response);
-		if (lines.Length is < 3 or > 4 || lines[0] != "ok" || !bool.TryParse(lines[1], out bool available) ||
-			!int.TryParse(lines[2], NumberStyles.None, CultureInfo.InvariantCulture, out int receipts))
-		{
-			throw new InvalidOperationException("Fixed compiler bridge returned an invalid bounded response.");
-		}
-
-		JsonObject result = new()
-		{
-			["available"] = available,
-			["receiptCount"] = receipts
-		};
-		if (lines.Length == 4)
-		{
-			result[available ? "assemblyPath" : "diagnostic"] = lines[3];
-		}
-
-		return result;
+		return await LiveCompilerProbeResponse.ReadAsync(response, command);
 	}
 
 	/// <summary>Restarts only the disposable target for one still-running private CE host and publishes a fresh manifest.</summary>

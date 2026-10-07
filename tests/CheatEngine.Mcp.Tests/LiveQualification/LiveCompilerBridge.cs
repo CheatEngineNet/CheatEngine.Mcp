@@ -18,7 +18,7 @@ internal static class LiveCompilerBridge
 		local function compilerProbe()
 		  local request=io.open(__REQUEST__,'r')
 		  if not request then return end
-		  local command=request:read('*a'); request:close(); os.remove(__REQUEST__)
+		  local command=request:read('*a'); request:close(); assert(os.remove(__REQUEST__), 'compiler request dequeue failed')
 		  if command~='status' and command~='compile' then return end
 		  local available=type(compileCS)=='function'
 		  local value=''
@@ -32,7 +32,7 @@ internal static class LiveCompilerBridge
 		  os.rename(__RESPONSE__..'.tmp',__RESPONSE__)
 		end
 		""".ReplaceLineEndings("\n").TrimEnd('\n');
-	internal const string TemplateSha256 = "A5B0280CE702D720CD496E5700CE30AD92FFD362EB825A60265A02B6682DA7F2";
+	internal const string TemplateSha256 = "E42693FFD25AD257262CEA04C228D5540F4887FA8F5EC759A1E087EFA404A84B";
 
 	internal static void RequireReviewedHash()
 	{
