@@ -15,7 +15,7 @@ Issue #28 checkboxes must be updated only after the corresponding evidence is re
 - [x] Make the packaged-DLL probe compare the exact packaged plugin against the explicit candidate golden directory.
 - [x] Complete `pointer_get_access_info` implementation, V+, applicable VN, documentation, and supplied-facts gateway/plugin qualification; live debugger capture remains a separate open workflow.
 - [x] Complete `pointer_read_chains` implementation, V+, documentation, and x86 and x64 native fixture qualification.
-- [ ] Complete the `compileCS` feasibility check under a reviewed policy.
+- [x] Complete the `compileCS` feasibility check under a reviewed policy; see the exact environment and remaining native cases in [compiler-checkpoint.md](compiler-checkpoint.md).
 - [ ] Complete `exec_compile_csharp` implementation and qualification or record an explicit reviewed deferral with a linked follow-up.
 - [ ] Reconcile and freeze the final tools, schemas, resources, prompts, completions, routing, capability gates, and migration contract.
 - [ ] Complete lifecycle, recovery, workflow-domain, installation, upgrade, rollback, and supported-client qualification.
@@ -33,11 +33,13 @@ Issue #28 checkboxes must be updated only after the corresponding evidence is re
 
 Working-tree evidence is recorded in [local-checkpoint.md](local-checkpoint.md), including package hashes, environment, test counts, two native run identifiers, cleanup, and limitations.
 It does not establish a clean final stable candidate.
-The exact candidate and release gates below remain open until that clean candidate is built and qualified.
+Compiler-only evidence for a clean local candidate is recorded in [compiler-checkpoint.md](compiler-checkpoint.md).
+The exact candidate gates below refer to the final stable candidate and remain open.
 
 | Evidence ID | Requirements | Level | Candidate | Environment | Outcome | Cleanup | Safe reference | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| LOCAL-01 through LOCAL-08 | Sections 3-6 and bounded portions of 7, 8 and 11 | implementation, V+, VN, AOT, VL | Uncommitted `codex/roadmap-v2`, beta.2 version; exact artifact hashes in checkpoint | Windows 11 Pro 26300; CE 7.7.1.10828; .NET 10.0.12; x86/x64 targets | All recorded checks passed | Both native runs restored user state and preserved the source installation with no cleanup failures | [Local checkpoint](local-checkpoint.md) | pass within recorded scope |
+| LOCAL-01 through LOCAL-08 | Sections 3-6 and bounded portions of 7, 8 and 11 | implementation, V+, VN, AOT, VL | Historical uncommitted `codex/roadmap-v2`, beta.2 version; exact artifact hashes in checkpoint | Windows 11 Pro 26300; CE 7.7.1.10828; .NET 10.0.12; x86/x64 targets | All recorded checks passed | Both native runs restored user state and preserved the source installation with no cleanup failures | [Local checkpoint](local-checkpoint.md) | pass within recorded scope |
+| COMPILER-01 and COMPILER-02 | Section 6 feasibility and compiler-only phases 1-4; bounded section 11 checks | V+, VN, AOT, VL | Clean `808a626e65eddab113737a27a7c2345555b1c241`, beta.2, Release; exact artifact hashes in checkpoint | Windows 11 Pro 26300; CE 7.7.1.10828 x64; .NET 10.0.12 and Framework 4.8.09221; x86/x64 targets | Build/package checks and all approved compiler-only phases passed | Four sessions restored user state and preserved installation; compiler files removed; no cleanup failures | [Compiler checkpoint](compiler-checkpoint.md) | pass within recorded scope; no injection or stable release |
 
 The candidate column must include version, full commit, clean-tree state, configuration, and relevant SHA-256 values.
 The environment column must include exact native versions for VL, soak, installation, and release results.

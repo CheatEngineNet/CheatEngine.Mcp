@@ -81,4 +81,5 @@ At this checkpoint, the compiler's actual availability, diagnostics, prerequisit
 Compiler-only phases 1 through 4 of the [compiler policy](compiler-probe-policy.md) were subsequently approved for this session; separate injection remains unapproved.
 The broader workflow matrix, repeated activation recovery, measured performance baselines, two-hour soak, installation/upgrade/rollback, named MCP clients, CI and analysis, clean final source identity, version/tag change, and public release verification remain open.
 The completed working-tree checks do not close any of those requirements.
+Subsequent clean-commit compiler evidence is recorded separately in [compiler-checkpoint.md](compiler-checkpoint.md).
 See [release notes](release-notes.md) for the draft migration path and [release-signoff.md](release-signoff.md) for final gates.

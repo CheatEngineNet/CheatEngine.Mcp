@@ -51,7 +51,8 @@ LBR, shared allocation, DBK map or unmap, caller-selected CR3 access, raw kernel
 
 All three P1 features are intended for stable v2.0.0 when their acceptance criteria in [acceptance.md](acceptance.md) are met.
 `pointer_get_access_info` and `pointer_read_chains` are included in the planned stable contract.
-`exec_compile_csharp` is included in the plan but remains pending a bounded feasibility check against the reviewed Cheat Engine 7.7 host.
+`exec_compile_csharp` passed bounded compiler feasibility on the clean local candidate recorded in [compiler-checkpoint.md](compiler-checkpoint.md).
+Unavailable-compiler, shared-temp expiry, reload, separate injection, and final stable-package qualification remain open.
 If a P1 feature proves infeasible, it requires an explicit linked follow-up, the recorded blocking evidence, and a reviewed roadmap decision before contract freeze.
 No P1 feature may be silently deferred to fit a work session or release schedule.
 

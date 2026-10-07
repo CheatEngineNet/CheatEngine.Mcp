@@ -13,8 +13,9 @@ Publication requires the final candidate gates in [release-signoff.md](release-s
 - Build CI now runs the portable suite in Debug and Release.
 - The private native fixture supports separate x86 and x64 runs and target restart checks.
 
-The C# compiler's native prerequisites and temporary-file lifetime remain pending the separately approved [compiler qualification policy](compiler-probe-policy.md).
-These notes must not describe that feature as natively qualified until its evidence is recorded.
+The approved compiler-only phases passed on the exact local candidate and environment recorded in [compiler-checkpoint.md](compiler-checkpoint.md), with separate x86 and x64 disposable targets.
+Both immediate exports survived both CE shutdowns; raw artifacts were retained at the observation points with distinct per-instance temporary roots.
+Shared-temp expiry, unavailable prerequisites, reload, and separate injection remain unqualified, as does the final stable package.
 
 ## Support and limitations
 
