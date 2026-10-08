@@ -168,6 +168,70 @@ public sealed class LiveQualificationOptInTests
 		Assert.False(Evaluate(variables).IsAuthorized);
 	}
 
+	[Theory]
+	[InlineData("lifecycle", LiveQualificationScenario.Lifecycle)]
+	[InlineData("performance", LiveQualificationScenario.Performance)]
+	[InlineData("soak", LiveQualificationScenario.Soak)]
+	public void Evaluate_StandardQualificationScenario_UsesOnlyStandardAcknowledgement(string name, int expected)
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.ScenarioVariable] = name;
+		LiveQualificationDecision decision = LiveQualificationOptIn.Evaluate(variables.GetValueOrDefault,
+			Repository, LocalData, Installation, static _ => true,
+			static () => throw new InvalidOperationException("A standard scenario must not inspect compiler settings."));
+		Assert.True(decision.IsAuthorized, decision.Refusal);
+		Assert.Equal((LiveQualificationScenario) expected, decision.Inputs!.Scenario);
+	}
+
+	[Theory]
+	[InlineData("compiler-extended")]
+	[InlineData("compiler-injection")]
+	public void Evaluate_CompilerVariantsWithoutCompilerAcknowledgement_RefuseBeforeInspection(string name)
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.ScenarioVariable] = name;
+		variables[LiveQualificationOptIn.InjectionOptInVariable] = LiveQualificationOptIn.InjectionAcknowledgement;
+		LiveQualificationDecision decision = LiveQualificationOptIn.Evaluate(variables.GetValueOrDefault,
+			Repository, LocalData, Installation, static _ => throw new InvalidOperationException("Must refuse first."));
+		Assert.False(decision.IsAuthorized);
+		Assert.Contains(LiveQualificationOptIn.CodeExecutionOptInVariable, decision.Refusal, StringComparison.Ordinal);
+	}
+
+	[Theory]
+	[InlineData(null)]
+	[InlineData("")]
+	[InlineData("true")]
+	[InlineData(LiveQualificationOptIn.CodeExecutionAcknowledgement)]
+	public void Evaluate_InjectionWithoutExactThirdAcknowledgement_RefusesBeforeInspection(string? acknowledgement)
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.ScenarioVariable] = "compiler-injection";
+		variables[LiveQualificationOptIn.CodeExecutionOptInVariable] = LiveQualificationOptIn.CodeExecutionAcknowledgement;
+		variables[LiveQualificationOptIn.InjectionOptInVariable] = acknowledgement;
+		LiveQualificationDecision decision = LiveQualificationOptIn.Evaluate(variables.GetValueOrDefault,
+			Repository, LocalData, Installation, static _ => throw new InvalidOperationException("Must refuse first."),
+			static () => throw new InvalidOperationException("Must refuse first."));
+		Assert.False(decision.IsAuthorized);
+		Assert.Contains(LiveQualificationOptIn.InjectionOptInVariable, decision.Refusal, StringComparison.Ordinal);
+	}
+
+	[Theory]
+	[InlineData("compiler-extended", LiveQualificationScenario.CompilerExtended)]
+	[InlineData("compiler-injection", LiveQualificationScenario.CompilerInjection)]
+	public void Evaluate_CompilerVariantsWithRequiredAcknowledgements_Authorize(string name, int expected)
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.ScenarioVariable] = name;
+		variables[LiveQualificationOptIn.CodeExecutionOptInVariable] = LiveQualificationOptIn.CodeExecutionAcknowledgement;
+		if (name == "compiler-injection")
+		{
+			variables[LiveQualificationOptIn.InjectionOptInVariable] = LiveQualificationOptIn.InjectionAcknowledgement;
+		}
+		LiveQualificationDecision decision = Evaluate(variables);
+		Assert.True(decision.IsAuthorized, decision.Refusal);
+		Assert.Equal((LiveQualificationScenario) expected, decision.Inputs!.Scenario);
+	}
+
 	private static Dictionary<string, string?> Authorized()
 	{
 		return new Dictionary<string, string?>

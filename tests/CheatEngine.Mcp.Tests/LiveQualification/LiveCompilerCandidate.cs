@@ -23,7 +23,10 @@ internal static partial class LiveCompilerCandidate
 			throw new InvalidOperationException("Compiler qualification requires one clean checkout at a full Git commit.");
 		}
 
-		string policy = Path.Combine(inputs.RepositoryRoot, "docs", "qualification", "v2.0.0", "compiler-probe-policy.md");
+		string policyName = inputs.Scenario is LiveQualificationScenario.CompilerExtended or LiveQualificationScenario.CompilerInjection
+			? "compiler-extended-policy.md"
+			: "compiler-probe-policy.md";
+		string policy = Path.Combine(inputs.RepositoryRoot, "docs", "qualification", "v2.0.0", policyName);
 		string distribution = LiveSandboxSession.DistributionDirectory(inputs.RepositoryRoot, "release");
 		string plugin = Path.Combine(distribution, "CheatEngine.Mcp.dll");
 		string gateway = Path.Combine(distribution, "CheatEngine.Mcp.Gateway.exe");
@@ -43,6 +46,7 @@ internal static partial class LiveCompilerCandidate
 			commit,
 			cleanTree = true,
 			productVersion = pluginVersion,
+			policy = policyName,
 			policySha256 = CheatEngineInstallation.Sha256(policy),
 			bridgeTemplateSha256 = LiveCompilerBridge.TemplateSha256,
 			windowsVersion = Environment.OSVersion.VersionString,

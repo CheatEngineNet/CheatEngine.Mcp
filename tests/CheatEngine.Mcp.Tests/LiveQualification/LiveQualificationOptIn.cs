@@ -12,6 +12,9 @@ internal static class LiveQualificationOptIn
 	internal const string CodeExecutionOptInVariable = "CHEATENGINE_MCP_LIVE_CODE_EXECUTION_QUALIFICATION";
 	internal const string CodeExecutionAcknowledgement =
 		"I_AUTHORIZE_FIXED_COMPILECS_PROBES_ON_PRIVATE_CE_AND_OWNED_TARGETS";
+	internal const string InjectionOptInVariable = "CHEATENGINE_MCP_LIVE_MANAGED_INJECTION_QUALIFICATION";
+	internal const string InjectionAcknowledgement =
+		"I_AUTHORIZE_FIXED_MANAGED_INJECTION_ON_OWNED_FRAMEWORK_TARGETS";
 
 	internal const string LocalCommand =
 		"dotnet test --project tests/CheatEngine.Mcp.Tests -c Release --filter-trait Category=LiveQualification --fail-skips on";
@@ -44,21 +47,37 @@ internal static class LiveQualificationOptIn
 		}
 
 		string scenarioValue = variables(ScenarioVariable) ?? "smoke";
-		if (scenarioValue is not ("smoke" or "compiler"))
+		LiveQualificationScenario? selectedScenario = scenarioValue switch
 		{
-			return Refuse($"{ScenarioVariable} must be smoke or compiler.");
+			"smoke" => LiveQualificationScenario.Smoke,
+			"compiler" => LiveQualificationScenario.Compiler,
+			"compiler-extended" => LiveQualificationScenario.CompilerExtended,
+			"compiler-injection" => LiveQualificationScenario.CompilerInjection,
+			"lifecycle" => LiveQualificationScenario.Lifecycle,
+			"performance" => LiveQualificationScenario.Performance,
+			"soak" => LiveQualificationScenario.Soak,
+			_ => null
+		};
+		if (selectedScenario is null)
+		{
+			return Refuse($"{ScenarioVariable} must be smoke, compiler, compiler-extended, compiler-injection, lifecycle, performance, or soak.");
 		}
 
-		LiveQualificationScenario scenario = scenarioValue == "compiler"
-			? LiveQualificationScenario.Compiler
-			: LiveQualificationScenario.Smoke;
+		LiveQualificationScenario scenario = selectedScenario.Value;
+		bool compiler = scenario is LiveQualificationScenario.Compiler or LiveQualificationScenario.CompilerExtended
+			or LiveQualificationScenario.CompilerInjection;
 
-		if (scenario == LiveQualificationScenario.Compiler &&
+		if (compiler &&
 			variables(CodeExecutionOptInVariable) != CodeExecutionAcknowledgement)
 		{
 			return Refuse($"{CodeExecutionOptInVariable} must contain the exact acknowledgement {CodeExecutionAcknowledgement}.");
 		}
-		if (scenario == LiveQualificationScenario.Compiler && compilerTempSettingsAreSafe is not null &&
+		if (scenario == LiveQualificationScenario.CompilerInjection &&
+			variables(InjectionOptInVariable) != InjectionAcknowledgement)
+		{
+			return Refuse($"{InjectionOptInVariable} must contain the exact acknowledgement {InjectionAcknowledgement}.");
+		}
+		if (compiler && compilerTempSettingsAreSafe is not null &&
 			!compilerTempSettingsAreSafe())
 		{
 			return Refuse("Cheat Engine's Don't use tempdir setting is enabled; compiler qualification requires the owned TEMP directory.");

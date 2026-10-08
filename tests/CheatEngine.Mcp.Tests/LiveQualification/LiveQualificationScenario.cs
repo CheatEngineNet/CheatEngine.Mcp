@@ -4,5 +4,10 @@ namespace CheatEngine.Mcp.Tests.LiveQualification;
 internal enum LiveQualificationScenario
 {
 	Smoke,
-	Compiler
+	Compiler,
+	CompilerExtended,
+	CompilerInjection,
+	Lifecycle,
+	Performance,
+	Soak
 }

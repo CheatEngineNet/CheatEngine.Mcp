@@ -60,6 +60,15 @@ public sealed class LiveCompilerProbeResponseTests
 		Assert.Null(response["assemblyPath"]);
 	}
 
+	[Fact]
+	public void Parse_ArmHold_AcceptsOnlyTheFixedStatusShape()
+	{
+		System.Text.Json.Nodes.JsonNode response = LiveCompilerProbeResponse.Parse(["ok", "true", "7"], "armHold");
+		Assert.True(response["available"]!.GetValue<bool>());
+		Assert.Equal(7, response["receiptCount"]!.GetValue<int>());
+		Assert.Null(response["assemblyPath"]);
+	}
+
 	[Theory]
 	[InlineData("true", "assemblyPath")]
 	[InlineData("false", "diagnostic")]
@@ -74,6 +83,7 @@ public sealed class LiveCompilerProbeResponseTests
 	[InlineData("status", "ok", "true", "-1", null)]
 	[InlineData("status", "ok", "true", "2147483648", null)]
 	[InlineData("status", "ok", "true", "1", "unexpected")]
+	[InlineData("armHold", "ok", "true", "1", "unexpected")]
 	[InlineData("status", "error", "true", "1", null)]
 	[InlineData("status", "ok", "maybe", "1", null)]
 	[InlineData("compile", "ok", "true", "1", null)]

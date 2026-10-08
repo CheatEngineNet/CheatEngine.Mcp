@@ -8,6 +8,7 @@ internal static class Program
 {
 	private const int InitialValue = 20260926;
 	private static readonly TimeSpan MaximumLifetime = TimeSpan.FromMinutes(10);
+	private static readonly TimeSpan SoakMaximumLifetime = TimeSpan.FromMinutes(135);
 	private static readonly string[] PointerOffsets = ["-10", "20"];
 
 	private static int Main(string[] args)
@@ -17,12 +18,14 @@ internal static class Program
 			return PluginBundleProbe.Run(args[1], args.Length == 3 ? args[2] : null);
 		}
 
-		if (args.Length != 1 || string.IsNullOrWhiteSpace(args[0]))
+		bool soak = args.Length == 2 && string.Equals(args[0], "--soak", StringComparison.Ordinal);
+		if ((!soak && args.Length != 1) || (soak && string.IsNullOrWhiteSpace(args[1]))
+			|| (!soak && string.IsNullOrWhiteSpace(args[0])))
 		{
 			return 64;
 		}
 
-		string manifestPath = Path.GetFullPath(args[0]);
+		string manifestPath = Path.GetFullPath(soak ? args[1] : args[0]);
 		string stopMarkerPath = $"{manifestPath}.stop";
 		IntPtr direct = IntPtr.Zero;
 		IntPtr root = IntPtr.Zero;
@@ -36,6 +39,8 @@ internal static class Program
 			middle = Marshal.AllocHGlobal(64);
 			final = Marshal.AllocHGlobal(64);
 			zeroRoot = Marshal.AllocHGlobal(IntPtr.Size);
+			// A fixed data-only decode range for bounded code jobs; it is never executed.
+			Marshal.Copy(Enumerable.Repeat((byte) 0x90, 64).ToArray(), 0, direct, 64);
 			Marshal.WriteInt32(direct, InitialValue);
 			Marshal.WriteInt32(final, InitialValue);
 			// dereference(root) - 0x10 == middle; dereference(middle) + 0x20 == final.
@@ -59,7 +64,8 @@ internal static class Program
 			File.Move(manifestPath + ".tmp", manifestPath);
 
 			Stopwatch lifetime = Stopwatch.StartNew();
-			while (lifetime.Elapsed < MaximumLifetime && !File.Exists(stopMarkerPath))
+			TimeSpan maximumLifetime = soak ? SoakMaximumLifetime : MaximumLifetime;
+			while (lifetime.Elapsed < maximumLifetime && !File.Exists(stopMarkerPath))
 			{
 				Thread.Sleep(50);
 			}

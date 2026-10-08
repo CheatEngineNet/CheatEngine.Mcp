@@ -1,9 +1,13 @@
 # Stable v2.0.0 acceptance criteria
 
-Status: Planned criteria that have not yet passed.
+Status: Stable-scope acceptance plan; criteria pass only at the evidence level recorded for an exact candidate.
 
 Implementation, offline verification, native qualification, soak, and release publication are separate evidence levels.
 A tool implementation or portable test result does not satisfy a native or release requirement.
+The current status of every remaining roadmap item is recorded in [requirement-matrix.md](requirement-matrix.md).
+The reviewed plan selects all three P1 features for stable v2.0.0 and does not silently defer any of them.
+The observed planning environment is Windows 11 Pro x64 build `10.0.26300`, Cheat Engine x64 `7.7.1.10828`, and .NET runtime `10.0.12`.
+That observation is not evidence for another Windows build, Cheat Engine build, runtime patch, or final release package.
 
 ## Evidence levels
 
@@ -20,6 +24,7 @@ The portable suite must pass against both Debug and Release outputs for release 
 VN evidence must record the selected Lua DLL path in redacted form, its version when available, and its SHA-256.
 VL remains outside ordinary CI and must follow the existing explicit acknowledgement, private-copy, user-state backup, reviewed-autorun, and disposable-target restrictions.
 Kernel, hypervisor, debugger injection, compiler, and managed invocation probes require their separately reviewed qualification policy before VL execution.
+The four capability switches are enabled by default, file and table allowed roots are empty by default, and the switches are exposure controls rather than a sandbox.
 
 ## P1 pointer access analysis
 
@@ -79,6 +84,8 @@ Exact integers, 64-bit addresses, signed offsets, null values, empty values, err
 Every routed backend call must require its explicit `instanceId`, and disappearance must never select another instance.
 The packaged-DLL probe must receive the reviewed golden directory explicitly and compare the actual lone packaged plugin DLL with the candidate goldens.
 The plugin DLL, gateway executable, ZIP, checksums, version, source identity, and tag must agree before publication.
+The clean tested compiler candidate is `808a626e65eddab113737a27a7c2345555b1c241`, still identified as `2.0.0-beta.2`, and is not the final stable candidate.
+The historical pointer smoke used different package bytes recorded in `local-checkpoint.md`, so its native results must not be attributed to the clean compiler candidate.
 
 ## Performance acceptance
 
@@ -118,3 +125,12 @@ Upgrade qualification must replace beta.2 and any older folder deployment withou
 Install, upgrade, disable, uninstall, and rollback must preserve user configuration, tables, unrelated plugins, Cheat Engine settings, and recoverable backups.
 Paths with spaces, a standard user account, allowed roots, read-only deployment behavior, malformed configuration, occupied endpoints, and unavailable log locations must have recorded outcomes.
 The final release notes must state the support matrix, beta migration, capability limitations, recovery paths, and changes since beta.2.
+The beta-to-stable contract permits additive optional fields and new tools when existing callers retain their behavior.
+Removing or renaming tools, changing existing field meanings, changing pointer offset order, or changing host-effect reporting requires a reviewed future breaking contract.
+The beta tags remain unchanged, and stable publication uses a new annotated `v2.0.0` tag at the exact final binary source commit.
+
+## P2 and research disposition
+
+Section 12 conveniences and section 13 research are outside the stable v2.0.0 blocking path unless a later reviewed decision promotes one into scope.
+Each item still requires an explicit linked follow-up or an unsupported disposition before roadmap closure.
+No unchecked P2 or research item may be described as implemented, qualified, or silently deferred.

@@ -118,6 +118,45 @@ internal sealed class LiveMcpClient : IAsyncDisposable, ILiveMcpToolClient
 		return new LiveMcpInstanceClient(this, instanceId);
 	}
 
+	public async Task<ListResourcesResult> ListResourcesAsync()
+	{
+		using CancellationTokenSource timeout = CreateTimeout(cancellationToken);
+		return await client.ListResourcesAsync(new ListResourcesRequestParams(), timeout.Token);
+	}
+
+	public async Task<IList<McpClientResourceTemplate>> ListResourceTemplatesAsync()
+	{
+		using CancellationTokenSource timeout = CreateTimeout(cancellationToken);
+		return await client.ListResourceTemplatesAsync(cancellationToken: timeout.Token);
+	}
+
+	public async Task<ReadResourceResult> ReadResourceAsync(string uri)
+	{
+		using CancellationTokenSource timeout = CreateTimeout(cancellationToken);
+		return await client.ReadResourceAsync(uri, cancellationToken: timeout.Token);
+	}
+
+	public async Task<IList<McpClientPrompt>> ListPromptsAsync()
+	{
+		using CancellationTokenSource timeout = CreateTimeout(cancellationToken);
+		return await client.ListPromptsAsync(cancellationToken: timeout.Token);
+	}
+
+	public async Task<GetPromptResult> GetPromptAsync(string name, IReadOnlyDictionary<string, object?> arguments)
+	{
+		using CancellationTokenSource timeout = CreateTimeout(cancellationToken);
+		return await client.GetPromptAsync(name, arguments, cancellationToken: timeout.Token);
+	}
+
+	public async Task<CompleteResult> CompleteInstancesAsync()
+	{
+		using CancellationTokenSource timeout = CreateTimeout(cancellationToken);
+		return await client.CompleteAsync(new ResourceTemplateReference
+		{
+			Uri = "cheatengine://instances/{instanceId}/runtime"
+		}, "instanceId", "ce-", cancellationToken: timeout.Token);
+	}
+
 	private static CancellationTokenSource CreateTimeout(CancellationToken cancellationToken)
 	{
 		CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

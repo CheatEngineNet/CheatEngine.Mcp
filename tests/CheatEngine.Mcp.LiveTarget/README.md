@@ -8,8 +8,8 @@ It is not shipped with the plugin or gateway and has no production role.
 
 ## Runtime behavior
 
-The executable requires exactly one argument: the absolute or relative path of a manifest file to create.
-It exits with code `64` when that argument is missing, blank, or accompanied by extra arguments.
+The executable normally requires exactly one argument: the absolute or relative path of a manifest file to create.
+The reviewed live-soak harness may instead pass `--soak <manifest-path>`, which selects the fixed 2-hour-15-minute lifetime. It accepts no caller-provided duration or other workload arguments. It exits with code `64` when those forms are missing, blank, or accompanied by other arguments.
 
 At startup, the process owns four 64-byte unmanaged allocations and one pointer-sized allocation.
 It writes the signed 32-bit value `20260926` at the direct-value and final pointer-chain addresses.
@@ -39,7 +39,7 @@ The manifest has this shape:
 The pointer root reaches `pointerTargetAddress` through the signed offsets `-10`, then `20`.
 `zeroPointerRootAddress` stores a zero pointer so qualification can distinguish a resolved address zero from an unreadable typed final value.
 After publishing the manifest, the process polls for a sibling stop marker named `<manifest>.stop`.
-It exits successfully when that file appears or when its ten-minute lifetime expires, then releases every owned unmanaged allocation.
+It exits successfully when that file appears or when its normal ten-minute lifetime expires. The reviewed `--soak` form uses its fixed 2-hour-15-minute maximum instead. It then releases every owned unmanaged allocation.
 It has no window, network listener, input handling, or persistent state beyond the manifest and stop marker.
 
 ## Relationship to live qualification

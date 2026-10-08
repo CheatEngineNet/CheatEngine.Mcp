@@ -19,12 +19,200 @@ internal static class LiveCompilerQualification
 
 	internal static async Task RunAsync(LiveQualificationInputs inputs)
 	{
+		if (inputs.Scenario == LiveQualificationScenario.CompilerExtended)
+		{
+			await VerifyExtendedAsync(inputs);
+			return;
+		}
 		Assert.Equal(LiveQualificationScenario.Compiler, inputs.Scenario);
 		object candidate = LiveCompilerCandidate.Verify(inputs);
 		await VerifyDisabledGateAsync(inputs, candidate);
 		// The first session has fully restored user state before the enabled activation starts.
 		Assert.Equal(JsonSerializer.Serialize(candidate), JsonSerializer.Serialize(LiveCompilerCandidate.Verify(inputs)));
 		await VerifyCompilerAsync(inputs, candidate);
+	}
+
+	private static async Task VerifyExtendedAsync(LiveQualificationInputs inputs)
+	{
+		Assert.Equal(LiveQualificationScenario.CompilerExtended, inputs.Scenario);
+		object candidate = LiveCompilerCandidate.Verify(inputs);
+		await VerifyPrivateCompilerAbsentAsync(inputs, candidate);
+		Assert.Equal(JsonSerializer.Serialize(candidate), JsonSerializer.Serialize(LiveCompilerCandidate.Verify(inputs)));
+		await VerifyHeldExportAfterBAsync(inputs, candidate);
+	}
+
+	private static async Task VerifyPrivateCompilerAbsentAsync(LiveQualificationInputs inputs, object candidate)
+	{
+		LiveSandboxOptions options = new(true, true)
+		{
+			Variant = LiveCompilerVariant.PrivateCompilerAbsent
+		};
+		await using LiveSandboxSession sandbox = await LiveSandboxSession.StartAsync(inputs, options);
+		RecordAdmission(sandbox, candidate, "private_component_absent");
+		await using LiveMcpClient gateway = await ConnectAsync(sandbox);
+		LiveMcpInstanceClient instance = gateway.Bind(sandbox.HostA.InstanceId);
+		await VerifyGatesAsync(sandbox, instance, "A", true);
+		await AttachAsync(instance, sandbox.HostA);
+		long receipts = await ReceiptCountAsync(sandbox, "A");
+		LiveMcpToolResult result = await CompileAsync(sandbox, instance, "private_component_absent",
+			Arguments(LiveCompilerPayload.ValidSource, Path.Combine(sandbox.CompilerA.Output, "private-component.dll")));
+		Assert.True(result.IsError, "The private compiler-absence probe unexpectedly produced an export.");
+		JsonNode error = result.Payload?["error"]
+			?? throw new InvalidOperationException("The private compiler-absence result did not contain a structured error.");
+		string kind = error["kind"]!.GetValue<string>();
+		string effect = error["hostEffect"]!.GetValue<string>();
+		Assert.True((kind == "unsupported" && effect == "not_started") || (kind == "host_refused" && effect == "unknown"),
+			"A missing private compiler component must remain unavailable or report CE's bounded compiler refusal.");
+		Assert.Empty(Snapshot(sandbox, sandbox.CompilerA.Output));
+		long after = await ReceiptCountAsync(sandbox, "A");
+		Assert.Equal(kind == "unsupported" ? receipts : receipts + 1, after);
+		sandbox.Record("compiler_private_component_absent", new
+		{
+			kind,
+			hostEffect = effect,
+			receiptsBefore = receipts,
+			receiptsAfter = after
+		});
+		sandbox.MarkPassed();
+	}
+
+	private static async Task VerifyHeldExportAfterBAsync(LiveQualificationInputs inputs, object candidate)
+	{
+		LiveSandboxOptions options = new(true, true)
+		{
+			Variant = LiveCompilerVariant.HeldExportAfterB,
+			TempTopology = CompilerTempTopology.Shared
+		};
+		await using LiveSandboxSession sandbox = await LiveSandboxSession.StartAsync(inputs, options);
+		RecordAdmission(sandbox, candidate, "held_export_after_b");
+		await using LiveMcpClient gateway = await ConnectAsync(sandbox);
+		LiveMcpInstanceClient instanceA = gateway.Bind(sandbox.HostA.InstanceId);
+		await VerifyGatesAsync(sandbox, instanceA, "A", true);
+		await AttachAsync(instanceA, sandbox.HostA);
+		LiveHeldCompilerExport? export = await CompileHeldExportAsync(sandbox, gateway, instanceA);
+		await VerifyPluginReloadLifetimeAsync(sandbox, gateway, instanceA, export);
+		sandbox.MarkPassed();
+	}
+
+	private static async Task VerifyPluginReloadLifetimeAsync(LiveSandboxSession sandbox, LiveMcpClient gateway,
+		LiveMcpInstanceClient previousClient, LiveHeldCompilerExport? export)
+	{
+		JsonNode rawResult = await sandbox.CompilerProbeAsync("A", "compile");
+		string rawPath = rawResult["assemblyPath"]?.GetValue<string>()
+			?? throw new InvalidDataException("The fixed raw compiler probe did not return an assembly before reload.");
+		FileFact before = ReadFile(sandbox, rawPath, sandbox.CompilerA.Temp, true);
+		LiveSandboxHost previous = sandbox.HostA;
+		await sandbox.ReloadPluginAsync("A", false, TestContext.Current.CancellationToken);
+		await RequireInstancesAsync(gateway);
+		await RejectStaleInstanceAsync(previousClient);
+		FileFact? afterDisable = ObserveRaw(sandbox, rawPath);
+		if (afterDisable is not null)
+		{
+			Assert.Equal(before, afterDisable);
+		}
+
+		await sandbox.ReloadPluginAsync("A", true, TestContext.Current.CancellationToken);
+		LiveLifecycleQualification.RequirePluginReload(previous, sandbox.HostA);
+		await RequireInstancesAsync(gateway, sandbox.HostA.InstanceId);
+		await RejectStaleInstanceAsync(previousClient);
+		LiveMcpInstanceClient current = gateway.Bind(sandbox.HostA.InstanceId);
+		await VerifyGatesAsync(sandbox, current, "A_after_reload", true);
+		await AttachAsync(current, sandbox.HostA);
+		await VerifySelectedTargetAsync(current, sandbox.HostA);
+		FileFact? afterEnable = ObserveRaw(sandbox, rawPath);
+		if (afterEnable is not null)
+		{
+			Assert.Equal(before, afterEnable);
+		}
+
+		if (export is not null)
+		{
+			FileFact retained = ReadFile(sandbox, export.Path, sandbox.CompilerA.Output, true);
+			Assert.Equal(export.Length, retained.Length);
+			Assert.Equal(export.Sha256, retained.Sha256);
+		}
+		sandbox.Record("compiler_raw_plugin_reload", new
+		{
+			before,
+			afterDisable,
+			afterEnable,
+			export,
+			classification = afterDisable is null ? "expired_after_disable" : afterEnable is null ? "expired_after_enable" : "retained_after_reload",
+			injectionAttempted = false
+		});
+	}
+
+	internal static async Task<LiveHeldCompilerExport?> CompileHeldExportAsync(LiveSandboxSession sandbox,
+		LiveMcpClient gateway, LiveMcpInstanceClient instanceA)
+	{
+		JsonNode armed = await sandbox.ArmCompilerHoldAsync("A");
+		Assert.True(armed["available"]!.GetValue<bool>(), "The fixed hold bridge requires compileCS.");
+		DateTimeOffset armedAt = DateTimeOffset.UtcNow;
+		Stopwatch holdBudget = Stopwatch.StartNew();
+		string output = Path.Combine(sandbox.CompilerA.Output, "held-export.dll");
+		Task<LiveMcpToolResult> compile = CompileAsync(sandbox, instanceA, "held_export", Arguments(LiveCompilerPayload.ValidSource, output));
+		bool released = false;
+		LiveHeldCompilerExport? export = null;
+		try
+		{
+			string rawPath = await sandbox.WaitForCompilerHoldAsync("A", TestContext.Current.CancellationToken);
+			DateTimeOffset? receiptAt = DateTimeOffset.UtcNow;
+			FileFact raw = ReadFile(sandbox, rawPath, sandbox.CompilerA.Temp, true);
+			await sandbox.StopHostAsync("B");
+			FileFact? rawAfterB = ObserveRaw(sandbox, rawPath);
+			await sandbox.ReleaseCompilerHoldAsync("A", TestContext.Current.CancellationToken);
+			released = true;
+			DateTimeOffset? releaseAt = DateTimeOffset.UtcNow;
+			Assert.True(holdBudget.Elapsed < TimeSpan.FromSeconds(9), "The held compiler call approached its release deadline.");
+			LiveMcpToolResult result = await compile;
+			if (rawAfterB is not null)
+			{
+				Assert.Equal(raw, rawAfterB);
+				Assert.False(result.IsError, result.ErrorText);
+				FileFact exported = ReadFile(sandbox, output, sandbox.CompilerA.Output, true);
+				Assert.Equal(rawAfterB.Sha256, exported.Sha256);
+				Assert.Equal(rawAfterB.Length, exported.Length);
+				Assert.Equal(output, result.Payload!["outputPath"]!.GetValue<string>(), true);
+				Assert.Equal(exported.Length, result.Payload["length"]!.GetValue<long>());
+				Assert.Equal(exported.Sha256, result.Payload["sha256"]!.GetValue<string>());
+				export = new LiveHeldCompilerExport(output, exported.Length, exported.Sha256!);
+			}
+			else
+			{
+				JsonNode error = AssertError(result, "not_found", "unknown");
+				Assert.NotNull(error);
+				Assert.Empty(Snapshot(sandbox, sandbox.CompilerA.Output));
+			}
+			sandbox.Record("compiler_held_export_after_b", new
+			{
+				armedAt,
+				receiptAt,
+				releaseAt,
+				holdMilliseconds = holdBudget.ElapsedMilliseconds,
+				raw,
+				rawAfterB,
+				export,
+				heldThroughBShutdown = true
+			});
+			await RequireInstancesAsync(gateway, sandbox.HostA.InstanceId);
+			return export;
+		}
+		finally
+		{
+			if (!released)
+			{
+				try
+				{
+					await sandbox.ReleaseCompilerHoldAsync("A", CancellationToken.None);
+				}
+				catch (Exception exception) { sandbox.Record("compiler_hold_release_failure", exception.ToString()); }
+			}
+			try
+			{
+				_ = await compile;
+			}
+			catch (Exception exception) { sandbox.Record("compiler_held_compile_failure", exception.ToString()); }
+		}
 	}
 
 	private static async Task VerifyDisabledGateAsync(LiveQualificationInputs inputs, object candidate)
@@ -405,3 +593,5 @@ internal static class LiveCompilerQualification
 
 	private sealed record FileFact(string Path, long Length, string? Sha256, bool ExclusiveScanLease = false);
 }
+
+internal sealed record LiveHeldCompilerExport(string Path, long Length, string Sha256);

@@ -33,7 +33,7 @@ internal static class LiveCompilerProbeResponse
 
 	internal static JsonNode Parse(string[] lines, string command)
 	{
-		if (command is not ("status" or "compile") || lines.Length != (command == "status" ? 3 : 4) ||
+		if (command is not ("status" or "compile" or "armHold") || lines.Length != (command == "compile" ? 4 : 3) ||
 			lines[0] != "ok" || !bool.TryParse(lines[1], out bool available) ||
 			!int.TryParse(lines[2], NumberStyles.None, CultureInfo.InvariantCulture, out int receipts) ||
 			(command == "compile" && string.IsNullOrEmpty(lines[3])))

@@ -21,10 +21,34 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 	public async Task OneGateway_TwoOwnedInstances_RoutesStateAndSurvivesOneHostShutdown()
 	{
 		LiveQualificationInputs inputs = fixture.RequireAuthorization();
-		if (inputs.Scenario == LiveQualificationScenario.Compiler)
+		if (inputs.Scenario is LiveQualificationScenario.Compiler or LiveQualificationScenario.CompilerExtended)
 		{
 			await LiveCompilerQualification.RunAsync(inputs);
 			return;
+		}
+		if (inputs.Scenario == LiveQualificationScenario.Performance)
+		{
+			await LivePerformanceQualification.RunAsync(inputs);
+			return;
+		}
+		if (inputs.Scenario == LiveQualificationScenario.Lifecycle)
+		{
+			await LiveLifecycleQualification.RunAsync(inputs);
+			return;
+		}
+		if (inputs.Scenario == LiveQualificationScenario.Soak)
+		{
+			await LiveSoakQualification.RunAsync(inputs);
+			return;
+		}
+		if (inputs.Scenario == LiveQualificationScenario.CompilerInjection)
+		{
+			await LiveManagedInjectionQualification.RunAsync(inputs);
+			return;
+		}
+		if (inputs.Scenario != LiveQualificationScenario.Smoke)
+		{
+			throw new InvalidOperationException("The selected qualification runner has not been integrated yet; no host was started.");
 		}
 		await using LiveSandboxSession sandbox = await LiveSandboxSession.StartAsync(inputs);
 		await using LiveMcpClient gateway = await LiveMcpClient.ConnectGatewayAsync(sandbox.GatewayExecutablePath,
@@ -78,6 +102,7 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			LiveMcpInstanceClient instanceB = gateway.Bind(sandbox.HostB.InstanceId);
 
 			step = "instance runtime information";
+			await LiveResourceQualification.VerifyAsync(sandbox, gateway);
 			JsonNode runtimeA = await SuccessfulCallAsync(instanceA, CheatEngineToolNames.RuntimeGetInfo);
 			JsonNode runtimeB = await SuccessfulCallAsync(instanceB, CheatEngineToolNames.RuntimeGetInfo);
 			Assert.Equal(Path.GetFileName(sandbox.HostA.PluginPath), runtimeA["pluginFileName"]!.GetValue<string>());
@@ -188,6 +213,7 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			step = "instance B shutdown";
 			await sandbox.StopHostAsync("B");
 			await AssertEventuallyInstancesAsync(gateway, sandbox.HostA.InstanceId);
+			await LiveResourceQualification.VerifyInstanceCompletionsAsync(gateway, sandbox.HostA.InstanceId);
 			await Assert.ThrowsAsync<InvalidOperationException>(async () =>
 				await instanceB.CallToolAsync(CheatEngineToolNames.RuntimeGetInfo));
 			AssertMemoryValue(await ReadMemoryAsync(instanceA, sandbox.HostA.TargetAddress), 20260931);

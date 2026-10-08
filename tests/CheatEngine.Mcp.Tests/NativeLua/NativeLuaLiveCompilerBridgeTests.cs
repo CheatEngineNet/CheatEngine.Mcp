@@ -8,7 +8,10 @@ public sealed partial class NativeLuaToolRuntimeTests
 	private const string CompilerBridgeStubs = """
 		compilerCalls = 0
 		removeCalls = 0
+		closeCalls = 0
 		removeOk = true
+		getTickCount = function() return 0 end
+		sleep = function() end
 		command = 'status'
 		response = ''
 		seen = {}
@@ -19,9 +22,9 @@ public sealed partial class NativeLuaToolRuntimeTests
 		end
 		io = { open = function(path, mode)
 		  if mode == 'r' then
-		    return { read = function() return command end, close = function() end }
+		    return { read = function() return command end, close = function() closeCalls = closeCalls + 1 end }
 		  end
-		  return { write = function(_, value) response = response .. value end, close = function() end }
+		  return { write = function(_, value) response = response .. value end, close = function() closeCalls = closeCalls + 1 end }
 		end }
 		os = { remove = function() removeCalls = removeCalls + 1; return removeOk end,
 		       rename = function() return true end }
@@ -84,6 +87,23 @@ public sealed partial class NativeLuaToolRuntimeTests
 		Assert.Equal(0L, ReadGlobal("compilerCalls"));
 		Assert.False((bool) ReadGlobal("probeOk")!);
 		Assert.Equal(1L, ReadGlobal("removeCalls"));
+	}
+
+	[Fact]
+	public void LiveCompilerBridge_ArmHold_DoesNotCompile_AndNextSuccessfulCompilePreservesReturns()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(CompilerBridgeStubs + "\ncommand = 'armHold'");
+
+		RunBridge("compilerProbe(); holdReturns=table.pack(compileCS('sentinel', {}, nil))");
+
+		Assert.Equal(1L, ReadGlobal("compilerCalls"));
+		Assert.Equal("sentinel", EvaluateLua("seen[1]"));
+		Assert.Equal(3L, EvaluateLua("holdReturns.n"));
+		Assert.Equal("C:\\owned\\ce-cscode.dll", EvaluateLua("holdReturns[1]"));
+		Assert.Null(EvaluateLua("holdReturns[2]"));
+		Assert.Equal("third", EvaluateLua("holdReturns[3]"));
+		Assert.True((long) ReadGlobal("closeCalls")! >= 4, "The hold release handle must be closed after observation.");
 	}
 
 	private static void RunBridge(string tail)
