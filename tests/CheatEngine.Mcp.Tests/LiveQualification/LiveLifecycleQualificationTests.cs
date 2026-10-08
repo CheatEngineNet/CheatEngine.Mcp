@@ -3,6 +3,66 @@ namespace CheatEngine.Mcp.Tests.LiveQualification;
 public sealed class LiveLifecycleQualificationTests
 {
 	[Fact]
+	public void ThrowWithCleanup_PreservesWorkflowFailure()
+	{
+		InvalidOperationException workflow = new("workflow transport failed");
+		InvalidOperationException cleanup = new("lifecycle evidence incomplete");
+		AggregateException combined = Assert.Throws<AggregateException>(() =>
+			LiveLifecycleQualification.ThrowWithCleanup(workflow, [cleanup]));
+		Assert.Equal([workflow, cleanup], combined.InnerExceptions);
+	}
+
+	[Fact]
+	public void ThrowWithCleanup_ThrowsCleanupWhenWorkflowSucceeded()
+	{
+		InvalidOperationException cleanup = new("lifecycle evidence incomplete");
+		AggregateException combined = Assert.Throws<AggregateException>(() =>
+			LiveLifecycleQualification.ThrowWithCleanup(null, [cleanup]));
+		Assert.Equal([cleanup], combined.InnerExceptions);
+	}
+
+	[Fact]
+	public void ThrowWithCleanup_DoesNotMaskOriginalFailureWhenCleanupSucceeded()
+	{
+		InvalidOperationException workflow = new("workflow transport failed");
+		Assert.Null(Record.Exception(() => LiveLifecycleQualification.ThrowWithCleanup(workflow, [])));
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task DisposeOrderedAsync_ConnectionFailureSkipsPassAndStillDisposesSandbox(bool workflowFailed)
+	{
+		List<string> calls = [];
+		List<Exception> cleanup = [];
+		InvalidOperationException? workflow = workflowFailed ? new("workflow failed") : null;
+		InvalidOperationException gateway = new("gateway cleanup failed");
+		await LiveLifecycleQualification.DisposeOrderedAsync(workflow,
+			() => throw gateway,
+			exceptions => { calls.Add($"record:{exceptions.Count}"); return ValueTask.CompletedTask; },
+			() => { calls.Add("pass"); return ValueTask.CompletedTask; },
+			() => { calls.Add("sandbox"); return ValueTask.CompletedTask; }, cleanup);
+		Assert.Equal(["record:1", "sandbox"], calls);
+		AggregateException combined = Assert.Throws<AggregateException>(() =>
+			LiveLifecycleQualification.ThrowWithCleanup(workflow, cleanup));
+		Assert.Equal(workflow is null ? [gateway] : new Exception[] { workflow, gateway }, combined.InnerExceptions);
+	}
+
+	[Fact]
+	public async Task DisposeOrderedAsync_SuccessMarksPassedOnlyAfterConnectionCleanup()
+	{
+		List<string> calls = [];
+		List<Exception> cleanup = [];
+		await LiveLifecycleQualification.DisposeOrderedAsync(null,
+			() => { calls.Add("connection"); return ValueTask.CompletedTask; },
+			_ => throw new InvalidOperationException("Unexpected cleanup failure record."),
+			() => { calls.Add("pass"); return ValueTask.CompletedTask; },
+			() => { calls.Add("sandbox"); return ValueTask.CompletedTask; }, cleanup);
+		Assert.Equal(["connection", "pass", "sandbox"], calls);
+		Assert.Empty(cleanup);
+	}
+
+	[Fact]
 	public void PerformanceProfile_UsesRecordedBaselineForCandidateThresholds()
 	{
 		LiveBaselineProfile baseline = LivePerformanceQualification.Baseline(
@@ -50,10 +110,10 @@ public sealed class LiveLifecycleQualificationTests
 	public void SoakSchedule_ContainsEveryFixedWorkloadAndFitsTheReviewedDeadline()
 	{
 		IReadOnlyList<LiveSoakAction> schedule = LiveSoakQualification.CreateSchedule();
-		Assert.Equal(LiveSoakQualification.RequiredShortCalls, schedule.Count(action => action.Kind == LiveSoakActionKind.ShortCall));
-		Assert.Equal(LiveSoakQualification.RequiredBoundedJobs, schedule.Count(action => action.Kind == LiveSoakActionKind.BoundedJob));
-		Assert.Equal(LiveSoakQualification.RequiredPluginCycles, schedule.Count(action => action.Kind == LiveSoakActionKind.PluginCycle));
-		Assert.Equal(LiveSoakQualification.RequiredTargetRestarts, schedule.Count(action => action.Kind == LiveSoakActionKind.TargetRestart));
+		Assert.Equal(1_000, schedule.Count(action => action.Kind == LiveSoakActionKind.ShortCall));
+		Assert.Equal(20, schedule.Count(action => action.Kind == LiveSoakActionKind.BoundedJob));
+		Assert.Equal(30, schedule.Count(action => action.Kind == LiveSoakActionKind.PluginCycle));
+		Assert.Equal(10, schedule.Count(action => action.Kind == LiveSoakActionKind.TargetRestart));
 		LiveSoakAction gatewayRestart = Assert.Single(schedule,
 			action => action.Kind == LiveSoakActionKind.GatewayRestart);
 		Assert.Equal(LiveSoakActionKind.GatewayRestart, gatewayRestart.Kind);

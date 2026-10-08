@@ -30,6 +30,10 @@ public sealed class LiveSandboxOptionsTests
 			SoakQualification = true,
 			UseSoakLifetime = true
 		}).ValidateFor(LiveQualificationScenario.Soak);
+		(LiveSandboxOptions.Smoke with
+		{
+			DispatchDiagnostic = true
+		}).ValidateFor(LiveQualificationScenario.DispatchDiagnostic);
 	}
 
 	[Fact]
@@ -44,11 +48,35 @@ public sealed class LiveSandboxOptionsTests
 			LiveSandboxOptions.Smoke with { LifecycleQualification = true },
 			LiveSandboxOptions.Smoke with { PerformanceQualification = true },
 			LiveSandboxOptions.Smoke with { SoakQualification = true },
+			LiveSandboxOptions.Smoke with { DispatchDiagnostic = true },
 			LiveSandboxOptions.Smoke with { UseSoakLifetime = true }
 		];
 		foreach (LiveSandboxOptions options in invalid)
 		{
 			Assert.Throws<InvalidOperationException>(() => options.ValidateFor(LiveQualificationScenario.Smoke));
+		}
+	}
+
+	[Fact]
+	public void ValidateFor_DispatchDiagnosticRejectsExecutionAndUnrelatedScenarios()
+	{
+		LiveSandboxOptions diagnostic = LiveSandboxOptions.Smoke with
+		{
+			DispatchDiagnostic = true
+		};
+		LiveSandboxOptions[] invalid =
+		[
+			diagnostic with { EnableTargetCodeExecution = true },
+			diagnostic with { EnableManagedInjection = true },
+			diagnostic with { CompilerQualification = true },
+			diagnostic with { LifecycleQualification = true },
+			diagnostic with { PerformanceQualification = true },
+			diagnostic with { SoakQualification = true, UseSoakLifetime = true },
+			diagnostic with { DistributionDirectoryOverride = Path.GetTempPath() }
+		];
+		foreach (LiveSandboxOptions options in invalid)
+		{
+			Assert.Throws<InvalidOperationException>(() => options.ValidateFor(LiveQualificationScenario.DispatchDiagnostic));
 		}
 	}
 

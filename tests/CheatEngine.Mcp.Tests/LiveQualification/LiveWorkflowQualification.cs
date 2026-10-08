@@ -32,7 +32,7 @@ internal static class LiveWorkflowQualification
 		await VerifyStructuresAsync(sandbox, instance);
 	}
 
-	private static async Task VerifyGatesAsync(LiveSandboxSession sandbox, LiveMcpInstanceClient instance)
+	internal static async Task VerifyGatesAsync(LiveSandboxSession sandbox, LiveMcpInstanceClient instance)
 	{
 		JsonNode runtime = await CallAsync(instance, CheatEngineToolNames.RuntimeGetInfo);
 		JsonNode? gates = runtime["gates"];
@@ -226,10 +226,10 @@ internal static class LiveWorkflowQualification
 
 			sandbox.Record("live_workflow_memory_cleanup", new
 			{
-				protectionRestored = previousProtection is not null,
-				snapshotDeleted = snapshotCreated,
-				destinationFreed = destinationAllocated,
-				sourceFreed = sourceAllocated,
+				protectionRestoreAttempted = previousProtection is not null,
+				snapshotDeleteAttempted = snapshotCreated,
+				destinationFreeAttempted = destinationAllocated,
+				sourceFreeAttempted = sourceAllocated,
 				failures = cleanup.Count
 			});
 			ThrowCleanup(failure, cleanup);
@@ -300,8 +300,8 @@ internal static class LiveWorkflowQualification
 
 			sandbox.Record("live_workflow_scanner_cleanup", new
 			{
-				deleted = created,
-				freed = allocated,
+				deleteAttempted = created,
+				freeAttempted = allocated,
 				failures = cleanup.Count
 			});
 			ThrowCleanup(failure, cleanup);
@@ -323,6 +323,10 @@ internal static class LiveWorkflowQualification
 			await WriteAsync(instance, At(address, 32), "int32", "16909060");
 			Dictionary<string, object?> args = ScanBounds(address);
 			args["patterns"] = new[] { "D1 2B 7E 93 44 A8 19 C6", "D1 2B ?? 93 44 A8 19 C6" };
+			sandbox.Record("live_workflow_aob_step", new
+			{
+				step = "before_aob_find"
+			});
 			JsonNode found = await CallAsync(instance, CheatEngineToolNames.AobFind, args);
 			Assert.Equal(2, found["results"]!.AsArray().Count);
 			Assert.Equal("D1 2B 7E 93 44 A8 19 C6", Text(found["results"]![0], "pattern"));
@@ -335,6 +339,10 @@ internal static class LiveWorkflowQualification
 			Dictionary<string, object?> value = ScanBounds(address);
 			value["valueType"] = "int32";
 			value["value"] = "16909060";
+			sandbox.Record("live_workflow_aob_step", new
+			{
+				step = "before_aob_find_value"
+			});
 			JsonNode foundValue = await CallAsync(instance, CheatEngineToolNames.AobFindValue, value);
 			Assert.Equal("04 03 02 01", Text(foundValue["result"], "pattern"));
 			AssertAob(foundValue["result"]!, At(address, 32));
@@ -346,7 +354,7 @@ internal static class LiveWorkflowQualification
 			});
 		}
 		catch (Exception exception) { failure = exception; throw; }
-		finally { if (allocated) { await CleanupAsync(cleanup, () => CallAsync(instance, CheatEngineToolNames.MemoryFree, new Dictionary<string, object?> { ["name"] = allocation })); } sandbox.Record("live_workflow_aob_cleanup", new { freed = allocated, failures = cleanup.Count }); ThrowCleanup(failure, cleanup); }
+		finally { if (allocated) { await CleanupAsync(cleanup, () => CallAsync(instance, CheatEngineToolNames.MemoryFree, new Dictionary<string, object?> { ["name"] = allocation })); } sandbox.Record("live_workflow_aob_cleanup", new { freeAttempted = allocated, failures = cleanup.Count }); ThrowCleanup(failure, cleanup); }
 	}
 
 	private static async Task VerifyControlFlowAsync(LiveSandboxSession sandbox, LiveMcpInstanceClient instance)
@@ -387,7 +395,7 @@ internal static class LiveWorkflowQualification
 			});
 		}
 		catch (Exception exception) { failure = exception; throw; }
-		finally { if (allocated) { await CleanupAsync(cleanup, () => CallAsync(instance, CheatEngineToolNames.MemoryFree, new Dictionary<string, object?> { ["name"] = allocation })); } sandbox.Record("live_workflow_cfg_cleanup", new { freed = allocated, failures = cleanup.Count }); ThrowCleanup(failure, cleanup); }
+		finally { if (allocated) { await CleanupAsync(cleanup, () => CallAsync(instance, CheatEngineToolNames.MemoryFree, new Dictionary<string, object?> { ["name"] = allocation })); } sandbox.Record("live_workflow_cfg_cleanup", new { freeAttempted = allocated, failures = cleanup.Count }); ThrowCleanup(failure, cleanup); }
 	}
 
 	private static async Task VerifyModulesAsync(LiveSandboxSession sandbox, LiveMcpInstanceClient instance)
@@ -482,7 +490,46 @@ internal static class LiveWorkflowQualification
 			});
 		}
 		catch (Exception exception) { failure = exception; throw; }
-		finally { if (structure) { await CleanupAsync(cleanup, () => CallAsync(instance, CheatEngineToolNames.StructureDelete, new Dictionary<string, object?> { ["name"] = name })); } if (b) { await CleanupAsync(cleanup, () => CallAsync(instance, CheatEngineToolNames.MemoryFree, new Dictionary<string, object?> { ["name"] = second })); } if (a) { await CleanupAsync(cleanup, () => CallAsync(instance, CheatEngineToolNames.MemoryFree, new Dictionary<string, object?> { ["name"] = first })); } sandbox.Record("live_workflow_structures_cleanup", new { deleted = structure, freedB = b, freedA = a, failures = cleanup.Count }); ThrowCleanup(failure, cleanup); }
+		finally { if (structure) { await CleanupAsync(cleanup, () => CallAsync(instance, CheatEngineToolNames.StructureDelete, new Dictionary<string, object?> { ["name"] = name })); } if (b) { await CleanupAsync(cleanup, () => CallAsync(instance, CheatEngineToolNames.MemoryFree, new Dictionary<string, object?> { ["name"] = second })); } if (a) { await CleanupAsync(cleanup, () => CallAsync(instance, CheatEngineToolNames.MemoryFree, new Dictionary<string, object?> { ["name"] = first })); } sandbox.Record("live_workflow_structures_cleanup", new { deleteAttempted = structure, freeBAttempted = b, freeAAttempted = a, failures = cleanup.Count }); ThrowCleanup(failure, cleanup); }
+	}
+
+	/// <summary>Reuses selected bounded workflows in a fresh diagnostic session; this does not qualify the full matrix.</summary>
+	internal static async Task VerifyDispatchDiagnosticAsync(LiveSandboxSession sandbox, LiveMcpClient gateway,
+		LiveDispatchDiagnosticCase @case)
+	{
+		LiveMcpInstanceClient instance = gateway.Bind(sandbox.HostA.InstanceId);
+		await VerifyGatesAsync(sandbox, instance);
+		if (@case == LiveDispatchDiagnosticCase.MemoryNamedScanThenAob)
+		{
+			sandbox.Record("dispatch_diagnostic_step", new
+			{
+				@case = @case.ToString(),
+				step = "before_memory"
+			});
+			await VerifyMemoryAsync(sandbox, instance);
+		}
+		if (@case is LiveDispatchDiagnosticCase.NamedScanThenAob or LiveDispatchDiagnosticCase.MemoryNamedScanThenAob)
+		{
+			sandbox.Record("dispatch_diagnostic_step", new
+			{
+				@case = @case.ToString(),
+				step = "before_named_scan"
+			});
+			await VerifyScannerAsync(sandbox, instance);
+		}
+		sandbox.Record("dispatch_diagnostic_step", new
+		{
+			@case = @case.ToString(),
+			step = "before_aob"
+		});
+		await VerifyAobAsync(sandbox, instance);
+		sandbox.Record("dispatch_diagnostic_result", new
+		{
+			@case = @case.ToString(),
+			aobToolCalls = 2,
+			nativeScans = 3,
+			stableQualification = false
+		});
 	}
 
 	private static Dictionary<string, object?> ScanArguments(string name, string address, string comparison) => new()

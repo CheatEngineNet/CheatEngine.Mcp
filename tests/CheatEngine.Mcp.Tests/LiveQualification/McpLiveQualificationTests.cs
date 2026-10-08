@@ -46,6 +46,11 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			await LiveManagedInjectionQualification.RunAsync(inputs);
 			return;
 		}
+		if (inputs.Scenario == LiveQualificationScenario.DispatchDiagnostic)
+		{
+			await LiveDispatchDiagnosticQualification.RunAsync(inputs);
+			return;
+		}
 		if (inputs.Scenario != LiveQualificationScenario.Smoke)
 		{
 			throw new InvalidOperationException("The selected qualification runner has not been integrated yet; no host was started.");

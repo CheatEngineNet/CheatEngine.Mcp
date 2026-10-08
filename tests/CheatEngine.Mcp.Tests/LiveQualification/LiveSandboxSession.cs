@@ -526,7 +526,7 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		Directory.CreateDirectory(pluginDirectory);
 		File.Copy(Path.Combine(pluginSource, PluginFileName), Path.Combine(pluginDirectory, PluginFileName));
 		bool capabilityConfiguration = _options.CompilerQualification || _options.LifecycleQualification
-			|| _options.PerformanceQualification || _options.SoakQualification;
+			|| _options.PerformanceQualification || _options.SoakQualification || _options.DispatchDiagnostic;
 		if (capabilityConfiguration)
 		{
 			string[] allowedRoots = _options.CompilerQualification ? [CompilerRoots(name).Output] : [];

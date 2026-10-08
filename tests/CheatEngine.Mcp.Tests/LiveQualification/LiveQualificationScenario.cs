@@ -9,5 +9,6 @@ internal enum LiveQualificationScenario
 	CompilerInjection,
 	Lifecycle,
 	Performance,
-	Soak
+	Soak,
+	DispatchDiagnostic
 }

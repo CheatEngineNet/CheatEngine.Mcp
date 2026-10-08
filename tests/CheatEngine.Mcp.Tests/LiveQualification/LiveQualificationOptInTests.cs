@@ -172,6 +172,7 @@ public sealed class LiveQualificationOptInTests
 	[InlineData("lifecycle", LiveQualificationScenario.Lifecycle)]
 	[InlineData("performance", LiveQualificationScenario.Performance)]
 	[InlineData("soak", LiveQualificationScenario.Soak)]
+	[InlineData("dispatch-diagnostic", LiveQualificationScenario.DispatchDiagnostic)]
 	public void Evaluate_StandardQualificationScenario_UsesOnlyStandardAcknowledgement(string name, int expected)
 	{
 		Dictionary<string, string?> variables = Authorized();

@@ -27,6 +27,10 @@ internal sealed record LiveSandboxOptions(bool CompilerQualification, bool Enabl
 	{
 		get; init;
 	}
+	internal bool DispatchDiagnostic
+	{
+		get; init;
+	}
 	internal string? DistributionDirectoryOverride
 	{
 		get; init;
@@ -46,6 +50,7 @@ internal sealed record LiveSandboxOptions(bool CompilerQualification, bool Enabl
 			&& LifecycleQualification == (scenario == LiveQualificationScenario.Lifecycle)
 			&& PerformanceQualification == (scenario == LiveQualificationScenario.Performance)
 			&& SoakQualification == (scenario == LiveQualificationScenario.Soak)
+			&& DispatchDiagnostic == (scenario == LiveQualificationScenario.DispatchDiagnostic)
 			&& UseSoakLifetime == SoakQualification
 			&& (extended || injection || (Variant == LiveCompilerVariant.Normal && TempTopology == CompilerTempTopology.Isolated))
 			&& (!injection || (Variant == LiveCompilerVariant.HeldExportAfterB && TempTopology == CompilerTempTopology.Shared))
