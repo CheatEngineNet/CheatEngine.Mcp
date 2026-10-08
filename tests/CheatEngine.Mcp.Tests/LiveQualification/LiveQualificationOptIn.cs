@@ -9,6 +9,7 @@ internal static class LiveQualificationOptIn
 	internal const string RunRootVariable = "CHEATENGINE_MCP_LIVE_QUALIFICATION_RUN_ROOT";
 	internal const string TargetArchitectureVariable = "CHEATENGINE_MCP_LIVE_QUALIFICATION_TARGET_ARCHITECTURE";
 	internal const string ScenarioVariable = "CHEATENGINE_MCP_LIVE_QUALIFICATION_SCENARIO";
+	internal const string DispatchDiagnosticCaseVariable = "CHEATENGINE_MCP_LIVE_DISPATCH_DIAGNOSTIC_CASE";
 	internal const string CodeExecutionOptInVariable = "CHEATENGINE_MCP_LIVE_CODE_EXECUTION_QUALIFICATION";
 	internal const string CodeExecutionAcknowledgement =
 		"I_AUTHORIZE_FIXED_COMPILECS_PROBES_ON_PRIVATE_CE_AND_OWNED_TARGETS";
@@ -65,6 +66,23 @@ internal static class LiveQualificationOptIn
 		}
 
 		LiveQualificationScenario scenario = selectedScenario.Value;
+		string? dispatchCaseValue = variables(DispatchDiagnosticCaseVariable);
+		if (scenario != LiveQualificationScenario.DispatchDiagnostic && dispatchCaseValue is not null)
+		{
+			return Refuse($"{DispatchDiagnosticCaseVariable} is valid only when {ScenarioVariable} is dispatch-diagnostic.");
+		}
+		LiveDispatchDiagnosticCase? dispatchCase = dispatchCaseValue switch
+		{
+			null => null,
+			"AobOnly" => LiveDispatchDiagnosticCase.AobOnly,
+			"NamedScanThenAob" => LiveDispatchDiagnosticCase.NamedScanThenAob,
+			"MemoryNamedScanThenAob" => LiveDispatchDiagnosticCase.MemoryNamedScanThenAob,
+			_ => (LiveDispatchDiagnosticCase?) null
+		};
+		if (scenario == LiveQualificationScenario.DispatchDiagnostic && dispatchCaseValue is not null && dispatchCase is null)
+		{
+			return Refuse($"{DispatchDiagnosticCaseVariable} must be AobOnly, NamedScanThenAob, or MemoryNamedScanThenAob.");
+		}
 		bool compiler = scenario is LiveQualificationScenario.Compiler or LiveQualificationScenario.CompilerExtended
 			or LiveQualificationScenario.CompilerInjection;
 
@@ -113,7 +131,10 @@ internal static class LiveQualificationOptIn
 
 		return new LiveQualificationDecision(
 			new LiveQualificationInputs(Path.GetFullPath(repositoryRoot), Path.GetFullPath(source),
-				Path.GetFullPath(runRoot), architecture, scenario), null);
+				Path.GetFullPath(runRoot), architecture, scenario)
+			{
+				DispatchDiagnosticCase = dispatchCase
+			}, null);
 	}
 
 	internal static bool IsSameOrBelow(string path, string directory)

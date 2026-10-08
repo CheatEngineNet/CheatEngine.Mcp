@@ -142,9 +142,11 @@ Three subsequent fresh x64 diagnostic cases passed against the same private inst
 The authoritative summaries and per-host diagnostic logs are under `C:\Users\Shadow\AppData\Local\Packages\OpenAI.Codex_2p2nqsd0c76g0\LocalCache\Local\CheatEngine.Mcp.LiveQualification\runs\<run-id>`.
 The parent post-run CIM inventory found no owned Cheat Engine or LiveTarget processes left after these attempts.
 The trace field named `top` records the frame's saved top, not a contemporaneous Lua stack top measurement.
-The added logging can change timing, so these passing diagnostic cases neither identify the root cause nor prove a production fix.
+The private `.1` package also used the SDK tag's checked-in native Lua bridge, SHA-256 `889DC4C231D182F9B7BAA9E29880555AAD949F42023DDE232FE327542C3C5387`, whereas the published SDK 2.0.0 package contains bridge `B008C8D8C136187F241542E6223DC0831999D8300DC2C4C01E1CF49F6FBA7698`.
+Both managed instrumentation and native bridge bytes therefore changed in these three runs. The added logging can change timing, and different bridge hashes alone do not establish a functional difference or ABI defect.
+These passing diagnostic cases neither isolate the effect of instrumentation nor identify the root cause or prove a production fix.
 Each of the three passing summaries explicitly records `stableQualification=false`.
-The full original-order instrumented probe remains pending.
+A controlled follow-up will restore the exact published bridge while retaining the managed trace patch and the previously passing `MemoryNamedScanThenAob` workload. The full original-order instrumented probe remains pending after that comparison.
 
 ## Pending work and candidate boundary
 

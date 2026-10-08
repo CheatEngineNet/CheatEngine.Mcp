@@ -185,6 +185,68 @@ public sealed class LiveQualificationOptInTests
 	}
 
 	[Theory]
+	[InlineData("AobOnly", (int) LiveDispatchDiagnosticCase.AobOnly)]
+	[InlineData("NamedScanThenAob", (int) LiveDispatchDiagnosticCase.NamedScanThenAob)]
+	[InlineData("MemoryNamedScanThenAob", (int) LiveDispatchDiagnosticCase.MemoryNamedScanThenAob)]
+	public void Evaluate_DispatchDiagnostic_UsesTheExactSelectedCase(string selected,
+		int expected)
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.ScenarioVariable] = "dispatch-diagnostic";
+		variables[LiveQualificationOptIn.DispatchDiagnosticCaseVariable] = selected;
+
+		LiveQualificationDecision decision = Evaluate(variables);
+
+		Assert.True(decision.IsAuthorized, decision.Refusal);
+		Assert.Equal(LiveQualificationScenario.DispatchDiagnostic, decision.Inputs!.Scenario);
+		Assert.Equal((LiveDispatchDiagnosticCase) expected, decision.Inputs.DispatchDiagnosticCase);
+	}
+
+	[Fact]
+	public void Evaluate_DispatchDiagnostic_WithoutCaseRunsEveryFixedCase()
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.ScenarioVariable] = "dispatch-diagnostic";
+
+		LiveQualificationDecision decision = Evaluate(variables);
+
+		Assert.True(decision.IsAuthorized, decision.Refusal);
+		Assert.Null(decision.Inputs!.DispatchDiagnosticCase);
+	}
+
+	[Theory]
+	[InlineData("")]
+	[InlineData("aobonly")]
+	[InlineData(" AobOnly")]
+	[InlineData("AobOnly ")]
+	[InlineData("1")]
+	public void Evaluate_DispatchDiagnostic_RefusesAnUnknownCaseBeforeDirectoryInspection(string selected)
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.ScenarioVariable] = "dispatch-diagnostic";
+		variables[LiveQualificationOptIn.DispatchDiagnosticCaseVariable] = selected;
+
+		LiveQualificationDecision decision = LiveQualificationOptIn.Evaluate(variables.GetValueOrDefault,
+			Repository, LocalData, Installation, _ => throw new InvalidOperationException("No directory inspection expected."));
+
+		Assert.False(decision.IsAuthorized);
+		Assert.Contains(LiveQualificationOptIn.DispatchDiagnosticCaseVariable, decision.Refusal, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Evaluate_DispatchDiagnosticCaseOnAnotherScenario_RefusesBeforeDirectoryInspection()
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.DispatchDiagnosticCaseVariable] = "MemoryNamedScanThenAob";
+
+		LiveQualificationDecision decision = LiveQualificationOptIn.Evaluate(variables.GetValueOrDefault,
+			Repository, LocalData, Installation, _ => throw new InvalidOperationException("No directory inspection expected."));
+
+		Assert.False(decision.IsAuthorized);
+		Assert.Contains(LiveQualificationOptIn.DispatchDiagnosticCaseVariable, decision.Refusal, StringComparison.Ordinal);
+	}
+
+	[Theory]
 	[InlineData("compiler-extended")]
 	[InlineData("compiler-injection")]
 	public void Evaluate_CompilerVariantsWithoutCompilerAcknowledgement_RefuseBeforeInspection(string name)

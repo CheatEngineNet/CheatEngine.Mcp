@@ -12,7 +12,10 @@ internal static class LiveDispatchDiagnosticQualification
 	internal static async Task RunAsync(LiveQualificationInputs inputs)
 	{
 		Assert.Equal(LiveQualificationScenario.DispatchDiagnostic, inputs.Scenario);
-		foreach (LiveDispatchDiagnosticCase @case in Enum.GetValues<LiveDispatchDiagnosticCase>())
+		IEnumerable<LiveDispatchDiagnosticCase> selected = inputs.DispatchDiagnosticCase is { } selectedCase
+			? [selectedCase]
+			: Enum.GetValues<LiveDispatchDiagnosticCase>();
+		foreach (LiveDispatchDiagnosticCase @case in selected)
 		{
 			await RunCaseAsync(inputs, @case);
 		}
