@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Text.Json.Serialization.Metadata;
@@ -127,6 +128,17 @@ public sealed partial class ToolDispatch
 		try
 		{
 			return ToolExecution.Run(Client, body, probe, cancellationToken);
+		}
+		catch (CheatEngineToolException exception) when (exception.Error.Kind is ToolErrorKind.HostRefused &&
+														 exception.Error.Operation is "Dispatcher.Invoke" &&
+														 exception.Error.HostEffect is ToolHostEffect.Unknown &&
+														 exception.InnerException is not null)
+		{
+			// Keep native dispatch diagnostics private, and omit exception messages, data and source-file paths.
+			Exception cause = exception.InnerException;
+			LogDispatcherFault(_logger, operation, cause.GetType().FullName ?? cause.GetType().Name,
+				new StackTrace(cause, false).ToString());
+			throw;
 		}
 		catch (CheatEngineToolException exception) when (exception.Error.Kind is ToolErrorKind.Internal &&
 														 exception.InnerException is not null)
@@ -339,4 +351,8 @@ public sealed partial class ToolDispatch
 	[LoggerMessage(EventId = 3004, Level = LogLevel.Error,
 		Message = "Dispatch {Operation} failed with an unexpected exception; reported as internal.")]
 	private static partial void LogUnexpectedFault(ILogger logger, string operation);
+
+	[LoggerMessage(EventId = 3005, Level = LogLevel.Error,
+		Message = "Dispatch {Operation} failed in the native dispatcher with {ExceptionType}; host effect is unknown. Stack: {Stack}")]
+	private static partial void LogDispatcherFault(ILogger logger, string operation, string exceptionType, string stack);
 }
