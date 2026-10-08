@@ -113,12 +113,43 @@ Host B recorded both MCP and SDK enabled and disabled lifecycle indicators, whil
 Both host-stop receipts are present.
 The parent post-run CIM inventory found no owned Cheat Engine or LiveTarget processes left running.
 That process inventory is separate from the failed lifecycle-evidence cleanup check and does not turn the run into a cleanup pass.
-Further native execution is paused pending a mechanism-level diagnosis of the dispatcher and Lua-frame failure.
+This production-package failure remains unresolved.
+
+## Private dispatcher instrumentation
+
+The bounded diagnostic package uses MCP product base `4c0698981f50ee4867bc1efe08a62867fd5c89c3` and the latest harness commit `09d76d7defec28756e621e167731f47efaff2f96`.
+The product base passed 4,074 of 4,074 Release portable tests with zero failures and zero skips.
+The plugin privately pins `CheatEngine.SDK` version `2.0.1-mcpdiagnostic.1` from SDK base `325c47b573f8bd39a247f1d0101f110fa36c1696` with reviewed local instrumentation.
+The private SDK package SHA-256 is `1BFC46AA5377464351B2F50967C0BEC23D7DB90A25B7AB7EDF2EE1EC1CFC9B2C`.
+The SDK tracked patch SHA-256 is `682DA09724C37C9AC401951A76EFD63B27F675C7C81FFF667F4F063547F79FD7`, and the new trace-source SHA-256 is `4177B62FCD29AA5C465B45DC0DF19EFE65DF98810F75F70B77164AA2983F5773`.
+The exact embedded SDK assembly hashes are recorded in `artifacts/issue-edits/dispatch-diagnostic-provenance.json`.
+Strict SDK build and pack completed with zero errors, and the focused SDK suites passed 11 `MainThreadTests` plus 53 `AobBoundedScanTests` with zero failures or skips.
+The private MCP package passed both isolated packaged-DLL comparisons, `PLUGIN_BUNDLE_PROBE_OK`, Native AOT publication, and five-file ZIP verification.
+Its plugin SHA-256 is `3906E707D8C11947664E384FCA09E43CB1EA2451368D48E87D78C08D5485314A`, gateway SHA-256 is `A04CF2303D77BF7B2F560F1ABFC876C00D57C990330565599BE2981543D184C8`, and ZIP SHA-256 is `0F5A84AD54421AC06CF869F2ADBEE6E7B1C0322E8F63ADAA22613CCEC6BDAF8E`.
+
+The first diagnostic attempt, run `20261008T014302Z-328d`, failed before either host or target launched because the staging predicate did not admit the explicitly selected diagnostic configuration.
+That failed attempt records `passed=false`, `userStateRestored=true`, `sourceInstallationUnchanged=true`, and an empty `cleanupFailures` array.
+The shared `RequiresCapabilityConfiguration` predicate was corrected in harness commit `09d76d7defec28756e621e167731f47efaff2f96`; 83 focused portable tests passed, and the bounded correction received independent Astra review.
+
+Three subsequent fresh x64 diagnostic cases passed against the same private instrumented package.
+
+| Run | Case | Completed evidence | Cleanup |
+| --- | --- | --- | --- |
+| `20261008T014451Z-4fb2` | `AobOnly` | Two AOB tool calls completed three exact, unique, bounded, target-verified native scans. | State restored, source unchanged, both host lifecycle pairs observed, cleanup failures empty. |
+| `20261008T014508Z-1e67` | `NamedScanThenAob` | The six named-scan transitions completed before the same two AOB calls and three native scans. | State restored, source unchanged, both host lifecycle pairs observed, cleanup failures empty. |
+| `20261008T014525Z-4e08` | `MemoryNamedScanThenAob` | The bounded memory cases, six named-scan transitions, two AOB calls, and three native scans completed. | State restored, source unchanged, both host lifecycle pairs observed, cleanup failures empty. |
+
+The authoritative summaries and per-host diagnostic logs are under `C:\Users\Shadow\AppData\Local\Packages\OpenAI.Codex_2p2nqsd0c76g0\LocalCache\Local\CheatEngine.Mcp.LiveQualification\runs\<run-id>`.
+The parent post-run CIM inventory found no owned Cheat Engine or LiveTarget processes left after these attempts.
+The trace field named `top` records the frame's saved top, not a contemporaneous Lua stack top measurement.
+The added logging can change timing, so these passing diagnostic cases neither identify the root cause nor prove a production fix.
+Each of the three passing summaries explicitly records `stableQualification=false`.
+The full original-order instrumented probe remains pending.
 
 ## Pending work and candidate boundary
 
 The diagnostic candidate `207d6fd` has one failed native x64 run and is not a root-cause fix.
-Lifecycle x64 requires mechanism-level diagnosis and a fresh candidate rerun from the earliest failing AOB boundary before returning to the later CFG boundary.
+The reviewed bounded diagnostic mechanism has now run, but production lifecycle x64 remains blocked on mechanism-level diagnosis and an uninstrumented production candidate rerun through the original ordering.
 Lifecycle x86, the broader workflow matrix, two-hour soak, installation, upgrade, rollback, named interactive clients, CI and analysis, extended compiler lifetime cases, and managed injection remain pending.
 Debug publication remains pending.
 The final version change, exact stable package rebuild, final native and installation repetition, tag, draft upload, publication, public download, and shipped first-use smoke remain pending.
@@ -126,4 +157,7 @@ Only the narrowly completed subcases above may be checked off. The broader workf
 
 ## Follow-up preparation
 
-The lifecycle harness now preserves the original workflow failure alongside cleanup faults and admits success only after gateway cleanup. Cleanup receipt flags say attempted rather than claiming successful release from an allocation-created flag. Focused portable tests also enforce the fixed soak counts and diagnostic scenario admission. An isolated, explicitly selected dispatch diagnostic reuses the original AOB-only, scanner-then-AOB, and memory/scanner-then-AOB workflows in fresh sessions, stopping on the first failure. That diagnostic has not been executed in this checkpoint.
+The lifecycle harness preserves the original workflow failure alongside cleanup faults and admits success only after gateway cleanup.
+Cleanup receipt flags say attempted rather than claiming successful release from an allocation-created flag.
+Focused portable tests enforce the fixed soak counts and diagnostic scenario admission.
+The isolated dispatcher diagnostic has now passed its three bounded fresh-session cases, while the original full ordering, root-cause proof, production fix, and production-package qualification remain open.
