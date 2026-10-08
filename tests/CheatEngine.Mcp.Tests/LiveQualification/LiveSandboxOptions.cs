@@ -5,6 +5,9 @@ internal sealed record LiveSandboxOptions(bool CompilerQualification, bool Enabl
 {
 	internal static LiveSandboxOptions Smoke { get; } = new(false, false);
 
+	internal bool RequiresCapabilityConfiguration => CompilerQualification || LifecycleQualification
+		|| PerformanceQualification || SoakQualification || DispatchDiagnostic;
+
 	internal LiveCompilerVariant Variant { get; init; } = LiveCompilerVariant.Normal;
 	internal CompilerTempTopology TempTopology { get; init; } = CompilerTempTopology.Isolated;
 	internal bool EnableManagedInjection

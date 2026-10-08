@@ -525,9 +525,7 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		RequireInsideRun(pluginDirectory);
 		Directory.CreateDirectory(pluginDirectory);
 		File.Copy(Path.Combine(pluginSource, PluginFileName), Path.Combine(pluginDirectory, PluginFileName));
-		bool capabilityConfiguration = _options.CompilerQualification || _options.LifecycleQualification
-			|| _options.PerformanceQualification || _options.SoakQualification || _options.DispatchDiagnostic;
-		if (capabilityConfiguration)
+		if (_options.RequiresCapabilityConfiguration)
 		{
 			string[] allowedRoots = _options.CompilerQualification ? [CompilerRoots(name).Output] : [];
 			File.WriteAllText(Path.Combine(pluginDirectory, "appsettings.json"), JsonSerializer.Serialize(new
@@ -754,9 +752,7 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 	private void VerifyDistributionStaging(string name, string pluginSource, string pluginDirectory)
 	{
 		string[] pluginFiles = RelativeFiles(pluginDirectory);
-		bool capabilityConfiguration = _options.CompilerQualification || _options.LifecycleQualification
-			|| _options.PerformanceQualification || _options.SoakQualification;
-		string[] expectedPluginFiles = capabilityConfiguration
+		string[] expectedPluginFiles = _options.RequiresCapabilityConfiguration
 			? [PluginFileName, "appsettings.json"]
 			: [PluginFileName];
 		if (!pluginFiles.SequenceEqual(expectedPluginFiles, StringComparer.Ordinal)
