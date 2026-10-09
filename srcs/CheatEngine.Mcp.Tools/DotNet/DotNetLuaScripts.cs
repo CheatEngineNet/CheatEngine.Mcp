@@ -244,8 +244,10 @@ internal static class DotNetLuaScripts
 	                                  """;
 
 	/// <summary>
-	///     Reads a method's parameters. Cheat Engine 7.7's collector returns <c>{ {Name, CType}, ... }</c> and the
-	///     signature text as a second value (<c>dotnetinfo.lua</c>, <c>getClassMethods</c>).
+	///     Reads collector entries shaped as <c>{ {Name, CType}, ... }</c>, preserving optional signature text
+	///     if a collector also returns it as a second value. The pinned upstream Lua bridge returns only the entries.
+	///     CType is GetParamProps' metadata-constant code, not the declared parameter type. Failed upstream lookups
+	///     can survive as zero-initialized entries; preserve the raw collector result without inferring a type.
 	/// </summary>
 	internal const string MethodParameters = """
 	                                         local collector = getDotNetDataCollector()

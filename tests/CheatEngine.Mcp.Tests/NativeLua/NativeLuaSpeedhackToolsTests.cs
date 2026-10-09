@@ -75,6 +75,21 @@ public sealed partial class NativeLuaToolRuntimeTests
 		LuaFixedScriptAssert.NeverLoadsCode(SpeedhackScripts.SetNormal);
 	}
 
+	[Fact]
+	public void SpeedhackV2_ZeroSymbolAddress_IsAbsentAndNeverActivatesAtNormalSpeed()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(SpeedhackStubs + "\nspeedhackSymbol = 0");
+		SpeedhackTools tools = new(CreateNativeDispatch(new McpFeatureOptions()), new TargetResources());
+
+		SpeedhackState state = tools.GetState(Token);
+		SpeedhackSetResult normal = tools.SetSpeed(1, Token);
+
+		Assert.Equal(new SpeedhackState(1, false), state);
+		Assert.Equal(new SpeedhackSetResult(1, false, false), normal);
+		Assert.Equal((0L, 0L), (ReadGlobal("setCalls"), ReadGlobal("hookAttempts")));
+	}
+
 	[Theory]
 	[InlineData(false, false)]
 	[InlineData(true, false)]
@@ -122,6 +137,78 @@ public sealed partial class NativeLuaToolRuntimeTests
 			(exception.Error.Kind, exception.Error.HostEffect));
 		Assert.Contains("no speedhack_wantedspeed symbol", exception.Error.Message, StringComparison.Ordinal);
 		Assert.Equal((0L, 0L), (ReadGlobal("setCalls"), ReadGlobal("hookAttempts")));
+	}
+
+	[Theory]
+	[InlineData("getAddressSafe = nil")]
+	[InlineData("getAddressSafe = function(_) error('symbol lookup failed') end")]
+	public void SpeedhackV2_SymbolProbeUnavailable_RefusesStateAndChangesBeforeAnyMutation(string stubs)
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(SpeedhackStubs + "\n" + stubs);
+		SpeedhackTools tools = new(CreateNativeDispatch(new McpFeatureOptions()), new TargetResources());
+
+		CheatEngineToolException state = Assert.Throws<CheatEngineToolException>(() => tools.GetState(Token));
+		CheatEngineToolException normal = Assert.Throws<CheatEngineToolException>(() => tools.SetSpeed(1, Token));
+		CheatEngineToolException changed = Assert.Throws<CheatEngineToolException>(() => tools.SetSpeed(2, Token));
+
+		Assert.All([state, normal, changed], static exception =>
+			Assert.Equal((ToolErrorKind.HostRefused, ToolHostEffect.NotStarted),
+				(exception.Error.Kind, exception.Error.HostEffect)));
+		Assert.Equal((0L, 0L), (ReadGlobal("setCalls"), ReadGlobal("hookAttempts")));
+	}
+
+	[Fact]
+	public void SpeedhackV2_SymbolProbeFailsAfterChangingSpeed_TracksTheRestoreAndReturnsAnUnknownObservation()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(JobHostStubs + "\n" + SpeedhackStubs + """
+
+			                              local lookup = getAddressSafe
+			                              local lookups = 0
+			                              getAddressSafe = function(name)
+			                                lookups = lookups + 1
+			                                if lookups > 1 then error('symbol lookup failed after changing speed') end
+			                                return lookup(name)
+			                              end
+			                              """);
+		ToolDispatch dispatch = CreateNativeDispatch(new McpFeatureOptions());
+		TargetResources resources = new(new McpStateLedger(dispatch, TimeProvider.System));
+		SpeedhackTools tools = new(dispatch, resources);
+
+		SpeedhackSetResult changed = tools.SetSpeed(2, Token);
+
+		Assert.Equal((2d, (bool?) null, true), (changed.Speed, changed.HooksInstalled, changed.FirstActivation));
+		Assert.NotNull(changed.ResourceId);
+		Assert.Single(resources.List());
+		Assert.Equal((1L, 1L), (ReadGlobal("setCalls"), ReadGlobal("hookAttempts")));
+	}
+
+	[Fact]
+	public void SpeedhackV2_SymbolProbeFailsAfterRestoringSpeed_ReturnsAnUnknownObservation()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(SpeedhackStubs + """
+
+		                              speedhackSymbol = 0x7FF6A0000000
+		                              configuredSpeed = 2
+		                              wantedSpeed = 2
+		                              local lookup = getAddressSafe
+		                              local lookups = 0
+		                              getAddressSafe = function(name)
+		                                lookups = lookups + 1
+		                                if lookups > 1 then error('symbol lookup failed after restoring speed') end
+		                                return lookup(name)
+		                              end
+		                              """);
+		SpeedhackTools tools = new(CreateNativeDispatch(new McpFeatureOptions()), new TargetResources());
+
+		SpeedhackSetResult restored = tools.SetSpeed(1, Token);
+
+		Assert.Equal((1d, (bool?) null, false), (restored.Speed, restored.HooksInstalled, restored.FirstActivation));
+		// The existing hooks restore their speed without another activation, even when the later probe fails.
+		Assert.Equal((1L, 0L, 1L, 1L), (ReadGlobal("setCalls"), ReadGlobal("hookAttempts"),
+			ReadGlobal("requestedSpeed"), ReadGlobal("wantedSpeed")));
 	}
 
 	[Theory]

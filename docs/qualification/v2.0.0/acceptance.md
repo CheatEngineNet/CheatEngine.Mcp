@@ -125,8 +125,10 @@ Upgrade qualification must replace beta.2 and any older folder deployment withou
 Install, upgrade, disable, uninstall, and rollback must preserve user configuration, tables, unrelated plugins, Cheat Engine settings, and recoverable backups.
 Paths with spaces, a standard user account, allowed roots, read-only deployment behavior, malformed configuration, occupied endpoints, and unavailable log locations must have recorded outcomes.
 The final release notes must state the support matrix, beta migration, capability limitations, recovery paths, and changes since beta.2.
-The beta-to-stable contract permits additive optional fields and new tools when existing callers retain their behavior.
+The default beta-to-stable contract permits additive optional fields and new tools when existing callers retain their behavior.
 Removing or renaming tools, changing existing field meanings, changing pointer offset order, or changing host-effect reporting requires a reviewed future breaking contract.
+The current working tree proposes explicit exceptions before stable freeze: unavailable fields become omitted, collector descriptions are corrected, effect metadata changes, and the blocking module-exports resource URI is removed in favor of its explicit tool.
+These changes are enumerated in release-notes.md and offline-contract-audit.md; they are not claimed as additive-compatible changes. Row 2.07 remains partial until the final contract review accepts or revises these exceptions and the migration guidance.
 The beta tags remain unchanged, and stable publication uses a new annotated `v2.0.0` tag at the exact final binary source commit.
 
 ## P2 and research disposition

@@ -24,6 +24,8 @@ and get consent before the attach, before breakpoints that stop threads or write
 Live resources mirror two tools: `cheatengine://instance/debugger` (`debugger_get_status`) and
 `cheatengine://instance/debugger/breakpoints` (`debugger_list_breakpoints`); through the gateway they sit under
 `cheatengine://instances/{instanceId}/debugger`. Jobs and breakpoints belong to one CE instance.
+First call `debugger_list_breakpoints` explicitly; its breakpoint resource reuses that preparation for five seconds.
+Refresh after breakpoint changes. Missing or expired preparation returns `invalid_state`.
 
 ## Interfaces and gates
 

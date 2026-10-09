@@ -8,7 +8,8 @@ internal static class MemoryScripts
 {
 	/// <summary>
 	///     For each address of <c>a[1]</c>: whether <c>inSystemModule</c> places it in a system module and, when
-	///     <c>a[2]</c> is set, its <c>getRTTIClassName</c>. A missing or raising function reads as false or no class.
+	///     <c>a[2]</c> is set, its <c>getRTTIClassName</c>. A missing or raising function leaves that system-module
+	///     status unavailable and reports no class.
 	/// </summary>
 	internal const string AddressExtras = """
 	                                      local addresses, rtti = a[1], a[2]
@@ -17,10 +18,9 @@ internal static class MemoryScripts
 	                                      local inSystem, className = inSystemModule, getRTTIClassName
 	                                      for i = 1, count do
 	                                        local address = addresses[i]
-	                                        system[i] = false
 	                                        if type(inSystem) == 'function' then
 	                                          local ok, value = pcall(inSystem, address)
-	                                          system[i] = ok and value == true
+	                                          if ok and type(value) == 'boolean' then system[i] = value end
 	                                        end
 	                                        if rtti and type(className) == 'function' then
 	                                          local ok, name = pcall(className, address)

@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 
 using CheatEngine.Client.Inspection;
+using CheatEngine.Mcp.Core.Inspection;
 using CheatEngine.Mcp.Prompts;
 using CheatEngine.Mcp.Resources;
 using CheatEngine.Mcp.Resources.Docs;
@@ -44,7 +45,6 @@ public sealed partial class KnowledgeResourceTests
 		"cheatengine://instance/jobs",
 		"cheatengine://instance/memory/{address}{?size}",
 		"cheatengine://instance/modules/{module}",
-		"cheatengine://instance/modules/{module}/exports{?offset,limit}",
 		"cheatengine://instance/modules{?offset,limit}",
 		"cheatengine://instance/patches",
 		"cheatengine://instance/pointer-maps",
@@ -252,8 +252,10 @@ public sealed partial class KnowledgeResourceTests
 	{
 		ModuleSymbolTarget target = new();
 		target.AddModule("game.exe", 0x140000000, 0x5000);
-		ModuleLiveResources resources = new(new ModuleTools(target.Dispatch),
-			new ModuleExportTools(target.Dispatch), target.Dispatch);
+		PreparedInspectionStore prepared = new(TimeProvider.System);
+		ModuleTools tools = new(target.Dispatch, prepared);
+		_ = tools.List(cancellationToken: TestContext.Current.CancellationToken);
+		ModuleLiveResources resources = new(tools, target.Dispatch, prepared);
 
 		ReadResourceResult result = resources.Modules(cancellationToken: TestContext.Current.CancellationToken);
 
@@ -273,7 +275,9 @@ public sealed partial class KnowledgeResourceTests
 		{
 			Inspection = LiveResourceInspection.Regions
 		};
-		MemoryLiveResources resources = new(new MemoryInfoTools(target.Dispatch),
+		MemoryInfoTools tools = new(target.Dispatch, new PreparedInspectionStore(TimeProvider.System));
+		_ = tools.ListRegions(cancellationToken: TestContext.Current.CancellationToken);
+		MemoryLiveResources resources = new(tools,
 			new MemoryReadTools(target.Dispatch));
 
 		ReadResourceResult result = resources.Regions(cancellationToken: TestContext.Current.CancellationToken);

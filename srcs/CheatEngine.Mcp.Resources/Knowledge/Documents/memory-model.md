@@ -209,8 +209,11 @@ Cautions:
 | What surrounds an address | `memory_list_regions(state="any", startAddress="<start>", endAddress="<end>")` | `state`, `type` |
 
 - memory_list_regions pages with `offset` and `limit` (default 500, at most 2000) until `nextOffset` is absent. It
-  re-reads the map on each call, so pages are not a snapshot. The live resource `cheatengine://instance/regions`
-  returns the same JSON for committed regions, 100 per page by default.
+  re-reads the map on each explicit tool call. Each successful call prepares the complete map for five seconds;
+  the live resource `cheatengine://instance/regions` reads that snapshot, with the same JSON for committed regions,
+  100 per page by default. A missing/expired snapshot or target change produces `invalid_state` with a refresh
+  hint. Resource navigation never enumerates the map. Prepare regions after module-list/detail refreshes, which
+  invalidate an older prepared region map.
 - Cheat Engine skips `MEM_MAPPED` regions in every scan unless MEM_MAPPED is ticked in its scan settings, which a
   fresh install leaves off ([emulators](emulators.md)). The main scanner follows that box and the scan panel's
   writable, executable and copy-on-write filters; `scan_get_status(scannerName="main")` reports them in `settings`.

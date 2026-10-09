@@ -213,7 +213,7 @@ public sealed record AddressInfoResult(
 /// <param name="Symbol">Cheat Engine's name for the address.</param>
 /// <param name="Module">The loaded module that contains it.</param>
 /// <param name="Section">The module section that contains it.</param>
-/// <param name="IsSystemModule">Whether Cheat Engine counts it as inside a system module.</param>
+/// <param name="IsSystemModule">Whether Cheat Engine counts it as inside a system module, when available.</param>
 /// <param name="Region">The memory region that contains it.</param>
 /// <param name="PointerValue">The pointer-sized value stored at it.</param>
 /// <param name="RttiClass">The RTTI class name of the object at it.</param>
@@ -228,8 +228,9 @@ public sealed record AddressInfo(
 	string? Module = null,
 	[property: Description("The module section that contains the address, such as .text, when known.")]
 	string? Section = null,
-	[property: Description("Whether Cheat Engine counts the address as inside a system module.")]
-	bool IsSystemModule = false,
+	[property: Description(
+		"Whether Cheat Engine counts the address as inside a system module; omitted when that host API is unavailable or fails.")]
+	bool? IsSystemModule = null,
 	[property: Description("The memory region that contains the address, when Cheat Engine reports one.")]
 	MemoryRegionDetail? Region = null,
 	[property:
@@ -602,9 +603,9 @@ public sealed record ZeroFilledRange(
 	int Length);
 
 /// <summary>What the fixed <c>memory_get_address_info</c> script reports for each resolved address.</summary>
-/// <param name="System">Whether each address is inside a system module.</param>
+/// <param name="System">Whether each address is inside a system module, or unavailable when Cheat Engine cannot answer.</param>
 /// <param name="Rtti">The RTTI class name of each address, when found.</param>
-public sealed record AddressExtras(bool[] System, string?[] Rtti);
+public sealed record AddressExtras(bool?[] System, string?[] Rtti);
 
 /// <summary>What the fixed <c>memory_set_protection</c> script reports.</summary>
 /// <param name="Previous">The first page's access before the change.</param>

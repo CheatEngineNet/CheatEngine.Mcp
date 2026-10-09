@@ -5,17 +5,29 @@ namespace CheatEngine.Mcp.Tools.Speedhack;
 /// <summary>Fixed, bounded Lua bodies used by the speedhack tools.</summary>
 internal static class SpeedhackScripts
 {
+	private const string SymbolProbe = """
+	                                   local function speedhackSymbol(effect)
+	                                     if type(getAddressSafe) ~= 'function' then
+	                                       return nil, nil, mcp.err('host_refused', 'Cheat Engine does not provide getAddressSafe for the speedhack symbol.', effect)
+	                                     end
+	                                     local ok, address = pcall(getAddressSafe, 'speedhack_wantedspeed')
+	                                     if not ok then
+	                                       return nil, nil, mcp.err('host_refused', 'Cheat Engine could not resolve the speedhack symbol.', effect)
+	                                     end
+	                                     if address == nil or address == 0 then return false end
+	                                     if math.type(address) == 'integer' then return true, address end
+	                                     return nil, nil, mcp.err('host_refused', 'Cheat Engine returned an invalid speedhack symbol address.', effect)
+	                                   end
+	                                   """ + "\n";
+
 	/// <summary>Reads the configured speed and the durable target symbol without changing Cheat Engine.</summary>
-	internal const string GetState = """
+	internal const string GetState = SymbolProbe + """
 	                                 local speed = speedhack_getSpeed()
 	                                 if type(speed) ~= 'number' or speed ~= speed or speed == math.huge or speed == -math.huge then
 	                                     return mcp.err('host_refused', 'Cheat Engine did not return a finite speedhack speed.', 'not_started')
 	                                 end
-	                                 local hasSymbol = false
-	                                 if type(getAddressSafe) == 'function' then
-	                                     local ok, address = pcall(getAddressSafe, 'speedhack_wantedspeed')
-	                                     hasSymbol = ok and math.type(address) == 'integer'
-	                                 end
+	                                 local hasSymbol, _, refused = speedhackSymbol('not_started')
+	                                 if refused then return refused end
 	                                 return { speed = speed, hooksInstalled = hasSymbol }
 	                                 """;
 
@@ -30,28 +42,23 @@ internal static class SpeedhackScripts
 	///     is 1 too. It refuses, like a speed change, while the debugger is stopped or the target is paused, because
 	///     the Unity path restores through <c>mono_invoke_method</c>.
 	/// </summary>
-	internal const string SetNormal = """
+	internal const string SetNormal = SymbolProbe + """
 		local pid = getOpenedProcessID()
 		if math.type(pid) ~= 'integer' or pid <= 0 then
 			return mcp.err('invalid_state', 'No process is attached.', 'not_started',
 				'Attach a local process with process_attach first.')
 		end
-		local function symbol()
-			if type(getAddressSafe) ~= 'function' then return nil end
-			local ok, address = pcall(getAddressSafe, 'speedhack_wantedspeed')
-			if ok and math.type(address) == 'integer' then return address end
-			return nil
-		end
 		local function finite(value)
 			return type(value) == 'number' and value == value and value ~= math.huge and value ~= -math.huge
 		end
-		local address = symbol()
 		local current = speedhack_getSpeed()
 		if not finite(current) then
 			return mcp.err('host_refused', 'Cheat Engine did not return a finite speedhack speed.', 'not_started')
 		end
+		local hasSymbol, address, refused = speedhackSymbol('not_started')
+		if refused then return refused end
 		local normal = math.abs(current - 1) <= 0.000001
-		if address == nil then
+		if not hasSymbol then
 			-- Never sped up: setting 1 would tick Enable Speedhack and hook this process.
 			if normal then return { speed = current, hooksInstalled = false, firstActivation = false } end
 			return mcp.err('invalid_state', string.format('Cheat Engine reports speed %g, but the opened process has '
@@ -90,14 +97,16 @@ internal static class SpeedhackScripts
 		if not finite(speed) then
 			return mcp.err('host_refused', 'Cheat Engine did not return a finite speed after restoring it.', 'started')
 		end
-		return { speed = speed, hooksInstalled = symbol() ~= nil, firstActivation = false }
+		local hooksInstalled, _, probeRefused = speedhackSymbol('started')
+		if probeRefused then hooksInstalled = nil end
+		return { speed = speed, hooksInstalled = hooksInstalled, firstActivation = false }
 		""";
 
 	/// <summary>
 	///     Sets one valid speed and records a restore action in the Core-owned Lua state root. Arguments are speed, resource
 	///     id and activation namespace. The body is deliberately fixed; callers only provide the number in <c>a[1]</c>.
 	/// </summary>
-	internal static readonly string SetSpeed = LuaJobKernelScripts.Kernel + "\n" + """
+	internal static readonly string SetSpeed = LuaJobKernelScripts.Kernel + "\n" + SymbolProbe + """
 		local pid = getOpenedProcessID()
 		if math.type(pid) ~= 'integer' or pid <= 0 then
 			return mcp.err('invalid_state', 'No process is attached.', 'not_started', 'Attach a local process with process_attach first.')
@@ -122,21 +131,15 @@ internal static class SpeedhackScripts
 		if type(targetIsX86) == 'function' and not targetIsX86() then
 			return mcp.err('unsupported', 'Cheat Engine speedhack requires an x86 or x64 target.', 'not_started')
 		end
-		local before = false
-		if type(getAddressSafe) == 'function' then
-			local ok, address = pcall(getAddressSafe, 'speedhack_wantedspeed')
-			before = ok and math.type(address) == 'integer'
-		end
+		local before, _, refused = speedhackSymbol('not_started')
+		if refused then return refused end
 		speedhack_setSpeed(a[1])
 		local speed = speedhack_getSpeed()
 		if type(speed) ~= 'number' or speed ~= speed or speed == math.huge or speed == -math.huge then
 			return mcp.err('host_refused', 'Cheat Engine did not return a finite speed after changing it.', 'started')
 		end
-		local after = before
-		if type(getAddressSafe) == 'function' then
-			local ok, address = pcall(getAddressSafe, 'speedhack_wantedspeed')
-			after = ok and math.type(address) == 'integer'
-		end
+		local after, _, probeRefused = speedhackSymbol('started')
+		if probeRefused then after = nil end
 		resourceRecord(a[3], a[2], 'speedhack', { name = 'speedhack', detail = 'Restores the configured speed to 1.' }, function()
 			-- Opening another process unticks Enable Speedhack without restoring this one; ticking it again would
 			-- hook the newly opened process instead, so the restore needs manual recovery then.
@@ -145,8 +148,9 @@ internal static class SpeedhackScripts
 			-- speed, so the call is skipped only when the target has no hooks or its own speed is 1 too.
 			local configured = speedhack_getSpeed()
 			if type(configured) == 'number' and math.abs(configured - 1) <= 0.000001 then
-				local found, address = pcall(getAddressSafe, 'speedhack_wantedspeed')
-				if not found or math.type(address) ~= 'integer' then return end
+				local found, address, releaseRefused = speedhackSymbol('unknown')
+				if releaseRefused then error('Cheat Engine could not resolve the speedhack symbol while restoring.', 0) end
+				if not found then return end
 				local read, wanted = pcall(readFloat, address)
 				if read and type(wanted) == 'number' and math.abs(wanted - 1) <= 0.000001 then return end
 			end

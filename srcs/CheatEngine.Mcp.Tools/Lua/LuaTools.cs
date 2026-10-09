@@ -72,7 +72,7 @@ public sealed class LuaTools
 
 	/// <summary>Searches the Lua API reference installed with the current Cheat Engine instance.</summary>
 	[McpServerTool(Name = CheatEngineToolNames.LuaFindApi, Title = "Find Lua API", ReadOnly = true,
-		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+		Destructive = false, Idempotent = true, OpenWorld = true, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
 		"Search the celua.txt Lua API reference in this Cheat Engine installation, case-insensitively. Returns matching lines with their source line numbers, at most 100 per page. The file is read only from Cheat Engine's own installation directory, is never returned in full and is bounded to 4 MiB and 65536 lines; a source-file bound returns the bounded prefix with truncated true and no nextOffset. Use a specific function or class name and page with nextOffset.")]

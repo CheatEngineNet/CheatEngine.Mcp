@@ -43,7 +43,7 @@ public sealed class MemoryFileTools
 
 	/// <summary>Writes a target range to a file under the configured write roots.</summary>
 	[McpServerTool(Name = CheatEngineToolNames.MemoryDumpToFile, Title = "Dump memory to a file", ReadOnly = false,
-		Destructive = false, Idempotent = true, OpenWorld = true, UseStructuredContent = true)]
+		Destructive = true, Idempotent = true, OpenWorld = true, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
 		"Write up to 256 MiB of target memory to a file on the Cheat Engine host. The path must be absolute, local and inside a folder listed in Mcp:Files:AllowedRoots (empty by default, which refuses every dump); the MCP data and registry folders are always refused. Reads 1 MiB per dispatch into a temporary file that replaces the target file only when complete; unreadable memory fails the dump unless unreadable is zero.")]

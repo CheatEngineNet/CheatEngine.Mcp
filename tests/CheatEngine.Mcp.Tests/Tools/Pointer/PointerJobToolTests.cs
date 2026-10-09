@@ -29,6 +29,8 @@ public sealed class PointerJobToolTests
 
 		Assert.StartsWith($"pointermap-{fixture.Jobs.Namespace}-", started.JobId, StringComparison.Ordinal);
 		Assert.Equal(started.JobId, map.JobId);
+		Assert.Equal(started.JobId, JsonSerializer.SerializeToElement(map,
+			PointerJsonContext.Default.PointerMapInfo).GetProperty("jobId").GetString());
 		Assert.Equal((PointerJobState.Ready, PointerFixture.ProcessId, 8, 3, false, 100),
 			(map.State, map.ProcessId, map.PointerSize, map.Pointers, map.Incomplete, map.ProgressPercent));
 		Assert.Equal((0x11000L, 0L), (map.BytesRead, map.UnreadableBytes));
@@ -41,6 +43,8 @@ public sealed class PointerJobToolTests
 		PointerScanInfo searched = fixture.WaitForScan("hp");
 
 		Assert.StartsWith($"pointerscan-{fixture.Jobs.Namespace}-", scan.JobId, StringComparison.Ordinal);
+		Assert.Equal(scan.JobId, JsonSerializer.SerializeToElement(searched,
+			PointerJsonContext.Default.PointerScanInfo).GetProperty("jobId").GetString());
 		Assert.Equal((PointerJobState.Ready, 2, false, false, "21020"),
 			(searched.State, searched.Count, searched.Incomplete, searched.TraversalLimited, searched.Target));
 		PointerPathPage page = fixture.Scans.ListPaths("hp", sortBy: PointerPathSort.OffsetSum);
@@ -202,6 +206,7 @@ public sealed class PointerJobToolTests
 		PointerMapInfo started = fixture.Maps.CreateMap("map", maxBytes: 16 * 1024 * 1024, cancellationToken: Token);
 		gate.WaitUntilBlocked();
 		McpJob job = fixture.Store.GetMap("map").Job!;
+		Assert.NotNull(started.JobId);
 
 		Task<JobStopResult> stopping = Task.Run(() => fixture.Jobs.Stop(started.JobId, Token), Token);
 		Assert.True(SpinWait.SpinUntil(() => job.State is JobState.Stopping, Wait));
@@ -267,6 +272,7 @@ public sealed class PointerJobToolTests
 		await using PointerFixture fixture = new(largeRegionSize: LargeSize);
 		using Gate gate = new(fixture, PointerFixture.LargeBase + 0x20000);
 		PointerMapInfo started = fixture.Maps.CreateMap("map", maxBytes: 16 * 1024 * 1024, cancellationToken: Token);
+		Assert.NotNull(started.JobId);
 		gate.WaitUntilBlocked();
 
 		Task<PointerDeleteResult> deleting = Task.Run(() => fixture.Maps.DeleteMap("map", Token), Token);
@@ -290,6 +296,7 @@ public sealed class PointerJobToolTests
 		fixture.WaitForMap("map");
 		fixture.Scans.FindPaths("hp", "map", "21020", maxOffset: 0x40, cancellationToken: Token);
 		PointerScanInfo scan = fixture.WaitForScan("hp");
+		Assert.NotNull(scan.JobId);
 
 		PointerDeleteResult deletedMap = fixture.Maps.DeleteMap("map", Token);
 

@@ -90,6 +90,8 @@ The stable v2.0.0 contract freezes tool names, arguments, result and error shape
 Additive optional fields and new tools may be added in compatible v2 patch or minor work when old callers keep their behavior.
 Removing or renaming a tool, changing an existing field meaning, changing pointer-chain order, or changing host-effect reporting requires a future reviewed breaking contract.
 Future deprecations require release-note notice, keep the old behavior through the current major version, and remove it only in a reviewed breaking release.
+Before that freeze, the current working tree proposes the explicit beta-to-stable corrections in release-notes.md: nullable omissions, corrected collector/effect descriptions and removal of the prefetchable exports resource in favor of its tool.
+They are intentional compatibility changes awaiting final contract review, not an assertion of additive compatibility; requirement 2.07 remains partial until their disposition and migration guidance are accepted.
 Configuration keeps the current precedence of built-in defaults, deployment settings, user settings, and dedicated environment overrides.
 The four capability switches remain exposure controls and do not become a sandbox.
 File and table roots remain empty by default.

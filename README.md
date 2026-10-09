@@ -245,12 +245,15 @@ The [session workflows](srcs/CheatEngine.Mcp.Resources/Knowledge/Documents/workf
 Plugin logs are written per Cheat Engine PID to `%APPDATA%\CheatEngine.Mcp\CheatEngine.Mcp.<pid>.log`, or to `MCP_DATA_DIRECTORY` when set.
 A load failure can occur before that log exists.
 See [connection troubleshooting](srcs/CheatEngine.Mcp.Resources/Knowledge/Documents/connection-troubleshooting.md) for status details and recovery steps.
+Its [support report checklist](srcs/CheatEngine.Mcp.Resources/Knowledge/Documents/connection-troubleshooting.md#support-report-checklist) lists the versions, error fields and redacted excerpts to include when reporting a problem.
 
 ### Updating or removing the installation
 
 To update, finish task cleanup, close Cheat Engine, stop the client's MCP connection, and replace the plugin DLL and gateway together from one build.
 Restart Cheat Engine, enable the plugin, reconnect the client, and refresh `instance_list`.
 User settings survive because they are outside the distribution.
+Keep the previous matching package and client registration as a rollback copy.
+For a locked gateway, partial upgrade or rollback, follow the [recovery steps](srcs/CheatEngine.Mcp.Resources/Knowledge/Documents/connection-troubleshooting.md#several-instances-updates-and-removal) before resuming work.
 
 To remove the integration, release or manually restore task-owned state, disable the plugin, remove the gateway registration from the AI client, and then delete the deployment files.
 Disabling the plugin does not automatically undo every Cheat Engine-owned change.
@@ -310,7 +313,7 @@ Each linked README documents its own project's layout, dependencies, and contrib
 ## Migration, contributing, and license
 
 This branch is a breaking redesign of CeMCP 1.x.
-The plugin is deployed as a folder rather than a single DLL, tool names and result contracts have changed, and instance routing is explicit.
+The plugin is now a single bundled DLL paired with the matching gateway executable; tool names and result contracts have changed, and instance routing is explicit.
 Consult the [live tool schema](srcs/CheatEngine.Mcp.Resources/Knowledge/Documents/tool-map.md) when migrating scripts or prompts.
 
 Use CheatEngine.Mcp only on software you own or are authorized to modify.

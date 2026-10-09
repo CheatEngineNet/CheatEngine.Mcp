@@ -14,7 +14,7 @@ namespace CheatEngine.Mcp.Core.Jobs;
 ///     <para>
 ///         Jobs buffer items in a ring of <c>bufferLimit</c> slots numbered by a sequence: pushing past the limit evicts
 ///         the
-///         oldest item and counts it in <c>dropped</c>. A poll is read-only and idempotent. A job lives at most its TTL
+///         oldest item and counts it in <c>dropped</c>. The jobPoll primitive is read-only and idempotent. A job lives at most its TTL
 ///         (300 s at most) from creation: the sweeper, a Lua timer that runs once per second while anything can still
 ///         expire, finishes running jobs as <c>expired</c> through their hooks and removes them. A job whose cleanup
 ///         failed is retained for manual recovery. No Client call is needed during a disable.

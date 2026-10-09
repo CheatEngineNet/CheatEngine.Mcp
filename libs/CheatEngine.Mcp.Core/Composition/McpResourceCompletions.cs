@@ -165,9 +165,12 @@ internal sealed class McpResourceCompletions
 			return new CompleteResult();
 		}
 
-		IReadOnlyList<string> values = listing.Cost is McpCompletionCost.Memory
-			? ListNow(listing, cancellationToken)
-			: await ListCachedAsync(listing, cancellationToken).ConfigureAwait(false);
+		IReadOnlyList<string> values = listing.Cost switch
+		{
+			McpCompletionCost.Memory => ListNow(listing, cancellationToken),
+			McpCompletionCost.DispatchFresh => await ListFreshAsync(listing, cancellationToken).ConfigureAwait(false),
+			_ => await ListCachedAsync(listing, cancellationToken).ConfigureAwait(false)
+		};
 		return new CompleteResult { Completion = McpCompletions.Match(values, argument.Value) };
 	}
 
@@ -234,6 +237,42 @@ internal sealed class McpResourceCompletions
 		}
 	}
 
+	private async Task<IReadOnlyList<string>> ListFreshAsync(Listing listing, CancellationToken cancellationToken)
+	{
+		Task<IReadOnlyList<string>> pending;
+		lock (_gate)
+		{
+			if (listing.Refresh is { IsCompleted: false } running)
+			{
+				pending = running;
+			}
+			else if (listing.StartedAt is { } started && _time.GetElapsedTime(started, _time.GetTimestamp()) < RefreshInterval)
+			{
+				return [];
+			}
+			else if (_dispatching is not null)
+			{
+				return [];
+			}
+			else
+			{
+				listing.StartedAt = _time.GetTimestamp();
+				_dispatching = listing;
+				pending = Task.Run(() => Refresh(listing), CancellationToken.None);
+				listing.Refresh = pending;
+			}
+		}
+
+		try
+		{
+			return await pending.WaitAsync(_wait, _time, cancellationToken).ConfigureAwait(false);
+		}
+		catch (TimeoutException)
+		{
+			return [];
+		}
+	}
+
 	private IReadOnlyList<string> Refresh(Listing listing)
 	{
 		McpCompletionValues? listed;
@@ -280,9 +319,13 @@ internal sealed class McpResourceCompletions
 				.. (listed.Values ?? []).Where(static value => !string.IsNullOrEmpty(value))
 					.Distinct(StringComparer.Ordinal)
 			];
-			listing.Values = values;
+			listing.Values = listing.Cost is McpCompletionCost.DispatchFresh ? null : values;
 			listing.Epoch = listed.SelectionEpoch;
 			listing.ListedAt = _time.GetTimestamp();
+			if (listing.Cost is McpCompletionCost.DispatchFresh)
+			{
+				listing.StartedAt = null;
+			}
 			return values;
 		}
 	}

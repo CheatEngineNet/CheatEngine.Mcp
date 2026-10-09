@@ -319,7 +319,7 @@ internal sealed class PointerScanSlot
 		lock (_lock)
 		{
 			long elapsed = _elapsedMs ?? (long) Stopwatch.GetElapsedTime(_started).TotalMilliseconds;
-			return new PointerScanInfo(Name, _job?.Id ?? string.Empty, _state, MapName, HexFormat.Address(Target),
+			return new PointerScanInfo(Name, _job?.Id, _state, MapName, HexFormat.Address(Target),
 				_count, _incomplete, _traversalLimited, _visitedNodes, elapsed, _error);
 		}
 	}

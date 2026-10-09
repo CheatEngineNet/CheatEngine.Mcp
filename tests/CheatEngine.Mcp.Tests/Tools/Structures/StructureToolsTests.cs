@@ -104,7 +104,7 @@ public sealed class StructureToolsTests
 		StructureDefinition definition =
 			harness.Structures.Get("Player", format: ResultFormat.Detailed, cancellationToken: Token);
 
-		Assert.Contains("[6] = true", Assert.Single(harness.LuaCalls).Arguments, StringComparison.Ordinal);
+		Assert.Contains("[4] = true", Assert.Single(harness.LuaCalls).Arguments, StringComparison.Ordinal);
 		Assert.Equal(5, definition.Total);
 		Assert.Null(definition.NextOffset);
 		StructureElement[] elements = definition.Elements;
@@ -116,6 +116,31 @@ public sealed class StructureToolsTests
 			(elements[2].ValueType, elements[2].Display!.Value, elements[2].Offset));
 		Assert.Equal((StructureElementType.String, 32), (elements[3].ValueType, elements[3].ByteSize));
 		Assert.Equal((StructureElementType.Custom, "-8"), (elements[4].ValueType, elements[4].Offset));
+	}
+
+	[Fact]
+	public void Get_UsesBoundedDefinitionPageScriptAndPreservesTheReturnedPage()
+	{
+		StructureToolHarness harness = new()
+		{
+			Lua = static call => call.Runs(StructureLuaScripts.DefinitionPage)
+				? """
+				  {"name":"Player","size":64,"elementCount":3,"internal":false,
+				   "elements":[{"index":1,"offset":8,"name":"speed","vartype":4,"display":"dtUnsignedInteger","byteSize":4}],
+				   "total":3,"nextOffset":2}
+				  """
+				: null
+		};
+
+		StructureDefinition definition = harness.Structures.Get("Player", 1, 1, cancellationToken: Token);
+
+		StructureLuaCall call = Assert.Single(harness.LuaCalls);
+		Assert.True(call.Runs(StructureLuaScripts.DefinitionPage));
+		Assert.Contains("[1] = \"Player\", [2] = 1, [3] = 1, [4] = false, [5] = 65536", call.Arguments,
+			StringComparison.Ordinal);
+		Assert.Equal((3, 1, 2), (definition.Total, definition.Elements.Length, definition.NextOffset));
+		Assert.Equal(new StructureElement(1, "8", "speed", StructureElementType.Float, null, 4),
+			Assert.Single(definition.Elements));
 	}
 
 	[Theory]

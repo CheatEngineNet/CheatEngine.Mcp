@@ -22,7 +22,7 @@
       "uri": "cheatengine://docs/auto-assembler",
       "description": "Auto Assembler syntax, commands and directives, how scripts are classified against the gates, what asm_check proves, the AOB injection scaffold, code patches, nearby allocation and the check-apply-verify-release cycle.",
       "mimeType": "text/markdown",
-      "size": 24851
+      "size": 24884
     },
     {
       "name": "doc_ce_tutorial",
@@ -62,7 +62,7 @@
       "uri": "cheatengine://docs/configuration",
       "description": "Every plugin and gateway setting with its default and bounds: precedence, the capability gates and what each refuses, execution limits, file and table roots, environment variables and log files.",
       "mimeType": "text/markdown",
-      "size": 22399
+      "size": 22923
     },
     {
       "name": "doc_connection_troubleshooting",
@@ -70,7 +70,7 @@
       "uri": "cheatengine://docs/connection-troubleshooting",
       "description": "Plugin, gateway and AI-client setup, and what to check when instance_list is empty, an instance is unavailable, or a call times out, is busy or is refused by a setting.",
       "mimeType": "text/markdown",
-      "size": 22321
+      "size": 24299
     },
     {
       "name": "doc_debugger",
@@ -78,7 +78,7 @@
       "uri": "cheatengine://docs/debugger",
       "description": "Debugger interfaces and gates, the four breakpoint slots and methods, find-what-writes captures and data-hit heuristics, traces, registers and stepping, and how to leave the target running.",
       "mimeType": "text/markdown",
-      "size": 24208
+      "size": 24415
     },
     {
       "name": "doc_emulators",
@@ -94,7 +94,7 @@
       "uri": "cheatengine://docs/errors-and-recovery",
       "description": "The error envelope and resource error codes, every failure kind and host effect with its next step, timeouts, stale ids, and releasing or acknowledging owned resources without repeating a side effect.",
       "mimeType": "text/markdown",
-      "size": 24662
+      "size": 24739
     },
     {
       "name": "doc_game_engines",
@@ -110,7 +110,7 @@
       "uri": "cheatengine://docs/getting-started",
       "description": "Start here when new: what the plugin and gateway are, the first calls of a session, the settings that gate features, where the docs and prompts live, scope and consent, and how to release what MCP holds.",
       "mimeType": "text/markdown",
-      "size": 17384
+      "size": 18388
     },
     {
       "name": "doc_glossary",
@@ -126,7 +126,7 @@
       "uri": "cheatengine://docs/kernel",
       "description": "The DBK driver and DBVM hypervisor tools: why they are usually unavailable, the kernel access switch and its gaps, loading DBVM, physical memory, page watches, hazards and recovery.",
       "mimeType": "text/markdown",
-      "size": 20223
+      "size": 20314
     },
     {
       "name": "doc_lua",
@@ -150,7 +150,7 @@
       "uri": "cheatengine://docs/memory-model",
       "description": "Regions, protections, module sections, heaps, stacks and what static means in a Windows process; why a read fails, how to change protection safely, and which tool answers which question about an address.",
       "mimeType": "text/markdown",
-      "size": 20618
+      "size": 20927
     },
     {
       "name": "doc_mono_and_dotnet",
@@ -158,7 +158,7 @@
       "uri": "cheatengine://docs/mono-and-dotnet",
       "description": "Choosing between the Mono and .NET collectors, what mono_attach and the Uses Mono option change, reading classes, fields, statics, instances and methods, and invoking or injecting managed code safely.",
       "mimeType": "text/markdown",
-      "size": 25424
+      "size": 25774
     },
     {
       "name": "doc_pointers",
@@ -166,7 +166,7 @@
       "uri": "cheatengine://docs/pointers",
       "description": "Pointer notation and offset order, reading a chain, manual chains from a writer, pointer maps, path searches, rescans and their limits, ranking chains, storing them in records, and fallbacks.",
       "mimeType": "text/markdown",
-      "size": 28953
+      "size": 29048
     },
     {
       "name": "doc_safety",
@@ -174,7 +174,7 @@
       "uri": "cheatengine://docs/safety",
       "description": "Read before the first change: allowed targets, consent, backups, what the four gates do and do not stop, what MCP tracks and how to undo the rest, and the DBK/DBVM and Windows-protection rules.",
       "mimeType": "text/markdown",
-      "size": 22330
+      "size": 22469
     },
     {
       "name": "doc_speedhack",
@@ -182,7 +182,7 @@
       "uri": "cheatengine://docs/speedhack",
       "description": "How the speedhack hooks a game\u0027s clocks, its lasting host effects and how to restore normal speed.",
       "mimeType": "text/markdown",
-      "size": 21979
+      "size": 22189
     },
     {
       "name": "doc_structures",
@@ -190,7 +190,7 @@
       "uri": "cheatengine://docs/structures",
       "description": "Structure layouts: finding and identifying a base (RTTI), .NET, Mono, PDB and autoguess sources, reading and retyping fields, recognising common data, comparing instances, rename, C header export and cleanup.",
       "mimeType": "text/markdown",
-      "size": 22410
+      "size": 22920
     },
     {
       "name": "doc_tool_map",
@@ -198,7 +198,7 @@
       "uri": "cheatengine://docs/tool-map",
       "description": "Every tool by domain with its purpose, the setting (gate) it needs and its dispatch class; the running schema stays the authority for parameters and results.",
       "mimeType": "text/markdown",
-      "size": 25769
+      "size": 26065
     },
     {
       "name": "doc_troubleshooting_scans",
@@ -246,7 +246,7 @@
       "uri": "cheatengine://docs/workflows",
       "description": "Read first: scope, session start, ids, scanners, jobs, cleanup, gates, errors, live resources and the index of guided workflows.",
       "mimeType": "text/markdown",
-      "size": 27034
+      "size": 26983
     },
     {
       "name": "doc_x64_injection",
@@ -302,7 +302,7 @@
       "name": "instance_breakpoints",
       "title": "Debugger breakpoints",
       "uriTemplate": "cheatengine://instances/{instanceId}/debugger/breakpoints{?limit}",
-      "description": "The breakpoint addresses Cheat Engine reports, marking those this activation owns: 256 by default or ?limit=.. from 1 to 1024. Its JSON is the structured result of debugger_list_breakpoints.",
+      "description": "The latest breakpoint snapshot explicitly prepared by debugger_list_breakpoints, including ownership observed at preparation: 256 by default or ?limit=.. from 1 to 1024. The snapshot expires after five seconds; run debugger_list_breakpoints before reading this resource. Its JSON is the structured result of debugger_list_breakpoints.",
       "mimeType": "application/json",
       "annotations": {
         "audience": [
@@ -311,7 +311,8 @@
         "priority": 0.3
       },
       "_meta": {
-        "cheatengine/sourceTool": "debugger_list_breakpoints"
+        "cheatengine/sourceTool": "debugger_list_breakpoints",
+        "cheatengine/preparedProjection": "ListPreparedBreakpoints"
       }
     },
     {
@@ -366,7 +367,7 @@
       "name": "instance_module",
       "title": "Module details",
       "uriTemplate": "cheatengine://instances/{instanceId}/modules/{module}",
-      "description": "One module of the attached target, by name such as game.exe or by an address expression inside it (percent-encoded): base, size, path, sections and PE header fields, whose time stamp identifies the build. Its JSON is the structured result of module_get.",
+      "description": "The latest module details explicitly prepared for the attached target, by the exact module_get selector or its canonical name: base, size, path, sections and PE header fields. The latest result expires after five seconds; run module_get before reading this resource. Its JSON is the structured result of module_get.",
       "mimeType": "application/json",
       "annotations": {
         "audience": [
@@ -375,30 +376,15 @@
         "priority": 0.3
       },
       "_meta": {
-        "cheatengine/sourceTool": "module_get"
-      }
-    },
-    {
-      "name": "instance_module_exports",
-      "title": "Module exports",
-      "uriTemplate": "cheatengine://instances/{instanceId}/modules/{module}/exports{?offset,limit}",
-      "description": "A page of one module\u0027s exports parsed from its export directory: 200 from offset 0 by default, or ?offset=..\u0026limit=.. in that order (limit 1 to 1000). Its JSON is the structured result of module_list_exports; use that tool to filter by name.",
-      "mimeType": "application/json",
-      "annotations": {
-        "audience": [
-          "assistant"
-        ],
-        "priority": 0.3
-      },
-      "_meta": {
-        "cheatengine/sourceTool": "module_list_exports"
+        "cheatengine/sourceTool": "module_get",
+        "cheatengine/preparedProjection": "GetPrepared"
       }
     },
     {
       "name": "instance_modules",
       "title": "Loaded modules",
       "uriTemplate": "cheatengine://instances/{instanceId}/modules{?offset,limit}",
-      "description": "A page of the modules loaded in the attached target: 200 from offset 0 by default, or ?offset=..\u0026limit=.. in that order (limit 1 to 1000). Its JSON is the structured result of module_list; use that tool to filter by name or read another process.",
+      "description": "A page of the latest modules explicitly prepared for the attached target: 200 from offset 0 by default, or ?offset=..\u0026limit=.. in that order (limit 1 to 1000). The preparation expires after five seconds. Its JSON is the structured result of module_list; run that tool without processId before reading this resource.",
       "mimeType": "application/json",
       "annotations": {
         "audience": [
@@ -407,7 +393,8 @@
         "priority": 0.3
       },
       "_meta": {
-        "cheatengine/sourceTool": "module_list"
+        "cheatengine/sourceTool": "module_list",
+        "cheatengine/preparedProjection": "ListPrepared"
       }
     },
     {
@@ -526,7 +513,7 @@
       "name": "instance_regions",
       "title": "Memory regions",
       "uriTemplate": "cheatengine://instances/{instanceId}/regions{?offset,limit}",
-      "description": "A page of the attached target\u0027s committed memory regions in address order: 100 from offset 0 by default (fewer than the tool\u0027s 500), or ?offset=..\u0026limit=.. in that order (limit 1 to 2000). Its JSON is the structured result of memory_list_regions; use that tool to filter by range, module, state, backing or protection.",
+      "description": "A page of the attached target\u0027s committed memory regions in address order: 100 from offset 0 by default (fewer than the tool\u0027s 500), or ?offset=..\u0026limit=.. in that order (limit 1 to 2000). First run memory_list_regions explicitly; this resource reads its prepared snapshot and must be read within 5 seconds. Use that tool to filter by range, module, state, backing or protection.",
       "mimeType": "application/json",
       "annotations": {
         "audience": [
@@ -535,7 +522,8 @@
         "priority": 0.3
       },
       "_meta": {
-        "cheatengine/sourceTool": "memory_list_regions"
+        "cheatengine/sourceTool": "memory_list_regions",
+        "cheatengine/preparedProjection": "ListPreparedRegions"
       }
     },
     {
@@ -654,7 +642,7 @@
       "name": "instance_symbols",
       "title": "Registered symbols",
       "uriTemplate": "cheatengine://instances/{instanceId}/symbols{?offset,limit}",
-      "description": "A page of the symbols registered in Cheat Engine, with ownedByMcp on those this activation can unregister: 200 from offset 0 by default, or ?offset=..\u0026limit=.. in that order (limit 1 to 1000); every read copies up to 8192 symbols. Its JSON is the structured result of symbol_list_registered; use that tool to filter by name.",
+      "description": "A page of the latest global registered-symbol copy explicitly prepared by symbol_list_registered, with ownedByMcp on those this activation can unregister: 200 from offset 0 by default, or ?offset=..\u0026limit=.. in that order (limit 1 to 1000). The copy expires after five seconds and contains at most 8192 symbols; that copy cap does not bound Cheat Engine\u0027s native enumeration. Run symbol_list_registered before reading this resource; use the tool to filter by name.",
       "mimeType": "application/json",
       "annotations": {
         "audience": [
@@ -663,14 +651,15 @@
         "priority": 0.3
       },
       "_meta": {
-        "cheatengine/sourceTool": "symbol_list_registered"
+        "cheatengine/sourceTool": "symbol_list_registered",
+        "cheatengine/preparedProjection": "ListPreparedRegistered"
       }
     },
     {
       "name": "instance_threads",
       "title": "Target threads",
       "uriTemplate": "cheatengine://instances/{instanceId}/threads",
-      "description": "Up to 4096 thread ids of the attached target, marked truncated when Cheat Engine reports more. Its JSON is the structured result of process_list_threads.",
+      "description": "Up to 4096 thread ids of the attached target, marked truncated when Cheat Engine reports more. First run process_list_threads explicitly; this resource reads its prepared snapshot and must be read within 5 seconds.",
       "mimeType": "application/json",
       "annotations": {
         "audience": [
@@ -679,7 +668,8 @@
         "priority": 0.3
       },
       "_meta": {
-        "cheatengine/sourceTool": "process_list_threads"
+        "cheatengine/sourceTool": "process_list_threads",
+        "cheatengine/preparedProjection": "ListPreparedThreads"
       }
     }
   ]

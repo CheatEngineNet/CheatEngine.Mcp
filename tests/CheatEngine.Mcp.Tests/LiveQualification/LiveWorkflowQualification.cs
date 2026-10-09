@@ -499,7 +499,7 @@ internal static class LiveWorkflowQualification
 	{
 		LiveMcpInstanceClient instance = gateway.Bind(sandbox.HostA.InstanceId);
 		await VerifyGatesAsync(sandbox, instance);
-		if (@case == LiveDispatchDiagnosticCase.MemoryNamedScanThenAob)
+		if (@case is LiveDispatchDiagnosticCase.MemoryNamedScanThenAob or LiveDispatchDiagnosticCase.ResourcePreludeMemoryNamedScanThenAob)
 		{
 			sandbox.Record("dispatch_diagnostic_step", new
 			{
@@ -508,7 +508,8 @@ internal static class LiveWorkflowQualification
 			});
 			await VerifyMemoryAsync(sandbox, instance);
 		}
-		if (@case is LiveDispatchDiagnosticCase.NamedScanThenAob or LiveDispatchDiagnosticCase.MemoryNamedScanThenAob)
+		if (@case is LiveDispatchDiagnosticCase.NamedScanThenAob or LiveDispatchDiagnosticCase.MemoryNamedScanThenAob
+			or LiveDispatchDiagnosticCase.ResourcePreludeMemoryNamedScanThenAob)
 		{
 			sandbox.Record("dispatch_diagnostic_step", new
 			{
@@ -523,13 +524,71 @@ internal static class LiveWorkflowQualification
 			step = "before_aob"
 		});
 		await VerifyAobAsync(sandbox, instance);
+		sandbox.Record("dispatch_diagnostic_step", new
+		{
+			@case = @case.ToString(),
+			step = "before_post_aob_allocation"
+		});
+		await VerifyPostAobAllocationAsync(sandbox, instance);
 		sandbox.Record("dispatch_diagnostic_result", new
 		{
 			@case = @case.ToString(),
 			aobToolCalls = 2,
 			nativeScans = 3,
+			postAobAllocationFreed = true,
 			stableQualification = false
 		});
+	}
+
+	private static async Task VerifyPostAobAllocationAsync(LiveSandboxSession sandbox, LiveMcpInstanceClient instance)
+	{
+		const string allocation = "live-dispatch-post-aob";
+		bool allocated = false;
+		bool freed = false;
+		List<Exception> cleanup = [];
+		Exception? failure = null;
+		try
+		{
+			JsonNode result = await CallAsync(instance, CheatEngineToolNames.MemoryAllocate,
+				new Dictionary<string, object?> { ["name"] = allocation, ["size"] = 64, ["executable"] = false });
+			allocated = true;
+			sandbox.Record("dispatch_diagnostic_post_aob_allocation", new
+			{
+				result = result.DeepClone()
+			});
+			Assert.Equal(allocation, Text(result, "name"));
+			Assert.NotEqual(0UL, Parse(Text(result, "address")));
+			Assert.False(result["executable"]!.GetValue<bool>());
+		}
+		catch (Exception exception)
+		{
+			failure = exception;
+			throw;
+		}
+		finally
+		{
+			if (allocated)
+			{
+				await CleanupAsync(cleanup, async () =>
+				{
+					JsonNode result = await CallAsync(instance, CheatEngineToolNames.MemoryFree,
+						new Dictionary<string, object?> { ["name"] = allocation });
+					freed = true;
+					sandbox.Record("dispatch_diagnostic_post_aob_free", new
+					{
+						result = result.DeepClone()
+					});
+				});
+			}
+			sandbox.Record("dispatch_diagnostic_post_aob_cleanup", new
+			{
+				allocated,
+				freeAttempted = allocated,
+				freed,
+				failures = cleanup.Count
+			});
+			ThrowCleanup(failure, cleanup);
+		}
 	}
 
 	private static Dictionary<string, object?> ScanArguments(string name, string address, string comparison) => new()

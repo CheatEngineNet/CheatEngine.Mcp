@@ -162,6 +162,25 @@ public sealed partial class RecordToolsTests
 	}
 
 	[Fact]
+	public void Create_BatchContainingAutoAssemblerWithoutGate_RefusesBeforeCreatingAnyRecord()
+	{
+		RecordTarget target = new(new McpFeatureOptions { EnableAutoAssembler = false });
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			new RecordMutationTools(target.Dispatch).Create(
+			[
+				new RecordCreateSpec("Health", "game.exe+20", "100"),
+				new RecordCreateSpec("Patch", "0", VariableType: VariableType.AutoAssembler, Script: "[ENABLE]\nnop")
+			], Token));
+
+		Assert.Equal((ToolErrorKind.CapabilityDisabled, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Empty(target.Calls);
+		Assert.Empty(target.Records);
+		Assert.Equal(0, target.Dispatcher.Calls);
+	}
+
+	[Fact]
 	public void Create_ValueRecord_CreatesThroughFixedLuaAndWritesTheValueLast()
 	{
 		RecordTarget target = new();
@@ -838,6 +857,25 @@ public sealed partial class RecordToolsTests
 	}
 
 	[Fact]
+	public void Delete_BatchContainingActiveAutoAssemblerWithoutGate_RefusesBeforeDeletingAnyRecord()
+	{
+		RecordTarget target = new(new McpFeatureOptions { EnableAutoAssembler = false });
+		target.Records.Add(Snapshot(4, 0, "Health"));
+		target.Records.Add(new MemoryRecordSnapshot(new MemoryRecordId(8), 1,
+			new MemoryRecordContentSnapshot("Patch", "0", string.Empty, VariableType.AutoAssembler),
+			new MemoryRecordStateSnapshot(null, true)));
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			new RecordMutationTools(target.Dispatch).Delete([4, 8], Token));
+
+		Assert.Equal((ToolErrorKind.CapabilityDisabled, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Equal(["Tables.GetRecord", "Tables.GetRecord"], target.Calls);
+		Assert.Empty(target.Deleted);
+		Assert.Equal(2, target.Records.Count);
+	}
+
+	[Fact]
 	public void Delete_UsesTypedDeleteAfterItCopiesEveryRequestedRecord()
 	{
 		RecordTarget target = new();
@@ -849,6 +887,21 @@ public sealed partial class RecordToolsTests
 		Assert.Equal(2, result.Deleted);
 		Assert.Equal([4, 8], target.Deleted);
 		Assert.Equal(["Tables.GetRecord", "Tables.GetRecord", "Tables.Delete", "Tables.Delete"], target.Calls);
+	}
+
+	[Fact]
+	public void SetScript_AutoAssemblerWithoutGate_RefusesBeforeAnyDispatch()
+	{
+		RecordTarget target = new(new McpFeatureOptions { EnableAutoAssembler = false });
+		target.Records.Add(Snapshot(12, 0, "Patch", variableType: VariableType.AutoAssembler));
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			new RecordMutationTools(target.Dispatch).SetScript(12, "[ENABLE]\nnop", Token));
+
+		Assert.Equal((ToolErrorKind.CapabilityDisabled, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Empty(target.Calls);
+		Assert.Equal(0, target.Dispatcher.Calls);
 	}
 
 	[Fact]

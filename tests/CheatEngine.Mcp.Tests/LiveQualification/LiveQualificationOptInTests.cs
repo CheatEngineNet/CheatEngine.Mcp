@@ -188,6 +188,7 @@ public sealed class LiveQualificationOptInTests
 	[InlineData("AobOnly", (int) LiveDispatchDiagnosticCase.AobOnly)]
 	[InlineData("NamedScanThenAob", (int) LiveDispatchDiagnosticCase.NamedScanThenAob)]
 	[InlineData("MemoryNamedScanThenAob", (int) LiveDispatchDiagnosticCase.MemoryNamedScanThenAob)]
+	[InlineData("ResourcePreludeMemoryNamedScanThenAob", (int) LiveDispatchDiagnosticCase.ResourcePreludeMemoryNamedScanThenAob)]
 	public void Evaluate_DispatchDiagnostic_UsesTheExactSelectedCase(string selected,
 		int expected)
 	{

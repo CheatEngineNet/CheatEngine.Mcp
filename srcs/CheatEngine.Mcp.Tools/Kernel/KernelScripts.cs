@@ -7,16 +7,18 @@ internal static class KernelScripts
 {
 	internal const string GetStatus = """
 	                                  local function initialized(f)
-	                                      if type(f) ~= 'function' then return false end
+	                                      if type(f) ~= 'function' then return nil end
 	                                      local ok, value = pcall(f)
-	                                      return ok and value == true
+	                                      if not ok or type(value) ~= 'boolean' then return nil end
+	                                      return value
 	                                  end
 	                                  local function register(f)
 	                                      if type(f) ~= 'function' then return nil end
 	                                      local ok, value = pcall(f)
 	                                      return ok and type(value) == 'number' and mcp.hex(value) or nil
 	                                  end
-	                                  return {dbkInitialized = initialized(dbk_initialized), dbvmInitialized = initialized(dbvm_initialized),
+	                                  -- A named marker preserves object shape when all probes are unavailable; the typed result ignores it.
+	                                  return {_mcpStatus = 'kernel', dbkInitialized = initialized(dbk_initialized), dbvmInitialized = initialized(dbvm_initialized),
 	                                      cr0 = register(dbk_getCR0), cr3 = register(dbk_getCR3), cr4 = register(dbk_getCR4),
 	                                      dbvmCr4 = register(dbvm_getCR4)}
 	                                  """;

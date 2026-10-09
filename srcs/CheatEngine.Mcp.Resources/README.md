@@ -41,23 +41,43 @@ The embedded copy rewrites those links when it is served, while the source files
 
 The classes in `Live/` publish JSON resource templates below `cheatengine://instance/`.
 Each live resource is a projection of one source tool, declared with `[McpSourceTool]`, and returns that tool's structured result for the equivalent arguments.
-The Core validator permits only a read-only, closed-world, ungated, `short` tool as a live-resource source.
+The Core validator requires a read-only, closed-world, ungated source tool. A non-`short` source must name a separate
+prepared projection: a unique public instance method with the same result type, explicit `short` metadata and no feature
+gates. The method cannot itself be a tool. Invalid projection declarations fail startup even for a `short` source.
 
 | Resource area | Resource templates | Source tools |
 | --- | --- | --- |
 | Runtime and process state | `runtime`, `process`, `threads`, `resources`, `jobs` | `runtime_get_overview`, `process_get_current`, `process_list_threads`, `runtime_list_resources`, `runtime_list_jobs` |
 | Scanning and debugging | `scanners`, `scanners/{scannerName}`, `debugger`, `debugger/breakpoints{?limit}` | `scan_list_scanners`, `scan_get_status`, `debugger_get_status`, `debugger_list_breakpoints` |
 | Memory and code | `regions{?offset,limit}`, `memory/{address}{?size}`, `disassembly/{address}{?count}`, `patches` | `memory_list_regions`, `memory_read`, `code_disassemble`, `asm_list_patches` |
-| Modules and symbols | `modules{?offset,limit}`, `modules/{module}`, `modules/{module}/exports{?offset,limit}`, `symbols{?offset,limit}` | `module_list`, `module_get`, `module_list_exports`, `symbol_list_registered` |
+| Modules and symbols | `modules{?offset,limit}`, `modules/{module}`, `symbols{?offset,limit}` | `module_list`, `module_get`, `symbol_list_registered` |
 | Records and structures | `records{?offset,limit}`, `records/{recordId}`, `structures{?offset,limit}`, `structures/{structure}{?offset,limit}` | `record_list`, `record_get`, `structure_list`, `structure_get` |
 | Pointer and speed state | `pointer-maps`, `pointer-scans`, `pointer-scans/{scanName}/paths{?offset,limit}`, `speedhack` | `pointer_list_maps`, `pointer_list_scans`, `pointer_list_paths`, `speedhack_get_state` |
 
-Live resources are private, uncached views of a specific instance.
+Live resource responses are private and carry no client cache lifetime.
 They are annotated for the assistant and carry their source tool name in `cheatengine/sourceTool` metadata.
+Prepared reads also publish their method in `cheatengine/preparedProjection`; this is reviewed provenance, not proof of
+the method's implementation. Explicit preparations can block CE for seconds during native enumeration.
 Their URI variables are parsed before dispatch, so absent, malformed, or out-of-range values produce `invalid_argument` rather than reaching Cheat Engine.
 
+Module and region navigation reads prepared data held by the activation for five seconds.
+Call `module_list` without `processId` before browsing modules or completing a module name; call `memory_list_regions` before browsing regions.
+For module details, call `module_get` with the same selector first: the resource reuses that exact successful result, also available by its canonical module name.
+Only the most recently prepared detail is retained; refreshing module/map data invalidates earlier details.
+Every navigation request checks the current target and snapshot expiry through dispatch admission.
+A missing, expired or mismatched snapshot produces `invalid_state` with a preparation hint; completion offers no candidates.
+The explicit source tools perform native enumeration. These prepared resource reads and module completion never trigger it as a side effect of browsing.
+
+Thread, registered-symbol and breakpoint resources also require preparation within five seconds through
+`process_list_threads`, `symbol_list_registered` and `debugger_list_breakpoints`, respectively.
+Their native producers construct whole lists before copy limits apply; browsing reads the retained bounded copy.
+Thread snapshots must still match the selected process and epoch. Symbol snapshots describe global CE state and
+remain available without a selected process; ownership is re-evaluated from this activation's current registrations.
+Structure details use a bounded global-name lookup and read only the requested element page.
+
 Only cheap, bounded path variables are completed.
-Module names and structure names use bounded dispatch completion, while scanner and pointer-scan names use instance memory completion.
+Module names use a fresh admitted snapshot check for each request, with concurrent requests sharing an in-flight check and failures throttled briefly.
+Structure names use cached dispatch completion, while scanner and pointer-scan names use instance memory completion.
 Addresses, record IDs, and query values deliberately do not complete.
 
 ## Project layout

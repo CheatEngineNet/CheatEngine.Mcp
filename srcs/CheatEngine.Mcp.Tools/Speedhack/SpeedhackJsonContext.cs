@@ -13,4 +13,5 @@ public sealed partial class SpeedhackJsonContext : JsonSerializerContext;
 /// <summary>Source-generated metadata for the fixed Lua copies used only inside the speedhack tool.</summary>
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
 [JsonSerializable(typeof(LuaSpeedhackState))]
+[JsonSerializable(typeof(SpeedhackRestoreFailure))]
 internal sealed partial class SpeedhackLuaJsonContext : JsonSerializerContext;

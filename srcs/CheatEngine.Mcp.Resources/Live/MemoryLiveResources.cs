@@ -34,12 +34,13 @@ public sealed class MemoryLiveResources(MemoryInfoTools memory, MemoryReadTools 
 	/// <returns>The structured result of <c>memory_list_regions</c>.</returns>
 	[McpServerResource(UriTemplate = RegionsPath + "{?offset,limit}", Name = "instance_regions",
 		Title = "Memory regions", MimeType = McpResourceUris.JsonMimeType)]
-	[McpSourceTool(typeof(MemoryInfoTools), CheatEngineToolNames.MemoryListRegions)]
+	[McpSourceTool(typeof(MemoryInfoTools), CheatEngineToolNames.MemoryListRegions, PreparedProjection = nameof(MemoryInfoTools.ListPreparedRegions))]
 	[McpResourceAnnotations(Role.Assistant, Priority = LiveResourceResults.Priority)]
 	[Description("A page of the attached target's committed memory regions in address order: 100 from offset 0 by " +
-				 "default (fewer than the tool's 500), or ?offset=..&limit=.. in that order (limit 1 to 2000). Its " +
-				 "JSON is the structured result of " + CheatEngineToolNames.MemoryListRegions +
-				 "; use that tool to filter by range, module, state, backing or protection.")]
+				 "default (fewer than the tool's 500), or ?offset=..&limit=.. in that order (limit 1 to 2000). First " +
+				 "run " + CheatEngineToolNames.MemoryListRegions + " explicitly; this resource reads its prepared " +
+				 "snapshot and must be read within 5 seconds. Use that tool to filter by range, module, state, backing " +
+				 "or protection.")]
 	public ReadResourceResult Regions(
 		[Description("The index of the first region, 0 by default.")]
 		string? offset = null,
@@ -49,7 +50,7 @@ public sealed class MemoryLiveResources(MemoryInfoTools memory, MemoryReadTools 
 	{
 		int? first = McpResourceQuery.Number(offset, nameof(offset), 0, LiveResourceResults.MaximumOffset);
 		int? count = McpResourceQuery.Number(limit, nameof(limit), 1, MaximumRegions);
-		RegionList regions = memory.ListRegions(offset: first ?? 0, limit: count ?? DefaultRegions,
+		RegionList regions = memory.ListPreparedRegions(offset: first ?? 0, limit: count ?? DefaultRegions,
 			cancellationToken: cancellationToken);
 		return LiveResourceResults.Json(McpResourceQuery.WithQuery(RegionsPath, ("offset", first), ("limit", count)),
 			JsonSerializer.Serialize(regions, MemoryJsonContext.Default.RegionList));

@@ -150,7 +150,9 @@ public sealed class McpContractRulesTests
 	public void ValidateTool_PlanCatalogName_PassesTheNameRules(string name)
 	{
 		bool polls = name.Split('_')[1] == "poll";
-		Assert.Empty(McpContractRules.ValidateTool(Sample(name, idempotent: true, readOnly: polls), false));
+		bool consumesLog = name == CheatEngineToolNames.KernelPollWatch;
+		Assert.Empty(McpContractRules.ValidateTool(Sample(name, idempotent: !consumesLog,
+			readOnly: polls && !consumesLog, destructive: consumesLog), false));
 	}
 
 	[Fact]
@@ -220,6 +222,15 @@ public sealed class McpContractRulesTests
 	{
 		Assert.NotEmpty(McpContractRules.ValidateTool(Sample("code_poll_job", readOnly: false), false));
 		Assert.NotEmpty(McpContractRules.ValidateTool(Sample("code_poll_job", idempotent: false), false));
+	}
+
+	[Fact]
+	public void ValidateTool_ConsumingKernelPoll_RequiresMutationAnnotations()
+	{
+		Assert.Empty(McpContractRules.ValidateTool(Sample("kernel_poll_watch", readOnly: false,
+			destructive: true, idempotent: false), false));
+		Assert.Contains(McpContractRules.ValidateTool(Sample("kernel_poll_watch"), false),
+			static failure => failure.Contains("consumes the native log", StringComparison.Ordinal));
 	}
 
 	[Theory]

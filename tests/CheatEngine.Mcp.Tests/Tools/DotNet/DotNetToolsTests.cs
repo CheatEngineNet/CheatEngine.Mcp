@@ -139,23 +139,23 @@ public sealed class DotNetToolsTests
 	}
 
 	[Fact]
-	public void GetMethodParameters_CollectorCodes_AreNamedAfterOneFixedLuaDispatch()
+	public void GetMethodParameters_ConstantCodesAndUnavailableEntries_DoNotReplaceDeclaredSignatureTypes()
 	{
 		StateTestHarness harness = new();
 		harness.Answer<DotNetMethodParameters>(static _ => new DotNetMethodParameters(" 140 ", "100663297",
 		[
-			new DotNetParameter(0, "speed", 0x0C), new DotNetParameter(1, "target", 0x12),
-			new DotNetParameter(2, "unnamed", 0)
-		], "System.Void (System.Single, Game.Player, ?)"));
+			new DotNetParameter(0, "speed", 0x0C), new DotNetParameter(1, "target", 0x01),
+			new DotNetParameter(2, "", 0)
+		], "System.Void (System.Single, Game.Player, System.Int32)"));
 
 		DotNetMethodParameters parameters = Tools(harness).GetMethodParameters(" 140 ", " 100663297 ", Token);
 
 		Assert.Equal(
 		[
-			new DotNetParameter(0, "speed", 0x0C, "Single"), new DotNetParameter(1, "target", 0x12, "Class"),
-			new DotNetParameter(2, "unnamed", 0)
+			new DotNetParameter(0, "speed", 0x0C, "Single"), new DotNetParameter(1, "target", 0x01, "Void"),
+			new DotNetParameter(2, "", 0)
 		], parameters.Parameters);
-		Assert.Equal("System.Void (System.Single, Game.Player, ?)", parameters.Signature);
+		Assert.Equal("System.Void (System.Single, Game.Player, System.Int32)", parameters.Signature);
 		(string operation, string source) = Assert.Single(harness.LuaCalls);
 		Assert.Equal(CheatEngineToolNames.DotNetGetMethodParameters, operation);
 		Assert.Contains("[1] = \"140\", [2] = \"100663297\"", source, StringComparison.Ordinal);

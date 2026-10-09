@@ -59,12 +59,15 @@ public sealed partial class NativeLuaToolRuntimeTests
 		AddressExtras withoutRtti = RunExtras(false);
 		InstallStubs("inSystemModule = nil; getRTTIClassName = nil");
 		AddressExtras missing = RunExtras(true);
+		InstallStubs("inSystemModule = function() error('unavailable') end");
+		AddressExtras raised = RunExtras(false);
 
-		Assert.Equal([false, true], withRtti.System);
+		Assert.Equal<bool?[]>([false, true], withRtti.System);
 		Assert.Equal(["Player", null], withRtti.Rtti);
 		Assert.Equal([null, null], withoutRtti.Rtti);
-		Assert.Equal([false, false], missing.System);
+		Assert.Equal<bool?[]>([null, null], missing.System);
 		Assert.Equal([null, null], missing.Rtti);
+		Assert.Equal<bool?[]>([null, null], raised.System);
 	}
 
 	[Fact]

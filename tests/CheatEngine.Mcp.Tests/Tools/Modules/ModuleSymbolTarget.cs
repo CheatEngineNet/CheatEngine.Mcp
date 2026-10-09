@@ -8,6 +8,7 @@ using CheatEngine.Client.Memory;
 using CheatEngine.Client.Processes;
 using CheatEngine.Client.Results;
 using CheatEngine.Mcp.Core.Features;
+using CheatEngine.Mcp.Core.Inspection;
 using CheatEngine.Mcp.Tests.Support;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Runtime;
@@ -28,14 +29,15 @@ internal sealed class ModuleSymbolTarget
 
 	private readonly Dictionary<string, int> _calls = new(StringComparer.Ordinal);
 
-	internal ModuleSymbolTarget()
+	internal ModuleSymbolTarget(TimeProvider? time = null)
 	{
-		IProcessClient processes = ClientTestDouble.Create<IProcessClient>((method, _) =>
+		IProcessClient processes = ClientTestDouble.Create<IProcessClient>((method, arguments) =>
 		{
 			Count(method);
 			return method.Name switch
 			{
 				nameof(IProcessClient.GetCurrentProcess) => CurrentProcess(),
+				nameof(IProcessClient.TryGetCurrentProcess) => TryCurrentProcess(arguments!),
 				_ => throw new NotSupportedException($"Unexpected process call {method.Name}.")
 			};
 		});
@@ -59,6 +61,7 @@ internal sealed class ModuleSymbolTarget
 			LuaSources.Add((string) operation.GetType().GetProperty("Source")!.GetValue(operation)!);
 			Type resultType = method.GetGenericArguments()[1];
 			Type valueType = resultType.GetGenericArguments()[0];
+			BeforeLua?.Invoke();
 			if (LuaFailure is { } failure)
 			{
 				throw failure;
@@ -73,6 +76,7 @@ internal sealed class ModuleSymbolTarget
 			(nameof(ICheatEngineClient.Processes), processes), (nameof(ICheatEngineClient.Inspection), inspection),
 			(nameof(ICheatEngineClient.Memory), memory), (nameof(ICheatEngineClient.Lua), lua));
 		Dispatch = CreateDispatch(Client);
+		Prepared = new PreparedInspectionStore(time ?? TimeProvider.System);
 	}
 
 	internal RecordingDispatcher Dispatcher
@@ -90,6 +94,11 @@ internal sealed class ModuleSymbolTarget
 		get;
 	}
 
+	internal PreparedInspectionStore Prepared
+	{
+		get;
+	}
+
 	internal bool Attached
 	{
 		get;
@@ -102,8 +111,21 @@ internal sealed class ModuleSymbolTarget
 		set;
 	} = 7;
 
+	internal int CurrentProcessId
+	{
+		get;
+		set;
+	} = ProcessId;
+
 	/// <summary>Runs before every memory read; a test uses it to change the target mid-operation.</summary>
 	internal Action<MemoryBytesReadRequest>? BeforeRead
+	{
+		get;
+		set;
+	}
+
+	/// <summary>Runs before every fixed Lua result is returned.</summary>
+	internal Action? BeforeLua
 	{
 		get;
 		set;
@@ -222,8 +244,23 @@ internal sealed class ModuleSymbolTarget
 				"No process is attached.", hostEffect: CheatEngineHostEffect.NotStarted).ToException();
 		}
 
-		return new ProcessSnapshot(new TargetProcessId(ProcessId), "game.exe", null, TargetBackend.LocalProcess,
+		return new ProcessSnapshot(new TargetProcessId(CurrentProcessId), "game.exe", null, TargetBackend.LocalProcess,
 			CheatEngineArchitecture.X64, PointerSize.Bit64, 8, null, SelectionEpoch);
+	}
+
+	private bool TryCurrentProcess(object?[] arguments)
+	{
+		if (Attached)
+		{
+			arguments[0] = CurrentProcess();
+			arguments[1] = default(CheatEngineFailure);
+			return true;
+		}
+
+		arguments[0] = default(ProcessSnapshot);
+		arguments[1] = new CheatEngineFailure(CheatEngineFailureKind.TargetNotAttached, "Process.Current",
+			"No process is attached.", hostEffect: CheatEngineHostEffect.NotStarted);
+		return false;
 	}
 
 	private object? Inspect(MethodInfo method, object?[] arguments)

@@ -86,6 +86,12 @@ Then `memory_get_address_info(addresses=["<base>"], includeRtti=true, includePoi
 
 ## Read, name and retype fields
 
+`structure_get` checks at most 65536 global indexed definitions for the exact name, then reads only the requested element
+page (up to 1024). If the name is not found within that bound and more definitions exist, it returns
+`limit_exceeded` instead of claiming the name is absent. Total element counts and pagination remain exact.
+The result's `internal` flag is best-effort: hosts without a readable `Internal` property report false. It does not
+prove that an indexed definition will be saved with the table.
+
 1. `structure_read(name="Player", addresses=["<player>", "<enemy 1>", "<enemy 2>"], fromOffset="0", toOffset="1FF")`
    returns one column per address (up to 16) and one row per element, 100 rows per page by default (`limit` up to
    256; continue with `structure_read.offset` from `nextOffset`). Integers come back in decimal even with a `hex`

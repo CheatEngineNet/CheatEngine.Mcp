@@ -114,6 +114,12 @@ internal sealed class StateTestHarness
 		_answers[typeof(T)] = source => new LuaJsonResult<T>(answer(source), null, 0);
 	}
 
+	/// <summary>Answers fixed Lua with either a value or a declared script error selected from its complete source.</summary>
+	internal void AnswerResult<T>(Func<string, LuaJsonResult<T>> answer)
+	{
+		_answers[typeof(T)] = source => answer(source);
+	}
+
 	/// <summary>Makes every Lua operation whose result is <typeparamref name="T" /> declare an <c>mcp_error</c>.</summary>
 	internal void Declare<T>(string kind, string message, string? hostEffect = "not_started")
 	{

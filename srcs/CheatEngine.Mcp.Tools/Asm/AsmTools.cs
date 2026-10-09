@@ -220,9 +220,9 @@ public sealed class AsmTools
 	[McpServerTool(Name = CheatEngineToolNames.AsmReleasePatch, Title = "Release Auto Assembler patch",
 		ReadOnly = false,
 		Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.MayPrompt)]
 	[Description(
-		"Run the original DISABLE section for one MCP-owned patch. A failed or target-changed release can leave a patch in the old target and require manual recovery; retry only when retryable is true. A successful release removes the patch from runtime resources.")]
+		"Run the original DISABLE section for one MCP-owned patch. Script execution can block Cheat Engine or show a dialog. A failed or target-changed release can leave a patch in the old target and require manual recovery; retry only when retryable is true. A successful release removes the patch from runtime resources.")]
 	public AsmPatchReleased ReleasePatch(
 		[Description("The patch id returned by asm_apply or asm_apply_code_patch.")]
 		string patchId,

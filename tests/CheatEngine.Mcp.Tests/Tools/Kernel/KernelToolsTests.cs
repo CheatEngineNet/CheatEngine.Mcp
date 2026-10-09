@@ -4,6 +4,7 @@ using System.Text.Json;
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Features;
 using CheatEngine.Mcp.Core.Jobs;
+using CheatEngine.Mcp.Core.Lua;
 using CheatEngine.Mcp.Tests.Support;
 using CheatEngine.Mcp.Tools.Kernel;
 
@@ -44,6 +45,30 @@ public sealed class KernelToolsTests
 		Assert.Equal((ToolErrorKind.CapabilityDisabled, ToolHostEffect.NotStarted),
 			(exception.Error.Kind, exception.Error.HostEffect));
 		Assert.Equal(0, harness.Dispatcher.Calls);
+	}
+
+	[Fact]
+	public void KernelStatus_Availability_OmitsUnavailableAndRetainsBooleanAnswers()
+	{
+		KernelStatus value = new(null, false, null, null, null, null);
+
+		using JsonDocument json = JsonDocument.Parse(
+			JsonSerializer.Serialize(value, KernelJsonContext.Default.KernelStatus));
+
+		Assert.False(json.RootElement.TryGetProperty("dbkInitialized", out _));
+		Assert.False(json.RootElement.GetProperty("dbvmInitialized").GetBoolean());
+	}
+
+	[Fact]
+	public void KernelStatus_AllUnavailable_InternalObjectMarkerIsNotPublished()
+	{
+		KernelStatus value = LuaJsonWriter.Deserialize("""{"_mcpStatus":"kernel"}"""u8,
+			KernelJsonContext.Default.KernelStatus);
+
+		Assert.Equal(new KernelStatus(null, null, null, null, null, null), value);
+		JsonElement json = JsonSerializer.SerializeToElement(value, KernelJsonContext.Default.KernelStatus);
+		Assert.Equal(JsonValueKind.Object, json.ValueKind);
+		Assert.Empty(json.EnumerateObject());
 	}
 
 	[Theory]

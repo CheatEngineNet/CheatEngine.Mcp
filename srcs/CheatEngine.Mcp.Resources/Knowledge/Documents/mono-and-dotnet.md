@@ -246,6 +246,9 @@ and they are all read-only. They do not check for a paused game or a stopped deb
    `nativeCode` is omitted until the method is compiled: have the user trigger that feature, then list again.
 6. `dotnet_get_method_parameters(moduleHandle="<moduleHandle>", methodToken="<method token>")` returns the
    `parameters` (`index`, `name`, `elementType`, `elementTypeName`) and the `signature` text when reported.
+   Here `elementType` is the collector's metadata-constant/default-value code, **not the declared parameter type**.
+   `1` / `Void` means no constant; `0` can be unavailable metadata. The list may be incomplete or include return
+   metadata; `index` is the returned position, not necessarily the declared ordinal. Use `signature` for declared types.
 7. `dotnet_get_object(address="<object address>")` returns the object's start `address`, its `typeName` and the fields
    (512 by default) with their current `value`: decimal numbers, true or false, hexadecimal references and pointers,
    nothing for value-type fields. CE documents that the query assumes a valid object, so pass an object start, such

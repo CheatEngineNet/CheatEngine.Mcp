@@ -153,27 +153,98 @@ public sealed class ErrorCorrelationTests
 	}
 
 	[Fact]
-	public void Correlate_ExistingIdOrDetailsThatAreNotAnObject_AreKept()
+	public void Correlate_ExistingIdIsKeptAndOtherKindsAreNotCorrelated()
 	{
 		ToolError first = McpErrorCorrelation.Correlate(CheatEngineToolException.Internal("Failed.").Error,
 			out string? firstId);
 		ToolError again = McpErrorCorrelation.Correlate(first, out string? againId);
-		using JsonDocument array = JsonDocument.Parse("[1,2]");
-		ToolError listed = CheatEngineToolException.Internal("Failed.").Error with
-		{
-			Details = array.RootElement.Clone()
-		};
-		ToolError unchanged = McpErrorCorrelation.Correlate(listed, out string? listedId);
 		ToolError other = McpErrorCorrelation.Correlate(
 			CheatEngineToolException.NotFound("Missing.", "List first.").Error, out string? otherId);
 
 		Assert.Equal(firstId, againId);
 		Assert.Same(first, again);
-		Assert.Matches("^[0-9a-f]{16}$", listedId);
-		Assert.Equal("[1,2]", unchanged.Details!.Value.GetRawText());
-		Assert.Null(McpErrorCorrelation.Read(unchanged));
 		Assert.Null(otherId);
 		Assert.Null(other.Details);
+	}
+
+	[Theory]
+	[InlineData("array", "[1,2]")]
+	[InlineData("string", "\"probe context\"")]
+	[InlineData("number", "9007199254740993")]
+	[InlineData("boolean", "true")]
+	[InlineData("null", "null")]
+	public async Task CallTool_NonObjectInternalDetails_KeepsValueAndReturnsTheLoggedErrorId(string kind,
+		string expectedJson)
+	{
+		LogCapture logs = new();
+		await using LoggedPipeline pipeline = await LoggedPipeline.StartAsync(CorrelationProbes.Manifest, logs);
+
+		CallToolResult result = await pipeline.CallAsync(CorrelationProbeTool.Name, $$"""{"failure":"{{kind}}"}""");
+
+		ToolError error = TestMcpPipeline.AssertError(result, ToolErrorKind.Internal);
+		string errorId = AssertErrorId(error.Details);
+		Assert.Equal(expectedJson, error.Details!.Value.GetProperty("value").GetRawText());
+		Assert.Equal(ToolHostEffect.Unknown, error.HostEffect);
+		Assert.False(error.Retryable);
+		Assert.Single(logs.Entries, entry => entry.Text.Contains(errorId, StringComparison.Ordinal));
+		ToolError repeated = McpErrorCorrelation.Correlate(error, out string? repeatedId);
+		Assert.Same(error, repeated);
+		Assert.Equal(errorId, repeatedId);
+	}
+
+	[Theory]
+	[InlineData("null")]
+	[InlineData("42")]
+	public void Correlate_NonStringExistingId_ReplacesItWithoutDuplicateKeys(string invalidId)
+	{
+		using JsonDocument details = JsonDocument.Parse($$"""{"errorId":{{invalidId}},"step":2}""");
+		ToolError original = CheatEngineToolException.Internal("Failed.").Error with
+		{
+			Details = details.RootElement.Clone()
+		};
+
+		ToolError correlated = McpErrorCorrelation.Correlate(original, out string? errorId);
+
+		Assert.Equal(errorId, AssertErrorId(correlated.Details));
+		Assert.Equal(2, correlated.Details!.Value.GetProperty("step").GetInt32());
+		Assert.Single(correlated.Details.Value.EnumerateObject(), property => property.NameEquals("errorId"));
+	}
+
+	[Theory]
+	[InlineData(ToolHostEffect.NotStarted)]
+	[InlineData(ToolHostEffect.NotApplied)]
+	[InlineData(ToolHostEffect.Started)]
+	[InlineData(ToolHostEffect.Completed)]
+	[InlineData(ToolHostEffect.CleanupUnconfirmed)]
+	[InlineData(ToolHostEffect.Unknown)]
+	public async Task CallTool_EveryHostEffect_PreservesCorrelatedEnvelopeThroughGateway(ToolHostEffect effect)
+	{
+		LogCapture logs = new();
+		await using LoggedPipeline pipeline = await LoggedPipeline.StartAsync(CorrelationProbes.Manifest, logs);
+		CallToolResult direct = await pipeline.CallAsync(CorrelationProbeTool.Name,
+			$$"""{"failure":"{{effect}}"}""");
+		ToolError directError = TestMcpPipeline.AssertError(direct, ToolErrorKind.Internal);
+		string errorId = AssertErrorId(directError.Details);
+		Assert.Equal(effect, directError.HostEffect);
+		Assert.Equal(CorrelationProbeTool.Operation, directError.Operation);
+		Assert.False(directError.Retryable);
+		Assert.Equal("Inspect the probe state.", directError.Hint);
+		Assert.Equal(2, directError.Details!.Value.GetProperty("step").GetInt32());
+		Assert.Single(logs.Entries, entry => entry.Text.Contains(errorId, StringComparison.Ordinal));
+		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync();
+		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "correlated-tool");
+		await using McpClient client = await gateway.ConnectAsync();
+		backend.Respond = () => direct;
+
+		CallToolResult routed = await client.CallToolAsync(CorrelationProbeTool.Name, backend.RoutedArguments(),
+			cancellationToken: Token);
+
+		ToolError routedError = TestMcpPipeline.AssertError(routed, ToolErrorKind.Internal);
+		Assert.Equal(errorId, AssertErrorId(routedError.Details));
+		Assert.Equal(Assert.IsType<TextContentBlock>(Assert.Single(direct.Content)).Text,
+			Assert.IsType<TextContentBlock>(Assert.Single(routed.Content)).Text);
+		Assert.Null(routed.StructuredContent);
+		Assert.Equal(1, backend.ForwardedCallCount);
 	}
 
 	private static string AssertErrorId(JsonElement? details)
@@ -309,12 +380,26 @@ public sealed class CorrelationProbeTool
 	[Description("Raises the internal failure its argument names.")]
 	public static ContractProbeResult Fail([Description("The failure to raise.")] string failure)
 	{
-		using JsonDocument details = JsonDocument.Parse("""{"step":2}""");
+		using JsonDocument details = JsonDocument.Parse(failure switch
+		{
+			"array" => "[1,2]",
+			"string" => "\"probe context\"",
+			"number" => "9007199254740993",
+			"boolean" => "true",
+			"null" => "null",
+			_ => """{"step":2}"""
+		});
+		if (Enum.TryParse(failure, out ToolHostEffect effect))
+		{
+			throw new CheatEngineToolException(new ToolError(ToolErrorKind.Internal,
+				"The probe failed.", Operation, effect, false, "Inspect the probe state.", details.RootElement.Clone()));
+		}
+
 		throw failure switch
 		{
-			"details" => new CheatEngineToolException(new ToolError(ToolErrorKind.Internal,
-				"The probe stopped at step 2.", null, ToolHostEffect.Unknown, false, null,
-				details.RootElement.Clone())),
+			"details" or "array" or "string" or "number" or "boolean" or "null" => new CheatEngineToolException(
+				new ToolError(ToolErrorKind.Internal, "The probe stopped at step 2.", null, ToolHostEffect.Unknown, false,
+					null, details.RootElement.Clone())),
 			"wrapped" => new CheatEngineToolException(new ToolError(ToolErrorKind.Internal,
 				"The probe's step failed.", Operation, ToolHostEffect.Unknown, false),
 				new FormatException(CorrelationProbeResource.Secret)),

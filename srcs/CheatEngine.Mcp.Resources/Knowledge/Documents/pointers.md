@@ -1,9 +1,7 @@
 # Pointers and pointer scans
 
-A heap or stack address moves when the game restarts or reloads a level. A pointer chain finds it again from a static
-root inside a module. Read this page once you have the value's current address (see [value-scans](value-scans.md)) and
-before you save it in a table. It covers notation, reading a chain, the manual method from a writer, the pointer
-scanner, ranking and storing a chain, and what to do when the scanner fails.
+A pointer chain finds a moving address from a static module root. First find the value with
+[value-scans](value-scans.md).
 
 Reading memory, capturing maps and searching paths do not change the target. Attaching the debugger, pausing the
 process, writing through a record and injecting code do: explain each one and get the user's consent first. Use them
@@ -115,6 +113,10 @@ objects match too. The live search blocks Cheat Engine while it scans; with `poi
 searches a stored map instead, nearest first. On a 32-bit target a live search with a non-zero `maxOffset` is refused
 for targets above 7FFFFFFF; search a map there.
 
+`pointer_find_references` permits one temporary live range scan per activation. Failed release keeps later range searches `busy`.
+Use `runtime_list_resources` and `runtime_release_resources`; follow manual-recovery instructions before
+acknowledging. Exact (`maxOffset=0`) and stored-map searches need no temporary scan.
+
 Pitfalls:
 
 - Data breakpoints are traps. A write or access hit is reported after the instruction ran: `ip` is the next
@@ -188,6 +190,7 @@ and scans across `process_attach`.
    `pointer_save_scan(scanName="hp", path="C:\CheatEngine\Files\hp.json")`. The destination must be inside that
    root. A save does not replace a file unless `overwrite=true`, and it commits the new file atomically.
 3. After the new activation starts, call `pointer_load_map` and `pointer_load_scan` with unused map and scan names.
+   Imports omit `jobId`: loading saved data creates no capture or search job.
    Loading a map lets the server search or rescan against that snapshot without reading the target. Loading a scan
    restores paths as `unresolved`; it never claims that a stored result is still valid.
 4. Attach the restarted game, find the value again, then call

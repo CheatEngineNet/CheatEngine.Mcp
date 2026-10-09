@@ -56,7 +56,7 @@ public sealed class RecordMutationTools(ToolDispatch dispatch)
 
 	/// <summary>Creates a bounded batch of records.</summary>
 	[McpServerTool(Name = CheatEngineToolNames.RecordCreate, Title = "Create address-list records", ReadOnly = false,
-		Destructive = false, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
+		Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
 		"Create 1 to 256 value, group or Auto Assembler records in order. Each record is built without touching " +
@@ -180,9 +180,9 @@ public sealed class RecordMutationTools(ToolDispatch dispatch)
 	[McpServerTool(Name = CheatEngineToolNames.RecordSetActive, Title = "Set address-list records active",
 		ReadOnly = false,
 		Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.MayPrompt)]
 	[Description(
-		"Set 1 to 256 records active or inactive, in order. Activating or deactivating an Auto Assembler record can " +
+		"Set 1 to 256 records active or inactive, in order. Scripts can block Cheat Engine or show a dialog. Activating or deactivating an Auto Assembler record can " +
 		"execute its enable or disable section, so it requires Mcp:EnableAutoAssembler; so does a record whose Cheat " +
 		"Engine option moActivateChildrenAsWell (when activating) or moDeactivateChildrenAsWell (when deactivating) " +
 		"passes the change on to a nested Auto Assembler record, checked through at most 4096 nested records. A " +
@@ -232,9 +232,9 @@ public sealed class RecordMutationTools(ToolDispatch dispatch)
 	/// <summary>Deletes records in one bounded batch.</summary>
 	[McpServerTool(Name = CheatEngineToolNames.RecordDelete, Title = "Delete address-list records", ReadOnly = false,
 		Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.MayPrompt)]
 	[Description(
-		"Delete 1 to 256 records by current id. Deleting a group can also remove or reparent its children according to Cheat Engine's address-list behavior. Deleting an active Auto Assembler record can execute its disable section and requires Mcp:EnableAutoAssembler. A failure after an earlier delete leaves those earlier deletions in effect.")]
+		"Delete 1 to 256 records by current id. Deleting a group can also remove or reparent its children according to Cheat Engine's address-list behavior. Deleting an active Auto Assembler record can execute its disable section and requires Mcp:EnableAutoAssembler. Script execution can block Cheat Engine or show a dialog. A failure after an earlier delete leaves those earlier deletions in effect.")]
 	public RecordDeleteResult Delete(
 		[Description("The distinct current record ids to delete, from 1 to 256 entries.")]
 		int[] ids,
@@ -344,6 +344,7 @@ public sealed class RecordMutationTools(ToolDispatch dispatch)
 	[McpServerTool(Name = CheatEngineToolNames.RecordSetScript, Title = "Set address-list Auto Assembler script",
 		ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+	[RequiresFeature(McpFeature.AutoAssembler)]
 	[Description(
 		"Replace the stored Auto Assembler text of one existing, inactive Auto Assembler record. Storing the text " +
 		"does not activate the record, but a later record_set_active can execute it. An active record, or one still " +
@@ -361,6 +362,7 @@ public sealed class RecordMutationTools(ToolDispatch dispatch)
 		RecordArguments.Id(id, "id");
 		ArgumentNullException.ThrowIfNull(script);
 		RecordArguments.Script(script, "script");
+		dispatch.Features.Require(McpFeature.AutoAssembler, CheatEngineToolNames.RecordSetScript);
 		ICheatEngineClient client = dispatch.Client;
 		return dispatch.Run(CheatEngineToolNames.RecordSetScript, token =>
 		{
@@ -370,7 +372,6 @@ public sealed class RecordMutationTools(ToolDispatch dispatch)
 				throw CheatEngineToolException.InvalidState("The address-list record is not an Auto Assembler record.");
 			}
 
-			dispatch.Features.Require(McpFeature.AutoAssembler, CheatEngineToolNames.RecordSetScript);
 			if (before.State.IsActive || before.State.IsAsyncProcessing)
 			{
 				throw CheatEngineToolException.InvalidState(

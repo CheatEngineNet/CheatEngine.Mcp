@@ -1,9 +1,12 @@
 using System.ComponentModel;
 using System.Reflection;
+using System.Text.Json;
 
 using CheatEngine.Client;
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Features;
+using CheatEngine.Mcp.Core.Lua;
+using CheatEngine.Mcp.Core.Targets;
 using CheatEngine.Mcp.Tests.Support;
 using CheatEngine.Mcp.Tools.Speedhack;
 
@@ -92,12 +95,96 @@ public sealed class SpeedhackToolsTests
 	}
 
 	[Fact]
+	public void SetSpeedResult_UnknownHooksInstalled_IsOmittedFromThePortableJson()
+	{
+		string json = JsonSerializer.Serialize(new SpeedhackSetResult(2, null, true, "speedhack-aaaa11-1"),
+			SpeedhackJsonContext.Default.SpeedhackSetResult);
+
+		Assert.DoesNotContain("hooksInstalled", json, StringComparison.Ordinal);
+		Assert.Contains("firstActivation", json, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void SetSpeed_WithARetainedResource_RefusesThePreflightBeforeItReleasesThePriorSpeed()
+	{
+		StateTestHarness harness = new();
+		harness.Answer<LuaSpeedhackState>(_ => new LuaSpeedhackState(2, true, true));
+		SpeedhackTools tools = new(harness.Dispatch, harness.Resources);
+
+		_ = tools.SetSpeed(2, Token);
+		harness.Declare<LuaSpeedhackState>("host_refused", "symbol lookup unavailable");
+		CheatEngineToolException refused = Assert.Throws<CheatEngineToolException>(() => tools.SetSpeed(3, Token));
+
+		Assert.Equal((ToolErrorKind.HostRefused, ToolHostEffect.NotStarted),
+			(refused.Error.Kind, refused.Error.HostEffect));
+		Assert.Single(harness.Resources.List());
+		Assert.Equal(2, harness.LuaCalls.Count);
+	}
+
+	[Theory]
+	[InlineData("not_started", true, ToolHostEffect.Started)]
+	[InlineData("not_applied", true, ToolHostEffect.Started)]
+	[InlineData("not_started", false, ToolHostEffect.NotStarted)]
+	public void SetSpeed_AfterReleasingARetainedResource_PreservesTheStartedEffectOfALateRefusal(
+		string laterEffect, bool resourceFound, ToolHostEffect expectedEffect)
+	{
+		StateTestHarness harness = new();
+		bool initialChange = true;
+		harness.AnswerResult<LuaSpeedhackState>(source =>
+		{
+			if (source.Contains(SpeedhackScripts.GetState, StringComparison.Ordinal))
+			{
+				return new LuaJsonResult<LuaSpeedhackState>(new LuaSpeedhackState(2, true), null, 0);
+			}
+
+			if (initialChange)
+			{
+				initialChange = false;
+				return new LuaJsonResult<LuaSpeedhackState>(new LuaSpeedhackState(2, true, true), null, 0);
+			}
+
+			return new LuaJsonResult<LuaSpeedhackState>(default,
+				new LuaScriptError("host_refused", "symbol lookup unavailable", laterEffect, null), 0);
+		});
+		harness.Answer<LuaResourceRelease>(_ => new LuaResourceRelease(resourceFound, true));
+		SpeedhackTools tools = new(harness.Dispatch, harness.Resources);
+
+		_ = tools.SetSpeed(2, Token);
+		CheatEngineToolException refused = Assert.Throws<CheatEngineToolException>(() => tools.SetSpeed(3, Token));
+
+		Assert.Equal((ToolErrorKind.HostRefused, expectedEffect, false),
+			(refused.Error.Kind, refused.Error.HostEffect, refused.Error.Retryable));
+		Assert.Empty(harness.Resources.List());
+		Assert.Equal(4, harness.LuaCalls.Count);
+	}
+
+	[Fact]
+	public void SetSpeed_FailedPriorRestore_ReportsRecoveryContextWithoutInventingObservedValues()
+	{
+		StateTestHarness harness = new();
+		harness.Answer<LuaSpeedhackState>(_ => new LuaSpeedhackState(2, true, true));
+		harness.Answer<LuaResourceRelease>(_ => new LuaResourceRelease(true, false, "restore failed"));
+		SpeedhackTools tools = new(harness.Dispatch, harness.Resources);
+		SpeedhackSetResult first = tools.SetSpeed(2, Token);
+
+		CheatEngineToolException error = Assert.Throws<CheatEngineToolException>(() => tools.SetSpeed(3, Token));
+
+		Assert.Equal(ToolErrorKind.PartialEffect, error.Error.Kind);
+		JsonElement details = Assert.IsType<JsonElement>(error.Error.Details);
+		Assert.Equal(first.ResourceId, details.GetProperty("resourceId").GetString());
+		Assert.Equal("cleanup_failed", details.GetProperty("release").GetProperty("kind").GetString());
+		Assert.False(details.TryGetProperty("speed", out _));
+		Assert.False(details.TryGetProperty("hooksInstalled", out _));
+		Assert.Single(harness.Resources.List());
+	}
+
+	[Fact]
 	public void SetNormal_ChecksTheSymbolAndBothSpeedsBeforeItCallsSpeedhackSetSpeed()
 	{
 		string body = SpeedhackScripts.SetNormal;
 		int attached = body.IndexOf("getOpenedProcessID()", StringComparison.Ordinal);
 		int normal = body.IndexOf("math.abs(current - 1) <= 0.000001", StringComparison.Ordinal);
-		int unhooked = body.IndexOf("if address == nil then", StringComparison.Ordinal);
+		int unhooked = body.IndexOf("if not hasSymbol then", StringComparison.Ordinal);
 		int target = body.IndexOf("pcall(readFloat, address)", StringComparison.Ordinal);
 		int broken = body.IndexOf("debug_getContext(false)", StringComparison.Ordinal);
 		int paused = body.IndexOf("isPaused()", StringComparison.Ordinal);

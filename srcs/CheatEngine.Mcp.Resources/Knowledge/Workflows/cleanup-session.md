@@ -39,6 +39,8 @@ deletes them after asking.
 
 ## Decisions
 
+- Script deactivation, deletion and patch release (including `runtime_release_resources`) can show a CE dialog or
+  block CE while the DISABLE section runs. Warn the user and inspect any dialog before retrying a timed-out cleanup.
 - `partial_effect`, an incomplete release or `asm_release_patch.released` false: stop there, report the `hint` and
   what remains; repeat once only when the result says retryable.
 - `not_found` on a stop, delete or release: it already ended; confirm with the list tools.

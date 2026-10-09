@@ -59,9 +59,9 @@ public sealed class StructureTools
 		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Reads one structure, internal ones included, and a page of its elements ordered by offset: index, hexadecimal " +
-		"offset, name, valueType, integer display, byteSize and child structure. The detailed format adds the child " +
-		"start, custom type and bit fields.")]
+		"Reads a global Structure Dissect definition after scanning at most 65,536 indexed definitions by exact case-sensitive " +
+		"name. Returns a page of its elements ordered by offset: index, hexadecimal offset, name, valueType, integer display, " +
+		"byteSize and child structure. The detailed format adds the child start, custom type and bit fields.")]
 	public StructureDefinition Get(
 		[Description("The structure's case-sensitive name.")]
 		string name,
@@ -77,8 +77,8 @@ public sealed class StructureTools
 		StructureArguments.Page(offset, limit, MaxGetLimit);
 		bool detailed = format is ResultFormat.Detailed;
 		StructureLuaDefinition definition = _dispatch.RunLua(CheatEngineToolNames.StructureGet,
-			StructureLuaScripts.Elements, StructureLuaJsonContext.Default.StructureLuaDefinition, cancellationToken,
-			structure, null, null, offset, limit, detailed);
+			StructureLuaScripts.DefinitionPage, StructureLuaJsonContext.Default.StructureLuaDefinition, cancellationToken,
+			structure, offset, limit, detailed, MaxScannedStructures);
 		return new StructureDefinition(definition.Name, definition.Size, definition.ElementCount, definition.Internal,
 			[.. definition.Elements.Select(element => Element(element, detailed))], definition.Total,
 			definition.NextOffset);

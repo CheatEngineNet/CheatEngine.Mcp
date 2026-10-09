@@ -33,24 +33,25 @@ public sealed class DebuggerLiveResources(DebuggerTools debugger)
 			DebuggerJsonContext.Default.DebuggerStatus));
 	}
 
-	/// <summary>Reads a bounded copy of the breakpoints.</summary>
-	/// <param name="limit">The most breakpoints to copy; 256 when absent.</param>
+	/// <summary>Reads a page of the explicitly prepared breakpoint snapshot.</summary>
+	/// <param name="limit">The most prepared breakpoints to return; 256 when absent.</param>
 	/// <param name="cancellationToken">The resource read cancellation.</param>
 	/// <returns>The structured result of <c>debugger_list_breakpoints</c>.</returns>
 	[McpServerResource(UriTemplate = DebuggerPath + "/breakpoints{?limit}", Name = "instance_breakpoints",
 		Title = "Debugger breakpoints", MimeType = McpResourceUris.JsonMimeType)]
-	[McpSourceTool(typeof(DebuggerTools), CheatEngineToolNames.DebuggerListBreakpoints)]
+	[McpSourceTool(typeof(DebuggerTools), CheatEngineToolNames.DebuggerListBreakpoints, PreparedProjection = nameof(DebuggerTools.ListPreparedBreakpoints))]
 	[McpResourceAnnotations(Role.Assistant, Priority = LiveResourceResults.Priority)]
-	[Description("The breakpoint addresses Cheat Engine reports, marking those this activation owns: 256 by default " +
-				 "or ?limit=.. from 1 to 1024. Its JSON is the structured result of " +
+	[Description("The latest breakpoint snapshot explicitly prepared by debugger_list_breakpoints, including ownership " +
+				 "observed at preparation: 256 by default or ?limit=.. from 1 to 1024. The snapshot expires after five " +
+				 "seconds; run debugger_list_breakpoints before reading this resource. Its JSON is the structured result of " +
 				 CheatEngineToolNames.DebuggerListBreakpoints + ".")]
 	public ReadResourceResult Breakpoints(
-		[Description("The most breakpoint addresses to copy, 1 to 1024, 256 by default.")]
+		[Description("The most prepared breakpoint addresses to return, 1 to 1024, 256 by default.")]
 		string? limit = null,
 		CancellationToken cancellationToken = default)
 	{
 		int? count = McpResourceQuery.Number(limit, nameof(limit), 1, MaximumBreakpoints);
-		DebuggerBreakpointPage page = debugger.ListBreakpoints(count ?? DefaultBreakpoints, cancellationToken);
+		DebuggerBreakpointPage page = debugger.ListPreparedBreakpoints(count ?? DefaultBreakpoints, cancellationToken);
 		return LiveResourceResults.Json(McpResourceQuery.WithQuery(DebuggerPath + "/breakpoints", ("limit", count)),
 			JsonSerializer.Serialize(page, DebuggerJsonContext.Default.DebuggerBreakpointPage));
 	}

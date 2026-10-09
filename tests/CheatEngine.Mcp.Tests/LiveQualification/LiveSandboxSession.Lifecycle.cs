@@ -70,8 +70,14 @@ internal sealed partial class LiveSandboxSession
 
 		using StreamReader responseReader = new(responseStream, new System.Text.UTF8Encoding(false, true), false);
 		string[] fields = (await responseReader.ReadToEndAsync(cancellationToken)).Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+		string action = enabled ? "enable" : "disable";
+		if (fields.Length == 4 && fields[0] == "error" && long.TryParse(fields[1], out long failedNonce)
+			&& failedNonce == nonce && fields[2] == action && fields[3].Length is > 0 and <= 1024)
+		{
+			throw new InvalidOperationException($"The fixed CE Plugin Manager bridge rejected {action}: {fields[3]}");
+		}
 		if (fields.Length != 3 || fields[0] != "ok" || !long.TryParse(fields[1], out long received)
-			|| received != nonce || fields[2] != (enabled ? "enable" : "disable"))
+			|| received != nonce || fields[2] != action)
 		{
 			throw new InvalidOperationException("The fixed CE Plugin Manager bridge returned an invalid response.");
 		}
@@ -177,7 +183,7 @@ internal sealed partial class LiveSandboxSession
 		}
 	}
 
-	/// <summary>Removes only a CE plugin list proven to contain complete pairs for this run's private bundles.</summary>
+	/// <summary>Removes only validated owned plugin registry entries before the next private-host transition.</summary>
 	internal void NeutralizeOwnedPluginRegistry()
 	{
 		if (_userState is null || _stateGuard is null)

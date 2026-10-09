@@ -297,6 +297,106 @@ public sealed class McpModuleLifecycleTests
 	}
 
 	[Fact]
+	public void Enable_OccupiedEndpoint_RefusesAndLeavesNoDiscoveryRecordOrActiveBackend()
+	{
+		string root = Path.Combine(Path.GetTempPath(), $"CheatEngine.Mcp.Tests-{Guid.NewGuid():N}");
+		string instances = Path.Combine(root, "instances");
+		List<string> accessed = [];
+		ICheatEngineClient client = StrictClient(accessed);
+		using System.Net.Sockets.TcpListener occupied = new(IPAddress.Loopback, 0);
+		occupied.Start();
+		int port = ((IPEndPoint) occupied.LocalEndpoint).Port;
+		using TestActivation activation = new(client,
+			new Dictionary<string, string?>
+			{
+				["Mcp:Port"] = port.ToString(System.Globalization.CultureInfo.InvariantCulture),
+				["Mcp:InstanceDirectory"] = instances
+			});
+		McpServerModule module = activation.Module;
+		InstanceRegistry registry = new(instances);
+		try
+		{
+			InvalidOperationException failure = Assert.Throws<InvalidOperationException>(() => module.OnEnabled(client));
+
+			Assert.Contains("Could not start the MCP server", failure.Message, StringComparison.Ordinal);
+			Assert.Empty(registry.ReadActive(TestContext.Current.CancellationToken));
+
+			occupied.Stop();
+			using System.Net.Sockets.TcpListener replacement = new(IPAddress.Loopback, port);
+			replacement.Start();
+		}
+		finally
+		{
+			module.Dispose();
+			if (Directory.Exists(root))
+			{
+				Directory.Delete(root, true);
+			}
+		}
+
+		Assert.Empty(registry.ReadActive(TestContext.Current.CancellationToken));
+		Assert.All(accessed, member => Assert.Contains(member, AllowedClientMembers));
+	}
+
+	[Fact]
+	public async Task Enable_UnavailableLogLocation_KeepsTheActualModuleRunningAndDiscoverable()
+	{
+		string root = Path.Combine(Path.GetTempPath(), $"CheatEngine.Mcp.Tests-{Guid.NewGuid():N}");
+		string instances = Path.Combine(root, "instances");
+		Directory.CreateDirectory(root);
+		string unavailableDirectory = Path.Combine(root, "not-a-directory");
+		await File.WriteAllTextAsync(unavailableDirectory, "occupied", TestContext.Current.CancellationToken);
+		List<string> accessed = [];
+		ICheatEngineClient client = StrictClient(accessed);
+		using TestActivation activation = new(client,
+			new Dictionary<string, string?>
+			{
+				["Mcp:InstanceDirectory"] = instances
+			});
+		PluginLog unavailableLog = new(unavailableDirectory);
+		McpServerModule? module = null;
+		string? endpoint = null;
+		string logLocationContents = string.Empty;
+		try
+		{
+			IOptions<McpBackendOptions> backend = activation.Services.GetRequiredService<IOptions<McpBackendOptions>>();
+			IOptions<McpDiscoveryOptions> discovery = activation.Services.GetRequiredService<IOptions<McpDiscoveryOptions>>();
+			McpBackendHostFactory factory = new(backend, discovery, unavailableLog,
+				activation.Services.GetRequiredService<McpRuntimeInfo>(),
+				activation.Services.GetRequiredService<IOptions<CheatEngineMcpPrimitiveOptions>>());
+			McpStatusIndicator status = new(discovery, unavailableLog,
+				activation.Services.GetRequiredService<ILogger<McpStatusIndicator>>());
+			module = new McpServerModule(factory, activation.Targets, status);
+			InstanceRegistry registry = new(instances);
+			using HttpClient http = new();
+
+			module.OnEnabled(client);
+			InstanceDescriptor published = Assert.Single(registry.ReadActive(TestContext.Current.CancellationToken));
+			endpoint = published.Endpoint;
+			await AssertPublishedIdentityAsync(http, published);
+
+			module.OnDisabling(client);
+			Assert.Empty(registry.ReadActive(TestContext.Current.CancellationToken));
+			module.Dispose();
+			await WaitUntilStoppedAsync(http, endpoint);
+		}
+		finally
+		{
+			module?.OnDisabling(client);
+			module?.Dispose();
+			await TestLog.ReleaseAsync(unavailableLog);
+			logLocationContents = await File.ReadAllTextAsync(unavailableDirectory, TestContext.Current.CancellationToken);
+			if (Directory.Exists(root))
+			{
+				Directory.Delete(root, true);
+			}
+		}
+
+		Assert.Equal("occupied", logLocationContents);
+		Assert.All(accessed, member => Assert.Contains(member, AllowedClientMembers));
+	}
+
+	[Fact]
 	public void Enable_PartiallyStartedBackendStopsBeforeItRethrowsTheStartupFailure()
 	{
 		List<string> accessed = [];

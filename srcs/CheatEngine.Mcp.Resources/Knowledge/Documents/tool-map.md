@@ -43,7 +43,7 @@ authority for parameters, bounds, defaults and results. Task guides: [workflows]
 | `runtime_get_info` | | Host and plugin versions, platform, Client epoch, capability evidence and the four gates. |
 | `runtime_get_overview` | | Orientation: host information, gates, selected process, retained resource and job counts. |
 | `runtime_list_resources` | | List resources this or an earlier activation holds, with kind, state and orphan flag. |
-| `runtime_release_resources` | | Release every resource newest first, optionally orphans; acknowledge manually recovered ones. |
+| `runtime_release_resources` | | Release every resource newest first, optionally orphans; acknowledge manually recovered ones. `may_prompt` |
 | `runtime_list_jobs` | | List running and retained jobs with state, progress, buffer counts and expiry. |
 | `runtime_stop_job` | | Stop any job and discard its buffered items. |
 
@@ -61,7 +61,7 @@ IgnoreUsesMono off), opening a process makes CE inject its Mono data collector; 
 | `process_open_file` | →TCE | Open a validated, pinned host file as the target (file-as-process). |
 | `process_save_file` | | Save the opened file target to a new path under `Mcp:Files:AllowedRoots`, atomically. |
 | `process_set_paused` | | Pause or resume the target; MCP's own pause is a tracked resource. |
-| `process_list_threads` | | List up to 4096 target thread ids. |
+| `process_list_threads` | | Prepare up to 4096 thread ids for five seconds. `blocking_native` |
 | `process_set_pointer_size` | | Set the target pointer size to 4 or 8 bytes and verify it. |
 
 ## memory
@@ -78,7 +78,7 @@ samples) handles big-endian numbers.
 | `memory_write` | | Write a typed value, string or bytes; returns up to 64 previous bytes and reads back by default. |
 | `memory_write_batch` | | Write up to 1024 typed items in order; not atomic, a failure reports what was written. |
 | `memory_get_address_info` | | Describe up to 256 addresses: symbol, module, section, region, pointer value, RTTI class. |
-| `memory_list_regions` | | Page regions filtered by range, module, state, backing and protection. |
+| `memory_list_regions` | | Filter/page regions; prepare region navigation for five seconds. `blocking_native` |
 | `memory_set_protection` | | Change the protection of up to 16 MiB in one region; returns the previous one. |
 | `memory_allocate` | | Allocate named read/write or executable memory owned by this activation. |
 | `memory_free` | | Free a named allocation. |
@@ -148,10 +148,10 @@ Guide: [repair after update](../Workflows/repair-after-update.md).
 
 | Tool | Gate | Purpose |
 |---|---|---|
-| `module_list` | | Page the loaded modules, filtered by name. |
-| `module_get` | | One module: base, size, path, sections and PE fields such as the build time stamp. |
-| `module_list_exports` | | Page a module's exports. |
-| `module_list_imports` | | Page a module's imports: DLL, IAT slot, name, and where the slot points now. |
+| `module_list` | | Filter/page modules; without processId, prepare navigation for five seconds. `blocking_native` |
+| `module_get` | | Prepare one module's details and PE fields for five seconds. `blocking_native` |
+| `module_list_exports` | | Page a module's exports. `host_scan` |
+| `module_list_imports` | | Page a module's imports: DLL, IAT slot, name, and where the slot points now. `host_scan` |
 | `module_find_patches` | | Compare a module's code in memory with its file and list differing ranges. |
 
 ## symbol
@@ -164,7 +164,7 @@ Guide: [address expressions](address-expressions.md).
 | `symbol_find` | | Find symbols whose names contain a text, optionally in one module. `host_scan` |
 | `symbol_register` | | Register a named symbol owned by this activation. |
 | `symbol_unregister` | | Unregister a symbol this activation registered. |
-| `symbol_list_registered` | | Page registered symbols, marking the ones MCP owns. |
+| `symbol_list_registered` | | Prepare/page registered symbols for five seconds. `blocking_native` |
 | `symbol_get_module_preference` | | Read which module wins when several define a name. |
 | `symbol_set_module_preference` | | Change the module precedence of later lookups. |
 | `symbol_reload` | | Start a symbol reload and return at once. |
@@ -221,7 +221,7 @@ globalalloc or a `$` before non-hex text (`unsupported`): CE runs parts of a che
 | `asm_check` | AA | Check a script's ENABLE and DISABLE sections without applying it. |
 | `asm_apply` | AA →UL/TCE/KA | Apply a script and keep its patch for release. `may_prompt` |
 | `asm_apply_code_patch` | AA | Replace 1 to 64 verified bytes as a reversible patch. `may_prompt` |
-| `asm_release_patch` | | Release a patch by running its DISABLE section. |
+| `asm_release_patch` | | Release a patch by running its DISABLE section. `may_prompt` |
 | `asm_list_patches` | | List the patches this activation holds. |
 | `asm_generate_injection` | | Generate an AOB injection scaffold from a verified signature. |
 | `asm_generate_api_hook` | | Ask CE for an API hook script with ENABLE and DISABLE sections, without applying it. |
@@ -229,7 +229,7 @@ globalalloc or a `$` before non-hex text (`unsupported`): CE runs parts of a che
 ## record
 
 Guide: [cheat tables](cheat-tables.md). **→AA**: creating an Auto Assembler record or passing a script, activating or
-deactivating one (or a group passing it on), deleting or clearing an active one, and every `record_set_script`.
+deactivating one (or a group passing it on), deleting or clearing an active one. `record_set_script` always needs AA.
 Offsets are written as for pointers, and reads return them.
 
 | Tool | Gate | Purpose |
@@ -241,13 +241,13 @@ Offsets are written as for pointers, and reads return them.
 | `record_select` | | Select a record, visibly to the user. |
 | `record_create` | →AA | Create 1 to 256 value, group or script records; rolled back on failure. |
 | `record_update` | | Update 1 to 256 records: description, address, type, length, Unicode, offsets, value. |
-| `record_set_active` | →AA | Activate (freeze) or deactivate 1 to 256 records; a refused one reports CE's reason. |
-| `record_delete` | →AA | Delete 1 to 256 records. |
+| `record_set_active` | →AA | Activate (freeze) or deactivate 1 to 256 records; a refused one reports CE's reason. `may_prompt` |
+| `record_delete` | →AA | Delete 1 to 256 records. `may_prompt` |
 | `record_move` | | Move one record under a parent or to the root. |
 | `record_group` | | Group 1 to 256 records under a new type-14 record, not CE's group header. |
-| `record_set_script` | →AA | Replace an inactive script record's text without activating it. |
+| `record_set_script` | AA | Replace an inactive script record's text without activating it. |
 | `record_set_dropdown` | | Replace or clear one record's dropdown list and its three dropdown options. |
-| `record_clear` | →AA | Delete every record and return the count. |
+| `record_clear` | →AA | Delete every record and return the count. `may_prompt` |
 
 ## table
 
@@ -268,7 +268,7 @@ Guide: [structures](structures.md).
 | Tool | Gate | Purpose |
 |---|---|---|
 | `structure_list` | | Page Structure Dissect definitions. |
-| `structure_get` | | Read a structure and a page of its elements. |
+| `structure_get` | | Find a structure within 65536 global definitions and read only its requested element page. |
 | `structure_create` | | Create a structure from elements, a copy or a PDB type. |
 | `structure_set_name` | | Rename a structure in place; pointers to it stay. |
 | `structure_delete` | | Delete a structure. |
@@ -297,7 +297,7 @@ or a ceserver connection is refused (`unsupported`).
 | `debugger_break_thread` | | Ask a thread to break. |
 | `debugger_set_breakpoint` | | Set a tracked execute, access or write breakpoint. |
 | `debugger_delete_breakpoint` | | Delete a breakpoint this activation set. |
-| `debugger_list_breakpoints` | | List up to 1024 breakpoints, marking MCP's. |
+| `debugger_list_breakpoints` | | Prepare up to 1024 breakpoints for five seconds. `blocking_native` |
 | `debugger_continue` | | Continue the stopped context. |
 | `debugger_step` | | Step into or over one instruction. |
 | `debugger_get_context` | | Read the stopped thread's registers, optionally FPU and XMM bytes. |
@@ -345,7 +345,7 @@ Guide: [Mono and .NET](mono-and-dotnet.md). They use CE's out-of-process .NET da
 | `dotnet_list_types` | | Page a module's types, filtered by name. `host_scan` |
 | `dotnet_get_type` | | Read a type's layout, base type and fields. |
 | `dotnet_list_methods` | | Page a type's methods, filtered by name. |
-| `dotnet_get_method_parameters` | | Read a method's parameter names, type codes and signature. |
+| `dotnet_get_method_parameters` | | Read collector parameter entries, constant codes and optional declared-type signature. |
 | `dotnet_get_object` | | Inspect the object at an address with its field values. |
 | `dotnet_start_instance_search` | | Start a job that finds instances of a type. `host_scan` |
 | `dotnet_poll_instance_search` | | Poll an instance search. |

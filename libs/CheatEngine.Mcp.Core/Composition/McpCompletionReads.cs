@@ -1,11 +1,8 @@
-using System.Collections.Immutable;
-
 using CheatEngine.Client;
-using CheatEngine.Client.Inspection;
-using CheatEngine.Client.Results;
+using CheatEngine.Client.Processes;
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Execution;
-using CheatEngine.SDK.Engine.Inspection;
+using CheatEngine.Mcp.Core.Inspection;
 
 namespace CheatEngine.Mcp.Core.Composition;
 
@@ -27,32 +24,39 @@ public static class McpCompletionReads
 	///     Reads the attached process's module names and the target-selection epoch they belong to, in one dispatch.
 	/// </summary>
 	/// <param name="dispatch">The activation's dispatch facade.</param>
+	/// <param name="prepared">The activation's explicitly prepared module snapshots.</param>
 	/// <param name="cancellationToken">The token of the listing.</param>
 	/// <returns>The distinct module names in Cheat Engine's order, ignoring case, and the selection epoch.</returns>
 	/// <exception cref="CheatEngineToolException">
 	///     <c>not_attached</c> without a process, <c>busy</c> when the dispatch limit is reached, or the Client's
 	///     failure.
 	/// </exception>
-	public static McpCompletionValues ModuleNames(ToolDispatch dispatch, CancellationToken cancellationToken)
+	public static McpCompletionValues ModuleNames(ToolDispatch dispatch, PreparedInspectionStore prepared,
+		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(dispatch);
+		ArgumentNullException.ThrowIfNull(prepared);
 		ICheatEngineClient client = dispatch.Client;
 		return dispatch.Run(Operation, token =>
 		{
-			// Both reads run in the same main-thread callback, so the names belong to the epoch read first.
-			long epoch = client.Processes.GetCurrentProcess(token).SelectionEpoch;
-			if (!client.Inspection.TryGetModules(new InspectionCollectionRequest(MaximumModules), null,
-					out ImmutableArray<ModuleInfo> modules, out CheatEngineFailure failure, token))
+			ProcessSnapshot target = client.Processes.GetCurrentProcess(token);
+			if (!prepared.TryGetModules(target, out PreparedModuleSnapshot snapshot))
 			{
-				throw CheatEngineToolException.FromFailure(failure, client.Stopping.IsCancellationRequested);
+				throw CheatEngineToolException.InvalidState("No current prepared module snapshot is available.",
+					"Run module_list without processId first.");
+			}
+			if (snapshot.Modules.Length > MaximumModules)
+			{
+				throw CheatEngineToolException.LimitExceeded("modules",
+					$"Prepared module snapshots for completion may contain at most {MaximumModules} modules.");
 			}
 
 			string[] names =
 			[
-				.. modules.Select(static module => module.Name).Where(static name => !string.IsNullOrEmpty(name))
+			.. snapshot.Modules.Select(static module => module.Name).Where(static name => !string.IsNullOrEmpty(name))
 					.Distinct(StringComparer.OrdinalIgnoreCase)
 			];
-			return new McpCompletionValues(names, epoch);
+			return new McpCompletionValues(names, target.SelectionEpoch);
 		}, cancellationToken);
 	}
 }

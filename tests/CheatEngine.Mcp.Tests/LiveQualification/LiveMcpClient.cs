@@ -157,6 +157,22 @@ internal sealed class LiveMcpClient : IAsyncDisposable, ILiveMcpToolClient
 		}, "instanceId", "ce-", cancellationToken: timeout.Token);
 	}
 
+	public async Task<CompleteResult> CompleteModulesAsync(string instanceId, string prefix)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(instanceId);
+		ArgumentNullException.ThrowIfNull(prefix);
+		using CancellationTokenSource timeout = CreateTimeout(cancellationToken);
+		return await client.CompleteAsync(new CompleteRequestParams
+		{
+			Ref = new ResourceTemplateReference { Uri = "cheatengine://instances/{instanceId}/modules/{module}" },
+			Argument = new Argument { Name = "module", Value = prefix },
+			Context = new CompleteContext
+			{
+				Arguments = new Dictionary<string, string> { ["instanceId"] = instanceId }
+			}
+		}, timeout.Token);
+	}
+
 	private static CancellationTokenSource CreateTimeout(CancellationToken cancellationToken)
 	{
 		CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

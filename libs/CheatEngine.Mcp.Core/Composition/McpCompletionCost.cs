@@ -17,5 +17,8 @@ public enum McpCompletionCost
 	///     thread, cached for a few seconds per target-selection epoch, refreshed at most once per second, never waited
 	///     on for long, and never listed while another dispatched listing of the server runs.
 	/// </summary>
-	Dispatch
+	Dispatch,
+
+	/// <summary>A dispatched listing that joins concurrent refreshes but is never served from the outer TTL cache.</summary>
+	DispatchFresh
 }

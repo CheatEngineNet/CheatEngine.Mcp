@@ -195,7 +195,15 @@ internal static partial class McpContractRules
 		}
 
 		string verb = name.Split('_') is [_, { } second, ..] ? second : string.Empty;
-		if (verb == "poll" && !(readOnly && idempotent))
+		// This poll drains DBVM's native log into a bounded ring; retries can consume and evict more events.
+		if (name == CheatEngineToolNames.KernelPollWatch)
+		{
+			if (readOnly || !destructive || idempotent)
+			{
+				failures.Add($"Tool '{name}' consumes the native log, so it must be destructive, non-read-only and non-idempotent.");
+			}
+		}
+		else if (verb == "poll" && !(readOnly && idempotent))
 		{
 			failures.Add($"Tool '{name}' polls, so it must be read-only and idempotent.");
 		}

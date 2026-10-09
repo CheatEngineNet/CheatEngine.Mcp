@@ -60,7 +60,7 @@ internal sealed class PointerFixture : IAsyncDisposable
 	private long _epoch = 1;
 
 	internal PointerFixture(McpExecutionOptions? options = null, ulong? largeRegionSize = null,
-		PointerSize? pointerSize = null)
+		PointerSize? pointerSize = null, TargetResources? resources = null)
 	{
 		_pointerSize = pointerSize ?? PointerSize.Bit64;
 		_pointerWidth = _pointerSize == PointerSize.Bit32 ? 4 : 8;
@@ -113,6 +113,10 @@ internal sealed class PointerFixture : IAsyncDisposable
 			Path.Combine(Path.GetTempPath(), "ce-mcp-test-registry"),
 			Path.Combine(Path.GetTempPath(), "ce-mcp-test-data")));
 		new CheatEngineMcpBuilder(services, CheatEngineMcpMode.Backend).AddExecutionServices().AddPointerTools();
+		if (resources is not null)
+		{
+			services.AddSingleton(resources);
+		}
 		services.AddOptions<CheatEngineMcpPrimitiveOptions>();
 		_root = services.BuildServiceProvider(new ServiceProviderOptions
 		{
@@ -230,6 +234,12 @@ internal sealed class PointerFixture : IAsyncDisposable
 		get;
 		set;
 	} = new(LeaseReleaseKind.Released, CheatEngineHostEffect.Completed);
+
+	/// <summary>An optional failure from the temporary scan before it produces results.</summary>
+	internal Exception? ValueScanFirstFailure
+	{
+		get; set;
+	}
 
 	/// <summary>The last AOB scan requested.</summary>
 	internal AobScanRequest? LastAobScan
@@ -510,6 +520,10 @@ internal sealed class PointerFixture : IAsyncDisposable
 			switch (member.Name)
 			{
 				case nameof(IValueScanSession.FirstScan):
+					if (ValueScanFirstFailure is { } failure)
+					{
+						throw failure;
+					}
 					request = (ValueScanFirstRequest) values![0]!;
 					LastValueScan = request;
 					return null;

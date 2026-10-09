@@ -35,6 +35,19 @@ internal static class LiveDispatchDiagnosticQualification
 			});
 			connection = await LiveLifecycleSession.ConnectAsync(sandbox);
 			await connection.AttachBothAsync();
+			if (@case == LiveDispatchDiagnosticCase.ResourcePreludeMemoryNamedScanThenAob)
+			{
+				sandbox.Record("dispatch_diagnostic_prelude", new
+				{
+					step = "before_runtime_and_resources"
+				});
+				await connection.VerifyBothAsync();
+				await LiveResourceQualification.VerifyAsync(sandbox, connection.Gateway);
+				sandbox.Record("dispatch_diagnostic_prelude", new
+				{
+					step = "completed"
+				});
+			}
 			sandbox.Record("dispatch_diagnostic_case", new
 			{
 				@case = @case.ToString(),
@@ -79,5 +92,6 @@ internal enum LiveDispatchDiagnosticCase
 {
 	AobOnly,
 	NamedScanThenAob,
-	MemoryNamedScanThenAob
+	MemoryNamedScanThenAob,
+	ResourcePreludeMemoryNamedScanThenAob
 }

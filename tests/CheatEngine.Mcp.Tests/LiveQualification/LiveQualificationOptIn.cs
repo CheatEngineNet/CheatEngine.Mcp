@@ -77,11 +77,12 @@ internal static class LiveQualificationOptIn
 			"AobOnly" => LiveDispatchDiagnosticCase.AobOnly,
 			"NamedScanThenAob" => LiveDispatchDiagnosticCase.NamedScanThenAob,
 			"MemoryNamedScanThenAob" => LiveDispatchDiagnosticCase.MemoryNamedScanThenAob,
+			"ResourcePreludeMemoryNamedScanThenAob" => LiveDispatchDiagnosticCase.ResourcePreludeMemoryNamedScanThenAob,
 			_ => (LiveDispatchDiagnosticCase?) null
 		};
 		if (scenario == LiveQualificationScenario.DispatchDiagnostic && dispatchCaseValue is not null && dispatchCase is null)
 		{
-			return Refuse($"{DispatchDiagnosticCaseVariable} must be AobOnly, NamedScanThenAob, or MemoryNamedScanThenAob.");
+			return Refuse($"{DispatchDiagnosticCaseVariable} must be AobOnly, NamedScanThenAob, MemoryNamedScanThenAob, or ResourcePreludeMemoryNamedScanThenAob.");
 		}
 		bool compiler = scenario is LiveQualificationScenario.Compiler or LiveQualificationScenario.CompilerExtended
 			or LiveQualificationScenario.CompilerInjection;

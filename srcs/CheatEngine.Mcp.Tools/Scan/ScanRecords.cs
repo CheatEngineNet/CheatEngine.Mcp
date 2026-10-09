@@ -90,7 +90,7 @@ internal static class ScanStateText
 public sealed record ScanMatch(
 	[property: Description("The matched address, uppercase hexadecimal without 0x.")]
 	string Address,
-	[property: Description("The value text reported by Cheat Engine.")]
+	[property: Description("The formatted value text reported by Cheat Engine, which may contain read-failure markers. Empty text does not prove readability; use memory_read to verify.")]
 	string Value);
 
 /// <summary>A page of value-scan matches.</summary>

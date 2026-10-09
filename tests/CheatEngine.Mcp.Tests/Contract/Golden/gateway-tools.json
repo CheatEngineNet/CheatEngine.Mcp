@@ -1082,7 +1082,7 @@
   {
     "name": "asm_release_patch",
     "title": "Release Auto Assembler patch",
-    "description": "Run the original DISABLE section for one MCP-owned patch. A failed or target-changed release can leave a patch in the old target and require manual recovery; retry only when retryable is true. A successful release removes the patch from runtime resources.",
+    "description": "Run the original DISABLE section for one MCP-owned patch. Script execution can block Cheat Engine or show a dialog. A failed or target-changed release can leave a patch in the old target and require manual recovery; retry only when retryable is true. A successful release removes the patch from runtime resources.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1145,7 +1145,7 @@
       "readOnlyHint": false
     },
     "_meta": {
-      "cheatengine/dispatchClass": "short"
+      "cheatengine/dispatchClass": "may_prompt"
     }
   },
   {
@@ -2658,7 +2658,7 @@
     "annotations": {
       "title": "Start code search",
       "destructiveHint": false,
-      "idempotentHint": true,
+      "idempotentHint": false,
       "openWorldHint": false,
       "readOnlyHint": true
     },
@@ -3184,7 +3184,7 @@
   {
     "name": "debugger_list_breakpoints",
     "title": "List debugger breakpoints",
-    "description": "Copies up to 1024 breakpoint addresses from Cheat Engine and identifies entries this MCP activation owns.",
+    "description": "Copies up to 1024 breakpoint addresses from Cheat Engine and identifies entries this MCP activation owns. A successful call explicitly prepares this snapshot for the breakpoints resource for five seconds; ownership fields are observations from that snapshot. The copy cap does not bound native enumeration, which can block Cheat Engine for seconds.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -3254,7 +3254,7 @@
       "readOnlyHint": true
     },
     "_meta": {
-      "cheatengine/dispatchClass": "short"
+      "cheatengine/dispatchClass": "blocking_native"
     }
   },
   {
@@ -4329,7 +4329,7 @@
   {
     "name": "dotnet_get_method_parameters",
     "title": "Get .NET method parameters",
-    "description": "Read a managed method\u0027s parameter names and CorElementType codes, and the signature text when the out-of-process collector reports it. Pass a module handle from dotnet_list_modules and a method token from dotnet_list_methods; this never injects into the target.",
+    "description": "Read a managed method\u0027s collector parameter entries and optional signature text. Each elementType is the collector\u0027s metadata-constant code, not the declared parameter type; use signature for declared types when available. Pass a module handle from dotnet_list_modules and a method token from dotnet_list_methods; this never injects into the target.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -4364,25 +4364,25 @@
           "type": "string"
         },
         "parameters": {
-          "description": "The parameters in declaration order, without the return value.",
+          "description": "The metadata entries in collector order; the list can be incomplete and include return metadata or unavailable placeholders.",
           "type": "array",
           "items": {
             "type": "object",
             "properties": {
               "index": {
-                "description": "The zero-based parameter position.",
+                "description": "The zero-based position in the returned collector entries, not necessarily the declared parameter ordinal.",
                 "type": "integer"
               },
               "name": {
-                "description": "The parameter name; empty when the metadata has none.",
+                "description": "The reported parameter name; empty when unnamed or unavailable.",
                 "type": "string"
               },
               "elementType": {
-                "description": "The parameter\u0027s CorElementType code, such as 8 for Int32 or 18 for a class reference.",
+                "description": "The collector\u0027s CType code for a metadata constant/default value, not the declared parameter type. 1 (Void) means no constant; 0 can mean unavailable metadata. Use signature for declared types.",
                 "type": "integer"
               },
               "elementTypeName": {
-                "description": "The element type\u0027s name, such as Int32, String or Class, when the code is known.",
+                "description": "The CorElementType name for elementType when known; this does not name the declared parameter type.",
                 "type": "string",
                 "default": null
               }
@@ -5976,7 +5976,7 @@
   {
     "name": "kernel_get_status",
     "title": "Get DBK and DBVM status",
-    "description": "Read whether DBK and DBVM are already initialized, plus any CR0, CR3, CR4 and DBVM real-CR4 values that Cheat Engine can read. It does not load a driver or initialize DBVM. Null register values are unavailable, not zero; call this before any kernel operation.",
+    "description": "Read whether DBK and DBVM are already initialized, plus any CR0, CR3, CR4 and DBVM real-CR4 values that Cheat Engine can read. It does not load a driver or initialize DBVM. Null status and register values are unavailable, not false or zero; call this before any kernel operation.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -5993,9 +5993,11 @@
       "type": "object",
       "properties": {
         "dbkInitialized": {
+          "description": "Whether DBK is initialized; omitted when Cheat Engine cannot report its state.",
           "type": "boolean"
         },
         "dbvmInitialized": {
+          "description": "Whether DBVM is initialized; omitted when Cheat Engine cannot report its state.",
           "type": "boolean"
         },
         "cr0": {
@@ -6010,11 +6012,7 @@
         "dbvmCr4": {
           "type": "string"
         }
-      },
-      "required": [
-        "dbkInitialized",
-        "dbvmInitialized"
-      ]
+      }
     },
     "annotations": {
       "title": "Get DBK and DBVM status",
@@ -6335,10 +6333,10 @@
     },
     "annotations": {
       "title": "Poll DBVM watch",
-      "destructiveHint": false,
-      "idempotentHint": true,
+      "destructiveHint": true,
+      "idempotentHint": false,
       "openWorldHint": false,
-      "readOnlyHint": true
+      "readOnlyHint": false
     },
     "_meta": {
       "cheatengine/requires": [
@@ -6773,7 +6771,7 @@
       "title": "Find Lua API",
       "destructiveHint": false,
       "idempotentHint": true,
-      "openWorldHint": false,
+      "openWorldHint": true,
       "readOnlyHint": true
     },
     "_meta": {
@@ -7490,7 +7488,7 @@
     },
     "annotations": {
       "title": "Dump memory to a file",
-      "destructiveHint": false,
+      "destructiveHint": true,
       "idempotentHint": true,
       "openWorldHint": true,
       "readOnlyHint": false
@@ -7615,7 +7613,7 @@
   {
     "name": "memory_get_address_info",
     "title": "Describe addresses",
-    "description": "Describe up to 256 addresses: Cheat Engine\u0027s symbol name, the containing module and section, whether it is a system module, the memory region (state, protection, backing) and optionally the pointer-sized value stored there and the RTTI class name of the object there. An address that does not resolve reports its own error in band.",
+    "description": "Describe up to 256 addresses: Cheat Engine\u0027s symbol name, the containing module and section, whether it is a system module when Cheat Engine can answer, the memory region (state, protection, backing) and optionally the pointer-sized value stored there and the RTTI class name of the object there. An address that does not resolve reports its own error in band.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -7675,9 +7673,9 @@
                 "default": null
               },
               "isSystemModule": {
-                "description": "Whether Cheat Engine counts the address as inside a system module.",
+                "description": "Whether Cheat Engine counts the address as inside a system module; omitted when that host API is unavailable or fails.",
                 "type": "boolean",
-                "default": false
+                "default": null
               },
               "region": {
                 "description": "The memory region that contains the address, when Cheat Engine reports one.",
@@ -7908,7 +7906,7 @@
   {
     "name": "memory_list_regions",
     "title": "List memory regions",
-    "description": "List the target\u0027s memory regions in address order, one page at a time, filtered by address range, module, state (committed by default), backing and the writable, executable and copy-on-write flags. The detailed format adds the allocation base, allocation protection and mapped file.",
+    "description": "List the target\u0027s memory regions in address order, one page at a time, filtered by address range, module, state (committed by default), backing and the writable, executable and copy-on-write flags. The detailed format adds the allocation base, allocation protection and mapped file. This explicit read prepares the default region resource snapshot for 5 seconds. Native enumeration of the address space can block Cheat Engine for seconds.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -8154,7 +8152,7 @@
       "readOnlyHint": true
     },
     "_meta": {
-      "cheatengine/dispatchClass": "short"
+      "cheatengine/dispatchClass": "blocking_native"
     }
   },
   {
@@ -9278,7 +9276,7 @@
   {
     "name": "module_get",
     "title": "Get module details",
-    "description": "Read one module of the attached process: base, size, file path, its sections (with executable and writable flags) and the fields of its mapped PE header: machine, COFF time stamp, entry point, subsystem, DLL and .NET flags and the PDB it names. The time stamp identifies the build, so keep it to tell later whether the game was updated. module is a name such as game.exe (case-insensitive) or any address expression inside the module.",
+    "description": "Read one module of the attached process: base, size, file path, its sections (with executable and writable flags) and the fields of its mapped PE header: machine, COFF time stamp, entry point, subsystem, DLL and .NET flags and the PDB it names. The time stamp identifies the build, so keep it to tell later whether the game was updated. module is a name such as game.exe (case-insensitive) or any address expression inside the module. This explicitly prepares the current module list and this latest module result for five seconds. Native module enumeration can block Cheat Engine for seconds.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -9467,13 +9465,13 @@
       "readOnlyHint": true
     },
     "_meta": {
-      "cheatengine/dispatchClass": "short"
+      "cheatengine/dispatchClass": "blocking_native"
     }
   },
   {
     "name": "module_list",
     "title": "List modules",
-    "description": "Page the modules (EXE and DLLs) loaded in the attached process, or in another process by processId, in Cheat Engine\u0027s order. concise returns name, base and size; detailed adds is64Bit and the file path. Filter with nameContains, then page with offset and limit (at most 1000). Use it to classify the runtime (mono, GameAssembly, coreclr) and to find a module for module_get.",
+    "description": "Page the modules (EXE and DLLs) loaded in the attached process, or in another process by processId, in Cheat Engine\u0027s order. concise returns name, base and size; detailed adds is64Bit and the file path. Filter with nameContains, then page with offset and limit (at most 1000). A successful attached-process call explicitly prepares the complete module list for five seconds; calls with processId do not. Native enumeration can block Cheat Engine for seconds on a large module set. Use it to classify the runtime (mono, GameAssembly, coreclr) and to find a module for module_get.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -9582,13 +9580,13 @@
       "readOnlyHint": true
     },
     "_meta": {
-      "cheatengine/dispatchClass": "short"
+      "cheatengine/dispatchClass": "blocking_native"
     }
   },
   {
     "name": "module_list_exports",
     "title": "List module exports",
-    "description": "Page the exports of one module of the attached process, parsed from its export directory in memory: name (omitted for ordinal-only exports), ordinal and address, or the forwarder such as NTDLL.RtlAllocateHeap for a forwarded export. Filter with nameContains, then page with offset and limit (at most 1000). A module whose export data exceeds 8 MiB or 65536 entries is refused.",
+    "description": "Page the exports of one module of the attached process, parsed from its export directory in memory: name (omitted for ordinal-only exports), ordinal and address, or the forwarder such as NTDLL.RtlAllocateHeap for a forwarded export. The whole directory is read in one dispatch before filtering and paging, holding Cheat Engine while it runs; large directories can take seconds. Filter with nameContains, then page with offset and limit (at most 1000). A module whose export data exceeds 8 MiB or 65536 entries is refused.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -9683,13 +9681,13 @@
       "readOnlyHint": true
     },
     "_meta": {
-      "cheatengine/dispatchClass": "short"
+      "cheatengine/dispatchClass": "host_scan"
     }
   },
   {
     "name": "module_list_imports",
     "title": "List module imports",
-    "description": "Page the imported functions of one module of the attached process, parsed from its import directory (and delay-load directory) in memory: the DLL, the IAT slot address the code calls through, the name and hint or the ordinal, the pointer the slot holds now, and the loaded module and Cheat Engine symbol that pointer lands in. A bound IAT without a lookup table gives slots without names; a delay-loaded slot points at this module\u0027s loader stub until its first call. A pointer outside the named DLL is not proof of a hook: api-ms-win-* sets resolve into kernelbase.dll and others. Filter with dllContains and nameContains, then page with offset and limit (at most 1000). A module whose import data exceeds 8 MiB or 65536 entries is refused.",
+    "description": "Page the imported functions of one module of the attached process, parsed from its import directory (and delay-load directory) in memory: the DLL, the IAT slot address the code calls through, the name and hint or the ordinal, the pointer the slot holds now, and the loaded module and Cheat Engine symbol that pointer lands in. A bound IAT without a lookup table gives slots without names; a delay-loaded slot points at this module\u0027s loader stub until its first call. A pointer outside the named DLL is not proof of a hook: api-ms-win-* sets resolve into kernelbase.dll and others. The whole directory is read in one dispatch before filtering and paging, holding Cheat Engine while it runs; large directories can take seconds. Filter with dllContains and nameContains, then page with offset and limit (at most 1000). A module whose import data exceeds 8 MiB or 65536 entries is refused.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -9819,7 +9817,7 @@
       "readOnlyHint": true
     },
     "_meta": {
-      "cheatengine/dispatchClass": "short"
+      "cheatengine/dispatchClass": "host_scan"
     }
   },
   {
@@ -11177,7 +11175,7 @@
           "type": "string"
         },
         "jobId": {
-          "description": "The capture job\u0027s id, for runtime_list_jobs and runtime_stop_job.",
+          "description": "The capture job\u0027s id, for runtime_list_jobs and runtime_stop_job; omitted for an imported map.",
           "type": "string"
         },
         "state": {
@@ -11239,7 +11237,6 @@
       },
       "required": [
         "mapName",
-        "jobId",
         "state",
         "pointerSize",
         "pointers",
@@ -11432,7 +11429,7 @@
           "type": "string"
         },
         "jobId": {
-          "description": "The search job\u0027s id, for runtime_list_jobs and runtime_stop_job.",
+          "description": "The search job\u0027s id, for runtime_list_jobs and runtime_stop_job; omitted for an imported scan.",
           "type": "string"
         },
         "state": {
@@ -11484,7 +11481,6 @@
       },
       "required": [
         "scanName",
-        "jobId",
         "state",
         "mapName",
         "target",
@@ -11821,7 +11817,7 @@
                 "type": "string"
               },
               "jobId": {
-                "description": "The capture job\u0027s id, for runtime_list_jobs and runtime_stop_job.",
+                "description": "The capture job\u0027s id, for runtime_list_jobs and runtime_stop_job; omitted for an imported map.",
                 "type": "string"
               },
               "state": {
@@ -11883,7 +11879,6 @@
             },
             "required": [
               "mapName",
-              "jobId",
               "state",
               "pointerSize",
               "pointers",
@@ -12074,7 +12069,7 @@
                 "type": "string"
               },
               "jobId": {
-                "description": "The search job\u0027s id, for runtime_list_jobs and runtime_stop_job.",
+                "description": "The search job\u0027s id, for runtime_list_jobs and runtime_stop_job; omitted for an imported scan.",
                 "type": "string"
               },
               "state": {
@@ -12126,7 +12121,6 @@
             },
             "required": [
               "scanName",
-              "jobId",
               "state",
               "mapName",
               "target",
@@ -12205,7 +12199,7 @@
               "type": "string"
             },
             "jobId": {
-              "description": "The capture job\u0027s id, for runtime_list_jobs and runtime_stop_job.",
+              "description": "The capture job\u0027s id, for runtime_list_jobs and runtime_stop_job; omitted for an imported map.",
               "type": "string"
             },
             "state": {
@@ -12267,7 +12261,6 @@
           },
           "required": [
             "mapName",
-            "jobId",
             "state",
             "pointerSize",
             "pointers",
@@ -12341,7 +12334,7 @@
               "type": "string"
             },
             "jobId": {
-              "description": "The search job\u0027s id, for runtime_list_jobs and runtime_stop_job.",
+              "description": "The search job\u0027s id, for runtime_list_jobs and runtime_stop_job; omitted for an imported scan.",
               "type": "string"
             },
             "state": {
@@ -12393,7 +12386,6 @@
           },
           "required": [
             "scanName",
-            "jobId",
             "state",
             "mapName",
             "target",
@@ -13032,7 +13024,7 @@
               "type": "string"
             },
             "jobId": {
-              "description": "The capture job\u0027s id, for runtime_list_jobs and runtime_stop_job.",
+              "description": "The capture job\u0027s id, for runtime_list_jobs and runtime_stop_job; omitted for an imported map.",
               "type": "string"
             },
             "state": {
@@ -13094,7 +13086,6 @@
           },
           "required": [
             "mapName",
-            "jobId",
             "state",
             "pointerSize",
             "pointers",
@@ -13173,7 +13164,7 @@
               "type": "string"
             },
             "jobId": {
-              "description": "The search job\u0027s id, for runtime_list_jobs and runtime_stop_job.",
+              "description": "The search job\u0027s id, for runtime_list_jobs and runtime_stop_job; omitted for an imported scan.",
               "type": "string"
             },
             "state": {
@@ -13225,7 +13216,6 @@
           },
           "required": [
             "scanName",
-            "jobId",
             "state",
             "mapName",
             "target",
@@ -13503,7 +13493,7 @@
   {
     "name": "process_list_threads",
     "title": "List target threads",
-    "description": "List up to 4096 target thread ids reported by Cheat Engine. A larger host list is marked truncated.",
+    "description": "List up to 4096 target thread ids reported by Cheat Engine. A larger host list is marked truncated. This explicit read prepares the target-thread resource snapshot for 5 seconds. Native thread enumeration can block Cheat Engine for seconds; the copy cap does not limit that enumeration.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -13544,7 +13534,7 @@
       "readOnlyHint": true
     },
     "_meta": {
-      "cheatengine/dispatchClass": "short"
+      "cheatengine/dispatchClass": "blocking_native"
     }
   },
   {
@@ -13766,7 +13756,7 @@
   {
     "name": "record_clear",
     "title": "Clear address list",
-    "description": "Delete every Cheat Engine address-list record and return the number removed, including nested child records. Refuses lists above 100000 records before changing them. Active scripts may run their disable sections during clear.",
+    "description": "Delete every Cheat Engine address-list record and return the number removed, including nested child records. Refuses lists above 100000 records before changing them. Active scripts may run their disable sections during clear, which can block Cheat Engine or show a dialog.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -13799,7 +13789,7 @@
       "readOnlyHint": false
     },
     "_meta": {
-      "cheatengine/dispatchClass": "short"
+      "cheatengine/dispatchClass": "may_prompt"
     }
   },
   {
@@ -14025,7 +14015,7 @@
     },
     "annotations": {
       "title": "Create address-list records",
-      "destructiveHint": false,
+      "destructiveHint": true,
       "idempotentHint": false,
       "openWorldHint": false,
       "readOnlyHint": false
@@ -14037,7 +14027,7 @@
   {
     "name": "record_delete",
     "title": "Delete address-list records",
-    "description": "Delete 1 to 256 records by current id. Deleting a group can also remove or reparent its children according to Cheat Engine\u0027s address-list behavior. Deleting an active Auto Assembler record can execute its disable section and requires Mcp:EnableAutoAssembler. A failure after an earlier delete leaves those earlier deletions in effect.",
+    "description": "Delete 1 to 256 records by current id. Deleting a group can also remove or reparent its children according to Cheat Engine\u0027s address-list behavior. Deleting an active Auto Assembler record can execute its disable section and requires Mcp:EnableAutoAssembler. Script execution can block Cheat Engine or show a dialog. A failure after an earlier delete leaves those earlier deletions in effect.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -14078,7 +14068,7 @@
       "readOnlyHint": false
     },
     "_meta": {
-      "cheatengine/dispatchClass": "short"
+      "cheatengine/dispatchClass": "may_prompt"
     }
   },
   {
@@ -15456,7 +15446,7 @@
   {
     "name": "record_set_active",
     "title": "Set address-list records active",
-    "description": "Set 1 to 256 records active or inactive, in order. Activating or deactivating an Auto Assembler record can execute its enable or disable section, so it requires Mcp:EnableAutoAssembler; so does a record whose Cheat Engine option moActivateChildrenAsWell (when activating) or moDeactivateChildrenAsWell (when deactivating) passes the change on to a nested Auto Assembler record, checked through at most 4096 nested records. A record Cheat Engine refuses keeps its state and the call goes on: its active then differs from requestedActive and failure says why, with Cheat Engine\u0027s own reason and message for a failed activation, such as aob_not_found or assert_failed. pending means Cheat Engine accepted an asynchronous activation whose final state must be read later with record_get; the reason of a failure that comes after the call is not reported. An error on a later record leaves the earlier records changed.",
+    "description": "Set 1 to 256 records active or inactive, in order. Scripts can block Cheat Engine or show a dialog. Activating or deactivating an Auto Assembler record can execute its enable or disable section, so it requires Mcp:EnableAutoAssembler; so does a record whose Cheat Engine option moActivateChildrenAsWell (when activating) or moDeactivateChildrenAsWell (when deactivating) passes the change on to a nested Auto Assembler record, checked through at most 4096 nested records. A record Cheat Engine refuses keeps its state and the call goes on: its active then differs from requestedActive and failure says why, with Cheat Engine\u0027s own reason and message for a failed activation, such as aob_not_found or assert_failed. pending means Cheat Engine accepted an asynchronous activation whose final state must be read later with record_get; the reason of a failure that comes after the call is not reported. An error on a later record leaves the earlier records changed.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -15563,7 +15553,7 @@
       "readOnlyHint": false
     },
     "_meta": {
-      "cheatengine/dispatchClass": "short"
+      "cheatengine/dispatchClass": "may_prompt"
     }
   },
   {
@@ -15953,6 +15943,9 @@
       "readOnlyHint": false
     },
     "_meta": {
+      "cheatengine/requires": [
+        "auto_assembler"
+      ],
       "cheatengine/dispatchClass": "short"
     }
   },
@@ -16758,7 +16751,7 @@
   {
     "name": "runtime_release_resources",
     "title": "Release retained resources",
-    "description": "Release retained resources newest first. includeOrphans also releases retained Lua state from earlier activations. acknowledgeIds only forgets resources already recovered manually; an incomplete cleanup is reported as partial_effect with its actual host effect.",
+    "description": "Release retained resources newest first. Releasing Auto Assembler patches runs their DISABLE sections, which can block Cheat Engine or show a dialog. includeOrphans also releases retained Lua state from earlier activations. acknowledgeIds only forgets resources already recovered manually; an incomplete cleanup is reported as partial_effect with its actual host effect.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -17080,7 +17073,7 @@
       "readOnlyHint": false
     },
     "_meta": {
-      "cheatengine/dispatchClass": "short"
+      "cheatengine/dispatchClass": "may_prompt"
     }
   },
   {
@@ -17672,7 +17665,7 @@
                 "type": "string"
               },
               "value": {
-                "description": "The value text reported by Cheat Engine.",
+                "description": "The formatted value text reported by Cheat Engine, which may contain read-failure markers. Empty text does not prove readability; use memory_read to verify.",
                 "type": "string"
               }
             },
@@ -18198,7 +18191,7 @@
           "type": "number"
         },
         "hooksInstalled": {
-          "description": "Whether the speedhack_wantedspeed symbol exists in the target; it also exists after a failed hook and on the Unity timeScale path, so it does not prove that the target\u0027s clocks are hooked.",
+          "description": "Whether Cheat Engine reported that the speedhack_wantedspeed symbol exists in the target; omitted when it could not be observed after the change. The symbol also exists after a failed hook and on the Unity timeScale path, so it does not prove that the target\u0027s clocks are hooked.",
           "type": "boolean"
         },
         "firstActivation": {
@@ -18213,7 +18206,6 @@
       },
       "required": [
         "speed",
-        "hooksInstalled",
         "firstActivation"
       ]
     },
@@ -18940,7 +18932,7 @@
   {
     "name": "structure_get",
     "title": "Get a structure",
-    "description": "Reads one structure, internal ones included, and a page of its elements ordered by offset: index, hexadecimal offset, name, valueType, integer display, byteSize and child structure. The detailed format adds the child start, custom type and bit fields.",
+    "description": "Reads a global Structure Dissect definition after scanning at most 65,536 indexed definitions by exact case-sensitive name. Returns a page of its elements ordered by offset: index, hexadecimal offset, name, valueType, integer display, byteSize and child structure. The detailed format adds the child start, custom type and bit fields.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -20105,7 +20097,7 @@
   {
     "name": "symbol_list_registered",
     "title": "List registered symbols",
-    "description": "Page every symbol registered in Cheat Engine (by tables, Auto Assembler scripts, Lua and this plugin), marking with ownedByMcp the ones this activation registered and can unregister. Allocation symbols carry their size. Filter with nameContains, then page with offset and limit (at most 1000); at most 8192 symbols are copied.",
+    "description": "Page every symbol registered in Cheat Engine (by tables, Auto Assembler scripts, Lua and this plugin), marking with ownedByMcp the ones this activation registered and can unregister. Allocation symbols carry their size. Filter with nameContains, then page with offset and limit (at most 1000); at most 8192 symbols are copied. Cheat Engine fully enumerates its registered-symbol table before that copy cap, so the native read can block Cheat Engine for seconds. A successful call explicitly prepares that unfiltered bounded copy for the symbols resource for five seconds.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -20210,7 +20202,7 @@
       "readOnlyHint": true
     },
     "_meta": {
-      "cheatengine/dispatchClass": "short"
+      "cheatengine/dispatchClass": "blocking_native"
     }
   },
   {
@@ -20907,7 +20899,7 @@
     },
     "annotations": {
       "title": "Save cheat table",
-      "destructiveHint": false,
+      "destructiveHint": true,
       "idempotentHint": false,
       "openWorldHint": true,
       "readOnlyHint": false

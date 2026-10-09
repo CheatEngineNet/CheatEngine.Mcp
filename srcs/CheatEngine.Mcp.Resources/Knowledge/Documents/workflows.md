@@ -103,7 +103,7 @@ they run.
 - Stop any job with `runtime_stop_job`; a stopped pointer map or path search keeps what it found, while
   `pointer_delete_map` or `pointer_delete_scan` stops and deletes it.
 - Poll with `debugger_poll_capture(jobId="...", afterSequence=0)`, then pass `debugger_poll_capture.nextAfterSequence`
-  back. Polls are non-consuming; `debugger_poll_capture.more` true means poll again, and
+  back. These debugger polls are non-consuming; `debugger_poll_capture.more` true means poll again, and
   `debugger_poll_capture.dropped` counts evicted items (poll sooner or narrow the job).
 - Lifetime: `Mcp:Execution:JobDefaultTtlSeconds` (120 s) unless the start call sets `lifetimeSeconds`, never above
   300 s. A finished job stays pollable until then; a stop discards its items, so poll first. An expired or unknown id
@@ -178,7 +178,7 @@ path gives the default page; query values keep the template order (`?offset=..&l
 | `resources`, `jobs`, `patches`, `speedhack` | `runtime_list_resources`, `runtime_list_jobs`, `asm_list_patches`, `speedhack_get_state` | |
 | `scanners`, `scanners/{scannerName}` | `scan_list_scanners`, `scan_get_status` | |
 | `debugger`, `debugger/breakpoints{?limit}` | `debugger_get_status`, `debugger_list_breakpoints` | 256 (1-1024) |
-| `modules{?offset,limit}`, `modules/{module}`, `modules/{module}/exports{?offset,limit}` | `module_list`, `module_get`, `module_list_exports` | 200 (1-1000) |
+| `modules{?offset,limit}`, `modules/{module}` | `module_list`, `module_get` | 200 (1-1000) |
 | `regions{?offset,limit}` | `memory_list_regions` (committed) | 100 (1-2000), not the tool's 500 |
 | `memory/{address}{?size}` | `memory_read` (bytes) | 256 bytes (1-16384) |
 | `disassembly/{address}{?count}` | `code_disassemble` | 20 (1-1024) |

@@ -170,6 +170,16 @@ calling the tools it covers.
   that support completion offer `{instanceId}` values for recently verified instances, then `{module}`,
   `{structure}`, `{scannerName}` and `{scanName}`. A direct backend serves the same views as
   `cheatengine://instance/...`. The full list is in [workflows](workflows.md).
+- Module and region browsing uses a five-second prepared snapshot. Call `module_list` without `processId` before
+  browsing modules or completing their names, and `memory_list_regions` before browsing regions. For a module's
+  detail resource, call `module_get` with that selector first; only its most recent successful result is retained.
+  A later module/map preparation replaces earlier detail preparation. Expired, missing or changed-target data
+  yields `invalid_state` with a preparation hint; completion offers no names. Browsing never starts module,
+  section or region enumeration. Refresh explicitly when the target's modules or memory map change.
+- Prepare thread, symbol and breakpoint resources with `process_list_threads`, `symbol_list_registered` and
+  `debugger_list_breakpoints`, respectively, then browse within five seconds. Expired or missing preparation
+  yields `invalid_state`; refresh explicitly. These resource reads reuse bounded copies and do not enumerate
+  the native lists.
 
 ## Responsible use and consent
 

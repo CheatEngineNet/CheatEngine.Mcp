@@ -22,13 +22,18 @@ internal static class ScanScripts
 	                                     if result == 'string' and f.cbUnicode.Checked then result = 'wstring' end
 	                                     return result
 	                                   end
+	                                   local function openedProcessId()
+	                                     local processId = getOpenedProcessID()
+	                                     return math.type(processId) == 'integer' and processId > 0 and processId or nil
+	                                   end
 	                                   local function isBusy()
 	                                     local repeating = f.findComponentByName('cbRepeatUntilStopped')
-	                                     return getOpenedProcessID() ~= 0 and (not f.btnNewScan.Enabled or
+	                                     return openedProcessId() ~= nil and (not f.btnNewScan.Enabled or
 	                                       (repeating ~= nil and repeating.Visible and repeating.Checked and ms.LastScanType ~= 'stNewScan'))
 	                                   end
 	                                   local function summary()
-	                                     local attached = getOpenedProcessID() ~= 0
+	                                     local processId = openedProcessId()
+	                                     local attached = processId ~= nil
 	                                     local busy = isBusy()
 	                                     local started = ms.LastScanType ~= 'stNewScan'
 	                                     local baseline = started and ms.LastScanWasRegionScan
@@ -49,7 +54,7 @@ internal static class ScanScripts
 	                                     end
 	                                     local count = state == 'ResultsReady' and ms.FoundList.Count or nil
 	                                     return {scannerName='main',mode='ui',state=state,isScanning=busy,resultsReady=state=='ResultsReady',
-	                                       count=count,valueType=valueType(),processId=getOpenedProcessID(),error=failure ~= '' and failure or nil}
+	                                       count=count,valueType=valueType(),processId=processId,error=failure ~= '' and failure or nil}
 	                                   end
 	                                   local function refuse(kind, message, hint)
 	                                     return mcp.err(kind, message, 'not_started', hint)
@@ -61,7 +66,7 @@ internal static class ScanScripts
 	                                     end
 	                                   end
 	                                   local function detached()
-	                                     if getOpenedProcessID() == 0 then
+	                                     if openedProcessId() == nil then
 	                                       return refuse('not_attached', 'No process is open in Cheat Engine.', 'Attach a process with process_attach.')
 	                                     end
 	                                   end

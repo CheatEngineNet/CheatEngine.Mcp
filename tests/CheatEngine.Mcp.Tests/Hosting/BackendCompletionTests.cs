@@ -1,3 +1,4 @@
+using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Tests.Support;
 using CheatEngine.Mcp.Tests.Tools.Modules;
 
@@ -14,12 +15,11 @@ namespace CheatEngine.Mcp.Tests.Hosting;
 public sealed class BackendCompletionTests
 {
 	private const string Modules = McpResourceUris.InstancePrefix + "modules/{module}";
-	private const string Exports = McpResourceUris.InstancePrefix + "modules/{module}/exports{?offset,limit}";
 
 	private static CancellationToken Token => TestContext.Current.CancellationToken;
 
 	[Fact]
-	public async Task Complete_ModuleTemplatesOverStatelessHttp_ShareOneListingAcrossRequests()
+	public async Task Complete_ModuleDetailsOverStatelessHttp_ReusePreparedModulesWithoutEnumeration()
 	{
 		ModuleSymbolTarget target = ModuleToolTests.LoadedSample();
 		target.AddModule("game.exe", 0x140000000, 0x5000);
@@ -37,15 +37,20 @@ public sealed class BackendCompletionTests
 					TransportMode = HttpTransportMode.StreamableHttp
 				}), cancellationToken: Token);
 
+			CallToolResult prepared = await client.CallToolAsync(CheatEngineToolNames.ModuleList,
+				new Dictionary<string, object?>(), cancellationToken: Token);
+			Assert.NotEqual(true, prepared.IsError);
+			Assert.Equal(1, target.Calls("TryGetModules"));
+
 			CompleteResult module = await CompleteAsync(client, Modules, "SA");
-			CompleteResult exports = await CompleteAsync(client, Exports, "");
+			CompleteResult all = await CompleteAsync(client, Modules, "");
 			CompleteResult narrowed = await CompleteAsync(client, Modules, "g");
 
 			Assert.NotNull(client.ServerCapabilities.Completions);
 			Assert.Equal(["sample.dll"], module.Completion.Values);
-			Assert.Equal(["sample.dll", "game.exe"], exports.Completion.Values);
+			Assert.Equal(["sample.dll", "game.exe"], all.Completion.Values);
 			Assert.Equal(["game.exe"], narrowed.Completion.Values);
-			// Three HTTP requests, three server option sets, one handler: one dispatch for the module names.
+			// Each request checks its target afresh; only the explicit source tool enumerates modules.
 			Assert.Equal(1, target.Calls("TryGetModules"));
 		}
 		finally

@@ -6,11 +6,11 @@ namespace CheatEngine.Mcp.Tools.Structures;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Names are looked up with <c>getStructure(name)</c> and the result's name is checked, then the global list is
-///         scanned, so a numeric-looking name never selects a structure by index. Element fields are read through the
-///         documented accessors (<c>Offset</c>, <c>Name</c>, <c>Vartype</c>, <c>getBytesize</c>, <c>ChildStruct</c>,
-///         <c>getChildStructStart</c>) and the published <c>DisplayMethod</c>; optional ones are read under
-///         <c>pcall</c>.
+///         Scripts that accept a structure name check the result of <c>getStructure(name)</c>, then scan the global
+///         list so a numeric-looking name never selects a structure by index. <see cref="DefinitionPage" /> instead
+///         uses a bounded indexed global lookup for <c>structure_get</c>. Element fields are read through the documented
+///         accessors (<c>Offset</c>, <c>Name</c>, <c>Vartype</c>, <c>getBytesize</c>, <c>ChildStruct</c>,
+///         <c>getChildStructStart</c>) and the published <c>DisplayMethod</c>; optional ones are read under <c>pcall</c>.
 ///     </para>
 ///     <para>
 ///         Addresses that Cheat Engine parses itself (<c>autoGuess</c>, <c>fillFromDotNetAddress</c>) are passed as
@@ -174,6 +174,70 @@ internal static class StructureLuaScripts
 	                                             elements = items, total = total, nextOffset = nextOffset}
 	                                           """;
 
+	/// <summary>
+	///     Finds one global definition by bounded indexed lookup, then copies only the requested page of its elements.
+	///     <c>a</c>: name, element offset, element limit, detailed format, the most global definitions to scan.
+	/// </summary>
+	internal const string DefinitionPage = """
+	                                      local function missing(name)
+	                                        return mcp.err('not_found', 'No structure is named ' .. name .. ' (name).', 'not_started',
+	                                          'List the structures with structure_list; names are case-sensitive.')
+	                                      end
+	                                      local function optional(read, kind)
+	                                        local ok, value = pcall(read)
+	                                        if not ok then return nil end
+	                                        if kind == 'integer' then
+	                                          if math.type(value) == 'integer' then return value end
+	                                          return nil
+	                                        end
+	                                        if type(value) == kind then return value end
+	                                        return nil
+	                                      end
+	                                      local function describe(e, i, detailed)
+	                                        local item = {index = i, offset = e.Offset, name = e.Name, vartype = e.Vartype,
+	                                          display = optional(function() return e.DisplayMethod end, 'string'), byteSize = e.getBytesize()}
+	                                        local child = e.ChildStruct
+	                                        if child ~= nil then
+	                                          item.childStructure = child.Name
+	                                          if detailed then item.childStructureStart = e.getChildStructStart() end
+	                                        end
+	                                        if detailed and item.vartype == 13 then
+	                                          item.customType = optional(function() return e.CustomTypeName end, 'string')
+	                                        end
+	                                        if detailed and item.vartype == 9 then
+	                                          item.bitStart = optional(function() return e.BitStart end, 'integer')
+	                                          item.bitSize = optional(function() return e.BitSize end, 'integer')
+	                                        end
+	                                        return item
+	                                      end
+	                                      local definitions = getStructureCount()
+	                                      local scanned = math.min(definitions, a[5])
+	                                      local s = nil
+	                                      for i = 0, scanned - 1 do
+	                                        local candidate = getStructure(i)
+	                                        if candidate ~= nil and candidate.Name == a[1] then
+	                                          s = candidate
+	                                          break
+	                                        end
+	                                      end
+	                                      if s == nil then
+	                                        if definitions > scanned then
+	                                          return mcp.err('limit_exceeded',
+	                                            'structure_get scanned ' .. scanned .. ' of ' .. definitions .. ' global structures without finding ' .. a[1] .. '.',
+	                                            'not_started', 'Use structure_list to locate the structure within the bounded global lookup.')
+	                                        end
+	                                        return missing(a[1])
+	                                      end
+	                                      local count = s.Count
+	                                      local finish = math.min(count, a[2] + a[3])
+	                                      local items = {}
+	                                      for i = a[2], finish - 1 do items[#items + 1] = describe(s.getElement(i), i, a[4]) end
+	                                      local nextOffset = nil
+	                                      if finish < count then nextOffset = finish end
+	                                      local internal = optional(function() return s.Internal end, 'boolean') == true
+	                                      return {name = s.Name, size = s.Size, elementCount = count, internal = internal,
+	                                        elements = items, total = count, nextOffset = nextOffset}
+	                                      """;
 	/// <summary>Copies one element by index. <c>a</c>: name, index.</summary>
 	internal const string ElementAt = Helpers + """
 	                                            local s = findStructure(a[1])

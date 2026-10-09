@@ -30,6 +30,28 @@ public sealed partial class NativeLuaToolRuntimeTests
 	                                      """;
 
 	[Fact]
+	public void KernelStatus_ReportsBooleanStatesAndOmitsUnavailableOrInvalidAnswers()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs("dbk_initialized = function() return true end; dbvm_initialized = function() return false end");
+		ToolDispatch dispatch = CreateNativeDispatch(new McpFeatureOptions());
+
+		KernelStatus reported = dispatch.RunLua(CheatEngineToolNames.KernelGetStatus, KernelScripts.GetStatus,
+			KernelJsonContext.Default.KernelStatus, Token);
+
+		InstallStubs("dbk_initialized = function() error('not available') end; dbvm_initialized = function() return 1 end");
+		KernelStatus unavailable = dispatch.RunLua(CheatEngineToolNames.KernelGetStatus, KernelScripts.GetStatus,
+			KernelJsonContext.Default.KernelStatus, Token);
+		InstallStubs("dbk_initialized = nil; dbvm_initialized = nil");
+		KernelStatus missing = dispatch.RunLua(CheatEngineToolNames.KernelGetStatus, KernelScripts.GetStatus,
+			KernelJsonContext.Default.KernelStatus, Token);
+
+		Assert.Equal(((bool?) true, (bool?) false), (reported.DbkInitialized, reported.DbvmInitialized));
+		Assert.Equal(((bool?) null, (bool?) null), (unavailable.DbkInitialized, unavailable.DbvmInitialized));
+		Assert.Equal(((bool?) null, (bool?) null), (missing.DbkInitialized, missing.DbvmInitialized));
+	}
+
+	[Fact]
 	public void KernelV2_PhysicalOperations_RefuseAnUninitializedDbvmBeforeTheDeviceCall()
 	{
 		using RuntimeScope scope = CreateScope();

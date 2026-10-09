@@ -2,9 +2,9 @@ namespace CheatEngine.Mcp.Tools.Symbol;
 
 /// <summary>
 ///     The fixed Lua bodies of the <c>symbol_*</c> tools. Caller data reaches them only through <c>a[]</c>; every copy they
-///     return is bounded, and none of them waits for Cheat Engine's symbol loader. Only <see cref="Find" /> has Cheat
-///     Engine build unbounded copies, of the main and the registered symbol lists, because Cheat Engine offers no other
-///     way to enumerate them.
+///     return is bounded, and none of them waits for Cheat Engine's symbol loader. <see cref="Find" /> and
+///     <see cref="ListRegistered" /> make Cheat Engine build an unbounded native table before their bounded Lua copies:
+///     respectively the main and registered symbol lists, and the registered symbol list alone.
 /// </summary>
 internal static class SymbolScripts
 {
@@ -182,7 +182,9 @@ internal static class SymbolScripts
 	/// <summary>Copies at most 1024 names of <c>getModulePreference()</c>.</summary>
 	internal const string GetModulePreference = """
 	                                            local current = getModulePreference()
-	                                            if type(current) ~= 'table' then current = {} end
+	                                            if type(current) ~= 'table' then
+	                                                return mcp.err('host_refused', 'Cheat Engine returned no module preference list.', 'not_started')
+	                                            end
 	                                            local modules = {}
 	                                            local limit = math.min(#current, 1024)
 	                                            for i = 1, limit do modules[i] = tostring(current[i]) end

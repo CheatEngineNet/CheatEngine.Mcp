@@ -1,11 +1,21 @@
 using System.Reflection;
 
+using CheatEngine.Client;
+using CheatEngine.Client.Inspection;
+using CheatEngine.Client.Processes;
+using CheatEngine.Client.Results;
+
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Features;
 using CheatEngine.Mcp.Core.Files;
 using CheatEngine.Mcp.Tests.Support;
 using CheatEngine.Mcp.Tools.Processes;
 using CheatEngine.Mcp.Tools.Scan;
+using CheatEngine.SDK.Engine.Inspection;
+using CheatEngine.SDK.Engine.Runtime;
+using CheatEngine.SDK.Engine.Values;
+
+using Microsoft.Extensions.Options;
 
 namespace CheatEngine.Mcp.Tests.NativeLua;
 
@@ -179,13 +189,20 @@ public sealed partial class NativeLuaToolRuntimeTests
 		             getOpenedProcessID=function() return pid end
 		             getOpenedFileSize=function() return 4096 end
 		             saveOpenedFile=function(filename) saved=saved+1; savedFilename=filename end
-		             getThreadlist=function() return {100, 200, 300} end
+		             threadLists=0; threadListsDestroyed=0
+		             createStringList=function()
+		               threadLists=threadLists+1
+		               return {Count=0, Strings={}, destroy=function() threadListsDestroyed=threadListsDestroyed+1 end}
+		             end
+		             getThreadlist=function(list)
+		               list.Strings[0]='64'; list.Strings[1]='C8'; list.Strings[2]='12C'; list.Count=3
+		             end
 		             setPointerSize=function(value) pointerSize=value end
 		             getPointerSize=function() return pointerSize end
 		             """);
 		string input = typeof(ProcessTools).Assembly.Location;
 		string output = Path.Combine(Path.GetTempPath(), $"ce-mcp-save-{Guid.NewGuid():N}.bin");
-		ProcessTools tools = new(CreateNativeDispatch(new McpFeatureOptions()), new TargetResources(),
+		ProcessTools tools = new(CreateNativeProcessDispatch(99), new TargetResources(),
 			new TargetTransitionGuards([]), CreateProcessFiles());
 
 		try
@@ -207,6 +224,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 			Assert.Equal(1L, ReadGlobal("created"));
 			Assert.Equal(1L, ReadGlobal("opened"));
 			Assert.Equal(1L, ReadGlobal("saved"));
+			Assert.Equal((1L, 1L), (ReadGlobal("threadLists"), ReadGlobal("threadListsDestroyed")));
 			Assert.Equal(input, ReadGlobal("createdPath"));
 			Assert.Equal(input, ReadGlobal("openedFilename"));
 			string savedTemporary = Assert.IsType<string>(ReadGlobal("savedFilename"));
@@ -218,6 +236,45 @@ public sealed partial class NativeLuaToolRuntimeTests
 		{
 			File.Delete(output);
 		}
+	}
+
+	[Fact]
+	public void ProcessV2_ThreadList_DestroysItsCallerOwnedStringListWhenCollectionFails()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs("""
+		             pid=77; lists=0; destroyed=0
+		             getOpenedProcessID=function() return pid end
+		             createStringList=function()
+		               lists=lists+1
+		               return {Count=0, Strings={}, destroy=function() destroyed=destroyed+1 end}
+		             end
+		             getThreadlist=function(list) error('thread enumeration failed', 0) end
+		             """);
+		ProcessTools tools = new(CreateNativeProcessDispatch(77), new TargetResources(),
+			new TargetTransitionGuards([]), CreateProcessFiles());
+
+		Assert.Throws<CheatEngineToolException>(() => tools.ListThreads(Token));
+
+		Assert.Equal((1L, 1L), (ReadGlobal("lists"), ReadGlobal("destroyed")));
+	}
+
+	/// <summary>Creates a native Lua dispatch with a stable target snapshot for the thread-list preparation.</summary>
+	private static ToolDispatch CreateNativeProcessDispatch(int processId)
+	{
+		IProcessClient processes = ClientTestDouble.Create<IProcessClient>((method, _) =>
+		{
+			Assert.Equal(nameof(IProcessClient.GetCurrentProcess), method.Name);
+			return new ProcessSnapshot(new TargetProcessId(processId), "native-lua.exe", null,
+				TargetBackend.LocalProcess, CheatEngineArchitecture.X64, PointerSize.Bit64, 8, null, 1);
+		});
+		IOptions<McpExecutionOptions> options = Options.Create(new McpExecutionOptions());
+		ICheatEngineClient client = ClientTestDouble.Client(
+			(nameof(ICheatEngineClient.Lua), CreateJsonLuaClient().Lua),
+			(nameof(ICheatEngineClient.Processes), processes));
+		return new ToolDispatch(client, new McpFeatureGate(Options.Create(new McpFeatureOptions())), options,
+			new DispatchStatistics(options), TimeProvider.System, new RecordingLogger<ToolDispatch>(),
+			new PluginFixedLuaExecutor(client));
 	}
 
 	private static McpFilePaths CreateProcessFiles()

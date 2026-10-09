@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Files;
 using CheatEngine.Mcp.Tests.Core;
@@ -33,6 +35,9 @@ public sealed class PointerFileToolTests : IDisposable
 			cancellationToken: TestContext.Current.CancellationToken);
 		Assert.Equal("CE.scandata.v1", loaded.Format);
 		Assert.Null(loaded.Map.ProcessId);
+		Assert.Null(loaded.Map.JobId);
+		JsonElement json = JsonSerializer.SerializeToElement(loaded, PointerJsonContext.Default.PointerMapFileResult);
+		Assert.False(json.GetProperty("map").TryGetProperty("jobId", out _));
 		Assert.True(loaded.Map.Incomplete);
 		Assert.Equal(PointerCaptureCompleteness.Unknown, loaded.Map.CaptureCompleteness);
 		PointerMap map = reopened.GetMap("after").GetUsableMap();
@@ -59,6 +64,9 @@ public sealed class PointerFileToolTests : IDisposable
 			TestContext.Current.CancellationToken);
 		Assert.Equal(("first-map", "3000", 1, true),
 			(loaded.Scan.MapName, loaded.Scan.Target, loaded.Scan.Count, loaded.Scan.Incomplete));
+		Assert.Null(loaded.Scan.JobId);
+		JsonElement json = JsonSerializer.SerializeToElement(loaded, PointerJsonContext.Default.PointerScanFileResult);
+		Assert.False(json.GetProperty("scan").TryGetProperty("jobId", out _));
 		PointerPath restored = Assert.Single(reopened.GetScan("after").GetUsablePaths(out bool incomplete));
 		Assert.True(incomplete);
 		Assert.Equal([-0x20L, 0x40], restored.Offsets);

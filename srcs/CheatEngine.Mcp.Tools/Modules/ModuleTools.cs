@@ -4,7 +4,9 @@ using System.Globalization;
 
 using CheatEngine.Client;
 using CheatEngine.Client.Inspection;
+using CheatEngine.Client.Processes;
 using CheatEngine.Mcp.Core.Contract;
+using CheatEngine.Mcp.Core.Inspection;
 using CheatEngine.Mcp.Core.Values;
 using CheatEngine.SDK.Engine.Inspection;
 
@@ -23,13 +25,19 @@ public sealed class ModuleTools
 	internal const int MaximumSections = 4096;
 
 	private readonly ToolDispatch _dispatch;
+	private readonly Lock _preparedGate = new();
+	private readonly PreparedInspectionStore _prepared;
+	private PreparedModuleDetails? _preparedDetails;
 
 	/// <summary>Creates the tools; the constructor does no Cheat Engine work.</summary>
 	/// <param name="dispatch">The activation's dispatch facade.</param>
-	public ModuleTools(ToolDispatch dispatch)
+	/// <param name="prepared">The activation's explicitly prepared inspection snapshots.</param>
+	public ModuleTools(ToolDispatch dispatch, PreparedInspectionStore prepared)
 	{
 		ArgumentNullException.ThrowIfNull(dispatch);
+		ArgumentNullException.ThrowIfNull(prepared);
 		_dispatch = dispatch;
+		_prepared = prepared;
 	}
 
 	/// <summary>Pages the modules of the attached process or of another process.</summary>
@@ -42,9 +50,9 @@ public sealed class ModuleTools
 	/// <returns>The page.</returns>
 	[McpServerTool(Name = CheatEngineToolNames.ModuleList, Title = "List modules", ReadOnly = true,
 		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.BlockingNative)]
 	[Description(
-		"Page the modules (EXE and DLLs) loaded in the attached process, or in another process by processId, in Cheat Engine's order. concise returns name, base and size; detailed adds is64Bit and the file path. Filter with nameContains, then page with offset and limit (at most 1000). Use it to classify the runtime (mono, GameAssembly, coreclr) and to find a module for module_get.")]
+		"Page the modules (EXE and DLLs) loaded in the attached process, or in another process by processId, in Cheat Engine's order. concise returns name, base and size; detailed adds is64Bit and the file path. Filter with nameContains, then page with offset and limit (at most 1000). A successful attached-process call explicitly prepares the complete module list for five seconds; calls with processId do not. Native enumeration can block Cheat Engine for seconds on a large module set. Use it to classify the runtime (mono, GameAssembly, coreclr) and to find a module for module_get.")]
 	public ModuleList List(
 		[Description("Another process's id; omit it for the attached process.")]
 		int? processId = null,
@@ -69,8 +77,17 @@ public sealed class ModuleTools
 		(int pid, ImmutableArray<ModuleInfo> modules) = _dispatch.Run(CheatEngineToolNames.ModuleList, token =>
 		{
 			TargetProcessId? requested = processId is { } value ? new TargetProcessId(value) : null;
-			int owner = processId ?? client.Processes.GetCurrentProcess(token).Id.Value;
-			return (owner, ModuleLocator.GetModules(client, requested, token));
+			if (processId is { } otherProcess)
+			{
+				return (otherProcess, ModuleLocator.GetModules(client, requested, token));
+			}
+
+			ProcessSnapshot before = client.Processes.GetCurrentProcess(token);
+			ImmutableArray<ModuleInfo> listed = ModuleLocator.GetModules(client, null, token);
+			ProcessSnapshot after = client.Processes.GetCurrentProcess(token);
+			EnsureSameTarget(before, after, CheatEngineToolNames.ModuleList);
+			_prepared.PublishModules(before, listed);
+			return (before.Id.Value, listed);
 		}, cancellationToken);
 
 		ModuleInfo[] matching = filter is null
@@ -92,9 +109,9 @@ public sealed class ModuleTools
 	/// <returns>The module details.</returns>
 	[McpServerTool(Name = CheatEngineToolNames.ModuleGet, Title = "Get module details", ReadOnly = true,
 		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.BlockingNative)]
 	[Description(
-		"Read one module of the attached process: base, size, file path, its sections (with executable and writable flags) and the fields of its mapped PE header: machine, COFF time stamp, entry point, subsystem, DLL and .NET flags and the PDB it names. The time stamp identifies the build, so keep it to tell later whether the game was updated. module is a name such as game.exe (case-insensitive) or any address expression inside the module.")]
+		"Read one module of the attached process: base, size, file path, its sections (with executable and writable flags) and the fields of its mapped PE header: machine, COFF time stamp, entry point, subsystem, DLL and .NET flags and the PDB it names. The time stamp identifies the build, so keep it to tell later whether the game was updated. module is a name such as game.exe (case-insensitive) or any address expression inside the module. This explicitly prepares the current module list and this latest module result for five seconds. Native module enumeration can block Cheat Engine for seconds.")]
 	public ModuleDetails Get(
 		[Description("The module name, such as game.exe, or an address expression inside it, such as game.exe+1000.")]
 		string module,
@@ -104,14 +121,76 @@ public sealed class ModuleTools
 		ICheatEngineClient client = _dispatch.Client;
 		return _dispatch.Run(CheatEngineToolNames.ModuleGet, token =>
 		{
-			ModuleInfo found = ModuleLocator.Find(client, wanted, token);
+			ProcessSnapshot before = client.Processes.GetCurrentProcess(token);
+			ModuleInfo found = ModuleLocator.Find(client, wanted, out ImmutableArray<ModuleInfo> modules, token);
 			ImmutableArray<ModuleSectionInfo> sections = client.Inspection.GetModuleSections(
 				new ModuleName(found.Name), new InspectionCollectionRequest(MaximumSections), token);
 			PeHeaders? headers = TryParseHeaders(ModuleLocator.ReadHeaderBytes(client, found, token));
 			PdbReference? pdb = headers is null ? null : TryReadPdb(client, found, headers, token);
 			ModuleSection[] copied = [.. sections.Select(section => Section(found, headers, section))];
-			return new ModuleDetails(found.Name, HexFormat.Address(found.BaseAddress), found.PathToFile,
+			ModuleDetails details = new(found.Name, HexFormat.Address(found.BaseAddress), found.PathToFile,
 				found.Is64Bit, copied, Size(found.ImageSize), headers is null ? null : Describe(found, headers, pdb));
+			ProcessSnapshot after = client.Processes.GetCurrentProcess(token);
+			EnsureSameTarget(before, after, CheatEngineToolNames.ModuleGet);
+			PreparedModuleSnapshot snapshot = _prepared.PublishModules(before, modules);
+			CachePreparedDetails(snapshot.Version, found.Name, wanted, details);
+			return details;
+		}, cancellationToken);
+	}
+
+	/// <summary>Reads a prepared page of modules after an explicit current-target <c>module_list</c> or <c>module_get</c>.</summary>
+	/// <remarks>The latest prepared list expires after five seconds and this method performs no module enumeration.</remarks>
+	/// <param name="offset">The index of the first prepared module to return.</param>
+	/// <param name="limit">The most prepared modules to return.</param>
+	/// <param name="cancellationToken">The request's token.</param>
+	/// <returns>The prepared concise module page.</returns>
+	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+	public ModuleList ListPrepared(int offset = 0, int limit = 200, CancellationToken cancellationToken = default)
+	{
+		_ = Paging.Slice(Array.Empty<ModuleInfo>(), offset, limit, MaximumLimit);
+		return _dispatch.Run(CheatEngineToolNames.ModuleList, token =>
+		{
+			ProcessSnapshot target = _dispatch.Client.Processes.GetCurrentProcess(token);
+			if (!_prepared.TryGetModules(target, out PreparedModuleSnapshot snapshot))
+			{
+				throw PreparedMissing(CheatEngineToolNames.ModuleList);
+			}
+
+			PageSlice<ModuleInfo> page = Paging.Slice(snapshot.Modules, offset, limit, MaximumLimit);
+			ModuleEntry[] entries = [.. page.Items.Select(static module => new ModuleEntry(module.Name,
+				HexFormat.Address(module.BaseAddress), Size(module.ImageSize)))];
+			return new ModuleList(target.Id.Value, page.Total, entries, page.NextOffset);
+		}, cancellationToken);
+	}
+
+	/// <summary>Reads the latest prepared details after an explicit current-target <c>module_get</c>.</summary>
+	/// <remarks>The prepared details expire with their five-second module list and are replaced by every later preparation.</remarks>
+	/// <param name="module">The canonical module name or the exact normalized selector used by <c>module_get</c>.</param>
+	/// <param name="cancellationToken">The request's token.</param>
+	/// <returns>A detached copy of the latest prepared module details.</returns>
+	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+	public ModuleDetails GetPrepared(string module, CancellationToken cancellationToken = default)
+	{
+		string wanted = ModuleLocator.RequireModule(module);
+		return _dispatch.Run(CheatEngineToolNames.ModuleGet, token =>
+		{
+			ProcessSnapshot target = _dispatch.Client.Processes.GetCurrentProcess(token);
+			if (!_prepared.TryGetModules(target, out PreparedModuleSnapshot snapshot))
+			{
+				throw PreparedMissing(CheatEngineToolNames.ModuleGet);
+			}
+
+			lock (_preparedGate)
+			{
+				if (_preparedDetails is { } cached && cached.Version == snapshot.Version &&
+					(cached.CanonicalName.Equals(wanted, StringComparison.OrdinalIgnoreCase) ||
+					 string.Equals(cached.Selector, wanted, StringComparison.Ordinal)))
+				{
+					return CloneDetails(cached.Details);
+				}
+			}
+
+			throw PreparedMissing(CheatEngineToolNames.ModuleGet);
 		}, cancellationToken);
 	}
 
@@ -207,4 +286,38 @@ public sealed class ModuleTools
 			(long) Math.Min(section.Size.Value, long.MaxValue), HexFormat.Address(section.FileOffset.Value),
 			header?.IsExecutable, header?.IsWritable);
 	}
+
+	private void CachePreparedDetails(PreparedInspectionVersion version, string canonicalName, string selector,
+		ModuleDetails details)
+	{
+		lock (_preparedGate)
+		{
+			_preparedDetails = new PreparedModuleDetails(version, canonicalName, selector, CloneDetails(details));
+		}
+	}
+
+	private static ModuleDetails CloneDetails(ModuleDetails details)
+	{
+		return new ModuleDetails(details.Name, details.Base, details.Path, details.Is64Bit, [.. details.Sections],
+			details.Size, details.Pe);
+	}
+
+	private static void EnsureSameTarget(ProcessSnapshot before, ProcessSnapshot after, string operation)
+	{
+		if (before.Id != after.Id || before.SelectionEpoch != after.SelectionEpoch)
+		{
+			throw new CheatEngineToolException(new ToolError(ToolErrorKind.TargetChanged,
+				"The attached process changed while modules were being read.", operation, ToolHostEffect.Completed, false,
+				"Re-attach the process, then repeat the read."));
+		}
+	}
+
+	private static CheatEngineToolException PreparedMissing(string operation)
+	{
+		return CheatEngineToolException.InvalidState("No current prepared module result is available.",
+			$"Run {operation} explicitly, then retry within 5 seconds.");
+	}
+
+	private sealed record PreparedModuleDetails(PreparedInspectionVersion Version, string CanonicalName, string Selector,
+		ModuleDetails Details);
 }

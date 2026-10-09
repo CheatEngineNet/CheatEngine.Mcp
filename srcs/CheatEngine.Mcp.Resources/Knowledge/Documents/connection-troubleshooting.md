@@ -272,21 +272,45 @@ that a backend is healthy. Restart the client session when new tools do not appe
   and `hostVersion`. Its `capabilities` are the CE host's; its `gates` are the four `Mcp:Enable...` switches, as
   booleans. No tool reports any other setting, path or limit.
 
+## Support report checklist
+
+Include:
+
+- Windows build/architecture, CE/.NET/package/client versions, source commit and target architecture; label CE and target PIDs.
+- Tool/resource name, redacted arguments, expected/observed behavior and time.
+- `error.operation`, `error.kind`, `hostEffect`, `retryable`, effective `gates`, and correlation ID when present: tool `error.details.errorId` or resource `error.data.errorId`.
+- Redacted logs, activation/target changes, cleanup failures and unknown outcomes. Do not repeat mutations for a report.
+
+Remove private paths, source, target data and credentials.
+Never share tokens, discovery contents, registry exports or unreviewed archives.
+Redact configuration values.
+See [configuration](configuration.md) for private stack diagnostics.
+
 ## Several instances, updates and removal
 
 - **One activation per CE process**, with its own `instanceId`, resources and ids. Clean up each instance through its
   own id.
 - **Names.** Set `MCP_INSTANCE_NAME` in each CE launch environment to tell instances apart.
 - **Shared targets.** Two instances attached to the same target both change its memory. Keep one instance per target.
-- **Updates.** Disable the plugin, and close CE and the client's gateway. Replace the whole `CheatEngine.Mcp` folder and
-  the executable from the same release, never individual DLLs. Restart, then call `instance_list()` again. Personal
-  settings outside the plugin folder are kept.
+- **Updates.** Finish cleanup, disable the plugin, close CE and stop this gateway in the client.
+  Back up the old matching package, client registration and configuration being changed.
+  Extract the complete new package to a separate directory; select its `CheatEngine.Mcp.dll` in CE and its gateway in the client.
+  Replace this plugin's previous CE entry when its path changes; keep unrelated plugins and user data.
+  Restart, discover a fresh ID with `instance_list()` and verify `runtime_get_info()` before selecting a target.
+- **Locked files or partial upgrade.** Stop the MCP connection in the client and close the CE instance that loaded the files.
+  Disable this registration if the client restarts the gateway.
+  Leave locked files in place; use a separate directory without mixing versions or terminating unrelated processes.
+  Keep a partial upgrade disabled until both paths select one complete matching package.
+- **Rollback.** Stop this CE instance and gateway; replace this plugin's CE entry with its old entry, restore the old gateway registration and changed configuration from backup, including CE's runtime configuration.
+  Re-enable, reconnect, rediscover and verify the loaded version before resuming.
 - **Disable or removal.** Run [cleanup_session](../Workflows/cleanup-session.md) first, with the user's consent. A
   disable stops the activation's jobs and releases its Client leases (allocations, patches, named scanners,
   registered symbols). Effects recorded in CE's Lua state stay: a speed other than 1, MCP's pause, MCP-set breakpoints
   and any failed cleanup. The next activation lists them as `orphaned`. CE-owned state also survives a disable:
   address-list records and their freezes, structures, main scan results and a Mono collector attachment, which the
   next activation does not list.
+  To uninstall, remove this plugin's CE entry and gateway registration, close their processes and delete only this integration's deployment files.
+  Keep user settings, tables and unrelated plugins unless the user chooses their removal.
 
 ## Responsible use
 
