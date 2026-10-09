@@ -246,6 +246,9 @@ and they are all read-only. They do not check for a paused game or a stopped deb
    `nativeCode` is omitted until the method is compiled: have the user trigger that feature, then list again.
 6. `dotnet_get_method_parameters(moduleHandle="<moduleHandle>", methodToken="<method token>")` returns the
    `parameters` (`index`, `name`, `elementType`, `elementTypeName`) and the `signature` text when reported.
+   Here `elementType` is the collector's metadata-constant/default-value code, **not the declared parameter type**.
+   `1` / `Void` means no constant; `0` can be unavailable metadata. The list may be incomplete or include return
+   metadata; `index` is the returned position, not necessarily the declared ordinal. Use `signature` for declared types.
 7. `dotnet_get_object(address="<object address>")` returns the object's start `address`, its `typeName` and the fields
    (512 by default) with their current `value`: decimal numbers, true or false, hexadecimal references and pointers,
    nothing for value-type fields. CE documents that the query assumes a valid object, so pass an object start, such
@@ -269,6 +272,15 @@ Handles and tokens are opaque decimal strings scoped to the collector session. P
 them after the game or the collector restarts.
 
 ## Loading your own managed code
+
+`exec_compile_csharp(source="<C#>", outputPath="<approved-root assembly path>")` compiles and exports without invocation.
+It requires TCE, CE compiler prerequisites, at most 131,072 source characters and 32 held `referencePaths`; optional `coreAssembly` is also checked and held.
+It returns path/length/SHA-256, caps output at 16 MiB, and requires `overwrite=true` to replace a file.
+Compiler errors carry `{text,truncated}` capped at 16 KiB; prerequisites and syntax errors may share the same diagnostic outcome.
+CE owns its temporary file, which another CE instance closing may remove; missing/expired export is explicit.
+Use the exported copy for separately authorized injection, inspect partial/unknown effects before retrying, and do not assume unload or native compiler qualification.
+
+### Explicit injection
 
 `exec_inject_dotnet` loads a managed assembly into a .NET Framework or .NET Core target and calls its
 `public static int Method(string)`. Use it only on explicit request:

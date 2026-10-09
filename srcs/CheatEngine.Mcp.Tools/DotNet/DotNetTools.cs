@@ -157,7 +157,7 @@ public sealed class DotNetTools
 		ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Read a managed method's parameter names and CorElementType codes, and the signature text when the out-of-process collector reports it. Pass a module handle from dotnet_list_modules and a method token from dotnet_list_methods; this never injects into the target.")]
+		"Read a managed method's collector parameter entries and optional signature text. Each elementType is the collector's metadata-constant code, not the declared parameter type; use signature for declared types when available. Pass a module handle from dotnet_list_modules and a method token from dotnet_list_methods; this never injects into the target.")]
 	public DotNetMethodParameters GetMethodParameters(
 		[Description("An opaque module handle from dotnet_list_modules.")]
 		string moduleHandle,

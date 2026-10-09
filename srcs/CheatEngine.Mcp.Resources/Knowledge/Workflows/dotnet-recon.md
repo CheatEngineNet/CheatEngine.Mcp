@@ -32,12 +32,13 @@ through Cheat Engine's out-of-process .NET collector, which injects nothing.
    `structure_read(name="{typeName}", addresses=["<instance>"])`.
 10. Code: `dotnet_list_methods(moduleHandle="<moduleHandle>", typeToken="<token>", nameContains="<method>")` gives
     each method's `token` and `nativeCode`; `dotnet_get_method_parameters(moduleHandle="<moduleHandle>",
-    methodToken="<method token>")` its parameters. `symbol_reload(scope="dotnet")` adds managed names, then
+    methodToken="<method token>")` its collector entries and optional declared-type `signature`. Its `elementType`
+    describes a metadata constant, not a declared parameter type. `symbol_reload(scope="dotnet")` adds managed names, then
     `code_disassemble(address="<nativeCode>")` or [find what writes](find-writer.md).
 
 ## Decisions
 
-- `elementType` to `valueType`: 2 Boolean `uint8`, 8 Int32 `int32`, 10 Int64 `int64`, 12 Single `float`, 13 Double
+- Field `elementType` to `valueType`: 2 Boolean `uint8`, 8 Int32 `int32`, 10 Int64 `int64`, 12 Single `float`, 13 Double
   `double`; 14 String and 18 Class hold a `pointer`.
 - No `nativeCode`: not JIT-compiled yet; ask the user to use that feature, then list again.
 - JIT code has no module, so `aob_generate_signature` refuses it: re-find the method each session.

@@ -104,8 +104,36 @@ internal static class PluginBundleProbe
 		JsonNode? expected = JsonNode.Parse(File.ReadAllText(Path.Combine(directory, fileName)));
 		if (!JsonNode.DeepEquals(expected, actual))
 		{
-			throw new InvalidOperationException($"The bundled plugin's reflected catalog differs from '{fileName}'.");
+			throw new InvalidOperationException($"The bundled plugin's reflected catalog differs from '{fileName}'. " +
+				$"First difference: {CatalogDifference(expected, actual, "$")}.");
 		}
+	}
+
+	private static string CatalogDifference(JsonNode? expected, JsonNode? actual, string path)
+	{
+		if (expected is JsonObject expectedObject && actual is JsonObject actualObject)
+		{
+			foreach (string key in expectedObject.Select(static item => item.Key).Union(actualObject.Select(static item => item.Key)))
+			{
+				if (!JsonNode.DeepEquals(expectedObject[key], actualObject[key]))
+				{
+					return CatalogDifference(expectedObject[key], actualObject[key], $"{path}.{key}");
+				}
+			}
+		}
+		if (expected is JsonArray expectedArray && actual is JsonArray actualArray && expectedArray.Count == actualArray.Count)
+		{
+			for (int index = 0; index < expectedArray.Count; index++)
+			{
+				if (!JsonNode.DeepEquals(expectedArray[index], actualArray[index]))
+				{
+					return CatalogDifference(expectedArray[index], actualArray[index], $"{path}[{index}]");
+				}
+			}
+		}
+		string left = expected is JsonValue ? expected.ToJsonString() : expected?.GetValueKind().ToString() ?? "null";
+		string right = actual is JsonValue ? actual.ToJsonString() : actual?.GetValueKind().ToString() ?? "null";
+		return $"{path}: expected {left[..Math.Min(left.Length, 120)]}, actual {right[..Math.Min(right.Length, 120)]}";
 	}
 
 	private static LoadedPlugin LoadPlugin(PluginLoadContext context, string pluginPath)

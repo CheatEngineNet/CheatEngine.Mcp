@@ -132,7 +132,7 @@ public enum PointerCaptureCompleteness
 
 /// <summary>A pointer map and its capture.</summary>
 /// <param name="MapName">The map name.</param>
-/// <param name="JobId">The capture job's id.</param>
+/// <param name="JobId">The capture job's id, absent for an imported map.</param>
 /// <param name="State">Where the capture stands.</param>
 /// <param name="ProcessId">The captured process, or null for a native import.</param>
 /// <param name="PointerSize">The pointer width, 4 or 8.</param>
@@ -146,8 +146,8 @@ public enum PointerCaptureCompleteness
 public sealed record PointerMapInfo(
 	[property: Description("The map name.")]
 	string MapName,
-	[property: Description("The capture job's id, for runtime_list_jobs and runtime_stop_job.")]
-	string JobId,
+	[property: Description("The capture job's id, for runtime_list_jobs and runtime_stop_job; omitted for an imported map.")]
+	string? JobId,
 	[property: Description("Where the capture stands; the map is usable when ready, stopped or expired.")]
 	PointerJobState State,
 	[property: Description("The process the map was captured from.")]
@@ -186,7 +186,7 @@ public sealed record PointerDeleteResult(
 
 /// <summary>A pointer path search and its results.</summary>
 /// <param name="ScanName">The scan name.</param>
-/// <param name="JobId">The search job's id.</param>
+/// <param name="JobId">The search job's id, absent for an imported scan.</param>
 /// <param name="State">Where the search stands.</param>
 /// <param name="MapName">The searched map.</param>
 /// <param name="Target">The target address.</param>
@@ -199,8 +199,8 @@ public sealed record PointerDeleteResult(
 public sealed record PointerScanInfo(
 	[property: Description("The scan name.")]
 	string ScanName,
-	[property: Description("The search job's id, for runtime_list_jobs and runtime_stop_job.")]
-	string JobId,
+	[property: Description("The search job's id, for runtime_list_jobs and runtime_stop_job; omitted for an imported scan.")]
+	string? JobId,
 	[property: Description("Where the search stands; the paths are usable when ready, stopped or expired.")]
 	PointerJobState State,
 	[property: Description("The searched map.")]

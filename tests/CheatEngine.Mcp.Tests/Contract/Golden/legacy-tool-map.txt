@@ -64,7 +64,7 @@ dbvm_initialize | renamed | kernel_initialize_dbvm | May prompt; gated by Mcp:En
 dbvm_read_physical | renamed | kernel_read_physical | Gated by Mcp:EnableKernelAccess.
 dbvm_status | merged | kernel_get_status | DBK and DBVM state in one result.
 dbvm_watch | renamed | kernel_start_watch | Now a job; no main-thread wait.
-dbvm_watch_log | renamed | kernel_poll_watch | Non-consuming poll with afterSequence.
+dbvm_watch_log | renamed | kernel_poll_watch | Drains the DBVM log into a retained page with afterSequence.
 dbvm_watch_stop | merged | runtime_stop_job | Generic job stop.
 dbvm_write_physical | renamed | kernel_write_physical | Gated by Mcp:EnableKernelAccess.
 debugger_add_breakpoint | merged | debugger_set_breakpoint | Adds method, thread and one-shot options.

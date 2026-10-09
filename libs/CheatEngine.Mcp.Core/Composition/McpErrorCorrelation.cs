@@ -25,14 +25,14 @@ internal static class McpErrorCorrelation
 
 	/// <summary>
 	///     Correlates an <c>internal</c> error: it keeps an id the error already carries, or adds a new one to its
-	///     <c>details</c> object, which it creates when there is none.
+	///     <c>details</c> object, which it creates when there is none. Non-object details are retained under
+	///     <c>value</c> in that object.
 	/// </summary>
 	/// <param name="error">The error to report.</param>
 	/// <param name="errorId">
-	///     The id to log; <see langword="null" /> for any other kind. It is logged even when the error's
-	///     <c>details</c> are not an object and cannot carry it.
+	///     The id to log; <see langword="null" /> for any other kind.
 	/// </param>
-	/// <returns>The error to report, correlated when possible.</returns>
+	/// <returns>The error to report, correlated for an internal failure.</returns>
 	internal static ToolError Correlate(ToolError error, out string? errorId)
 	{
 		ArgumentNullException.ThrowIfNull(error);
@@ -49,11 +49,6 @@ internal static class McpErrorCorrelation
 		}
 
 		errorId = RandomNumberGenerator.GetHexString(IdLength, true);
-		if (error.Details is { ValueKind: not JsonValueKind.Object })
-		{
-			return error;
-		}
-
 		return error with
 		{
 			Details = WithId(error.Details, errorId)
@@ -72,19 +67,27 @@ internal static class McpErrorCorrelation
 			: null;
 	}
 
-	// Rewrites the details object with the id appended; an object without details becomes {"errorId":"..."}.
+	// Keeps structured details and appends the id, wrapping any non-object value without discarding it.
 	private static JsonElement WithId(JsonElement? details, string errorId)
 	{
 		ArrayBufferWriter<byte> buffer = new();
 		using (Utf8JsonWriter writer = new(buffer))
 		{
 			writer.WriteStartObject();
-			if (details is { } existing)
+			if (details is { ValueKind: JsonValueKind.Object } existing)
 			{
 				foreach (JsonProperty property in existing.EnumerateObject())
 				{
-					property.WriteTo(writer);
+					if (!property.NameEquals(Key))
+					{
+						property.WriteTo(writer);
+					}
 				}
+			}
+			else if (details is { ValueKind: not JsonValueKind.Undefined } value)
+			{
+				writer.WritePropertyName("value");
+				value.WriteTo(writer);
 			}
 
 			writer.WriteString(Key, errorId);

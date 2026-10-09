@@ -43,7 +43,14 @@ public sealed class SpeedhackTools
 	{
 		LuaSpeedhackState state = _dispatch.RunLua(CheatEngineToolNames.SpeedhackGetState, SpeedhackScripts.GetState,
 			SpeedhackLuaJsonContext.Default.LuaSpeedhackState, cancellationToken);
-		return new SpeedhackState(state.Speed, state.HooksInstalled);
+		if (state.HooksInstalled is not { } hooksInstalled)
+		{
+			throw new CheatEngineToolException(new ToolError(ToolErrorKind.HostRefused,
+				"Cheat Engine did not return the speedhack symbol state.", CheatEngineToolNames.SpeedhackGetState,
+				ToolHostEffect.NotStarted, false));
+		}
+
+		return new SpeedhackState(state.Speed, hooksInstalled);
 	}
 
 	/// <summary>Installs or updates Cheat Engine speedhack, retaining an MCP restore action until speed returns to one.</summary>
@@ -83,6 +90,7 @@ public sealed class SpeedhackTools
 	private SpeedhackSetResult SetSpeedCore(double speed, CancellationToken cancellationToken)
 	{
 		ITargetResource? previous;
+		bool priorRestoreApplied = false;
 		lock (_resourceLock)
 		{
 			previous = _restoreResource;
@@ -90,19 +98,22 @@ public sealed class SpeedhackTools
 
 		if (previous is not null)
 		{
+			_ = _dispatch.ExecuteLua(CheatEngineToolNames.SpeedhackSetSpeed, SpeedhackScripts.GetState,
+				SpeedhackLuaJsonContext.Default.LuaSpeedhackState, cancellationToken);
 			ResourceReleaseOutcome released = previous.Release(cancellationToken);
 			if (!released.IsComplete)
 			{
 				throw CheatEngineToolException.PartialEffect(
 					"Cheat Engine could not restore the prior speedhack state before applying a new speed.",
 					released.HostEffect,
-					new SpeedhackSetResult(1, false, false, previous.Descriptor.Id),
-					SpeedhackJsonContext.Default.SpeedhackSetResult, released.IsRetryable,
+					new SpeedhackRestoreFailure(previous.Descriptor.Id, released),
+					SpeedhackLuaJsonContext.Default.SpeedhackRestoreFailure, released.IsRetryable,
 					released.IsRetryable
 						? "Repeat speedhack_set_speed after Cheat Engine accepts the restore."
 						: "Set speedhack to 1 in Cheat Engine and acknowledge the resource after manual recovery.");
 			}
 
+			priorRestoreApplied = released.HostEffect is not (ToolHostEffect.NotStarted or ToolHostEffect.NotApplied);
 			_resources.Forget(previous);
 			lock (_resourceLock)
 			{
@@ -113,25 +124,37 @@ public sealed class SpeedhackTools
 			}
 		}
 
-		if (speed == 1)
+		try
 		{
-			LuaSpeedhackState normal = _dispatch.ExecuteLua(CheatEngineToolNames.SpeedhackSetSpeed,
-				SpeedhackScripts.SetNormal, SpeedhackLuaJsonContext.Default.LuaSpeedhackState, cancellationToken);
-			return new SpeedhackSetResult(normal.Speed, normal.HooksInstalled, normal.FirstActivation);
-		}
+			if (speed == 1)
+			{
+				LuaSpeedhackState normal = _dispatch.ExecuteLua(CheatEngineToolNames.SpeedhackSetSpeed,
+					SpeedhackScripts.SetNormal, SpeedhackLuaJsonContext.Default.LuaSpeedhackState, cancellationToken);
+				return new SpeedhackSetResult(normal.Speed, normal.HooksInstalled, normal.FirstActivation);
+			}
 
-		string id = _resources.NextId("speedhack");
-		LuaSpeedhackState changed = _dispatch.ExecuteLua(CheatEngineToolNames.SpeedhackSetSpeed,
-			SpeedhackScripts.SetSpeed, SpeedhackLuaJsonContext.Default.LuaSpeedhackState, cancellationToken, speed, id,
-			_resources.Namespace);
-		ITargetResource tracked = _resources.TrackState(id, "speedhack", name: "speedhack",
-			detail: "Restores the configured speed to 1.");
-		lock (_resourceLock)
+			string id = _resources.NextId("speedhack");
+			LuaSpeedhackState changed = _dispatch.ExecuteLua(CheatEngineToolNames.SpeedhackSetSpeed,
+				SpeedhackScripts.SetSpeed, SpeedhackLuaJsonContext.Default.LuaSpeedhackState, cancellationToken, speed, id,
+				_resources.Namespace);
+			ITargetResource tracked = _resources.TrackState(id, "speedhack", name: "speedhack",
+				detail: "Restores the configured speed to 1.");
+			lock (_resourceLock)
+			{
+				_restoreResource = tracked;
+			}
+
+			return new SpeedhackSetResult(changed.Speed, changed.HooksInstalled, changed.FirstActivation,
+				tracked.Descriptor.Id);
+		}
+		catch (CheatEngineToolException exception) when (priorRestoreApplied &&
+			exception.Error.HostEffect is ToolHostEffect.NotStarted or ToolHostEffect.NotApplied)
 		{
-			_restoreResource = tracked;
+			throw new CheatEngineToolException(exception.Error with
+			{
+				HostEffect = ToolHostEffect.Started,
+				Retryable = false
+			}, exception);
 		}
-
-		return new SpeedhackSetResult(changed.Speed, changed.HooksInstalled, changed.FirstActivation,
-			tracked.Descriptor.Id);
 	}
 }

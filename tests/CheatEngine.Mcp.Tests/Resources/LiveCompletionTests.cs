@@ -7,6 +7,7 @@ using CheatEngine.Client;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Scanning;
 using CheatEngine.Mcp.Core.Contract;
+using CheatEngine.Mcp.Core.Inspection;
 using CheatEngine.Mcp.Resources.Live;
 using CheatEngine.Mcp.Tests.Support;
 using CheatEngine.Mcp.Tests.Tools.Modules;
@@ -51,7 +52,6 @@ public sealed class LiveCompletionTests
 		Assert.Equal(
 		[
 			Instance + "modules/{module} module",
-			Instance + "modules/{module}/exports{?offset,limit} module",
 			Instance + "pointer-scans/{scanName}/paths{?offset,limit} scanName",
 			Instance + "scanners/{scannerName} scannerName",
 			Instance + "structures/{structure}{?offset,limit} structure"
@@ -189,6 +189,71 @@ public sealed class LiveCompletionTests
 		Assert.Empty(limited.Values);
 		Assert.Equal(["game.exe"], recovered.Values);
 		Assert.Equal(2, host.Listings.Calls("name"));
+	}
+
+	[Fact]
+	public async Task Complete_FreshDispatchSuccessesAreNeverServedFromTheOuterCache()
+	{
+		await using ProbeHost host = ProbeHost.Create();
+		host.Listings.Set("freshSlot", "first");
+		Completion first = await host.CompleteAsync(Probe.FreshSlots, "freshSlot", "");
+		host.Listings.Set("freshSlot", "second");
+		Completion second = await host.CompleteAsync(Probe.FreshSlots, "freshSlot", "");
+
+		Assert.Equal(["first"], first.Values);
+		Assert.Equal(["second"], second.Values);
+		Assert.Equal(2, host.Listings.Calls("freshSlot"));
+	}
+
+	[Fact]
+	public async Task Complete_FreshDispatchFailureIsThrottledUntilItsRefreshInterval()
+	{
+		await using ProbeHost host = ProbeHost.Create();
+		host.Listings.Fail("freshSlot", CheatEngineToolException.Busy("busy", "retry"));
+		Completion failed = await host.CompleteAsync(Probe.FreshSlots, "freshSlot", "");
+		Completion limited = await host.CompleteAsync(Probe.FreshSlots, "freshSlot", "");
+		host.Time.Advance(McpResourceCompletions.RefreshInterval);
+		host.Listings.Set("freshSlot", "recovered");
+		Completion recovered = await host.CompleteAsync(Probe.FreshSlots, "freshSlot", "");
+
+		Assert.Empty(failed.Values);
+		Assert.Empty(limited.Values);
+		Assert.Equal(["recovered"], recovered.Values);
+		Assert.Equal(2, host.Listings.Calls("freshSlot"));
+	}
+
+	[Fact]
+	public async Task Complete_FreshDispatchConcurrentRequestsShareOnlyTheirInFlightListing()
+	{
+		await using ProbeHost host = ProbeHost.Create(TimeSpan.FromSeconds(10));
+		using ManualResetEventSlim release = new();
+		TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		host.Listings.Behave("freshSlot", _ =>
+		{
+			entered.TrySetResult();
+			Assert.True(release.Wait(TimeSpan.FromSeconds(5), Token));
+			return new McpCompletionValues(["shared"]);
+		});
+		Task<Completion> first = host.CompleteAsync(Probe.FreshSlots, "freshSlot", "");
+		Task<Completion>? second = null;
+		try
+		{
+			await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), Token);
+			second = host.CompleteAsync(Probe.FreshSlots, "freshSlot", "");
+			Assert.False(second.IsCompleted);
+		}
+		finally
+		{
+			release.Set();
+			await first.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+			if (second is not null)
+			{
+				await second.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+			}
+		}
+		Assert.Equal(["shared"], (await first).Values);
+		Assert.Equal(["shared"], (await second!).Values);
+		Assert.Equal(1, host.Listings.Calls("freshSlot"));
 	}
 
 	[Fact]
@@ -339,15 +404,20 @@ public sealed class LiveCompletionTests
 		target.AddModule("game.exe", 0x140000000, 0x5000);
 		target.AddModule("GAME.EXE", 0x150000000, 0x1000);
 		target.AddModule("user32.dll", 0x7FF800000000, 0x1000);
-		ModuleLiveResources live = new(new ModuleTools(target.Dispatch), new ModuleExportTools(target.Dispatch),
-			target.Dispatch);
+		PreparedInspectionStore prepared = new(TimeProvider.System);
+		ModuleTools modules = new(target.Dispatch, prepared);
+		_ = modules.List(cancellationToken: Token);
+		int enumerations = target.Calls("TryGetModules");
+		int dispatches = target.Dispatcher.Calls;
+		ModuleLiveResources live = new(modules, target.Dispatch, prepared);
 
 		McpCompletionValues listed = live.ListCompletionValues("module", Token);
 		target.Attached = false;
 
 		Assert.Equal(["game.exe", "user32.dll"], listed.Values);
 		Assert.Equal(42, listed.SelectionEpoch);
-		Assert.Equal(1, target.Dispatcher.Calls);
+		Assert.Equal(dispatches + 1, target.Dispatcher.Calls);
+		Assert.Equal(enumerations, target.Calls("TryGetModules"));
 		Assert.Equal(ToolErrorKind.NotAttached, Assert.Throws<CheatEngineToolException>(() =>
 			live.ListCompletionValues("module", Token)).Error.Kind);
 		Assert.Throws<ArgumentOutOfRangeException>(() => live.ListCompletionValues("offset", Token));
@@ -441,22 +511,63 @@ public sealed class LiveCompletionTests
 	{
 		await using ModuleCompletionActivation activation = await ModuleCompletionActivation.StartAsync();
 		ModelContextProtocol.Client.McpClient client = activation.Pipeline.Client;
+		Assert.NotEqual(true, (await activation.Pipeline.CallAsync(CheatEngineToolNames.ModuleList)).IsError);
+		int enumerations = activation.Target.Calls("TryGetModules");
 
 		CompleteResult module = await client.CompleteAsync(
 			new ResourceTemplateReference { Uri = Instance + "modules/{module}" }, "module", "SA",
 			cancellationToken: Token);
-		CompleteResult exports = await client.CompleteAsync(
-			new ResourceTemplateReference { Uri = Instance + "modules/{module}/exports{?offset,limit}" }, "module",
-			"", cancellationToken: Token);
+		CompleteResult all = await client.CompleteAsync(
+			new ResourceTemplateReference { Uri = Instance + "modules/{module}" }, "module", "",
+			cancellationToken: Token);
 		CompleteResult limit = await client.CompleteAsync(
 			new ResourceTemplateReference { Uri = Instance + "modules{?offset,limit}" }, "limit", "1",
 			cancellationToken: Token);
 
 		Assert.NotNull(client.ServerCapabilities.Completions);
 		Assert.Equal(["sample.dll"], module.Completion.Values);
-		Assert.Equal(["sample.dll", "game.exe"], exports.Completion.Values);
+		Assert.Equal(["sample.dll", "game.exe"], all.Completion.Values);
 		Assert.Empty(limit.Completion.Values);
-		// Both templates share one cached listing: one dispatch for the module names.
+		// Preparation is one source-tool enumeration; completions never enumerate again.
+		Assert.Equal(enumerations, activation.Target.Calls("TryGetModules"));
+	}
+
+	[Fact]
+	public async Task CompleteOverTheWire_ColdModulesNeverEnumerate()
+	{
+		await using ModuleCompletionActivation activation = await ModuleCompletionActivation.StartAsync();
+		CompleteResult result = await activation.Pipeline.Client.CompleteAsync(
+			new ResourceTemplateReference { Uri = Instance + "modules/{module}" }, "module", "",
+			cancellationToken: Token);
+
+		Assert.Empty(result.Completion.Values);
+		Assert.Equal(0, activation.Target.Calls("TryGetModules"));
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task CompleteOverTheWire_ExpiredOrChangedTargetNeverOffersStaleModules(bool changeTarget)
+	{
+		ManualTimeProvider time = new();
+		await using ModuleCompletionActivation activation = await ModuleCompletionActivation.StartAsync(time);
+		ModelContextProtocol.Client.McpClient client = activation.Pipeline.Client;
+		async Task<Completion> Complete()
+		{
+			return (await client.CompleteAsync(new ResourceTemplateReference { Uri = Instance + "modules/{module}" },
+				"module", "", cancellationToken: Token)).Completion;
+		}
+		Assert.NotEqual(true, (await activation.Pipeline.CallAsync(CheatEngineToolNames.ModuleList)).IsError);
+		Assert.Equal(["sample.dll", "game.exe"], (await Complete()).Values);
+		if (changeTarget)
+		{
+			activation.Target.SelectionEpoch++;
+		}
+		else
+		{
+			time.Advance(PreparedInspectionStore.Lifetime);
+		}
+		Assert.Empty((await Complete()).Values);
 		Assert.Equal(1, activation.Target.Calls("TryGetModules"));
 	}
 
@@ -677,6 +788,7 @@ public sealed class LiveCompletionTests
 		internal const string Names = Instance + "probe-names/{name}";
 		internal const string NameIds = Instance + "probe-names/{name}/ids/{id}";
 		internal const string Slots = Instance + "probe-slots/{slot}";
+		internal const string FreshSlots = Instance + "probe-fresh-slots/{freshSlot}";
 		internal const string Codes = Instance + "probe-codes/{code}";
 
 		[McpServerResource(UriTemplate = Items, Name = "instance_probe_item", Title = "Probe item",
@@ -721,6 +833,15 @@ public sealed class LiveCompletionTests
 		[McpSourceTool(typeof(RuntimeTools), CheatEngineToolNames.RuntimeGetInfo)]
 		[Description("A probe slot.")]
 		public string Slot([McpCompletion(McpCompletionCost.Dispatch)] string slot)
+		{
+			return listings.Json;
+		}
+
+		[McpServerResource(UriTemplate = FreshSlots, Name = "instance_probe_fresh_slot", Title = "Probe fresh slot",
+			MimeType = McpResourceUris.JsonMimeType)]
+		[McpSourceTool(typeof(RuntimeTools), CheatEngineToolNames.RuntimeGetInfo)]
+		[Description("A probe fresh slot.")]
+		public string FreshSlot([McpCompletion(McpCompletionCost.DispatchFresh)] string freshSlot)
 		{
 			return listings.Json;
 		}
@@ -866,12 +987,13 @@ public sealed class LiveCompletionTests
 			await _root.DisposeAsync();
 		}
 
-		internal static async Task<ModuleCompletionActivation> StartAsync()
+		internal static async Task<ModuleCompletionActivation> StartAsync(TimeProvider? time = null)
 		{
 			ModuleSymbolTarget target = ModuleToolTests.LoadedSample();
 			target.AddModule("game.exe", 0x140000000, 0x5000);
 			ServiceCollection activation = new();
 			activation.AddSingleton(target.Client);
+			activation.AddSingleton(time ?? TimeProvider.System);
 			activation.AddLogging();
 			new CheatEngineMcpBuilder(activation, CheatEngineMcpMode.Backend).AddExecutionServices()
 				.AddJsonTypeInfoResolver(ModuleJsonContext.Default).AddToolType<ModuleTools>()

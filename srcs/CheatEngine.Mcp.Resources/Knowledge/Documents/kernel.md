@@ -38,7 +38,7 @@ On a default Windows 11 PC the kernel tools are expected not to work, and that i
 - Since Windows 10 1607, with Secure Boot on, Windows loads new kernel drivers only when Microsoft signed them through
   its Hardware Dev Center.
 
-`kernel_get_status` then reports `dbkInitialized` and `dbvmInitialized` false, and the other kernel tools fail with
+When its probes answer, `kernel_get_status` then reports `dbkInitialized` and `dbvmInitialized` false; other tools fail with
 `invalid_state`, `not_found` (translation), `host_refused` or `unsupported`. That is the answer, not a problem to solve.
 CE's own error dialogs may offer to explain how to disable the blocklist or suggest boot and signing changes: do not
 relay or expand on them.
@@ -96,7 +96,8 @@ What the switch does not cover:
 | `kernel_read_physical`, `kernel_write_physical` | a running DBVM | `short` |
 | `kernel_start_watch`, `kernel_poll_watch` | a running DBVM | `blocking_native` |
 
-`kernel_get_status` returns `dbkInitialized` and `dbvmInitialized`, plus `cr0`, `cr3` (of the selected process),
+`kernel_get_status` returns `dbkInitialized` and `dbvmInitialized` when CE can answer those probes; omission means
+unavailable, not false. It also returns `cr0`, `cr3` (of the selected process),
 `cr4` and `dbvmCr4` (the real CR4 under DBVM) as uppercase hex. A missing register means CE could not read it. CE
 returns `0` for `cr0` without DBK and for `cr4` without DBK or DBVM, so `0` also means unavailable. `cr3` needs the
 target opened through DBK, or a running DBVM.

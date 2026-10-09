@@ -42,8 +42,9 @@ then wait for a yes. Ask again when the target or the risk level changes, for ex
 
 - Look before you change: resolve, read and scan first, and write only addresses you identified.
 - `may_prompt` tools (`_meta` `cheatengine/dispatchClass`) can open a CE dialog that waits for a person: `asm_apply`,
-  `asm_apply_code_patch`, `debugger_attach`, `kernel_initialize_dbvm`, `lua_execute`, `mono_attach`,
-  `speedhack_set_speed`, `table_load`, `table_save`. Warn the user that they may have to answer it in CE.
+  `asm_apply_code_patch`, `asm_release_patch`, `debugger_attach`, `kernel_initialize_dbvm`, `lua_execute`, `mono_attach`,
+  `record_set_active`, `record_delete`, `record_clear`, `runtime_release_resources`, `speedhack_set_speed`,
+  `table_load`, `table_save`. Warn the user that they may have to answer it in CE, including during script cleanup.
 - `blocking_native` tools can hold CE's main thread for seconds. `exec_inject_dotnet` waits without a time limit until
   the injected method returns; only the MCP call timeout bounds the request, and CE stays blocked after it.
 - `exec_call_remote` and `exec_call_method` run the function on a new thread in the target, not on the game's own

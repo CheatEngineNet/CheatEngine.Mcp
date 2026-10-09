@@ -214,7 +214,7 @@ public sealed record DotNetMethodParameters(
 	string ModuleHandle,
 	[property: Description("The method token, as supplied.")]
 	string MethodToken,
-	[property: Description("The parameters in declaration order, without the return value.")]
+	[property: Description("The metadata entries in collector order; the list can be incomplete and include return metadata or unavailable placeholders.")]
 	DotNetParameter[] Parameters,
 	[property: Description(
 		"The signature text the collector reports, such as System.Int32 (System.Single, System.String), when available.")]
@@ -222,11 +222,11 @@ public sealed record DotNetMethodParameters(
 
 /// <summary>One parameter of a managed method.</summary>
 public sealed record DotNetParameter(
-	[property: Description("The zero-based parameter position.")]
+	[property: Description("The zero-based position in the returned collector entries, not necessarily the declared parameter ordinal.")]
 	int Index,
-	[property: Description("The parameter name; empty when the metadata has none.")]
+	[property: Description("The reported parameter name; empty when unnamed or unavailable.")]
 	string Name,
-	[property: Description("The parameter's CorElementType code, such as 8 for Int32 or 18 for a class reference.")]
+	[property: Description("The collector's CType code for a metadata constant/default value, not the declared parameter type. 1 (Void) means no constant; 0 can mean unavailable metadata. Use signature for declared types.")]
 	int ElementType,
-	[property: Description("The element type's name, such as Int32, String or Class, when the code is known.")]
+	[property: Description("The CorElementType name for elementType when known; this does not name the declared parameter type.")]
 	string? ElementTypeName = null);

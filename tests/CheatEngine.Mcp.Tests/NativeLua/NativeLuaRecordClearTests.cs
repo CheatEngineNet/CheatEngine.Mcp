@@ -187,6 +187,8 @@ public sealed partial class NativeLuaToolRuntimeTests
 
 		Assert.Equal((ToolErrorKind.CapabilityDisabled, ToolHostEffect.NotStarted),
 			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Equal("Set Mcp:EnableAutoAssembler to true in appsettings.json, then disable and re-enable the plugin.",
+			exception.Error.Hint);
 		Assert.Equal((1L, 0L), (ModuleSymbolRead("addressList.Count"), ReadGlobal("clearCalls")));
 	}
 

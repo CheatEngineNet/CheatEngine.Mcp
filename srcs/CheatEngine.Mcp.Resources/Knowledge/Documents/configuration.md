@@ -74,7 +74,7 @@ may still be missing after the user turns that one on.
   record whose children option reaches one, `record_delete` of an active AA record, `record_clear` of a list holding
   an active AA record, and `table_load` of a table with AA scripts.
 - **`Mcp:EnableTargetCodeExecution`** (`target_code_execution`): `exec_call_local`, `exec_call_method`,
-  `exec_call_remote`, `exec_compile_c`, `exec_inject_dotnet`, `exec_inject_library`, `mono_attach`,
+  `exec_call_remote`, `exec_compile_c`, `exec_compile_csharp`, `exec_inject_dotnet`, `exec_inject_library`, `mono_attach`,
   `mono_compile_method`, `mono_invoke_method`, `speedhack_set_speed`. Also:
   - `debugger_attach(interface="veh")`, or `default` when CE's settings select the VEH debugger;
   - AA `{$luacode}`, `{$c}`, `{$ccode}`, `loadlibrary`, `createthread`, `createthreadandwait`, `include`,
@@ -258,6 +258,11 @@ Raise the timeout only for a known long call; long work belongs in jobs. Setup a
   failure), 3002 and 3006 (a tool's unexpected exception, or an internal error it reported), 3005 and 3007 (the same
   for a resource). The 3002, 3005, 3006 and 3007 entries hold the tool or resource name, the exception type, the
   operation (3006, 3007) and an `errorId`; never the message, stack, paths or tokens.
+- **Native dispatch diagnostic:** the `ToolDispatch` logger also uses event 3005 for a `host_refused` failure from
+  `Dispatcher.Invoke` with an unknown host effect and an inner exception.
+  That private log entry contains the operation, exception type and managed stack without source-file information;
+  it omits the exception message and data and does not add the stack to the MCP result.
+  Distinguish it from the resource error event by logger category and message, and review it before sharing.
 - **Error ids:** an `internal` tool error carries `details.errorId` (16 hex characters) and a failed resource read
   `error.data.errorId`. Quote it; the user finds the matching entry by searching the log of the instance that failed.
   Through the gateway the id comes from that backend. See [errors and recovery](errors-and-recovery.md).

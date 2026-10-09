@@ -10,9 +10,9 @@ namespace CheatEngine.Mcp.Core.Composition;
 ///     <para>
 ///         <c>WithCheatEnginePrimitives</c> publishes the tool name in the resource's <c>_meta</c> under
 ///         <see cref="MetaKey" />. The startup validator requires the tool to exist on <see cref="ToolType" /> and to be
-///         read-only, closed-world, ungated and of the <c>short</c> dispatch class, so a client that reads or prefetches a
-///         resource can never cause more than one call of that tool would. Every read also re-checks the tool's feature
-///         gates.
+///         read-only, closed-world and ungated. Its dispatch class must be <c>short</c>, unless
+///         <see cref="PreparedProjection" /> names a separate short, ungated prepared read with the same result type.
+///         Every read also re-checks the source tool's feature gates.
 ///     </para>
 ///     <para>
 ///         The reference is typed, so the rule holds in any composition, including one that serves resources without
@@ -30,6 +30,9 @@ public sealed class McpSourceToolAttribute(
 	/// <summary>The resource <c>_meta</c> key that names the projected tool.</summary>
 	public const string MetaKey = "cheatengine/sourceTool";
 
+	/// <summary>The resource <c>_meta</c> key that names its bounded prepared projection.</summary>
+	public const string PreparedProjectionMetaKey = "cheatengine/preparedProjection";
+
 	/// <summary>The tool container type that declares the tool method.</summary>
 	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods)]
 	public Type ToolType
@@ -42,4 +45,14 @@ public sealed class McpSourceToolAttribute(
 	{
 		get;
 	} = toolName;
+
+	/// <summary>
+	///     The optional public instance method on <see cref="ToolType" /> that returns the latest prepared result without
+	///     repeating the source tool's host enumeration.
+	/// </summary>
+	public string? PreparedProjection
+	{
+		get;
+		set;
+	}
 }

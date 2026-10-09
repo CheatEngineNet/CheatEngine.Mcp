@@ -50,6 +50,14 @@
     <Content Update="$(_CheatEngineSdkLuaBridgePath)" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never"/>
     <CustomAdditionalCompileInputs Include="$(_CheatEngineSdkLuaBridgePath)"/>
   </ItemGroup>
+  <!-- Reference assemblies can stay unchanged when dependency code or embedded docs change. Costura must receive a
+       fresh plugin assembly when any copy-local implementation changes; Fody runs only after compilation. -->
+  <Target Name="McpTrackBundledDependencies" BeforeTargets="CoreCompile" DependsOnTargets="ResolveReferences"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <CustomAdditionalCompileInputs Include="@(ReferenceCopyLocalPaths)"/>
+    </ItemGroup>
+  </Target>
   <!-- SDK exposes the bridge as Content; Costura needs a copy-local input to generate its checksum and preload list. -->
   <Target Name="McpIncludeNativeBridgeForCostura" BeforeTargets="FodyTarget"
           Condition="'$(DesignTimeBuild)' != 'true'">

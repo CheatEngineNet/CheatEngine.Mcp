@@ -39,6 +39,8 @@ It is opt-in, refuses to run in CI, requires Cheat Engine and DebugView to be cl
 Follow [Live qualification](../../CONTRIBUTING.md#live-qualification) exactly, including publishing the matching configuration and supplying the required acknowledgement environment variable.
 Do not include this category in an ordinary local test run.
 
+The compiler-only qualification is a separately approved scenario. It is never selected by ordinary VL runs: set `CHEATENGINE_MCP_LIVE_QUALIFICATION_SCENARIO` to `compiler` and `CHEATENGINE_MCP_LIVE_CODE_EXECUTION_QUALIFICATION` to its exact acknowledgement from [the compiler policy](../../docs/qualification/v2.0.0/compiler-probe-policy.md). It refuses CI, a non-clean/unidentified candidate, a saved Cheat Engine `Don't use tempdir` override, or a missing reviewed Release distribution before a private run directory or Cheat Engine process is created. It compiles only the policy's fixed payloads and does not authorize injection or invocation.
+
 ## Test layout
 
 | Path | Scope |

@@ -66,6 +66,31 @@ public sealed class ProcessMonoAutoAttachTests
 		Assert.Empty(target.ProcessCalls);
 	}
 
+	[Theory]
+	[InlineData(true)]
+	[InlineData(false)]
+	public void CreateOrOpenFile_MonoAutoAttachWithCodeExecutionOff_RefusesBeforeTheOpenScript(bool create)
+	{
+		Target target = new(new MonoAutoAttachState(true, false, false, true), false);
+		string input = typeof(ProcessTools).Assembly.Location;
+
+		ToolError error = Assert.Throws<CheatEngineToolException>(() =>
+		{
+			if (create)
+			{
+				target.Tools.Create(input, cancellationToken: Token);
+			}
+			else
+			{
+				target.Tools.OpenFile(input, cancellationToken: Token);
+			}
+		}).Error;
+
+		Assert.Equal((ToolErrorKind.CapabilityDisabled, ToolHostEffect.NotStarted), (error.Kind, error.HostEffect));
+		Assert.Equal([typeof(LuaJsonResult<MonoAutoAttachState>)], target.LuaResults);
+		Assert.Empty(target.ProcessCalls);
+	}
+
 	[Fact]
 	public void MonoAutoAttach_IsFalseByDefaultForAResultReadFromCheatEngine()
 	{
@@ -83,6 +108,7 @@ public sealed class ProcessMonoAutoAttachTests
 			{
 				Assert.Equal(nameof(ILuaClient.Execute), method.Name);
 				Type result = method.GetGenericArguments()[1];
+				LuaResults.Add(result);
 				if (result == typeof(LuaJsonResult<MonoAutoAttachState>))
 				{
 					return new LuaJsonResult<MonoAutoAttachState>(state, null, 0);
@@ -123,6 +149,11 @@ public sealed class ProcessMonoAutoAttachTests
 		}
 
 		internal List<string> ProcessCalls
+		{
+			get;
+		} = [];
+
+		internal List<Type> LuaResults
 		{
 			get;
 		} = [];

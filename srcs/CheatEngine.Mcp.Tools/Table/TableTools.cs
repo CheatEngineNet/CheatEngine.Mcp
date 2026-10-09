@@ -68,7 +68,7 @@ public sealed class TableTools
 
 	/// <summary>Saves the current table to a configured Client table root.</summary>
 	[McpServerTool(Name = CheatEngineToolNames.TableSave, Title = "Save cheat table", ReadOnly = false,
-		Destructive = false, Idempotent = false, OpenWorld = true, UseStructuredContent = true)]
+		Destructive = true, Idempotent = false, OpenWorld = true, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.MayPrompt)]
 	[Description(
 		"Save the current table through CheatEngine.Client to a .CT, .XML or .CETRAINER path under CheatEngineClient:AllowedTableRoots. overwrite must be true when a destination file already exists. A native save failure can leave a partially written destination.")]

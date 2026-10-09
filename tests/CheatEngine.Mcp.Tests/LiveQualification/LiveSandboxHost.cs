@@ -5,6 +5,11 @@ internal sealed record LiveSandboxHost(
 	int ProcessId,
 	int TargetProcessId,
 	string TargetAddress,
+	string PointerRootAddress,
+	string PointerTargetAddress,
+	string ZeroPointerRootAddress,
+	string UnreadableRootAddress,
 	string PluginPath,
 	string InstanceId,
-	string Endpoint);
+	string Endpoint,
+	int TargetIncarnation = 0);

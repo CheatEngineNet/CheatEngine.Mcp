@@ -43,11 +43,24 @@ public sealed class ProcessTools
 
 	private const string ThreadListScript = """
 	                                        assert(getOpenedProcessID() ~= 0, 'No process is attached.')
-	                                        local threads = getThreadlist()
-	                                        local result = {}
-	                                        local maximum = a[1]
-	                                        for i = 1, math.min(#threads, maximum) do result[i] = threads[i] end
-	                                        return { threads = result, truncated = #threads > maximum }
+	                                        local list = createStringList()
+	                                        local ok, result = xpcall(function()
+	                                          getThreadlist(list)
+	                                          local count = list.Count
+	                                          assert(type(count) == 'number' and count >= 0, 'getThreadlist returned an invalid count.')
+	                                          local threads = {}
+	                                          local maximum = a[1]
+	                                          for i = 0, math.min(count, maximum) - 1 do
+	                                            local threadId = tonumber(list.Strings[i], 16)
+	                                            assert(threadId ~= nil, 'getThreadlist returned an invalid hexadecimal thread id.')
+	                                            threads[#threads + 1] = threadId
+	                                          end
+	                                          return { threads = threads, truncated = count > maximum }
+	                                        end, function(error) return error end)
+	                                        local destroyed, destroyError = pcall(function() list.destroy() end)
+	                                        if not destroyed then error(destroyError, 0) end
+	                                        if not ok then error(result, 0) end
+	                                        return result
 	                                        """;
 
 	private const string PointerSizeScript = """
@@ -67,11 +80,17 @@ public sealed class ProcessTools
 	private readonly TargetTransitionGuards _guards;
 	private readonly Lock _pauseLock = new();
 	private readonly TargetResources _resources;
+	private readonly Lock _threadsLock = new();
+	private readonly TimeProvider _time;
 	private ITargetResource? _pause;
+	private PreparedThreads? _threads;
+	private long _threadsPublishedAt;
+	private long _threadsObservedEpoch = -1;
+	private int _threadsObservedProcessId;
 
 	/// <summary>Creates the process tools without reading or changing Cheat Engine state.</summary>
 	public ProcessTools(ToolDispatch dispatch, TargetResources resources, TargetTransitionGuards guards,
-		McpFilePaths files)
+		McpFilePaths files, TimeProvider? time = null)
 	{
 		ArgumentNullException.ThrowIfNull(dispatch);
 		ArgumentNullException.ThrowIfNull(resources);
@@ -81,6 +100,7 @@ public sealed class ProcessTools
 		_files = files;
 		_resources = resources;
 		_guards = guards;
+		_time = time ?? TimeProvider.System;
 	}
 
 	/// <summary>Lists local processes available for an explicit attachment.</summary>
@@ -309,12 +329,40 @@ public sealed class ProcessTools
 	/// <summary>Lists target threads through a bounded fixed Lua script.</summary>
 	[McpServerTool(Name = CheatEngineToolNames.ProcessListThreads, Title = "List target threads", ReadOnly = true,
 		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
-	[Description("List up to 4096 target thread ids reported by Cheat Engine. A larger host list is marked truncated.")]
+	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.BlockingNative)]
+	[Description("List up to 4096 target thread ids reported by Cheat Engine. A larger host list is marked truncated. " +
+			 "This explicit read prepares the target-thread resource snapshot for 5 seconds. Native thread enumeration " +
+			 "can block Cheat Engine for seconds; the copy cap does not limit that enumeration.")]
 	public ProcessThreadListResult ListThreads(CancellationToken cancellationToken = default)
 	{
-		return _dispatch.RunLua(CheatEngineToolNames.ProcessListThreads, ThreadListScript,
-			ProcessJsonContext.Default.ProcessThreadListResult, cancellationToken, MaximumThreads);
+		return _dispatch.Run(CheatEngineToolNames.ProcessListThreads, token =>
+		{
+			ICheatEngineClient client = _dispatch.Client;
+			ProcessSnapshot before = client.Processes.GetCurrentProcess(token);
+			ProcessThreadListResult listed = _dispatch.ExecuteLua(CheatEngineToolNames.ProcessListThreads,
+				ThreadListScript, ProcessJsonContext.Default.ProcessThreadListResult, token, MaximumThreads);
+			ProcessSnapshot after = client.Processes.GetCurrentProcess(token);
+			EnsureSameThreadTarget(before, after);
+			PublishThreads(before, listed);
+			return CopyThreads(listed);
+		}, cancellationToken);
+	}
+
+	/// <summary>Reads the latest explicit target-thread preparation.</summary>
+	/// <remarks>This method performs no Lua or native thread enumeration and its preparation expires after five seconds.</remarks>
+	/// <param name="cancellationToken">The request's cancellation token.</param>
+	/// <returns>A copy of the latest prepared target-thread list.</returns>
+	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+	public ProcessThreadListResult ListPreparedThreads(CancellationToken cancellationToken = default)
+	{
+		PreparedThreads prepared = _dispatch.Run(CheatEngineToolNames.ProcessListThreads, token =>
+		{
+			ProcessSnapshot current = _dispatch.Client.Processes.GetCurrentProcess(token);
+			return TryGetPreparedThreads(current, out PreparedThreads snapshot)
+				? snapshot
+				: throw PreparedThreadsMissing();
+		}, cancellationToken);
+		return new ProcessThreadListResult([.. prepared.Threads], prepared.Truncated);
 	}
 
 	/// <summary>Sets Cheat Engine's configured target pointer width.</summary>
@@ -335,6 +383,89 @@ public sealed class ProcessTools
 		return _dispatch.RunLua(CheatEngineToolNames.ProcessSetPointerSize, PointerSizeScript,
 			ProcessJsonContext.Default.ProcessPointerSizeResult, cancellationToken, pointerSize);
 	}
+
+	private void PublishThreads(ProcessSnapshot target, ProcessThreadListResult listed)
+	{
+		lock (_threadsLock)
+		{
+			if (!ObserveThreadTarget(target))
+			{
+				throw ThreadTargetChanged();
+			}
+
+			_threads = new PreparedThreads(target.Id.Value, target.SelectionEpoch, [.. listed.Threads], listed.Truncated);
+			_threadsPublishedAt = _time.GetTimestamp();
+		}
+	}
+
+	private bool TryGetPreparedThreads(ProcessSnapshot target, out PreparedThreads snapshot)
+	{
+		lock (_threadsLock)
+		{
+			if (ObserveThreadTarget(target) && _threads is { } current && current.ProcessId == target.Id.Value &&
+				current.SelectionEpoch == target.SelectionEpoch && IsThreadsFresh())
+			{
+				snapshot = current;
+				return true;
+			}
+		}
+
+		snapshot = null!;
+		return false;
+	}
+
+	private bool ObserveThreadTarget(ProcessSnapshot target)
+	{
+		if (target.SelectionEpoch < _threadsObservedEpoch ||
+			(target.SelectionEpoch == _threadsObservedEpoch && target.Id.Value != _threadsObservedProcessId))
+		{
+			_threads = null;
+			return false;
+		}
+
+		if (target.SelectionEpoch > _threadsObservedEpoch)
+		{
+			_threadsObservedEpoch = target.SelectionEpoch;
+			_threadsObservedProcessId = target.Id.Value;
+			_threads = null;
+		}
+
+		return true;
+	}
+
+	private bool IsThreadsFresh()
+	{
+		return _time.GetElapsedTime(_threadsPublishedAt, _time.GetTimestamp()) < TimeSpan.FromSeconds(5);
+	}
+
+	private static ProcessThreadListResult CopyThreads(ProcessThreadListResult result)
+	{
+		return new ProcessThreadListResult([.. result.Threads], result.Truncated);
+	}
+
+	private static void EnsureSameThreadTarget(ProcessSnapshot before, ProcessSnapshot after)
+	{
+		if (before.Id != after.Id || before.SelectionEpoch != after.SelectionEpoch)
+		{
+			throw ThreadTargetChanged();
+		}
+	}
+
+	private static CheatEngineToolException ThreadTargetChanged()
+	{
+		return new CheatEngineToolException(new ToolError(ToolErrorKind.TargetChanged,
+			"The attached process changed while target threads were being read; the completed host read was discarded.",
+			CheatEngineToolNames.ProcessListThreads, ToolHostEffect.Completed, false,
+			"Repeat process_list_threads for the current target."));
+	}
+
+	private static CheatEngineToolException PreparedThreadsMissing()
+	{
+		return CheatEngineToolException.InvalidState("No current prepared target-thread list is available.",
+			$"Run {CheatEngineToolNames.ProcessListThreads} explicitly, then retry within 5 seconds.");
+	}
+
+	private sealed record PreparedThreads(int ProcessId, long SelectionEpoch, long[] Threads, bool Truncated);
 
 	/// <summary>
 	///     Pauses the opened process inside the dispatch. A new pause is recorded under a fresh id and tracked; while

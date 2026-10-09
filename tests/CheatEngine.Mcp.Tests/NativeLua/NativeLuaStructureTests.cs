@@ -131,6 +131,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 		{ nameof(StructureLuaScripts.Helpers), [] },
 		{ nameof(StructureLuaScripts.List), ["play", 0, 100, 65536] },
 		{ nameof(StructureLuaScripts.Elements), ["Player", null, 16, 0, 100, true] },
+		{ nameof(StructureLuaScripts.DefinitionPage), ["Player", 0, 100, true, 65536] },
 		{ nameof(StructureLuaScripts.ElementAt), ["Player", 1] },
 		{
 			nameof(StructureLuaScripts.CreateFromElements),
@@ -205,14 +206,66 @@ public sealed partial class NativeLuaToolRuntimeTests
 		StructureTools tools = NativeStructureHarness().Structures;
 
 		StructureDefinition definition = tools.Get("Player", 1, 2, ResultFormat.Detailed, StructureToken);
+		StructureDefinition concise = tools.Get("Player", 1, 2, ResultFormat.Concise, StructureToken);
+		StructureDefinition tail = tools.Get("Player", 2, 1, ResultFormat.Detailed, StructureToken);
 
 		Assert.Equal(("Player", 3, false, (int?) null), (definition.Name, definition.Total, definition.Internal,
 			definition.NextOffset));
+		Assert.Equal((definition.Name, definition.Total, definition.Internal, definition.NextOffset),
+			(concise.Name, concise.Total, concise.Internal, concise.NextOffset));
+		Assert.Equal((3, 1, (int?) null), (tail.Total, tail.Elements.Length, tail.NextOffset));
 		Assert.Equal(new StructureElement(1, "8", "speed", StructureElementType.Float, null, 4, "Enemy", "4"),
 			definition.Elements[0]);
 		Assert.Equal((StructureElementType.Binary, 1),
 			(definition.Elements[1].ValueType, definition.Elements[1].ByteSize));
 		AssertDeclared(() => tools.Get("player", cancellationToken: StructureToken), ToolErrorKind.NotFound,
+			ToolHostEffect.NotStarted);
+	}
+
+	[Fact]
+	public void StructureGet_BoundedDefinitionLookupAndPagedElements_AvoidWholeStructureTraversal()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(StructureHostStubs);
+		InstallStubs("""
+					 virtualCalls, elementCalls = {}, {}
+					 getStructureCount = function() return 70000 end
+					 getStructure = function(index)
+					   if index == 0 then virtualCalls[#virtualCalls + 1] = index; return player end
+					   error('bounded lookup must stop at the matching definition')
+					 end
+					 setmetatable(player, {__index = function(t, key)
+					   if key == 'Count' then return 100000 end
+					   if key == 'Size' then return 400000 end
+					 end})
+					 player.getElement = function(index)
+					   elementCalls[#elementCalls + 1] = index
+					   if index < 900 or index > 901 then error('page-only getElement access expected') end
+					   return {Offset = index * 4, Name = 'field' .. index, Vartype = 2,
+					     DisplayMethod = 'dtSignedInteger', getBytesize = function() return 4 end}
+					 end
+					 """);
+		StructureTools tools = NativeStructureHarness().Structures;
+
+		StructureDefinition definition = tools.Get("Player", 900, 2, cancellationToken: StructureToken);
+
+		Assert.Equal((100000, 2, (int?) 902), (definition.Total, definition.Elements.Length, definition.NextOffset));
+		Assert.Equal((1L, 0L), (LuaValue("#virtualCalls"), LuaValue("virtualCalls[1]")));
+		Assert.Equal((2L, 900L, 901L), (LuaValue("#elementCalls"), LuaValue("elementCalls[1]"),
+			LuaValue("elementCalls[2]")));
+	}
+
+	[Fact]
+	public void StructureGet_MissingDefinition_ReportsNotFoundWithinBoundAndLimitExceededPastIt()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(StructureHostStubs);
+		StructureTools tools = NativeStructureHarness().Structures;
+
+		AssertDeclared(() => tools.Get("Missing", cancellationToken: StructureToken), ToolErrorKind.NotFound,
+			ToolHostEffect.NotStarted);
+		InstallStubs("getStructureCount = function() return 65537 end; getStructure = function() return nil end");
+		AssertDeclared(() => tools.Get("Missing", cancellationToken: StructureToken), ToolErrorKind.LimitExceeded,
 			ToolHostEffect.NotStarted);
 	}
 

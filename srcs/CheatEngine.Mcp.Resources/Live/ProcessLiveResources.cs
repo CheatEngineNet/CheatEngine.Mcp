@@ -36,13 +36,14 @@ public sealed class ProcessLiveResources(ProcessTools processes)
 	/// <returns>The structured result of <c>process_list_threads</c>.</returns>
 	[McpServerResource(UriTemplate = ThreadsPath, Name = "instance_threads", Title = "Target threads",
 		MimeType = McpResourceUris.JsonMimeType)]
-	[McpSourceTool(typeof(ProcessTools), CheatEngineToolNames.ProcessListThreads)]
+	[McpSourceTool(typeof(ProcessTools), CheatEngineToolNames.ProcessListThreads, PreparedProjection = nameof(ProcessTools.ListPreparedThreads))]
 	[McpResourceAnnotations(Role.Assistant, Priority = LiveResourceResults.Priority)]
-	[Description("Up to 4096 thread ids of the attached target, marked truncated when Cheat Engine reports more. Its " +
-				 "JSON is the structured result of " + CheatEngineToolNames.ProcessListThreads + ".")]
+	[Description("Up to 4096 thread ids of the attached target, marked truncated when Cheat Engine reports more. First " +
+				 "run " + CheatEngineToolNames.ProcessListThreads + " explicitly; this resource reads its prepared snapshot " +
+				 "and must be read within 5 seconds.")]
 	public ReadResourceResult Threads(CancellationToken cancellationToken = default)
 	{
-		return LiveResourceResults.Json(ThreadsPath, JsonSerializer.Serialize(processes.ListThreads(cancellationToken),
+		return LiveResourceResults.Json(ThreadsPath, JsonSerializer.Serialize(processes.ListPreparedThreads(cancellationToken),
 			ProcessJsonContext.Default.ProcessThreadListResult));
 	}
 }

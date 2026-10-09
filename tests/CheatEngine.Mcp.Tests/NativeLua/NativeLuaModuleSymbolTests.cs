@@ -123,7 +123,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 	}
 
 	[Fact]
-	public void ModuleSymbolGetModulePreference_Stubbed_CopiesAtMost1024Names()
+	public void ModuleSymbolGetModulePreference_Stubbed_CopiesAtMost1024NamesAndRefusesAMissingHostList()
 	{
 		using RuntimeScope scope = CreateScope();
 		InstallStubs(ModulePreferenceStubs);
@@ -131,12 +131,16 @@ public sealed partial class NativeLuaToolRuntimeTests
 
 		ModulePreference current = tools.GetModulePreference(Token);
 		InstallStubs("preference = nil");
-		ModulePreference missing = tools.GetModulePreference(Token);
+		CheatEngineToolException missing = Assert.Throws<CheatEngineToolException>(() => tools.GetModulePreference(Token));
+		InstallStubs("preference = {}");
+		ModulePreference empty = tools.GetModulePreference(Token);
 		InstallStubs("preference = {}; for i = 1, 1500 do preference[i] = 'm' .. i end");
 		ModulePreference large = tools.GetModulePreference(Token);
 
 		Assert.Equal(["game", "engine", "kernel32"], current.Modules);
-		Assert.Empty(missing.Modules);
+		Assert.Equal((ToolErrorKind.HostRefused, ToolHostEffect.NotStarted),
+			(missing.Error.Kind, missing.Error.HostEffect));
+		Assert.Empty(empty.Modules);
 		Assert.Equal((1024, true, "m1024"), (large.Modules.Length, large.Truncated, large.Modules[^1]));
 	}
 

@@ -1,6 +1,6 @@
 namespace CheatEngine.Mcp.Tools.Exec;
 
-/// <summary>The composition entry point of the <c>exec</c> tool domain (6 tools in the v2 catalog).</summary>
+/// <summary>The composition entry point of the <c>exec</c> tool domain.</summary>
 public static class ExecToolsBuilderExtensions
 {
 	extension(ICheatEngineMcpBuilder builder)
@@ -14,7 +14,9 @@ public static class ExecToolsBuilderExtensions
 			ArgumentNullException.ThrowIfNull(builder);
 			return builder
 				.AddJsonTypeInfoResolver(ExecJsonContext.Default)
-				.AddToolType<ExecTools>();
+				.AddJsonTypeInfoResolver(ExecCSharpJsonContext.Default)
+				.AddToolType<ExecTools>()
+				.AddToolType<ExecCSharpTools>();
 		}
 	}
 }

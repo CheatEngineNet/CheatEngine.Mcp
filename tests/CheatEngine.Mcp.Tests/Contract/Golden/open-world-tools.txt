@@ -2,9 +2,11 @@ exec_call_local
 exec_call_method
 exec_call_remote
 exec_compile_c
+exec_compile_csharp
 exec_inject_dotnet
 exec_inject_library
 lua_execute
+lua_find_api
 memory_dump_to_file
 memory_load_from_file
 module_find_patches

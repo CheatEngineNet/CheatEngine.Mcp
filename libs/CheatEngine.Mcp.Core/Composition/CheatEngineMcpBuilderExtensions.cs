@@ -5,6 +5,7 @@ using System.Text.Json.Serialization.Metadata;
 using CheatEngine.Client;
 using CheatEngine.Mcp.Core.Execution;
 using CheatEngine.Mcp.Core.Features;
+using CheatEngine.Mcp.Core.Inspection;
 using CheatEngine.Mcp.Core.Jobs;
 using CheatEngine.Mcp.Core.Lua;
 using CheatEngine.Mcp.Core.Targets;
@@ -94,6 +95,7 @@ public static class CheatEngineMcpBuilderExtensions
 					services.GetRequiredService<ILogger<ToolDispatch>>(),
 					services.GetRequiredService<IFixedLuaExecutor>())));
 				builder.Services.TryAddScoped<McpStateLedger>();
+				builder.Services.TryAddScoped<PreparedInspectionStore>();
 				builder.Services.TryAddScoped<TargetResources>();
 				builder.Services.TryAddEnumerable(
 					ServiceDescriptor.Scoped<ITargetTransitionGuard, TargetResources>(static services =>

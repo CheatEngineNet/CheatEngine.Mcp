@@ -252,7 +252,7 @@ internal sealed class PointerMapSlot
 			int progress = _state is PointerJobState.Ready || _planned <= 0
 				? 100
 				: (int) Math.Clamp(_attempted * 100 / _planned, 0, 100);
-			return new PointerMapInfo(Name, _job?.Id ?? string.Empty, _state, _processId, _width, _pointers,
+			return new PointerMapInfo(Name, _job?.Id, _state, _processId, _width, _pointers,
 				_bytesRead, _unreadableBytes, _incomplete, progress, _error,
 				_processId is null ? PointerCaptureCompleteness.Unknown : _incomplete
 					? PointerCaptureCompleteness.Incomplete : PointerCaptureCompleteness.Complete);

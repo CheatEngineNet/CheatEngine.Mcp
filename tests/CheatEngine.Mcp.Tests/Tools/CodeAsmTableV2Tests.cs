@@ -6,12 +6,16 @@ using CheatEngine.Client;
 using CheatEngine.Client.Assembly;
 using CheatEngine.Client.Extensions.DependencyInjection;
 using CheatEngine.Client.Inspection;
+using CheatEngine.Client.Lua;
 using CheatEngine.Client.Processes;
 using CheatEngine.Client.Results;
+using CheatEngine.Client.Tables;
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Features;
 using CheatEngine.Mcp.Core.Files;
 using CheatEngine.Mcp.Core.Jobs;
+using CheatEngine.Mcp.Core.Lua;
+using CheatEngine.Mcp.Core.Tables;
 using CheatEngine.Mcp.Tests.Core;
 using CheatEngine.Mcp.Tests.Support;
 using CheatEngine.Mcp.Tools.Asm;
@@ -382,6 +386,29 @@ public sealed class CodeAsmTableV2Tests : IDisposable
 		Assert.Equal(0, harness.ApplyCalls);
 	}
 
+	[Theory]
+	[InlineData("unsafe", "[ENABLE]\nluacall(print)\n[DISABLE]\nnop")]
+	[InlineData("target", "[ENABLE]\nloadlibrary(example.dll)\n[DISABLE]\nnop")]
+	[InlineData("kernel", "[ENABLE]\nkalloc(buffer,16)\n[DISABLE]\nnop")]
+	public void Apply_SecondaryCapabilityDisabled_RefusesBeforeClientMutation(string disabledFeature, string script)
+	{
+		McpFeatureOptions features = disabledFeature switch
+		{
+			"unsafe" => new McpFeatureOptions { EnableUnsafeLua = false },
+			"target" => new McpFeatureOptions { EnableTargetCodeExecution = false },
+			"kernel" => new McpFeatureOptions { EnableKernelAccess = false },
+			_ => throw new InvalidOperationException($"Unexpected feature {disabledFeature}.")
+		};
+		AutoAssemblerHarness harness = new(features);
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			harness.Tools.Apply(script, cancellationToken: Token));
+
+		Assert.Equal((ToolErrorKind.CapabilityDisabled, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Equal(0, harness.ApplyCalls);
+	}
+
 	[Fact]
 	public void AutoAssemblerEntryPoints_DeclareTheStaticAutoAssemblerRequirement()
 	{
@@ -447,6 +474,95 @@ public sealed class CodeAsmTableV2Tests : IDisposable
 		Assert.Equal((ToolErrorKind.CapabilityDisabled, ToolHostEffect.NotStarted),
 			(exception.Error.Kind, exception.Error.HostEffect));
 		Assert.Equal(0, dispatcher.Calls);
+	}
+
+	[Theory]
+	[InlineData("assembler", "<AssemblerScript>[ENABLE]\nnop\n[DISABLE]\nnop</AssemblerScript>")]
+	[InlineData("target", "<UsesMono>1</UsesMono>")]
+	[InlineData("kernel", "<AssemblerScript>[ENABLE]\nkalloc(buffer,16)\n[DISABLE]\nnop</AssemblerScript>")]
+	public void Load_GatedTableContent_DisabledFeatureRefusesBeforeClientLoad(string disabledFeature, string content)
+	{
+		McpFeatureOptions features = disabledFeature switch
+		{
+			"assembler" => new McpFeatureOptions { EnableAutoAssembler = false },
+			"target" => new McpFeatureOptions { EnableTargetCodeExecution = false },
+			"kernel" => new McpFeatureOptions { EnableKernelAccess = false },
+			_ => throw new InvalidOperationException($"Unexpected feature {disabledFeature}.")
+		};
+		string table = CreateTable($"<?xml version=\"1.0\"?><CheatTable>{content}</CheatTable>");
+		Assert.True(CheatTableInspector.Inspect(table, File.ReadAllBytes(table), true).IsInspected);
+		RecordingDispatcher dispatcher = new();
+		TableTools tools = CreateTableTools(dispatcher, features);
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() => tools.Load(table,
+			cancellationToken: Token));
+
+		Assert.Equal((ToolErrorKind.CapabilityDisabled, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Equal(0, dispatcher.Calls);
+	}
+
+	[Theory]
+	[InlineData(McpFeature.UnsafeLua)]
+	[InlineData(McpFeature.AutoAssembler)]
+	[InlineData(McpFeature.TargetCodeExecution)]
+	public void Load_OpaqueTable_DisabledExposureGate_RefusesBeforeClientLoad(McpFeature disabledFeature)
+	{
+		string table = CreateTable("not a Cheat Engine table");
+		RecordingDispatcher dispatcher = new();
+		TableTools tools = CreateTableTools(dispatcher, new McpFeatureOptions
+		{
+			EnableUnsafeLua = disabledFeature is not McpFeature.UnsafeLua,
+			EnableAutoAssembler = disabledFeature is not McpFeature.AutoAssembler,
+			EnableTargetCodeExecution = disabledFeature is not McpFeature.TargetCodeExecution
+		});
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() => tools.Load(table,
+			cancellationToken: Token));
+
+		Assert.Equal((ToolErrorKind.CapabilityDisabled, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Contains(McpFeatureGate.SettingName(disabledFeature), exception.Error.Message, StringComparison.Ordinal);
+		Assert.Contains("cannot be inspected", exception.Error.Message, StringComparison.Ordinal);
+		Assert.Equal(0, dispatcher.Calls);
+	}
+
+	[Fact]
+	public void Load_CurrentTableUsesMonoWithCodeExecutionDisabled_ProbesButRefusesBeforeClientLoad()
+	{
+		string table = CreateTable("<?xml version=\"1.0\"?><CheatTable />");
+		Assert.True(CheatTableInspector.Inspect(table, File.ReadAllBytes(table), true).IsInspected);
+		int luaCalls = 0;
+		int loadCalls = 0;
+		ILuaClient lua = ClientTestDouble.Create<ILuaClient>((method, _) =>
+		{
+			Assert.Equal(nameof(ILuaClient.Execute), method.Name);
+			luaCalls++;
+			return new LuaJsonResult<MonoAutoAttachState>(new MonoAutoAttachState(true, false, true, true), null, 0);
+		});
+		ITableClient tables = ClientTestDouble.Create<ITableClient>((method, _) =>
+		{
+			Assert.Equal(nameof(ITableClient.LoadTrustedTable), method.Name);
+			loadCalls++;
+			return null;
+		});
+		RecordingDispatcher dispatcher = new();
+		IOptions<McpExecutionOptions> execution = Options.Create(new McpExecutionOptions());
+		ICheatEngineClient client = ClientTestDouble.Client(dispatcher.Dispatcher, CancellationToken.None,
+			(nameof(ICheatEngineClient.Lua), lua), (nameof(ICheatEngineClient.Tables), tables));
+		ToolDispatch dispatch = new(client, new McpFeatureGate(Options.Create(new McpFeatureOptions
+		{
+			EnableTargetCodeExecution = false
+		})), execution, new DispatchStatistics(execution), TimeProvider.System,
+			new RecordingLogger<ToolDispatch>(), new PluginFixedLuaExecutor(client));
+		TableTools tools = CreateTableTools(dispatch, Path.GetDirectoryName(table)!);
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() => tools.Load(table,
+			cancellationToken: Token));
+
+		Assert.Equal((ToolErrorKind.CapabilityDisabled, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Equal((1, 1, 0), (dispatcher.Calls, luaCalls, loadCalls));
 	}
 
 	[Fact]
@@ -516,6 +632,28 @@ public sealed class CodeAsmTableV2Tests : IDisposable
 			new McpFeatureGate(Options.Create(features)), execution, new DispatchStatistics(execution),
 			TimeProvider.System,
 			new RecordingLogger<ToolDispatch>());
+	}
+
+	private string CreateTable(string content)
+	{
+		string root = _scratch.CreateFolder("tables");
+		string table = Path.Combine(root, "gated.ct");
+		File.WriteAllText(table, content);
+		return table;
+	}
+
+	private TableTools CreateTableTools(RecordingDispatcher dispatcher, McpFeatureOptions features)
+	{
+		ToolDispatch dispatch = CreateDispatch(dispatcher, features);
+		return CreateTableTools(dispatch, _scratch.CreateFolder("tables"));
+	}
+
+	private TableTools CreateTableTools(ToolDispatch dispatch, string root)
+	{
+		CheatEngineClientOptions options = new();
+		options.AllowedTableRoots.Add(root);
+		return new TableTools(dispatch, new McpFilePaths(new McpFileOptions(), _scratch.CreateFolder("registry"),
+			_scratch.CreateFolder("data")), Options.Create(options));
 	}
 
 	private static MethodInfo Method(string name)

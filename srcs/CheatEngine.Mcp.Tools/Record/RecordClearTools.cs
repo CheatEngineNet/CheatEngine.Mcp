@@ -42,7 +42,7 @@ public sealed class RecordClearTools(ToolDispatch dispatch)
 	                                        end
 	                                        local record = queue[index]
 	                                        if record.Type == vtAutoAssembler and record.Active and not a[1] then
-	                                            return mcp.err('capability_disabled', 'An active Auto Assembler record requires Mcp:EnableAutoAssembler before the list can be cleared.', 'not_started')
+	                                            return mcp.err('capability_disabled', 'An active Auto Assembler record requires Mcp:EnableAutoAssembler before the list can be cleared.', 'not_started', 'Set Mcp:EnableAutoAssembler to true in appsettings.json, then disable and re-enable the plugin.')
 	                                        end
 	                                        for child = 0, record.Count - 1 do
 	                                            enqueue(record.Child[child])
@@ -58,9 +58,9 @@ public sealed class RecordClearTools(ToolDispatch dispatch)
 	/// <summary>Deletes every address-list record, including child records.</summary>
 	[McpServerTool(Name = CheatEngineToolNames.RecordClear, Title = "Clear address list", ReadOnly = false,
 		Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.MayPrompt)]
 	[Description(
-		"Delete every Cheat Engine address-list record and return the number removed, including nested child records. Refuses lists above 100000 records before changing them. Active scripts may run their disable sections during clear.")]
+		"Delete every Cheat Engine address-list record and return the number removed, including nested child records. Refuses lists above 100000 records before changing them. Active scripts may run their disable sections during clear, which can block Cheat Engine or show a dialog.")]
 	public RecordClearResult Clear(CancellationToken cancellationToken = default)
 	{
 		return dispatch.RunLua(CheatEngineToolNames.RecordClear, ClearScript,

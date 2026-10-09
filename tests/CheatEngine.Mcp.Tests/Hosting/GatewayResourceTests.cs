@@ -27,8 +27,8 @@ public sealed class GatewayResourceTests
 	private static readonly string[] LivePaths =
 	[
 		"debugger", "debugger/breakpoints{?limit}", "disassembly/{address}{?count}", "jobs",
-		"memory/{address}{?size}", "modules/{module}", "modules/{module}/exports{?offset,limit}",
-		"modules{?offset,limit}", "patches", "pointer-maps", "pointer-scans",
+		"memory/{address}{?size}", "modules/{module}", "modules{?offset,limit}", "patches", "pointer-maps",
+		"pointer-scans",
 		"pointer-scans/{scanName}/paths{?offset,limit}", "process", "records/{recordId}", "records{?offset,limit}",
 		"regions{?offset,limit}", "resources", "runtime", "scanners", "scanners/{scannerName}", "speedhack",
 		"structures/{structure}{?offset,limit}", "structures{?offset,limit}", "symbols{?offset,limit}", "threads"

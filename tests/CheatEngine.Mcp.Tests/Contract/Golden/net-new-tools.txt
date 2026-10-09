@@ -16,6 +16,7 @@ dotnet_list_types
 dotnet_poll_instance_search
 dotnet_start_instance_search
 exec_call_method
+exec_compile_csharp
 lua_find_api
 memory_compare_snapshot
 memory_create_snapshot
@@ -42,9 +43,11 @@ mono_list_fields
 mono_list_methods
 mono_poll_instance_search
 mono_start_instance_search
+pointer_get_access_info
 pointer_list_scans
 pointer_load_map
 pointer_load_scan
+pointer_read_chains
 pointer_save_map
 pointer_save_scan
 record_group

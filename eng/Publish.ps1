@@ -124,7 +124,8 @@ try {
     dotnet build tests/CheatEngine.Mcp.LiveTarget -c $Configuration -p:RestoreLockedMode=true -p:ContinuousIntegrationBuild=true
     if ($LASTEXITCODE -ne 0) { throw 'Plugin bundle probe build failed.' }
     $probe = Join-Path $repoRoot "artifacts/bin/CheatEngine.Mcp.LiveTarget/$variant/CheatEngine.Mcp.LiveTarget.dll"
-    dotnet exec --runtimeconfig (Join-Path $pluginOutput 'CheatEngine.Mcp.runtimeconfig.json') $probe --probe-plugin (Join-Path $dist 'CheatEngine.Mcp.dll')
+    $goldenDirectory = Join-Path $repoRoot 'tests/CheatEngine.Mcp.Tests/Contract/Golden'
+    dotnet exec --runtimeconfig (Join-Path $pluginOutput 'CheatEngine.Mcp.runtimeconfig.json') $probe --probe-plugin (Join-Path $dist 'CheatEngine.Mcp.dll') $goldenDirectory
     if ($LASTEXITCODE -ne 0) { throw 'The published single-DLL plugin failed the isolated load probe.' }
 
     dotnet publish srcs/CheatEngine.Mcp.Gateway -c $Configuration -p:PublishProfile=Standalone -p:RestoreLockedMode=true -p:ContinuousIntegrationBuild=true
@@ -145,6 +146,6 @@ try {
     if ($missing.Count -ne 0) { throw "Incomplete distribution in ${dist}; missing: $($missing -join ', ')" }
     $files = @(Get-ChildItem -LiteralPath $dist -Force)
     if ($files.Count -ne $expected.Count) { throw 'The distribution must contain exactly the single plugin DLL, gateway, instructions and notices.' }
-    Get-ChildItem -LiteralPath $dist | Select-Object Name, Length
+    Get-ChildItem -LiteralPath $dist | Select-Object Name, Length, @{ Name = 'SHA256'; Expression = { (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash } }
 }
 finally { Pop-Location }

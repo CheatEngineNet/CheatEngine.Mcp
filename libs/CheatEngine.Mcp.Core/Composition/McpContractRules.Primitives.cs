@@ -416,8 +416,9 @@ internal static partial class McpContractRules
 	/// <summary>
 	///     A live resource must name, with <see cref="McpSourceToolAttribute" />, the tool whose structured result it
 	///     returns, and publish that name in <c>_meta</c>. A client may read or prefetch a resource without any tool call,
-	///     so the tool must be a frozen backend tool that is read-only, closed-world, ungated and <c>short</c>; when the
-	///     server serves tools, it must serve that one. A Local document projects no tool.
+	///     so the tool must be a frozen backend tool that is read-only, closed-world and ungated. It must be <c>short</c>,
+	///     unless it names a matching short, ungated prepared projection; when the server serves tools, it must serve the
+	///     explicit source. A Local document projects no tool.
 	/// </summary>
 	private static void ValidateSource(List<string> failures, string subject, McpServerResource resource,
 		McpPrimitiveRouting routing, IReadOnlySet<string> servedTools)
@@ -483,11 +484,68 @@ internal static partial class McpContractRules
 						 "must never need a feature switch.");
 		}
 
-		if (!string.Equals(source.DispatchClass, McpDispatchClass.Short, StringComparison.Ordinal))
+		bool dispatchDefined = McpDispatchClass.IsDefined(source.DispatchClass);
+		if (!dispatchDefined)
 		{
 			failures.Add($"{subject} projects '{tool}', whose dispatch class is {source.DispatchClass ?? "missing"}; " +
-						 $"only a {McpDispatchClass.Short} tool may back a resource a client can prefetch.");
+						 "it must be one of short, host_scan, blocking_native or may_prompt.");
 		}
+
+		bool preparedProjection = ValidatePreparedProjection(failures, subject, source);
+		if (dispatchDefined && !string.Equals(source.DispatchClass, McpDispatchClass.Short, StringComparison.Ordinal) &&
+			!preparedProjection)
+		{
+			failures.Add($"{subject} projects '{tool}', whose dispatch class is {source.DispatchClass ?? "missing"}; " +
+						 $"only a {McpDispatchClass.Short} tool or a valid prepared projection may back a resource a client can prefetch.");
+		}
+	}
+
+	private static bool ValidatePreparedProjection(List<string> failures, string subject, McpResourceSource source)
+	{
+		if (source.PreparedProjectionName is null)
+		{
+			return false;
+		}
+
+		string name = source.PreparedProjectionName;
+		MethodInfo? projection = source.PreparedProjection;
+		if (projection is null)
+		{
+			failures.Add($"{subject} names the prepared projection '{name}', which {source.ToolType.Name} does not " +
+						 "declare exactly once as a public instance method.");
+			return false;
+		}
+
+		bool valid = true;
+		if (projection.GetCustomAttribute<McpServerToolAttribute>(false) is not null)
+		{
+			failures.Add($"{subject} names prepared projection '{name}', which must not be an MCP tool.");
+			valid = false;
+		}
+
+		if (source.Method is not null && projection.ReturnType != source.Method.ReturnType)
+		{
+			failures.Add($"{subject} names prepared projection '{name}', whose return type must exactly match " +
+						 $"'{source.Method.ReturnType.Name}'.");
+			valid = false;
+		}
+
+		if (source.PreparedRequires.Count > 0)
+		{
+			failures.Add($"{subject} names prepared projection '{name}', which requires " +
+						 $"{string.Join(", ", source.PreparedRequires.Select(McpFeatureGate.ContractName))}; a prepared " +
+						 "resource read must never need a feature switch.");
+			valid = false;
+		}
+
+		if (!string.Equals(source.PreparedDispatchClass, McpDispatchClass.Short, StringComparison.Ordinal))
+		{
+			failures.Add($"{subject} names prepared projection '{name}', whose dispatch class is " +
+						 $"{source.PreparedDispatchClass ?? "missing"}; it must declare {McpDispatchClass.Short}.");
+			valid = false;
+		}
+
+		return valid;
 	}
 
 	/// <summary>

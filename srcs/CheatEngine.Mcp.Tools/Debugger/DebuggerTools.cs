@@ -1,7 +1,9 @@
 using System.ComponentModel;
 using System.Globalization;
 
+using CheatEngine.Client;
 using CheatEngine.Client.Processes;
+using CheatEngine.Client.Results;
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Features;
 using CheatEngine.Mcp.Core.Jobs;
@@ -24,13 +26,18 @@ public sealed class DebuggerTools
 	private const int MaximumTraceSteps = 256;
 	private const int MaximumStackDepth = 128;
 	private const string CleanupFailedMessage = "The recorded cleanup did not complete.";
+	private static readonly TimeSpan PreparedBreakpointLifetime = TimeSpan.FromSeconds(5);
 
 	private readonly ToolDispatch _dispatch;
 	private readonly JobRegistry _jobs;
+	private readonly Lock _preparedBreakpointGate = new();
 	private readonly TargetResources _resources;
+	private readonly TimeProvider _time;
+	private PreparedBreakpoints? _preparedBreakpoints;
+	private long _preparedBreakpointGeneration;
 
 	/// <summary>Creates the activation-scoped debugger tools.</summary>
-	public DebuggerTools(ToolDispatch dispatch, JobRegistry jobs, TargetResources resources)
+	public DebuggerTools(ToolDispatch dispatch, JobRegistry jobs, TargetResources resources, TimeProvider? time = null)
 	{
 		ArgumentNullException.ThrowIfNull(dispatch);
 		ArgumentNullException.ThrowIfNull(jobs);
@@ -38,6 +45,7 @@ public sealed class DebuggerTools
 		_dispatch = dispatch;
 		_jobs = jobs;
 		_resources = resources;
+		_time = time ?? TimeProvider.System;
 	}
 
 	/// <summary>Attaches the selected Cheat Engine debugger interface.</summary>
@@ -179,11 +187,18 @@ public sealed class DebuggerTools
 		}
 
 		string resourceId = _resources.NextId("breakpoint");
-		DebuggerBreakpointSet set = _dispatch.RunLua(CheatEngineToolNames.DebuggerSetBreakpoint,
-			DebuggerLuaScripts.SetBreakpoint, DebuggerJsonContext.Default.DebuggerBreakpointSet, cancellationToken,
-			_resources.Namespace, resourceId, expression, size, Trigger(trigger), Method(method), threadId, oneShot);
-		_resources.TrackState(resourceId, "breakpoint", address: set.Address, size: size, detail: Trigger(trigger));
-		return set;
+		try
+		{
+			DebuggerBreakpointSet set = _dispatch.RunLua(CheatEngineToolNames.DebuggerSetBreakpoint,
+				DebuggerLuaScripts.SetBreakpoint, DebuggerJsonContext.Default.DebuggerBreakpointSet, cancellationToken,
+				_resources.Namespace, resourceId, expression, size, Trigger(trigger), Method(method), threadId, oneShot);
+			_resources.TrackState(resourceId, "breakpoint", address: set.Address, size: size, detail: Trigger(trigger));
+			return set;
+		}
+		finally
+		{
+			InvalidatePreparedBreakpoints();
+		}
 	}
 
 	/// <summary>Releases the MCP-owned breakpoint at the requested address.</summary>
@@ -200,40 +215,81 @@ public sealed class DebuggerTools
 		CancellationToken cancellationToken = default)
 	{
 		string expression = Address(address, "address");
-		DebuggerBreakpointDeleted deleted = _dispatch.RunLua(CheatEngineToolNames.DebuggerDeleteBreakpoint,
-			DebuggerLuaScripts.DeleteBreakpoint, DebuggerJsonContext.Default.DebuggerBreakpointDeleted,
-			cancellationToken, _resources.Namespace, expression);
-		if (deleted.Released)
+		try
 		{
-			_resources.Forget(deleted.ResourceId);
-			return deleted;
-		}
+			DebuggerBreakpointDeleted deleted = _dispatch.RunLua(CheatEngineToolNames.DebuggerDeleteBreakpoint,
+				DebuggerLuaScripts.DeleteBreakpoint, DebuggerJsonContext.Default.DebuggerBreakpointDeleted,
+				cancellationToken, _resources.Namespace, expression);
+			if (deleted.Released)
+			{
+				_resources.Forget(deleted.ResourceId);
+				return deleted;
+			}
 
-		deleted = deleted with
+			deleted = deleted with
+			{
+				CleanupError = CleanupFailedMessage
+			};
+			throw CheatEngineToolException.PartialEffect(
+				"Cheat Engine did not confirm removal of the MCP-owned breakpoint.", ToolHostEffect.CleanupUnconfirmed,
+				deleted, DebuggerJsonContext.Default.DebuggerBreakpointDeleted, false,
+				"Inspect debugger_list_breakpoints and use runtime_release_resources after manual recovery.");
+		}
+		finally
 		{
-			CleanupError = CleanupFailedMessage
-		};
-		throw CheatEngineToolException.PartialEffect(
-			"Cheat Engine did not confirm removal of the MCP-owned breakpoint.", ToolHostEffect.CleanupUnconfirmed,
-			deleted, DebuggerJsonContext.Default.DebuggerBreakpointDeleted, false,
-			"Inspect debugger_list_breakpoints and use runtime_release_resources after manual recovery.");
+			InvalidatePreparedBreakpoints();
+		}
 	}
 
 	/// <summary>Lists a bounded copy of all currently visible breakpoints.</summary>
 	[McpServerTool(Name = CheatEngineToolNames.DebuggerListBreakpoints, Title = "List debugger breakpoints",
 		ReadOnly = true,
 		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.BlockingNative)]
 	[Description(
-		"Copies up to 1024 breakpoint addresses from Cheat Engine and identifies entries this MCP activation owns.")]
+		"Copies up to 1024 breakpoint addresses from Cheat Engine and identifies entries this MCP activation owns. A successful call explicitly prepares this snapshot for the breakpoints resource for five seconds; ownership fields are observations from that snapshot. The copy cap does not bound native enumeration, which can block Cheat Engine for seconds.")]
 	public DebuggerBreakpointPage ListBreakpoints(
 		[Description("The maximum addresses to copy, from 1 through 1024.")]
 		int limit = 256,
 		CancellationToken cancellationToken = default)
 	{
 		Range(limit, "limit", 1, MaximumBreakpointList);
-		return _dispatch.RunLua(CheatEngineToolNames.DebuggerListBreakpoints, DebuggerLuaScripts.ListBreakpoints,
-			DebuggerJsonContext.Default.DebuggerBreakpointPage, cancellationToken, _resources.Namespace, limit);
+		ICheatEngineClient client = _dispatch.Client;
+		return _dispatch.Run(CheatEngineToolNames.DebuggerListBreakpoints, token =>
+		{
+			long generation = PreparedBreakpointGeneration();
+			BreakpointTarget before = CurrentTarget(client, token);
+			DebuggerBreakpointPage copied = _dispatch.ExecuteLua(CheatEngineToolNames.DebuggerListBreakpoints,
+				DebuggerLuaScripts.ListBreakpoints, DebuggerJsonContext.Default.DebuggerBreakpointPage, token,
+				_resources.Namespace, MaximumBreakpointList);
+			BreakpointTarget after = CurrentTarget(client, token);
+			EnsureSameTarget(before, after);
+			PublishPreparedBreakpoints(before, copied, generation);
+			return ProjectBreakpoints(copied, limit);
+		}, cancellationToken);
+	}
+
+	/// <summary>Pages the latest explicitly prepared breakpoint snapshot.</summary>
+	/// <remarks>The snapshot expires after five seconds and its ownership fields remain observations from preparation.</remarks>
+	/// <param name="limit">The most breakpoint addresses to return.</param>
+	/// <param name="cancellationToken">The request's token.</param>
+	/// <returns>A page projected from the prepared breakpoint snapshot.</returns>
+	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+	public DebuggerBreakpointPage ListPreparedBreakpoints(int limit = 256,
+		CancellationToken cancellationToken = default)
+	{
+		Range(limit, "limit", 1, MaximumBreakpointList);
+		return _dispatch.Run(CheatEngineToolNames.DebuggerListBreakpoints, token =>
+		{
+			BreakpointTarget current = CurrentTarget(_dispatch.Client, token);
+			if (!TryGetPreparedBreakpoints(current, out DebuggerBreakpointPage copied))
+			{
+				throw CheatEngineToolException.InvalidState("No current prepared breakpoint snapshot is available.",
+					"Run debugger_list_breakpoints explicitly, then retry within 5 seconds.");
+			}
+
+			return ProjectBreakpoints(copied, limit);
+		}, cancellationToken);
 	}
 
 	/// <summary>Continues the current stopped debugger context.</summary>
@@ -618,6 +674,91 @@ public sealed class DebuggerTools
 
 		return expression;
 	}
+
+	private long PreparedBreakpointGeneration()
+	{
+		lock (_preparedBreakpointGate)
+		{
+			return _preparedBreakpointGeneration;
+		}
+	}
+
+	private void PublishPreparedBreakpoints(BreakpointTarget target, DebuggerBreakpointPage page, long generation)
+	{
+		lock (_preparedBreakpointGate)
+		{
+			if (_preparedBreakpointGeneration == generation)
+			{
+				_preparedBreakpoints = new PreparedBreakpoints(target, CloneBreakpointPage(page), _time.GetTimestamp());
+			}
+		}
+	}
+
+	private bool TryGetPreparedBreakpoints(BreakpointTarget target, out DebuggerBreakpointPage page)
+	{
+		lock (_preparedBreakpointGate)
+		{
+			if (_preparedBreakpoints is { } prepared && prepared.Target == target &&
+				_time.GetElapsedTime(prepared.PublishedAt, _time.GetTimestamp()) < PreparedBreakpointLifetime)
+			{
+				page = CloneBreakpointPage(prepared.Page);
+				return true;
+			}
+		}
+
+		page = null!;
+		return false;
+	}
+
+	private void InvalidatePreparedBreakpoints()
+	{
+		lock (_preparedBreakpointGate)
+		{
+			_preparedBreakpointGeneration++;
+			_preparedBreakpoints = null;
+		}
+	}
+
+	private static DebuggerBreakpointPage ProjectBreakpoints(DebuggerBreakpointPage copied, int limit)
+	{
+		DebuggerBreakpoint[] breakpoints = [.. copied.Breakpoints.Take(limit)];
+		return new DebuggerBreakpointPage(breakpoints, copied.Total,
+			copied.Truncated || copied.Breakpoints.Length > breakpoints.Length);
+	}
+
+	private static DebuggerBreakpointPage CloneBreakpointPage(DebuggerBreakpointPage page)
+	{
+		return new DebuggerBreakpointPage([.. page.Breakpoints], page.Total, page.Truncated);
+	}
+
+	private static BreakpointTarget CurrentTarget(ICheatEngineClient client, CancellationToken token)
+	{
+		if (client.Processes.TryGetCurrentProcess(out ProcessSnapshot process, out CheatEngineFailure failure, token))
+		{
+			return new BreakpointTarget(process.Id.Value, process.SelectionEpoch);
+		}
+
+		if (failure.Kind is CheatEngineFailureKind.TargetNotAttached)
+		{
+			return default;
+		}
+
+		throw CheatEngineToolException.FromFailure(failure, client.Stopping.IsCancellationRequested);
+	}
+
+	private static void EnsureSameTarget(BreakpointTarget before, BreakpointTarget after)
+	{
+		if (before != after)
+		{
+			throw new CheatEngineToolException(new ToolError(ToolErrorKind.TargetChanged,
+				"The selected target changed while breakpoints were being copied.", CheatEngineToolNames.DebuggerListBreakpoints,
+				ToolHostEffect.Completed, false, "Re-attach the process, then repeat the breakpoint list."));
+		}
+	}
+
+	private readonly record struct BreakpointTarget(int? ProcessId, long? SelectionEpoch);
+
+	private sealed record PreparedBreakpoints(BreakpointTarget Target, DebuggerBreakpointPage Page, long PublishedAt);
 
 	private static void BreakpointSize(int size, DebuggerBreakpointTrigger trigger)
 	{

@@ -17,8 +17,8 @@ rules are in [workflows](workflows.md) and consent in [safety](safety.md); the
      the user; never repeat a mutation blindly.
 3. `retryable: true` means the identical call may succeed later as it is. Wait until the condition in the message has
    changed, then repeat it once. `false` does not mean impossible: fix something or inspect the state first.
-4. Reads are safe to repeat: read-only tools, resource reads and job polls (a poll's `afterSequence` is a cursor, not
-   an acknowledgement, so the same value returns the same page).
+4. Read-only tools and resources are safe to repeat. Job pages use a cursor, not an acknowledgement, but
+   `kernel_poll_watch` also drains DBVM's log and can evict retained events; it is not a passive read.
 5. Retry at most once, and never in a loop. Before continuing a change, tell the user what failed and what, if
    anything, was applied.
 
@@ -41,7 +41,7 @@ rules are in [workflows](workflows.md) and consent in [safety](safety.md); the
 | `hostEffect` | How far Cheat Engine got, so whether anything changed (see Host effects below). |
 | `retryable` | `true` only when repeating the identical call later is safe and may succeed. |
 | `hint` | The suggested next step, when there is one. |
-| `details` | Structured context, when the tool has some (see Details by tool below); an `internal` error adds `errorId`. |
+| `details` | Structured context, when the tool has some (see Details by tool below); an `internal` error adds `errorId`, retaining non-object context under `details.value`. |
 
 Not every negative answer is a failure. Check these fields in successful results:
 

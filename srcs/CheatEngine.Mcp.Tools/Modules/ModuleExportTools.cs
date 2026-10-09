@@ -35,9 +35,9 @@ public sealed class ModuleExportTools
 	/// <returns>The page.</returns>
 	[McpServerTool(Name = CheatEngineToolNames.ModuleListExports, Title = "List module exports", ReadOnly = true,
 		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.HostScan)]
 	[Description(
-		"Page the exports of one module of the attached process, parsed from its export directory in memory: name (omitted for ordinal-only exports), ordinal and address, or the forwarder such as NTDLL.RtlAllocateHeap for a forwarded export. Filter with nameContains, then page with offset and limit (at most 1000). A module whose export data exceeds 8 MiB or 65536 entries is refused.")]
+		"Page the exports of one module of the attached process, parsed from its export directory in memory: name (omitted for ordinal-only exports), ordinal and address, or the forwarder such as NTDLL.RtlAllocateHeap for a forwarded export. The whole directory is read in one dispatch before filtering and paging, holding Cheat Engine while it runs; large directories can take seconds. Filter with nameContains, then page with offset and limit (at most 1000). A module whose export data exceeds 8 MiB or 65536 entries is refused.")]
 	public ExportList ListExports(
 		[Description("The module name, such as kernel32.dll, or an address expression inside it.")]
 		string module,

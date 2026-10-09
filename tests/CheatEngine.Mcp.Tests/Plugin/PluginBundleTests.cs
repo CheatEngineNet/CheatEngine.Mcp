@@ -37,6 +37,23 @@ public sealed class PluginBundleTests
 		Assert.Contains("PLUGIN_BUNDLE_PROBE_OK", result.Output, StringComparison.Ordinal);
 	}
 
+	[Theory]
+	[InlineData("backend-tools.json")]
+	[InlineData("backend-resources.json")]
+	[InlineData("backend-prompts.json")]
+	public async Task InstalledPlugin_ReviewedCatalogMismatch_RefusesBundle(string fileName)
+	{
+		await using PluginBundleFixture fixture = new();
+		string goldenDirectory = fixture.CreateMismatchedGoldenDirectory(fileName);
+
+		ProbeResult result = await fixture.RunProbeAsync(goldenDirectory);
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains($"The bundled plugin's reflected catalog differs from '{fileName}'.", result.Output,
+			StringComparison.Ordinal);
+		Assert.DoesNotContain("PLUGIN_BUNDLE_PROBE_OK", result.Output, StringComparison.Ordinal);
+	}
+
 	private sealed class PluginBundleFixture : IAsyncDisposable
 	{
 		private readonly string _root = Path.Combine(RepositoryPaths.Root, "artifacts", "test-results", "plugin-bundle",
@@ -62,6 +79,19 @@ public sealed class PluginBundleTests
 		public ValueTask DisposeAsync()
 		{
 			return new ValueTask(TestDirectory.DeleteAsync(_root));
+		}
+
+		internal string CreateMismatchedGoldenDirectory(string fileName)
+		{
+			string source = Path.Combine(RepositoryPaths.Root, "tests", "CheatEngine.Mcp.Tests", "Contract", "Golden");
+			string destination = Directory.CreateDirectory(Path.Combine(_root, "reviewed-contract")).FullName;
+			foreach (string snapshot in new[] { "backend-tools.json", "backend-resources.json", "backend-prompts.json" })
+			{
+				File.Copy(Path.Combine(source, snapshot), Path.Combine(destination, snapshot));
+			}
+
+			File.WriteAllText(Path.Combine(destination, fileName), "null");
+			return destination;
 		}
 
 		internal async Task<ProbeResult> RunProbeAsync(string? goldenDirectory = null)

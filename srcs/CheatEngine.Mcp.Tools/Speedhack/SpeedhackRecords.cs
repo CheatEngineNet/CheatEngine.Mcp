@@ -20,7 +20,7 @@ public sealed record SpeedhackState(
 
 /// <summary>The observed state after a requested speed change.</summary>
 /// <param name="Speed">Cheat Engine's configured multiplier after the request.</param>
-/// <param name="HooksInstalled">Whether the speedhack_wantedspeed symbol exists, not whether a hook works.</param>
+/// <param name="HooksInstalled">Whether Cheat Engine reported that the speedhack_wantedspeed symbol exists after the request.</param>
 /// <param name="FirstActivation">
 ///     Whether this request activated the speedhack in a process without the speedhack_wantedspeed symbol. Speed 1
 ///     never activates it and always reports false. Cheat Engine attempts its hooks again while the symbol is absent,
@@ -32,9 +32,10 @@ public sealed record SpeedhackSetResult(
 	double Speed,
 	[property:
 		Description(
-			"Whether the speedhack_wantedspeed symbol exists in the target; it also exists after a failed hook and " +
-			"on the Unity timeScale path, so it does not prove that the target's clocks are hooked.")]
-	bool HooksInstalled,
+			"Whether Cheat Engine reported that the speedhack_wantedspeed symbol exists in the target; omitted when it " +
+			"could not be observed after the change. The symbol also exists after a failed hook and on the Unity timeScale " +
+			"path, so it does not prove that the target's clocks are hooked.")]
+	bool? HooksInstalled,
 	[property:
 		Description(
 			"Whether no speedhack_wantedspeed symbol existed before this request, so Cheat Engine attempted its " +
@@ -48,4 +49,7 @@ public sealed record SpeedhackSetResult(
 	string? ResourceId = null);
 
 /// <summary>The bounded result copied from a fixed speedhack Lua body.</summary>
-internal sealed record LuaSpeedhackState(double Speed, bool HooksInstalled, bool FirstActivation = false);
+internal sealed record LuaSpeedhackState(double Speed, bool? HooksInstalled, bool FirstActivation = false);
+
+/// <summary>The bounded cleanup context when MCP could not restore a prior speedhack resource.</summary>
+internal sealed record SpeedhackRestoreFailure(string ResourceId, ResourceReleaseOutcome Release);

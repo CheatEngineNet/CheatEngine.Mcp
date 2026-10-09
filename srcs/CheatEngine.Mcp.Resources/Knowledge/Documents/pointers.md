@@ -1,9 +1,7 @@
 # Pointers and pointer scans
 
-A heap or stack address moves when the game restarts or reloads a level. A pointer chain finds it again from a static
-root inside a module. Read this page once you have the value's current address (see [value-scans](value-scans.md)) and
-before you save it in a table. It covers notation, reading a chain, the manual method from a writer, the pointer
-scanner, ranking and storing a chain, and what to do when the scanner fails.
+A pointer chain finds a moving address from a static module root. First find the value with
+[value-scans](value-scans.md).
 
 Reading memory, capturing maps and searching paths do not change the target. Attaching the debugger, pausing the
 process, writing through a record and injecting code do: explain each one and get the user's consent first. Use them
@@ -59,6 +57,27 @@ The table shows one chain in each place you meet it: step 8 of the x64 tutorial 
   address for this session, not a live chain. After the object moves, `symbol_unregister(name="playerBase")` and
   register it again (a name in use is refused). A record with offsets follows its chain on every read.
 
+## Analyze supplied access facts
+
+`pointer_get_access_info` takes instruction text/address/length, x86/x64 `architecture`, `registers`, and optional `symbols` and `observedAccessAddress`.
+Text is authoritative; optional `instructionBytes` checks length/address-size prefixes without decoding text.
+RIP/EIP use the next instruction's address; EIP wraps to 32 bits.
+No live memory or symbol lookup occurs.
+Use `contextPhase="post_execution"` for data hits and an execute capture when registers may have changed.
+Check `status`, `contextMayHaveChanged`, `observedAddressMismatch`, and `uncertainty` before using `candidateStructureBase` or `nextPointerSearchValue`.
+`dynamicOffset=true` identifies indexed access rather than a stable chain offset.
+Stack-relative POP, BT/BTC/BTR/BTS, and prefixed text are unsupported; bracket arithmetic is insufficient.
+
+## Validate several supplied chains
+
+`pointer_read_chains` accepts `{id,base,offsets}` candidates, optional `target` comparison and `valueType`, without changing scans.
+Bounds: 128 candidates, 64 offsets each, 4,096 pointer/value reads, 65,536 final-value bytes; each dispatch allows 32 candidates and 128 reads.
+`chainStatus`, `comparisonStatus`, and `valueStatus` are independent: failed value reads retain the resolved address and comparison.
+`matchesOnly=true` retains all error/miss counts in `summary`.
+Cancellation preserves completed candidates; submitted minus processed is unprocessed, and `cancelled` reports interruption.
+`target_changed` discards mixed-target results.
+Module roots rebase; absolute roots remain absolute, so revalidate after restarts.
+
 ## Manual method: from a writer back to a static root
 
 Use it when you can make the game change the value. It needs the debugger (see [debugger](debugger.md)); the guided
@@ -93,6 +112,10 @@ This finds a chain only when the module points straight at the object, and it is
 objects match too. The live search blocks Cheat Engine while it scans; with `pointer_find_references.mapName` it
 searches a stored map instead, nearest first. On a 32-bit target a live search with a non-zero `maxOffset` is refused
 for targets above 7FFFFFFF; search a map there.
+
+`pointer_find_references` permits one temporary live range scan per activation. Failed release keeps later range searches `busy`.
+Use `runtime_list_resources` and `runtime_release_resources`; follow manual-recovery instructions before
+acknowledging. Exact (`maxOffset=0`) and stored-map searches need no temporary scan.
 
 Pitfalls:
 
@@ -167,6 +190,7 @@ and scans across `process_attach`.
    `pointer_save_scan(scanName="hp", path="C:\CheatEngine\Files\hp.json")`. The destination must be inside that
    root. A save does not replace a file unless `overwrite=true`, and it commits the new file atomically.
 3. After the new activation starts, call `pointer_load_map` and `pointer_load_scan` with unused map and scan names.
+   Imports omit `jobId`: loading saved data creates no capture or search job.
    Loading a map lets the server search or rescan against that snapshot without reading the target. Loading a scan
    restores paths as `unresolved`; it never claims that a stored result is still valid.
 4. Attach the restarted game, find the value again, then call

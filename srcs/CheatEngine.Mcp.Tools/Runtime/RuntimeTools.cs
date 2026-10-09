@@ -84,9 +84,9 @@ public sealed class RuntimeTools
 	[McpServerTool(Name = CheatEngineToolNames.RuntimeReleaseResources, Title = "Release retained resources",
 		ReadOnly = false,
 		Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.MayPrompt)]
 	[Description(
-		"Release retained resources newest first. includeOrphans also releases retained Lua state from earlier activations. acknowledgeIds only forgets resources already recovered manually; an incomplete cleanup is reported as partial_effect with its actual host effect.")]
+		"Release retained resources newest first. Releasing Auto Assembler patches runs their DISABLE sections, which can block Cheat Engine or show a dialog. includeOrphans also releases retained Lua state from earlier activations. acknowledgeIds only forgets resources already recovered manually; an incomplete cleanup is reported as partial_effect with its actual host effect.")]
 	public RuntimeReleaseResourcesResult ReleaseResources(
 		[Description("Also release orphaned or unmanaged Lua state from earlier plugin activations.")]
 		bool includeOrphans = false,

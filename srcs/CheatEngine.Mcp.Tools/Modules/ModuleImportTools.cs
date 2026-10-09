@@ -43,9 +43,9 @@ public sealed class ModuleImportTools
 	/// <returns>The page.</returns>
 	[McpServerTool(Name = CheatEngineToolNames.ModuleListImports, Title = "List module imports", ReadOnly = true,
 		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.HostScan)]
 	[Description(
-		"Page the imported functions of one module of the attached process, parsed from its import directory (and delay-load directory) in memory: the DLL, the IAT slot address the code calls through, the name and hint or the ordinal, the pointer the slot holds now, and the loaded module and Cheat Engine symbol that pointer lands in. A bound IAT without a lookup table gives slots without names; a delay-loaded slot points at this module's loader stub until its first call. A pointer outside the named DLL is not proof of a hook: api-ms-win-* sets resolve into kernelbase.dll and others. Filter with dllContains and nameContains, then page with offset and limit (at most 1000). A module whose import data exceeds 8 MiB or 65536 entries is refused.")]
+		"Page the imported functions of one module of the attached process, parsed from its import directory (and delay-load directory) in memory: the DLL, the IAT slot address the code calls through, the name and hint or the ordinal, the pointer the slot holds now, and the loaded module and Cheat Engine symbol that pointer lands in. A bound IAT without a lookup table gives slots without names; a delay-loaded slot points at this module's loader stub until its first call. A pointer outside the named DLL is not proof of a hook: api-ms-win-* sets resolve into kernelbase.dll and others. The whole directory is read in one dispatch before filtering and paging, holding Cheat Engine while it runs; large directories can take seconds. Filter with dllContains and nameContains, then page with offset and limit (at most 1000). A module whose import data exceeds 8 MiB or 65536 entries is refused.")]
 	public ImportList ListImports(
 		[Description("The module name, such as game.exe, or an address expression inside it.")]
 		string module,

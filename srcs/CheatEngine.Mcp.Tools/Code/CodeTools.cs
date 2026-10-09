@@ -202,7 +202,7 @@ public sealed class CodeTools
 
 	/// <summary>Starts a bounded instruction-text search over a target range.</summary>
 	[McpServerTool(Name = CheatEngineToolNames.CodeStartSearch, Title = "Start code search", ReadOnly = true,
-		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+		Destructive = false, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
 		"Start a background search for a case-insensitive substring in decoded instruction text. It disassembles at most 1 MiB in short Client dispatches, rechecks the selected target each time, and retains at most the configured job-buffer events. Poll code_poll_job or stop it with runtime_stop_job.")]

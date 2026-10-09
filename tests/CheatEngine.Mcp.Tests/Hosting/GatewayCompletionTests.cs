@@ -242,6 +242,11 @@ public sealed class GatewayCompletionTests
 			{
 				[McpResourceUris.InstanceIdVariable] = publication.Descriptor.InstanceId
 			};
+			CallToolResult prepared = await client.CallToolAsync(CheatEngineToolNames.ModuleList,
+				new Dictionary<string, object?> { [McpResourceUris.InstanceIdVariable] = publication.Descriptor.InstanceId },
+				cancellationToken: Token);
+			Assert.NotEqual(true, prepared.IsError);
+			Assert.Equal(1, target.Calls("TryGetModules"));
 
 			CompleteResult scanners = await CompleteAsync(client,
 				"cheatengine://instances/{instanceId}/scanners/{scannerName}", "scannerName", "M", selected);
@@ -249,14 +254,14 @@ public sealed class GatewayCompletionTests
 				"cheatengine://instances/{instanceId}/records/{recordId}", "recordId", "1", selected);
 			CompleteResult modules = await CompleteAsync(client,
 				"cheatengine://instances/{instanceId}/modules/{module}", "module", "G", selected);
-			CompleteResult exports = await CompleteAsync(client,
-				"cheatengine://instances/{instanceId}/modules/{module}/exports{?offset,limit}", "module", "", selected);
+			CompleteResult all = await CompleteAsync(client,
+				"cheatengine://instances/{instanceId}/modules/{module}", "module", "", selected);
 
 			Assert.Equal(["main"], scanners.Completion.Values);
 			Assert.Empty(records.Completion.Values);
 			Assert.Equal(["game.exe"], modules.Completion.Values);
-			Assert.Equal(["sample.dll", "game.exe"], exports.Completion.Values);
-			// Each forwarded keystroke is a new stateless request; the backend's one handler listed the modules once.
+			Assert.Equal(["sample.dll", "game.exe"], all.Completion.Values);
+			// Forwarded keystrokes check the prepared snapshot; only the explicit tool enumerates modules.
 			Assert.Equal(1, target.Calls("TryGetModules"));
 		}
 		finally

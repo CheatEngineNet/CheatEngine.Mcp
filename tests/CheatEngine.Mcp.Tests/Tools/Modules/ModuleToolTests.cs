@@ -1,5 +1,7 @@
 using CheatEngine.Mcp.Core.Contract;
+using CheatEngine.Mcp.Core.Inspection;
 using CheatEngine.Mcp.Core.Values;
+using CheatEngine.Mcp.Tests.Support;
 using CheatEngine.Mcp.Tools.Modules;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Values;
@@ -27,7 +29,7 @@ public sealed class ModuleToolTests
 		target.AddModule("game.exe", 0x140000000, 0x5000);
 		target.AddModule("mono-2.0-bdwgc.dll", 0x7FFA00000000, 0x20000, "C:\\Games\\Game\\mono.dll");
 		target.AddModule("MonoBleedingEdge.dll", 0x7FFB00000000, 0x1000);
-		ModuleTools tools = new(target.Dispatch);
+		ModuleTools tools = new(target.Dispatch, target.Prepared);
 
 		ModuleList concise = tools.List(nameContains: "MONO", limit: 1, cancellationToken: Token);
 		ModuleList detailed = tools.List(nameContains: "mono", offset: 1, format: ResultFormat.Detailed,
@@ -51,7 +53,7 @@ public sealed class ModuleToolTests
 		};
 		target.AddModule("other.exe", 0x400000, 0x1000);
 
-		ModuleList list = new ModuleTools(target.Dispatch).List(77, cancellationToken: Token);
+		ModuleList list = new ModuleTools(target.Dispatch, target.Prepared).List(77, cancellationToken: Token);
 
 		Assert.Equal(77, list.ProcessId);
 		Assert.Equal(0, target.Calls("GetCurrentProcess"));
@@ -66,7 +68,7 @@ public sealed class ModuleToolTests
 			target.AddModule($"m{index}.dll", 0x10000000UL + ((ulong) index * 0x10000), 0x1000);
 		}
 
-		ModuleList list = new ModuleTools(target.Dispatch).List(limit: 1000, cancellationToken: Token);
+		ModuleList list = new ModuleTools(target.Dispatch, target.Prepared).List(limit: 1000, cancellationToken: Token);
 
 		Assert.Equal(5000, list.Total);
 		Assert.Equal(1000, list.NextOffset);
@@ -82,7 +84,7 @@ public sealed class ModuleToolTests
 		};
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			new ModuleTools(target.Dispatch).List(cancellationToken: Token));
+			new ModuleTools(target.Dispatch, target.Prepared).List(cancellationToken: Token));
 
 		Assert.Equal(ToolErrorKind.NotAttached, exception.Error.Kind);
 	}
@@ -95,7 +97,7 @@ public sealed class ModuleToolTests
 		ModuleSymbolTarget target = new();
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			new ModuleTools(target.Dispatch).List(processId, nameContains, offset, limit, cancellationToken: Token));
+			new ModuleTools(target.Dispatch, target.Prepared).List(processId, nameContains, offset, limit, cancellationToken: Token));
 
 		Assert.Equal((kind, ToolHostEffect.NotStarted), (exception.Error.Kind, exception.Error.HostEffect));
 		Assert.Equal(0, target.Dispatcher.Calls);
@@ -107,7 +109,7 @@ public sealed class ModuleToolTests
 	{
 		ModuleSymbolTarget target = LoadedSample();
 
-		ModuleDetails details = new ModuleTools(target.Dispatch).Get("SAMPLE.dll", Token);
+		ModuleDetails details = new ModuleTools(target.Dispatch, target.Prepared).Get("SAMPLE.dll", Token);
 
 		Assert.Equal(("sample.dll", "7FFA00000000", 0x6000L, true), (details.Name, details.Base, details.Size,
 			details.Is64Bit));
@@ -132,7 +134,7 @@ public sealed class ModuleToolTests
 		ModuleSymbolTarget target = LoadedSample();
 		target.Addresses["sample.dll+4010"] = SampleModule.LoadedBase + 0x4010;
 
-		Assert.Equal("sample.dll", new ModuleTools(target.Dispatch).Get("sample.dll+4010", Token).Name);
+		Assert.Equal("sample.dll", new ModuleTools(target.Dispatch, target.Prepared).Get("sample.dll+4010", Token).Name);
 	}
 
 	[Fact]
@@ -141,7 +143,7 @@ public sealed class ModuleToolTests
 		ModuleSymbolTarget target = LoadedSample();
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			new ModuleTools(target.Dispatch).Get("missing.dll", Token));
+			new ModuleTools(target.Dispatch, target.Prepared).Get("missing.dll", Token));
 
 		Assert.Equal(ToolErrorKind.NotFound, exception.Error.Kind);
 		Assert.Contains("module_list", exception.Error.Hint, StringComparison.Ordinal);
@@ -154,7 +156,7 @@ public sealed class ModuleToolTests
 		ModuleSymbolTarget target = LoadedSample();
 		target.UnreadablePages.Add(SampleModule.LoadedBase);
 
-		ModuleDetails details = new ModuleTools(target.Dispatch).Get("sample.dll", Token);
+		ModuleDetails details = new ModuleTools(target.Dispatch, target.Prepared).Get("sample.dll", Token);
 
 		Assert.Null(details.Pe);
 		Assert.Equal(2, details.Sections.Length);
@@ -170,10 +172,132 @@ public sealed class ModuleToolTests
 		ModuleSymbolTarget target = new();
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
-			new ModuleTools(target.Dispatch).Get(module, Token));
+			new ModuleTools(target.Dispatch, target.Prepared).Get(module, Token));
 
 		Assert.Equal(ToolErrorKind.InvalidArgument, exception.Error.Kind);
 		Assert.Equal(0, target.Dispatcher.Calls);
+	}
+
+	[Fact]
+	public void PreparedReads_EqualTheirExplicitPreparationAndDoNoFurtherInspection()
+	{
+		ModuleSymbolTarget target = LoadedSample();
+		ModuleTools tools = new(target.Dispatch, target.Prepared);
+
+		ModuleList listed = tools.List(cancellationToken: Token);
+		ModuleDetails details = tools.Get("sample.dll", Token);
+		int enumerations = target.Calls("TryGetModules");
+		int sections = target.Calls("GetModuleSections");
+		int headers = target.Calls("ReadBytesDetailed");
+
+		ModuleList preparedList = tools.ListPrepared(cancellationToken: Token);
+		Assert.Equal((listed.ProcessId, listed.Total, listed.NextOffset),
+			(preparedList.ProcessId, preparedList.Total, preparedList.NextOffset));
+		Assert.Equal(listed.Modules, preparedList.Modules);
+		ModuleDetails preparedDetails = tools.GetPrepared("SAMPLE.dll", Token);
+		Assert.Equal((details.Name, details.Base, details.Path, details.Is64Bit, details.Size, details.Pe),
+			(preparedDetails.Name, preparedDetails.Base, preparedDetails.Path, preparedDetails.Is64Bit, preparedDetails.Size,
+				preparedDetails.Pe));
+		Assert.Equal(details.Sections, preparedDetails.Sections);
+		Assert.Equal(enumerations, target.Calls("TryGetModules"));
+		Assert.Equal(sections, target.Calls("GetModuleSections"));
+		Assert.Equal(headers, target.Calls("ReadBytesDetailed"));
+	}
+
+	[Fact]
+	public void PreparedReads_WrongTarget_AreInvalidState()
+	{
+		ModuleSymbolTarget target = LoadedSample();
+		ModuleTools tools = new(target.Dispatch, target.Prepared);
+		tools.Get("sample.dll", Token);
+		target.CurrentProcessId++;
+
+		CheatEngineToolException list = Assert.Throws<CheatEngineToolException>(() =>
+			tools.ListPrepared(cancellationToken: Token));
+		CheatEngineToolException details = Assert.Throws<CheatEngineToolException>(() =>
+			tools.GetPrepared("sample.dll", Token));
+
+		Assert.Equal(ToolErrorKind.InvalidState, list.Error.Kind);
+		Assert.Equal(ToolErrorKind.InvalidState, details.Error.Kind);
+		Assert.Contains("module_list", list.Error.Hint, StringComparison.Ordinal);
+		Assert.Contains("module_get", details.Error.Hint, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Get_TargetChangesDuringTheRead_IsTargetChangedAndDoesNotPrepare()
+	{
+		ModuleSymbolTarget target = LoadedSample();
+		ModuleTools tools = new(target.Dispatch, target.Prepared);
+		target.BeforeRead = _ => target.CurrentProcessId++;
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			tools.Get("sample.dll", Token));
+
+		Assert.Equal((ToolErrorKind.TargetChanged, CheatEngineToolNames.ModuleGet, ToolHostEffect.Completed),
+			(exception.Error.Kind, exception.Error.Operation, exception.Error.HostEffect));
+		target.BeforeRead = null;
+		Assert.Equal(ToolErrorKind.InvalidState, Assert.Throws<CheatEngineToolException>(() =>
+			tools.ListPrepared(cancellationToken: Token)).Error.Kind);
+	}
+
+	[Fact]
+	public void List_OtherProcess_DoesNotPoisonTheAttachedPreparedTarget()
+	{
+		ModuleSymbolTarget target = LoadedSample();
+		ModuleTools tools = new(target.Dispatch, target.Prepared);
+		tools.List(cancellationToken: Token);
+		target.Modules.Clear();
+		target.AddModule("other.exe", 0x400000, 0x1000);
+
+		tools.List(77, cancellationToken: Token);
+
+		Assert.Equal("sample.dll", Assert.Single(tools.ListPrepared(cancellationToken: Token).Modules).Name);
+	}
+
+	[Fact]
+	public void NewModulePublication_InvalidatesEarlierPreparedDetails()
+	{
+		ModuleSymbolTarget target = LoadedSample();
+		ModuleTools tools = new(target.Dispatch, target.Prepared);
+		tools.Get("sample.dll", Token);
+		tools.List(cancellationToken: Token);
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			tools.GetPrepared("sample.dll", Token));
+		Assert.Equal(ToolErrorKind.InvalidState, exception.Error.Kind);
+	}
+
+	[Fact]
+	public void PreparedDetails_AreDetachedFromExplicitAndPreparedCallers()
+	{
+		ModuleSymbolTarget target = LoadedSample();
+		ModuleTools tools = new(target.Dispatch, target.Prepared);
+		ModuleDetails explicitDetails = tools.Get("sample.dll", Token);
+		explicitDetails.Sections[0] = explicitDetails.Sections[0] with
+		{
+			Name = "mutated-explicit"
+		};
+		ModuleDetails prepared = tools.GetPrepared("sample.dll", Token);
+		prepared.Sections[0] = prepared.Sections[0] with
+		{
+			Name = "mutated-prepared"
+		};
+
+		Assert.Equal(".data", tools.GetPrepared("sample.dll", Token).Sections[0].Name);
+	}
+
+	[Fact]
+	public void PreparedReads_ExpireAfterFiveSeconds()
+	{
+		ManualTimeProvider time = new();
+		ModuleSymbolTarget target = LoadedSample(time: time);
+		ModuleTools tools = new(target.Dispatch, target.Prepared);
+		tools.List(cancellationToken: Token);
+		time.Advance(PreparedInspectionStore.Lifetime);
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			tools.ListPrepared(cancellationToken: Token));
+		Assert.Equal(ToolErrorKind.InvalidState, exception.Error.Kind);
 	}
 
 	[Fact]
@@ -240,10 +364,11 @@ public sealed class ModuleToolTests
 	}
 
 	/// <summary>The sample DLL mapped at <see cref="SampleModule.LoadedBase" /> in an attached target.</summary>
-	internal static ModuleSymbolTarget LoadedSample(TestPe? pe = null, string path = "C:\\Games\\Game\\sample.dll")
+	internal static ModuleSymbolTarget LoadedSample(TestPe? pe = null, string path = "C:\\Games\\Game\\sample.dll",
+		TimeProvider? time = null)
 	{
 		pe ??= SampleModule.Build();
-		ModuleSymbolTarget target = new()
+		ModuleSymbolTarget target = new(time)
 		{
 			MemoryBase = SampleModule.LoadedBase,
 			Memory = pe.Map(SampleModule.LoadedBase)

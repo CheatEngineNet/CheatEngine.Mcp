@@ -24,12 +24,13 @@ public sealed class SymbolLiveResources(SymbolRegistrationTools symbols)
 	/// <returns>The structured result of <c>symbol_list_registered</c>.</returns>
 	[McpServerResource(UriTemplate = SymbolsPath + "{?offset,limit}", Name = "instance_symbols",
 		Title = "Registered symbols", MimeType = McpResourceUris.JsonMimeType)]
-	[McpSourceTool(typeof(SymbolRegistrationTools), CheatEngineToolNames.SymbolListRegistered)]
+	[McpSourceTool(typeof(SymbolRegistrationTools), CheatEngineToolNames.SymbolListRegistered, PreparedProjection = nameof(SymbolRegistrationTools.ListPreparedRegistered))]
 	[McpResourceAnnotations(Role.Assistant, Priority = LiveResourceResults.Priority)]
-	[Description("A page of the symbols registered in Cheat Engine, with ownedByMcp on those this activation can " +
-				 "unregister: 200 from offset 0 by default, or ?offset=..&limit=.. in that order (limit 1 to 1000); " +
-				 "every read copies up to 8192 symbols. Its JSON is the structured result of " +
-				 CheatEngineToolNames.SymbolListRegistered + "; use that tool to filter by name.")]
+	[Description("A page of the latest global registered-symbol copy explicitly prepared by symbol_list_registered, with " +
+				 "ownedByMcp on those this activation can unregister: 200 from offset 0 by default, or ?offset=..&limit=.. " +
+				 "in that order (limit 1 to 1000). The copy expires after five seconds and contains at most 8192 symbols; " +
+				 "that copy cap does not bound Cheat Engine's native enumeration. Run symbol_list_registered before reading this " +
+				 "resource; use the tool to filter by name.")]
 	public ReadResourceResult Symbols(
 		[Description("The index of the first symbol, 0 by default.")]
 		string? offset = null,
@@ -39,7 +40,7 @@ public sealed class SymbolLiveResources(SymbolRegistrationTools symbols)
 	{
 		int? first = McpResourceQuery.Number(offset, nameof(offset), 0, LiveResourceResults.MaximumOffset);
 		int? count = McpResourceQuery.Number(limit, nameof(limit), 1, MaximumSymbols);
-		RegisteredSymbolList page = symbols.ListRegistered(null, first ?? 0, count ?? DefaultSymbols,
+		RegisteredSymbolList page = symbols.ListPreparedRegistered(first ?? 0, count ?? DefaultSymbols,
 			cancellationToken);
 		return LiveResourceResults.Json(McpResourceQuery.WithQuery(SymbolsPath, ("offset", first), ("limit", count)),
 			JsonSerializer.Serialize(page, SymbolJsonContext.Default.RegisteredSymbolList));

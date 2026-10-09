@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization.Metadata;
 
 using CheatEngine.Client;
@@ -82,6 +83,65 @@ public sealed class ToolDispatchTests
 		Assert.Equal("Memory.WriteBytes", exception.Error.Operation);
 		Assert.Equal(ToolHostEffect.Started, exception.Error.HostEffect);
 		Assert.Empty(harness.Logger.Entries);
+	}
+
+	[Theory]
+	[InlineData("Dispatcher.Invoke", CheatEngineHostEffect.Unknown, true, true)]
+	[InlineData("Dispatcher.Invoke", CheatEngineHostEffect.Unknown, false, false)]
+	[InlineData("Dispatcher.Invoke", CheatEngineHostEffect.NotStarted, true, false)]
+	[InlineData("Memory.Allocate", CheatEngineHostEffect.Unknown, true, false)]
+	public void Run_NativeDispatchFailure_LogsOnlyPrivateTypeAndStackWhenOutcomeIsUnknown(
+		string operation, CheatEngineHostEffect effect, bool includeCause, bool expectDiagnostic)
+	{
+		const string privateData = "private-source-or-token-must-not-be-logged";
+		Harness harness = new();
+		Exception cause = CaptureDispatcherFault(privateData);
+		cause.Data["sensitive"] = privateData;
+		CheatEngineFailure failure = new(CheatEngineFailureKind.OperationRejected, operation,
+			"The native dispatcher refused the operation.", exception: includeCause ? cause : null, hostEffect: effect);
+		harness.Dispatcher.Admission = token => failure.Throw(token);
+		bool ran = false;
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			harness.Dispatch.Run("memory_allocate", _ => ran = true, CancellationToken.None));
+
+		Assert.False(ran);
+		Assert.Equal(1, harness.Dispatcher.Calls);
+		Assert.Equal(ToolErrorKind.HostRefused, exception.Error.Kind);
+		Assert.Equal(operation, exception.Error.Operation);
+		Assert.Equal(failure.Message, exception.Error.Message);
+		Assert.Equal(effect.ToString(), exception.Error.HostEffect.ToString());
+		Assert.False(exception.Error.Retryable);
+		Assert.Same(includeCause ? cause : null, exception.InnerException);
+		Assert.Equal(0, harness.Statistics.Snapshot().Count);
+		if (expectDiagnostic)
+		{
+			(LogLevel level, EventId eventId, string message, Exception? logged) = Assert.Single(harness.Logger.Entries);
+			Assert.Equal((LogLevel.Error, 3005), (level, eventId.Id));
+			Assert.Null(logged);
+			Assert.Contains(typeof(InvalidOperationException).FullName!, message, StringComparison.Ordinal);
+			Assert.Contains(nameof(CaptureDispatcherFault),
+				message, StringComparison.Ordinal);
+			Assert.DoesNotContain(privateData, message, StringComparison.Ordinal);
+			Assert.DoesNotContain("ToolDispatchTests.cs", message, StringComparison.Ordinal);
+		}
+		else
+		{
+			Assert.Empty(harness.Logger.Entries);
+		}
+	}
+
+	[MethodImpl(MethodImplOptions.NoInlining)]
+	private static InvalidOperationException CaptureDispatcherFault(string message)
+	{
+		try
+		{
+			throw new InvalidOperationException(message);
+		}
+		catch (InvalidOperationException exception)
+		{
+			return exception;
+		}
 	}
 
 	[Fact]

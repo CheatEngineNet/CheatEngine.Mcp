@@ -27,8 +27,8 @@ consent before each apply or record activation, and ask them to save first: a ba
 
 Details:
 
-- Only `asm_check` and the two apply tools need `Mcp:EnableAutoAssembler`. The apply tools are `may_prompt`: CE can
-  show a dialog, and the call then waits for the user.
+- Only `asm_check` and the apply tools need `Mcp:EnableAutoAssembler`. Apply and release are `may_prompt`: CE dialogs
+  can wait for the user, including patch cleanup through `runtime_release_resources`.
 - `script`: 1 to 1,048,576 characters with both `[ENABLE]` and `[DISABLE]` (any case), else `invalid_argument`;
   `asm_check` also refuses more than 1,048,576 UTF-8 bytes (`limit_exceeded`). `name` (up to 256 characters) only
   labels the patch.

@@ -33,6 +33,7 @@ public sealed class PointerReferenceTools
 	private readonly ToolDispatch _dispatch;
 	private readonly TargetResources _resources;
 	private readonly PointerStore _store;
+	private RangeSearchReservation? _rangeSearch;
 
 	/// <summary>Creates the tool; nothing touches Cheat Engine until a call.</summary>
 	/// <param name="dispatch">The activation's dispatch facade.</param>
@@ -113,21 +114,43 @@ public sealed class PointerReferenceTools
 	private PointerReferenceResult FindLive(string target, int maxOffset, string? moduleName, bool writableOnly,
 		int limit, CancellationToken cancellationToken)
 	{
-		return _dispatch.Run(CheatEngineToolNames.PointerFindReferences, token =>
+		RangeSearchReservation? reservation = null;
+		if (maxOffset > 0)
 		{
-			ICheatEngineClient client = _dispatch.Client;
-			int width = PointerSupport.Width(client.Processes.GetCurrentProcess(token));
-			ulong address = PointerTargets.Check(PointerSupport.Resolve(client, target, token), width, "target");
-			PointerModule[] modules = PointerSupport.Modules(client, null, token);
-			PointerModule? scope = moduleName is null ? null : ScopeModule(modules, moduleName);
-			ScanProtectionFilter protection = writableOnly
-				? new ScanProtectionFilter(ScanProtectionRequirement.Unspecified,
-					ScanProtectionRequirement.Unspecified, ScanProtectionRequirement.Required)
-				: default;
-			return maxOffset == 0
-				? FindExact(client, address, width, scope, protection, limit, modules, token)
-				: FindRange(client, address, maxOffset, width, scope, protection, limit, modules, token);
-		}, cancellationToken);
+			reservation = new RangeSearchReservation();
+			if (Interlocked.CompareExchange(ref _rangeSearch, reservation, null) is not null)
+			{
+				throw CheatEngineToolException.Busy(
+					"A temporary pointer-reference scan is running or still awaiting cleanup.",
+					"Wait for the current search, or release its retained scan with runtime_release_resources before repeating it.");
+			}
+		}
+
+		try
+		{
+			return _dispatch.Run(CheatEngineToolNames.PointerFindReferences, token =>
+			{
+				ICheatEngineClient client = _dispatch.Client;
+				int width = PointerSupport.Width(client.Processes.GetCurrentProcess(token));
+				ulong address = PointerTargets.Check(PointerSupport.Resolve(client, target, token), width, "target");
+				PointerModule[] modules = PointerSupport.Modules(client, null, token);
+				PointerModule? scope = moduleName is null ? null : ScopeModule(modules, moduleName);
+				ScanProtectionFilter protection = writableOnly
+					? new ScanProtectionFilter(ScanProtectionRequirement.Unspecified,
+						ScanProtectionRequirement.Unspecified, ScanProtectionRequirement.Required)
+					: default;
+				return maxOffset == 0
+					? FindExact(client, address, width, scope, protection, limit, modules, token)
+					: FindRange(client, address, maxOffset, width, scope, protection, limit, modules, reservation!, token);
+			}, cancellationToken);
+		}
+		finally
+		{
+			if (reservation is not null && !reservation.Retained)
+			{
+				Interlocked.CompareExchange(ref _rangeSearch, null, reservation);
+			}
+		}
 	}
 
 	private static PointerReferenceResult FindExact(ICheatEngineClient client, ulong address, int width,
@@ -174,7 +197,7 @@ public sealed class PointerReferenceTools
 
 	private PointerReferenceResult FindRange(ICheatEngineClient client, ulong address, int maxOffset, int width,
 		PointerModule? scope, ScanProtectionFilter protection, int limit, PointerModule[] modules,
-		CancellationToken cancellationToken)
+		RangeSearchReservation reservation, CancellationToken cancellationToken)
 	{
 		// Cheat Engine compares ordered scans of integers as signed values: a bound past the sign bit would invert.
 		if (address > (width == 8 ? (ulong) long.MaxValue : int.MaxValue))
@@ -247,7 +270,7 @@ public sealed class PointerReferenceTools
 			LeaseReleaseOutcome cleanup = session.Release();
 			if (!cleanup.IsComplete)
 			{
-				_resources.Track(session, "scan", name: CheatEngineToolNames.PointerFindReferences);
+				KeepFailedScan(session, reservation);
 			}
 
 			throw;
@@ -256,7 +279,7 @@ public sealed class PointerReferenceTools
 		LeaseReleaseOutcome release = session.Release();
 		if (!release.IsComplete)
 		{
-			ITargetResource kept = _resources.Track(session, "scan", name: CheatEngineToolNames.PointerFindReferences);
+			ITargetResource kept = KeepFailedScan(session, reservation);
 			throw CheatEngineToolException.PartialEffect(
 				$"The references were found, but the temporary value scan could not be released; it is kept as {kept.Descriptor.Id}.",
 				ToolFailureMapping.MapHostEffect(release.HostEffect),
@@ -266,6 +289,24 @@ public sealed class PointerReferenceTools
 		}
 
 		return result;
+	}
+
+	private ITargetResource KeepFailedScan(IValueScanSession session, RangeSearchReservation reservation)
+	{
+		// Reserve before tracking: even a tracking failure must not permit another native scan to accumulate.
+		reservation.Retained = true;
+		return _resources.Track(session, "scan",
+			() => Interlocked.CompareExchange(ref _rangeSearch, null, reservation),
+			name: CheatEngineToolNames.PointerFindReferences);
+	}
+
+	private sealed class RangeSearchReservation
+	{
+		internal bool Retained
+		{
+			get;
+			set;
+		}
 	}
 
 	private static PointerModule ScopeModule(IEnumerable<PointerModule> modules, string name)

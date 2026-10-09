@@ -24,17 +24,24 @@ public sealed class SymbolRegistrationTools
 	internal const int MaximumLimit = 1000;
 
 	private const string ResourceKind = "symbol";
+	private static readonly TimeSpan PreparedLifetime = TimeSpan.FromSeconds(5);
 
 	private readonly ToolDispatch _dispatch;
+	private readonly Lock _preparedGate = new();
 	private readonly SymbolRegistrations _registrations;
 	private readonly TargetResources _resources;
+	private readonly TimeProvider _time;
+	private PreparedRegisteredSymbols? _prepared;
+	private long _preparedGeneration;
+	private long _preparedPublication;
 
 	/// <summary>Creates the tools; the constructor does no Cheat Engine work.</summary>
 	/// <param name="dispatch">The activation's dispatch facade.</param>
 	/// <param name="resources">The activation's tracked target resources.</param>
 	/// <param name="registrations">The activation's owned symbols.</param>
+	/// <param name="time">The monotonic clock used for prepared-list expiry, or the system clock.</param>
 	public SymbolRegistrationTools(ToolDispatch dispatch, TargetResources resources,
-		SymbolRegistrations registrations)
+		SymbolRegistrations registrations, TimeProvider? time = null)
 	{
 		ArgumentNullException.ThrowIfNull(dispatch);
 		ArgumentNullException.ThrowIfNull(resources);
@@ -42,6 +49,7 @@ public sealed class SymbolRegistrationTools
 		_dispatch = dispatch;
 		_resources = resources;
 		_registrations = registrations;
+		_time = time ?? TimeProvider.System;
 	}
 
 	/// <summary>Registers a symbol owned by this activation.</summary>
@@ -66,6 +74,7 @@ public sealed class SymbolRegistrationTools
 	{
 		string symbolName = RequireName(name);
 		string expression = SymbolTools.RequireExpression(address, "address");
+		InvalidatePrepared();
 		switch (_registrations.TryReserve(symbolName))
 		{
 			case ReservationRefusal.AlreadyOwned:
@@ -107,6 +116,8 @@ public sealed class SymbolRegistrationTools
 		}
 		finally
 		{
+			// A concurrent list started after the first invalidation cannot republish across this mutation's outcome.
+			InvalidatePrepared();
 			if (!committed)
 			{
 				_registrations.CancelReservation(symbolName);
@@ -134,29 +145,37 @@ public sealed class SymbolRegistrationTools
 			throw CheatEngineToolException.NotFound($"This activation owns no symbol named {symbolName}.",
 				"List the owned symbols with symbol_list_registered.");
 		}
+		InvalidatePrepared();
 
-		return _dispatch.Run(CheatEngineToolNames.SymbolUnregister, token =>
+		try
 		{
-			ResourceReleaseOutcome outcome = owned.Resource.Release(token);
-			if (!outcome.IsRetryable)
+			return _dispatch.Run(CheatEngineToolNames.SymbolUnregister, token =>
 			{
-				_resources.Forget(owned.Resource);
-				_registrations.Remove(owned.Lease);
-			}
+				ResourceReleaseOutcome outcome = owned.Resource.Release(token);
+				if (!outcome.IsRetryable)
+				{
+					_resources.Forget(owned.Resource);
+					_registrations.Remove(owned.Lease);
+				}
 
-			SymbolReleaseResult result = new(owned.Name, HexFormat.Address(owned.Lease.Address), outcome);
-			if (!outcome.IsComplete)
-			{
-				throw CheatEngineToolException.PartialEffect(
-					$"The symbol {owned.Name} was not fully unregistered ({outcome.Kind}).", outcome.HostEffect, result,
-					SymbolJsonContext.Default.SymbolReleaseResult, outcome.IsRetryable,
-					outcome.IsRetryable
-						? "Repeat symbol_unregister later."
-						: "Check the symbol with symbol_resolve and remove it manually; it is no longer tracked.");
-			}
+				SymbolReleaseResult result = new(owned.Name, HexFormat.Address(owned.Lease.Address), outcome);
+				if (!outcome.IsComplete)
+				{
+					throw CheatEngineToolException.PartialEffect(
+						$"The symbol {owned.Name} was not fully unregistered ({outcome.Kind}).", outcome.HostEffect, result,
+						SymbolJsonContext.Default.SymbolReleaseResult, outcome.IsRetryable,
+						outcome.IsRetryable
+							? "Repeat symbol_unregister later."
+							: "Check the symbol with symbol_resolve and remove it manually; it is no longer tracked.");
+				}
 
-			return result;
-		}, cancellationToken);
+				return result;
+			}, cancellationToken);
+		}
+		finally
+		{
+			InvalidatePrepared();
+		}
 	}
 
 	/// <summary>Pages Cheat Engine's registered symbols.</summary>
@@ -167,9 +186,9 @@ public sealed class SymbolRegistrationTools
 	/// <returns>The page.</returns>
 	[McpServerTool(Name = CheatEngineToolNames.SymbolListRegistered, Title = "List registered symbols",
 		ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.BlockingNative)]
 	[Description(
-		"Page every symbol registered in Cheat Engine (by tables, Auto Assembler scripts, Lua and this plugin), marking with ownedByMcp the ones this activation registered and can unregister. Allocation symbols carry their size. Filter with nameContains, then page with offset and limit (at most 1000); at most 8192 symbols are copied.")]
+		"Page every symbol registered in Cheat Engine (by tables, Auto Assembler scripts, Lua and this plugin), marking with ownedByMcp the ones this activation registered and can unregister. Allocation symbols carry their size. Filter with nameContains, then page with offset and limit (at most 1000); at most 8192 symbols are copied. Cheat Engine fully enumerates its registered-symbol table before that copy cap, so the native read can block Cheat Engine for seconds. A successful call explicitly prepares that unfiltered bounded copy for the symbols resource for five seconds.")]
 	public RegisteredSymbolList ListRegistered(
 		[Description("A case-insensitive substring of the symbol name; at most 256 characters.")]
 		string? nameContains = null,
@@ -186,9 +205,47 @@ public sealed class SymbolRegistrationTools
 		}
 
 		_ = Paging.Slice(Array.Empty<LuaRegisteredSymbol>(), offset, limit, MaximumLimit);
-		LuaRegisteredSymbols copied = _dispatch.RunLua(CheatEngineToolNames.SymbolListRegistered,
-			SymbolScripts.ListRegistered, SymbolLuaJsonContext.Default.LuaRegisteredSymbols, cancellationToken,
-			SymbolScripts.MaximumRegisteredSymbols);
+		LuaRegisteredSymbols copied = _dispatch.Run(CheatEngineToolNames.SymbolListRegistered, token =>
+		{
+			long generation = PreparedGeneration();
+			long publication = BeginPreparedPublication();
+			LuaRegisteredSymbols listed = _dispatch.ExecuteLua(CheatEngineToolNames.SymbolListRegistered,
+				SymbolScripts.ListRegistered, SymbolLuaJsonContext.Default.LuaRegisteredSymbols, token,
+				SymbolScripts.MaximumRegisteredSymbols);
+			PublishPrepared(listed, generation, publication);
+			return listed;
+		}, cancellationToken);
+		return Project(copied, nameContains, offset, limit);
+	}
+
+	/// <summary>Pages the latest explicitly prepared global registered-symbol copy.</summary>
+	/// <remarks>
+	///     The copy expires after five seconds, contains at most 8192 symbols, and does not claim to bound Cheat Engine's
+	///     native enumeration that produced it. Ownership is evaluated when this method projects the cache.
+	/// </remarks>
+	/// <param name="offset">The index of the first symbol to return.</param>
+	/// <param name="limit">The most symbols to return.</param>
+	/// <param name="cancellationToken">The request's token.</param>
+	/// <returns>The prepared unfiltered registered-symbol page.</returns>
+	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
+	public RegisteredSymbolList ListPreparedRegistered(int offset = 0, int limit = 200,
+		CancellationToken cancellationToken = default)
+	{
+		_ = Paging.Slice(Array.Empty<LuaRegisteredSymbol>(), offset, limit, MaximumLimit);
+		return _dispatch.Run(CheatEngineToolNames.SymbolListRegistered, _ =>
+		{
+			if (!TryGetPrepared(out LuaRegisteredSymbols copied))
+			{
+				throw CheatEngineToolException.InvalidState("No current prepared registered-symbol copy is available.",
+					"Run symbol_list_registered explicitly, then retry within 5 seconds.");
+			}
+
+			return Project(copied, null, offset, limit);
+		}, cancellationToken);
+	}
+
+	private RegisteredSymbolList Project(LuaRegisteredSymbols copied, string? nameContains, int offset, int limit)
+	{
 		Dictionary<string, OwnedSymbol> owned = _registrations.Snapshot();
 		LuaRegisteredSymbol[] matching = string.IsNullOrEmpty(nameContains)
 			? copied.Symbols
@@ -210,6 +267,64 @@ public sealed class SymbolRegistrationTools
 		];
 		return new RegisteredSymbolList(page.Total, page.Truncated, entries, page.NextOffset);
 	}
+
+	private long PreparedGeneration()
+	{
+		lock (_preparedGate)
+		{
+			return _preparedGeneration;
+		}
+	}
+
+	private long BeginPreparedPublication()
+	{
+		lock (_preparedGate)
+		{
+			return checked(++_preparedPublication);
+		}
+	}
+
+	private void PublishPrepared(LuaRegisteredSymbols copied, long generation, long publication)
+	{
+		lock (_preparedGate)
+		{
+			if (_preparedGeneration == generation && _preparedPublication == publication)
+			{
+				_prepared = new PreparedRegisteredSymbols(Clone(copied), _time.GetTimestamp());
+			}
+		}
+	}
+
+	private bool TryGetPrepared(out LuaRegisteredSymbols copied)
+	{
+		lock (_preparedGate)
+		{
+			if (_prepared is { } current && _time.GetElapsedTime(current.PublishedAt, _time.GetTimestamp()) < PreparedLifetime)
+			{
+				copied = Clone(current.Symbols);
+				return true;
+			}
+		}
+
+		copied = null!;
+		return false;
+	}
+
+	private void InvalidatePrepared()
+	{
+		lock (_preparedGate)
+		{
+			_preparedGeneration++;
+			_prepared = null;
+		}
+	}
+
+	private static LuaRegisteredSymbols Clone(LuaRegisteredSymbols copied)
+	{
+		return new LuaRegisteredSymbols([.. copied.Symbols], copied.Count, copied.Truncated);
+	}
+
+	private sealed record PreparedRegisteredSymbols(LuaRegisteredSymbols Symbols, long PublishedAt);
 
 	private static string RequireName(string? name)
 	{

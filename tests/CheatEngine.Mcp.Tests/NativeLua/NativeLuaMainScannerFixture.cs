@@ -36,12 +36,14 @@ public sealed partial class NativeLuaToolRuntimeTests
 		Assert.Equal("Scanning", tools.GetStatus(cancellationToken: Token).State);
 	}
 
-	[Fact]
-	public void ScanV2_MainScannerWithoutProcess_IsNotAttached()
+	[Theory]
+	[InlineData(0)]
+	[InlineData(-1)]
+	public void ScanV2_MainScannerWithoutAPositiveProcessId_IsNotAttached(int processId)
 	{
 		using RuntimeScope scope = CreateScope();
 		InstallMainScanner();
-		InstallStubs("getOpenedProcessID=function() return 0 end");
+		InstallStubs($"getOpenedProcessID=function() return {processId} end");
 		using ScanTools tools = new(CreateNativeDispatch(new McpFeatureOptions()), new TargetResources());
 
 		CheatEngineToolException first =
@@ -52,7 +54,9 @@ public sealed partial class NativeLuaToolRuntimeTests
 		Assert.Equal((ToolErrorKind.NotAttached, ToolErrorKind.NotAttached), (first.Error.Kind, next.Error.Kind));
 		Assert.Equal((ToolHostEffect.NotStarted, "Attach a process with process_attach."),
 			(first.Error.HostEffect, first.Error.Hint));
-		Assert.Equal("NoTarget", tools.GetStatus(cancellationToken: Token).State);
+		ScanStatusResult status = tools.GetStatus(cancellationToken: Token);
+		Assert.Equal("NoTarget", status.State);
+		Assert.Null(status.ProcessId);
 		Assert.Equal((0L, 0L), (ReadGlobal("firstCalls"), ReadGlobal("nextCalls")));
 	}
 

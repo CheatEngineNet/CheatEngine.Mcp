@@ -8,8 +8,10 @@ namespace CheatEngine.Mcp.Tools.Kernel;
 
 /// <summary>The available DBK/DBVM state and control-register values, without initializing either component.</summary>
 public sealed record KernelStatus(
-	bool DbkInitialized,
-	bool DbvmInitialized,
+	[property: Description("Whether DBK is initialized; omitted when Cheat Engine cannot report its state.")]
+	bool? DbkInitialized,
+	[property: Description("Whether DBVM is initialized; omitted when Cheat Engine cannot report its state.")]
+	bool? DbvmInitialized,
 	string? Cr0,
 	string? Cr3,
 	string? Cr4,

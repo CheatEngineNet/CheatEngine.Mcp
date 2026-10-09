@@ -105,6 +105,8 @@ The patches are private to the target process. Other processes and the system cl
   - Once the symbol exists, CE never retries hooking in that process. Only a restart of the target makes CE try again.
 - `hooksInstalled` false after an activation means CE stopped before the allocation, for example because the helper
   library failed. The next `speedhack_set_speed` with a speed other than 1 tries again.
+- An unavailable symbol probe refuses before a change. If the probe fails after a change, `hooksInstalled` is omitted
+  and the restore resource is retained; omission is not evidence that the hooks are absent.
 - `firstActivation` true means the symbol was absent before the call, so CE made its hook attempt. Speed 1 never
   activates the speedhack and always reports false.
 - If `hooksInstalled` is already true before any MCP change, CE's speedhack already ran in this process: CE's checkbox

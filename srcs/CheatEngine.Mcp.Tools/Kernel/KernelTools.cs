@@ -32,7 +32,7 @@ public sealed class KernelTools
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[RequiresFeature(McpFeature.KernelAccess)]
 	[Description(
-		"Read whether DBK and DBVM are already initialized, plus any CR0, CR3, CR4 and DBVM real-CR4 values that Cheat Engine can read. It does not load a driver or initialize DBVM. Null register values are unavailable, not zero; call this before any kernel operation.")]
+		"Read whether DBK and DBVM are already initialized, plus any CR0, CR3, CR4 and DBVM real-CR4 values that Cheat Engine can read. It does not load a driver or initialize DBVM. Null status and register values are unavailable, not false or zero; call this before any kernel operation.")]
 	public KernelStatus GetStatus(CancellationToken cancellationToken = default)
 	{
 		RequireKernel(CheatEngineToolNames.KernelGetStatus);
@@ -209,8 +209,8 @@ public sealed class KernelTools
 	///     Drains newly available DBVM events into the job ring, then returns a non-consuming page through the job
 	///     poll, which refreshes the managed job state.
 	/// </summary>
-	[McpServerTool(Name = CheatEngineToolNames.KernelPollWatch, Title = "Poll DBVM watch", ReadOnly = true,
-		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+	[McpServerTool(Name = CheatEngineToolNames.KernelPollWatch, Title = "Poll DBVM watch", ReadOnly = false,
+		Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.BlockingNative)]
 	[RequiresFeature(McpFeature.KernelAccess)]
 	[Description(

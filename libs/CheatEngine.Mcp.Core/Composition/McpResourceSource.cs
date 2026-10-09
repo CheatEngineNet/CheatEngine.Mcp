@@ -21,6 +21,10 @@ namespace CheatEngine.Mcp.Core.Composition;
 /// <param name="ReadOnly">Whether the tool is declared read-only.</param>
 /// <param name="OpenWorld">Whether the tool is declared open-world.</param>
 /// <param name="DispatchClass">The tool's declared dispatch class, if it publishes one as a string.</param>
+/// <param name="PreparedProjectionName">The optional declared prepared-projection method name.</param>
+/// <param name="PreparedProjection">The one public instance method resolved under that name, if any.</param>
+/// <param name="PreparedRequires">The switches the prepared projection requires, ordered and distinct.</param>
+/// <param name="PreparedDispatchClass">The prepared projection's declared dispatch class, if it publishes one.</param>
 internal sealed record McpResourceSource(
 	string ToolName,
 	Type ToolType,
@@ -28,9 +32,14 @@ internal sealed record McpResourceSource(
 	IReadOnlyList<McpFeature> Requires,
 	bool ReadOnly,
 	bool OpenWorld,
-	string? DispatchClass)
+	string? DispatchClass,
+	string? PreparedProjectionName,
+	MethodInfo? PreparedProjection,
+	IReadOnlyList<McpFeature> PreparedRequires,
+	string? PreparedDispatchClass)
 {
 	private const BindingFlags ToolMethods = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static;
+	private const BindingFlags PreparedMethods = BindingFlags.Public | BindingFlags.Instance;
 
 	/// <summary>Resolves the source tool a resource method declares.</summary>
 	/// <param name="resourceMethod">The resource method.</param>
@@ -59,8 +68,26 @@ internal sealed record McpResourceSource(
 				.. tool.GetCustomAttributes<RequiresFeatureAttribute>(false)
 					.Select(static requirement => requirement.Feature).Distinct().Order()
 			];
+		string? preparedName = declared.PreparedProjection;
+		MethodInfo[] preparedCandidates = preparedName is null
+			? []
+			:
+			[
+				.. declared.ToolType.GetMethods(PreparedMethods)
+					.Where(method => method.DeclaringType == declared.ToolType &&
+						string.Equals(method.Name, preparedName, StringComparison.Ordinal))
+			];
+		MethodInfo? prepared = preparedCandidates.Length == 1 ? preparedCandidates[0] : null;
+		McpFeature[] preparedRequires = prepared is null
+			? []
+			:
+			[
+				.. prepared.GetCustomAttributes<RequiresFeatureAttribute>(false)
+					.Select(static requirement => requirement.Feature).Distinct().Order()
+			];
 		return new McpResourceSource(name, declared.ToolType, tool, requires, attribute?.ReadOnly ?? false,
-			attribute?.OpenWorld ?? true, tool is null ? null : DispatchClassOf(tool));
+			attribute?.OpenWorld ?? true, tool is null ? null : DispatchClassOf(tool), preparedName, prepared,
+			preparedRequires, prepared is null ? null : DispatchClassOf(prepared));
 	}
 
 	/// <summary>Reads the resolved source a created resource carries.</summary>
@@ -77,7 +104,21 @@ internal sealed record McpResourceSource(
 	/// <returns>The seed, or <see langword="null" /> without a source.</returns>
 	internal static JsonObject? CreateMeta(McpResourceSource? source)
 	{
-		return source is null ? null : new JsonObject { [McpSourceToolAttribute.MetaKey] = source.ToolName };
+		if (source is null)
+		{
+			return null;
+		}
+
+		JsonObject meta = new()
+		{
+			[McpSourceToolAttribute.MetaKey] = source.ToolName
+		};
+		if (source.PreparedProjection is { } projection)
+		{
+			meta[McpSourceToolAttribute.PreparedProjectionMetaKey] = projection.Name;
+		}
+
+		return meta;
 	}
 
 	private static string? DispatchClassOf(MethodInfo tool)

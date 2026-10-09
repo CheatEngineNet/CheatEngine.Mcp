@@ -3,8 +3,8 @@ using System.ComponentModel;
 namespace CheatEngine.Mcp.Core.Jobs;
 
 /// <summary>
-///     One page of a job's items. Polling is read-only and idempotent: <c>afterSequence</c> is a cursor, never an
-///     acknowledgement, so repeating a poll returns the same page.
+///     One page of a job's buffered items. Reading this page does not consume it: <c>afterSequence</c> is a cursor,
+///     never an acknowledgement. Items remain readable until the job expires or the buffer evicts them.
 /// </summary>
 /// <typeparam name="TItem">The item type.</typeparam>
 /// <param name="Job">The job's status.</param>

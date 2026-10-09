@@ -14,6 +14,7 @@ using CheatEngine.Client.Tables;
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Features;
 using CheatEngine.Mcp.Core.Files;
+using CheatEngine.Mcp.Core.Inspection;
 using CheatEngine.Mcp.Core.Jobs;
 using CheatEngine.Mcp.Core.Values;
 using CheatEngine.Mcp.Resources;
@@ -68,8 +69,6 @@ public sealed class LiveResourceTests
 		("jobs", "instance_jobs", CheatEngineToolNames.RuntimeListJobs),
 		("memory/{address}{?size}", "instance_memory", CheatEngineToolNames.MemoryRead),
 		("modules/{module}", "instance_module", CheatEngineToolNames.ModuleGet),
-		("modules/{module}/exports{?offset,limit}", "instance_module_exports",
-			CheatEngineToolNames.ModuleListExports),
 		("modules{?offset,limit}", "instance_modules", CheatEngineToolNames.ModuleList),
 		("patches", "instance_patches", CheatEngineToolNames.AsmListPatches),
 		("pointer-maps", "instance_pointer_maps", CheatEngineToolNames.PointerListMaps),
@@ -103,8 +102,6 @@ public sealed class LiveResourceTests
 		{ "modules", "limit", "1001" },
 		{ "module", "module", "" },
 		{ "module", "module", "   " },
-		{ "exports", "module", "" },
-		{ "exports", "limit", "1001" },
 		{ "regions", "offset", "1.5" },
 		{ "regions", "limit", "2001" },
 		{ "memory", "address", "" },
@@ -152,16 +149,30 @@ public sealed class LiveResourceTests
 	}
 
 	[Fact]
-	public void BackendCatalog_EverySourceTool_IsServedReadOnlyClosedWorldUngatedAndShort()
+	public void BackendCatalog_EverySourceTool_IsServedReadOnlyClosedWorldUngatedAndHasAnHonestReadPath()
 	{
 		McpPrimitiveCatalog catalog = McpPrimitiveCatalog.Create(TestComposition.BackendManifest);
 
-		foreach ((string _, string _, string name) in Projections)
+		foreach ((string _, string resourceName, string name) in Projections)
 		{
 			Tool tool = Assert.Single(catalog.Tools, candidate => candidate.Name == name);
 			Assert.True(tool.Annotations!.ReadOnlyHint, name);
 			Assert.False(tool.Annotations.OpenWorldHint, name);
-			Assert.Equal(McpDispatchClass.Short, tool.Meta![McpDispatchClass.MetaKey]!.GetValue<string>());
+			string? prepared = name switch
+			{
+				CheatEngineToolNames.ModuleList => nameof(ModuleTools.ListPrepared),
+				CheatEngineToolNames.ModuleGet => nameof(ModuleTools.GetPrepared),
+				CheatEngineToolNames.MemoryListRegions => nameof(MemoryInfoTools.ListPreparedRegions),
+				CheatEngineToolNames.ProcessListThreads => nameof(ProcessTools.ListPreparedThreads),
+				CheatEngineToolNames.SymbolListRegistered => nameof(SymbolRegistrationTools.ListPreparedRegistered),
+				CheatEngineToolNames.DebuggerListBreakpoints => nameof(DebuggerTools.ListPreparedBreakpoints),
+				_ => null
+			};
+			Assert.Equal(prepared is null ? McpDispatchClass.Short : McpDispatchClass.BlockingNative,
+				tool.Meta![McpDispatchClass.MetaKey]!.GetValue<string>());
+			McpCatalogResource resource = Assert.Single(catalog.InstanceResources,
+				candidate => candidate.Template.Name == resourceName);
+			Assert.Equal(prepared, resource.Template.Meta?[McpSourceToolAttribute.PreparedProjectionMetaKey]?.GetValue<string>());
 			Assert.False(tool.Meta.ContainsKey(McpFeatureGate.RequiresMetaKey), name);
 		}
 	}
@@ -224,14 +235,17 @@ public sealed class LiveResourceTests
 		threads.LuaResults[typeof(ProcessThreadListResult)] = new ProcessThreadListResult([11, 12], false);
 		ProcessTools current = new(target.Dispatch, new TargetResources(), new TargetTransitionGuards([]), Files());
 		ProcessTools listing = new(threads.Dispatch, new TargetResources(), new TargetTransitionGuards([]), Files());
+		ProcessThreadListResult prepared = listing.ListThreads(Token);
+		int threadEnumerations = threads.LuaSources.Count;
 
 		ReadResourceResult process = new ProcessLiveResources(current).Process(Token);
 		ReadResourceResult list = new ProcessLiveResources(listing).Threads(Token);
 
 		AssertProjects(process, Instance + "process", current.GetCurrent(Token),
 			ProcessJsonContext.Default.ProcessCurrentResult);
-		AssertProjects(list, Instance + "threads", listing.ListThreads(Token),
+		AssertProjects(list, Instance + "threads", prepared,
 			ProcessJsonContext.Default.ProcessThreadListResult);
+		Assert.Equal(threadEnumerations, threads.LuaSources.Count);
 		Assert.Equal("""{"threads":[11,12],"truncated":false}""", Text(list));
 	}
 
@@ -242,55 +256,62 @@ public sealed class LiveResourceTests
 		target.AddModule("game.exe", 0x140000000, 0x5000);
 		target.AddModule("mono.dll", 0x180000000, 0x2000);
 		target.AddModule("user32.dll", 0x7FF800000000, 0x1000);
-		ModuleTools tools = new(target.Dispatch);
-		ModuleLiveResources live = new(tools, new ModuleExportTools(target.Dispatch), target.Dispatch);
+		PreparedInspectionStore prepared = new(TimeProvider.System);
+		ModuleTools tools = new(target.Dispatch, prepared);
+		ModuleLiveResources live = new(tools, target.Dispatch, prepared);
+		ModuleList expectedBare = tools.List(cancellationToken: Token);
+		ModuleList expectedPage = tools.List(offset: 1, limit: 1, cancellationToken: Token);
+		ModuleList expectedLimited = tools.List(limit: 2, cancellationToken: Token);
+		int enumerations = target.Calls("TryGetModules");
 
 		ReadResourceResult bare = live.Modules(cancellationToken: Token);
 		ReadResourceResult page = live.Modules("1", "1", Token);
 		ReadResourceResult limited = live.Modules(limit: "2", cancellationToken: Token);
 
-		AssertProjects(bare, Instance + "modules", tools.List(cancellationToken: Token),
+		Assert.Equal(enumerations, target.Calls("TryGetModules"));
+		AssertProjects(bare, Instance + "modules", expectedBare,
 			ModuleJsonContext.Default.ModuleList);
-		AssertProjects(page, Instance + "modules?offset=1&limit=1", tools.List(offset: 1, limit: 1,
-			cancellationToken: Token), ModuleJsonContext.Default.ModuleList);
-		AssertProjects(limited, Instance + "modules?limit=2", tools.List(limit: 2, cancellationToken: Token),
+		AssertProjects(page, Instance + "modules?offset=1&limit=1", expectedPage, ModuleJsonContext.Default.ModuleList);
+		AssertProjects(limited, Instance + "modules?limit=2", expectedLimited,
 			ModuleJsonContext.Default.ModuleList);
 		Assert.Contains("\"name\":\"mono.dll\"", Text(page), StringComparison.Ordinal);
 		Assert.DoesNotContain("game.exe", Text(page), StringComparison.Ordinal);
 	}
 
 	[Fact]
-	public void ModuleAndExports_ProjectOneModuleByNameOrExpression()
+	public void Module_ProjectsOneModuleByNameOrExpression()
 	{
 		ModuleSymbolTarget target = ModuleToolTests.LoadedSample();
 		target.Addresses["sample.dll+4010"] = SampleModule.LoadedBase + 0x4010;
-		ModuleTools modules = new(target.Dispatch);
-		ModuleExportTools exports = new(target.Dispatch);
-		ModuleLiveResources live = new(modules, exports, target.Dispatch);
+		PreparedInspectionStore prepared = new(TimeProvider.System);
+		ModuleTools modules = new(target.Dispatch, prepared);
+		ModuleLiveResources live = new(modules, target.Dispatch, prepared);
+		ModuleDetails expected = modules.Get("sample.dll+4010", Token);
+		int enumerations = target.Calls("TryGetModules");
+		int sections = target.Calls("GetModuleSections");
 
 		ReadResourceResult module = live.Module("sample.dll+4010", Token);
-		ReadResourceResult all = live.Exports("SAMPLE.dll", cancellationToken: Token);
-		ReadResourceResult page = live.Exports("sample.dll", "1", "2", Token);
 
-		AssertProjects(module, Instance + "modules/sample.dll%2B4010", modules.Get("sample.dll+4010", Token),
+		Assert.Equal(enumerations, target.Calls("TryGetModules"));
+		Assert.Equal(sections, target.Calls("GetModuleSections"));
+		AssertProjects(module, Instance + "modules/sample.dll%2B4010", expected,
 			ModuleJsonContext.Default.ModuleDetails);
-		AssertProjects(all, Instance + "modules/SAMPLE.dll/exports",
-			exports.ListExports("SAMPLE.dll", cancellationToken: Token), ModuleJsonContext.Default.ExportList);
-		AssertProjects(page, Instance + "modules/sample.dll/exports?offset=1&limit=2",
-			exports.ListExports("sample.dll", null, 1, 2, Token), ModuleJsonContext.Default.ExportList);
-		Assert.Equal(2, JsonNode.Parse(Text(page))!["exports"]!.AsArray().Count);
 	}
 
 	[Fact]
-	public void Module_Missing_IsNotFound()
+	public void Module_Unprepared_FailsWithoutEnumeration()
 	{
-		ToolDispatch dispatch = ModuleToolTests.LoadedSample().Dispatch;
-		ModuleLiveResources live = new(new ModuleTools(dispatch), new ModuleExportTools(dispatch), dispatch);
+		ModuleSymbolTarget target = ModuleToolTests.LoadedSample();
+		ToolDispatch dispatch = target.Dispatch;
+		PreparedInspectionStore prepared = new(TimeProvider.System);
+		ModuleLiveResources live = new(new ModuleTools(dispatch, prepared), dispatch, prepared);
 
 		CheatEngineToolException exception =
 			Assert.Throws<CheatEngineToolException>(() => live.Module("missing.dll", Token));
 
-		Assert.Equal(ToolErrorKind.NotFound, exception.Error.Kind);
+		Assert.Equal(ToolErrorKind.InvalidState, exception.Error.Kind);
+		Assert.Equal(0, target.Calls("TryGetModules"));
+		Assert.Equal(0, target.Calls("GetModuleSections"));
 	}
 
 	[Fact]
@@ -306,16 +327,20 @@ public sealed class LiveResourceTests
 				_ => throw new InvalidOperationException($"Unexpected inspection call {method.Name}.")
 			}
 		};
-		MemoryInfoTools tools = new(target.Dispatch);
+		MemoryInfoTools tools = new(target.Dispatch, new PreparedInspectionStore(TimeProvider.System));
 		MemoryLiveResources live = new(tools, new MemoryReadTools(target.Dispatch));
+		RegionList expectedBare = tools.ListRegions(limit: 100, cancellationToken: Token);
+		RegionList expectedPage = tools.ListRegions(offset: 148, limit: 5, cancellationToken: Token);
+		int enumerations = target.CallsTo("Inspection").Length;
 
 		ReadResourceResult bare = live.Regions(cancellationToken: Token);
 		ReadResourceResult page = live.Regions("148", "5", Token);
 
-		AssertProjects(bare, Instance + "regions", tools.ListRegions(limit: 100, cancellationToken: Token),
+		Assert.Equal(enumerations, target.CallsTo("Inspection").Length);
+		AssertProjects(bare, Instance + "regions", expectedBare,
 			MemoryJsonContext.Default.RegionList);
 		AssertProjects(page, Instance + "regions?offset=148&limit=5",
-			tools.ListRegions(offset: 148, limit: 5, cancellationToken: Token), MemoryJsonContext.Default.RegionList);
+			expectedPage, MemoryJsonContext.Default.RegionList);
 		JsonNode first = JsonNode.Parse(Text(bare))!;
 		Assert.Equal((150, 100, 100), (first["total"]!.GetValue<int>(), first["nextOffset"]!.GetValue<int>(),
 			first["regions"]!.AsArray().Count));
@@ -336,7 +361,7 @@ public sealed class LiveResourceTests
 			return ImmutableArray.CreateRange(Enumerable.Range(0, length).Select(static index => (byte) index));
 		};
 		MemoryReadTools reads = new(target.Dispatch);
-		MemoryLiveResources live = new(new MemoryInfoTools(target.Dispatch), reads);
+		MemoryLiveResources live = new(new MemoryInfoTools(target.Dispatch, new PreparedInspectionStore(TimeProvider.System)), reads);
 
 		ReadResourceResult bare = live.Memory("game.exe+10", cancellationToken: Token);
 		ReadResourceResult sized = live.Memory("401000", "4", Token);
@@ -465,14 +490,18 @@ public sealed class LiveResourceTests
 		], 3, false);
 		SymbolRegistrationTools symbols = new(target.Dispatch, new TargetResources(), new SymbolRegistrations());
 		SymbolLiveResources live = new(symbols);
+		RegisteredSymbolList prepared = symbols.ListRegistered(cancellationToken: Token);
+		RegisteredSymbolList preparedPage = symbols.ListRegistered(null, 2, 1, Token);
+		int enumerations = target.LuaSources.Count;
 
 		ReadResourceResult bare = live.Symbols(cancellationToken: Token);
 		ReadResourceResult page = live.Symbols("2", "1", Token);
 
-		AssertProjects(bare, Instance + "symbols", symbols.ListRegistered(cancellationToken: Token),
+		AssertProjects(bare, Instance + "symbols", prepared,
 			SymbolJsonContext.Default.RegisteredSymbolList);
-		AssertProjects(page, Instance + "symbols?offset=2&limit=1", symbols.ListRegistered(null, 2, 1, Token),
+		AssertProjects(page, Instance + "symbols?offset=2&limit=1", preparedPage,
 			SymbolJsonContext.Default.RegisteredSymbolList);
+		Assert.Equal(enumerations, target.LuaSources.Count);
 		Assert.Contains("\"name\":\"gamma\"", Text(page), StringComparison.Ordinal);
 	}
 
@@ -518,19 +547,21 @@ public sealed class LiveResourceTests
 		using JobRegistry jobs = Jobs(target.Dispatch, resources);
 		DebuggerTools debugger = new(target.Dispatch, jobs, resources);
 		DebuggerLiveResources live = new(debugger);
+		DebuggerBreakpointPage prepared = debugger.ListBreakpoints(256, Token);
+		DebuggerBreakpointPage preparedLimited = debugger.ListBreakpoints(8, Token);
 
 		ReadResourceResult status = live.Debugger(Token);
+		int enumerations = target.LuaSources.Count;
 		ReadResourceResult bare = live.Breakpoints(cancellationToken: Token);
 		ReadResourceResult limited = live.Breakpoints("8", Token);
+		Assert.Equal(enumerations, target.LuaSources.Count);
 
 		AssertProjects(status, Instance + "debugger", debugger.GetStatus(Token),
 			DebuggerJsonContext.Default.DebuggerStatus);
-		AssertProjects(bare, Instance + "debugger/breakpoints", debugger.ListBreakpoints(256, Token),
+		AssertProjects(bare, Instance + "debugger/breakpoints", prepared,
 			DebuggerJsonContext.Default.DebuggerBreakpointPage);
-		AssertProjects(limited, Instance + "debugger/breakpoints?limit=8", debugger.ListBreakpoints(8, Token),
+		AssertProjects(limited, Instance + "debugger/breakpoints?limit=8", preparedLimited,
 			DebuggerJsonContext.Default.DebuggerBreakpointPage);
-		Assert.Contains("[2] = 256", target.LuaSources[1], StringComparison.Ordinal);
-		Assert.Contains("[2] = 8", target.LuaSources[2], StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -552,9 +583,11 @@ public sealed class LiveResourceTests
 	{
 		await using ModuleActivation activation = await ModuleActivation.StartAsync();
 
+		CallToolResult call = await activation.Pipeline.CallAsync(CheatEngineToolNames.ModuleList);
+		Assert.NotEqual(true, call.IsError);
 		ReadResourceResult read = await activation.Pipeline.Client.ReadResourceAsync(Instance + "modules",
 			cancellationToken: Token);
-		CallToolResult call = await activation.Pipeline.CallAsync(CheatEngineToolNames.ModuleList);
+		Assert.Equal(1, activation.Target.Calls("TryGetModules"));
 		IList<McpClientResource> concrete =
 			await activation.Pipeline.Client.ListResourcesAsync(cancellationToken: Token);
 		IList<McpClientResourceTemplate> templates =
@@ -566,30 +599,26 @@ public sealed class LiveResourceTests
 		Assert.Empty(concrete);
 		Assert.Equal(
 		[
-			Instance + "modules/{module}", Instance + "modules/{module}/exports{?offset,limit}",
-			Instance + "modules{?offset,limit}"
+			Instance + "modules/{module}", Instance + "modules{?offset,limit}"
 		], templates.Select(static template => template.UriTemplate).Order(StringComparer.Ordinal));
+		Assert.DoesNotContain(templates, static template =>
+			template.UriTemplate == Instance + "modules/{module}/exports{?offset,limit}");
 	}
 
 	[Fact]
-	public async Task ReadResource_PercentEncodedPathAndQuery_ReachTheToolDecoded()
+	public async Task ReadResource_PercentEncodedModulePath_ReachesTheToolDecoded()
 	{
 		await using ModuleActivation activation = await ModuleActivation.StartAsync();
 		activation.Target.Addresses["sample.dll+4010"] = SampleModule.LoadedBase + 0x4010;
+		CallToolResult prepared = await activation.Pipeline.CallAsync(CheatEngineToolNames.ModuleGet,
+			"""{"module":"sample.dll+4010"}""");
+		Assert.NotEqual(true, prepared.IsError);
 
 		ReadResourceResult module = await activation.Pipeline.Client.ReadResourceAsync(
 			Instance + "modules/sample.dll%2B4010", cancellationToken: Token);
-		ReadResourceResult exports = await activation.Pipeline.Client.ReadResourceAsync(
-			Instance + "modules/sample.dll/exports?offset=3&limit=1", cancellationToken: Token);
-
 		TextResourceContents details = Assert.IsType<TextResourceContents>(Assert.Single(module.Contents));
 		Assert.Equal(Instance + "modules/sample.dll%2B4010", details.Uri);
 		Assert.Equal("sample.dll", JsonNode.Parse(details.Text)!["name"]!.GetValue<string>());
-		TextResourceContents page = Assert.IsType<TextResourceContents>(Assert.Single(exports.Contents));
-		Assert.Equal(Instance + "modules/sample.dll/exports?offset=3&limit=1", page.Uri);
-		Assert.Equal("Forwarded", JsonNode.Parse(page.Text)!["exports"]![0]!["name"]!.GetValue<string>());
-		Assert.Equal(TimeSpan.Zero, exports.TimeToLive);
-		Assert.Equal(CacheScope.Private, exports.CacheScope);
 	}
 
 	[Theory]
@@ -613,9 +642,9 @@ public sealed class LiveResourceTests
 	}
 
 	[Theory]
-	[InlineData("2025-06-18", McpErrorCode.ResourceNotFound)]
-	[InlineData("2026-07-28", McpErrorCode.InvalidParams)]
-	public async Task ReadResource_MissingModule_IsNotFoundForTheNegotiatedVersion(string version, McpErrorCode code)
+	[InlineData("2025-06-18")]
+	[InlineData("2026-07-28")]
+	public async Task ReadResource_UnpreparedModule_IsInvalidStateForTheNegotiatedVersion(string version)
 	{
 		await using ModuleActivation activation = await ModuleActivation.StartAsync(version);
 
@@ -623,9 +652,10 @@ public sealed class LiveResourceTests
 			await activation.Pipeline.Client.ReadResourceAsync(Instance + "modules/missing.dll",
 				cancellationToken: Token));
 
-		Assert.Equal(code, exception.ErrorCode);
-		Assert.Equal("not_found", exception.Data["kind"]);
-		Assert.Contains(CheatEngineToolNames.ModuleList, Assert.IsType<string>(exception.Data["hint"]),
+		Assert.Equal(McpErrorCode.InternalError, exception.ErrorCode);
+		Assert.Equal("invalid_state", exception.Data["kind"]);
+		Assert.Equal(0, activation.Target.Calls("TryGetModules"));
+		Assert.Contains(CheatEngineToolNames.ModuleGet, Assert.IsType<string>(exception.Data["hint"]),
 			StringComparison.Ordinal);
 	}
 
@@ -692,8 +722,9 @@ public sealed class LiveResourceTests
 			_jobs = Jobs(dispatch, resources);
 			_scans = new ScanTools(dispatch, resources);
 			PointerStore store = new();
-			ModuleLiveResources modules = new(new ModuleTools(dispatch), new ModuleExportTools(dispatch), dispatch);
-			MemoryLiveResources memory = new(new MemoryInfoTools(dispatch), new MemoryReadTools(dispatch));
+			PreparedInspectionStore prepared = new(TimeProvider.System);
+			ModuleLiveResources modules = new(new ModuleTools(dispatch, prepared), dispatch, prepared);
+			MemoryLiveResources memory = new(new MemoryInfoTools(dispatch, prepared), new MemoryReadTools(dispatch));
 			CodeLiveResources code = new(new CodeTools(dispatch, _jobs));
 			RecordLiveResources records = new(new RecordReadTools(dispatch));
 			StructureLiveResources structures = new(new StructureTools(dispatch));
@@ -711,9 +742,6 @@ public sealed class LiveResourceTests
 					? modules.Modules(value, null, token)
 					: modules.Modules(null, value, token),
 				["module"] = (_, value) => modules.Module(value, token),
-				["exports"] = (name, value) => name == "module"
-					? modules.Exports(value, cancellationToken: token)
-					: modules.Exports("game.exe", limit: value, cancellationToken: token),
 				["regions"] = (name, value) => name == "offset"
 					? memory.Regions(value, null, token)
 					: memory.Regions(null, value, token),
