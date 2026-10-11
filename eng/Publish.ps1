@@ -30,7 +30,10 @@ function Invoke-GatewayNativeAotSmoke([string] $gateway) {
             try { $message = $line | ConvertFrom-Json -ErrorAction Stop }
             catch { throw "Gateway stdout was not JSON-RPC: $line" }
             if ($message.id -ne $id) { throw "Expected MCP response $id, got: $line" }
-            if ($null -ne $message.error) { throw "MCP response $id was an error: $line" }
+            $errorProperty = $message.PSObject.Properties['error']
+            if ($null -ne $errorProperty -and $null -ne $errorProperty.Value) {
+                throw "MCP response $id was an error: $line"
+            }
             return $message
         }
 
