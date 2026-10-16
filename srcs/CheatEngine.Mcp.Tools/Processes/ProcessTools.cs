@@ -51,7 +51,7 @@ public sealed class ProcessTools
 	                                          local threads = {}
 	                                          local maximum = a[1]
 	                                          for i = 0, math.min(count, maximum) - 1 do
-	                                            local threadId = tonumber(list.Strings[i], 16)
+	                                            local threadId = tonumber(list[i], 16)
 	                                            assert(threadId ~= nil, 'getThreadlist returned an invalid hexadecimal thread id.')
 	                                            threads[#threads + 1] = threadId
 	                                          end

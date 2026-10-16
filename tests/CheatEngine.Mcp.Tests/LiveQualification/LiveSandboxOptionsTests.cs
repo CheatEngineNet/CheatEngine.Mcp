@@ -23,6 +23,10 @@ public sealed class LiveSandboxOptionsTests
 		}).ValidateFor(LiveQualificationScenario.Lifecycle);
 		(LiveSandboxOptions.Smoke with
 		{
+			WorkflowQualification = true
+		}).ValidateFor(LiveQualificationScenario.Workflows);
+		(LiveSandboxOptions.Smoke with
+		{
 			PerformanceQualification = true
 		}).ValidateFor(LiveQualificationScenario.Performance);
 		(LiveSandboxOptions.Smoke with
@@ -46,6 +50,7 @@ public sealed class LiveSandboxOptionsTests
 			LiveSandboxOptions.Smoke with { TempTopology = CompilerTempTopology.Shared },
 			LiveSandboxOptions.Smoke with { EnableManagedInjection = true },
 			LiveSandboxOptions.Smoke with { LifecycleQualification = true },
+			LiveSandboxOptions.Smoke with { WorkflowQualification = true },
 			LiveSandboxOptions.Smoke with { PerformanceQualification = true },
 			LiveSandboxOptions.Smoke with { SoakQualification = true },
 			LiveSandboxOptions.Smoke with { DispatchDiagnostic = true },
@@ -55,6 +60,20 @@ public sealed class LiveSandboxOptionsTests
 		{
 			Assert.Throws<InvalidOperationException>(() => options.ValidateFor(LiveQualificationScenario.Smoke));
 		}
+	}
+
+	[Fact]
+	public void ValidateFor_WorkflowsRequireDisabledExecutionAndDedicatedConfiguration()
+	{
+		LiveSandboxOptions workflows = LiveSandboxOptions.Smoke with
+		{
+			WorkflowQualification = true
+		};
+		Assert.True(workflows.RequiresCapabilityConfiguration);
+		Assert.False(workflows.EnableTargetCodeExecution);
+		workflows.ValidateFor(LiveQualificationScenario.Workflows);
+		Assert.Throws<InvalidOperationException>(() => (workflows with { EnableTargetCodeExecution = true }).ValidateFor(LiveQualificationScenario.Workflows));
+		Assert.Throws<InvalidOperationException>(() => (workflows with { LifecycleQualification = true }).ValidateFor(LiveQualificationScenario.Workflows));
 	}
 
 	[Fact]

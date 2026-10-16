@@ -31,7 +31,7 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			await LivePerformanceQualification.RunAsync(inputs);
 			return;
 		}
-		if (inputs.Scenario == LiveQualificationScenario.Lifecycle)
+		if (inputs.Scenario is LiveQualificationScenario.Lifecycle or LiveQualificationScenario.Workflows)
 		{
 			await LiveLifecycleQualification.RunAsync(inputs);
 			return;

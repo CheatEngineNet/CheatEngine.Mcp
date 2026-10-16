@@ -170,6 +170,7 @@ public sealed class LiveQualificationOptInTests
 
 	[Theory]
 	[InlineData("lifecycle", LiveQualificationScenario.Lifecycle)]
+	[InlineData("workflows", LiveQualificationScenario.Workflows)]
 	[InlineData("performance", LiveQualificationScenario.Performance)]
 	[InlineData("soak", LiveQualificationScenario.Soak)]
 	[InlineData("dispatch-diagnostic", LiveQualificationScenario.DispatchDiagnostic)]

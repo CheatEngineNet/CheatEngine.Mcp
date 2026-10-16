@@ -192,10 +192,10 @@ public sealed partial class NativeLuaToolRuntimeTests
 		             threadLists=0; threadListsDestroyed=0
 		             createStringList=function()
 		               threadLists=threadLists+1
-		               return {Count=0, Strings={}, destroy=function() threadListsDestroyed=threadListsDestroyed+1 end}
+		               return {Count=0, destroy=function() threadListsDestroyed=threadListsDestroyed+1 end}
 		             end
 		             getThreadlist=function(list)
-		               list.Strings[0]='64'; list.Strings[1]='C8'; list.Strings[2]='12C'; list.Count=3
+		               list[0]='64'; list[1]='C8'; list[2]='12C'; list.Count=3
 		             end
 		             setPointerSize=function(value) pointerSize=value end
 		             getPointerSize=function() return pointerSize end
@@ -239,6 +239,58 @@ public sealed partial class NativeLuaToolRuntimeTests
 	}
 
 	[Fact]
+	public void ProcessV2_ThreadList_UsesDocumentedZeroBasedStringListIndexerForEmptyAndTruncatedResults()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs("""
+		             pid=77; calls=0; lists=0; destroyed=0
+		             getOpenedProcessID=function() return pid end
+		             createStringList=function()
+		               lists=lists+1
+		               return {Count=0, destroy=function() destroyed=destroyed+1 end}
+		             end
+		             getThreadlist=function(list)
+		               calls=calls+1
+		               if calls == 1 then list.Count=0; return end
+		               for i=0,4096 do list[i]=string.format('%X', i+1) end
+		               list.Count=4097
+		             end
+		             """);
+		ProcessTools tools = new(CreateNativeProcessDispatch(77), new TargetResources(),
+			new TargetTransitionGuards([]), CreateProcessFiles());
+
+		ProcessThreadListResult empty = tools.ListThreads(Token);
+		ProcessThreadListResult truncated = tools.ListThreads(Token);
+
+		Assert.Empty(empty.Threads);
+		Assert.False(empty.Truncated);
+		Assert.Equal((4096, true, 1L, 4096L),
+			(truncated.Threads.Length, truncated.Truncated, truncated.Threads[0], truncated.Threads[^1]));
+		Assert.Equal((2L, 2L), (ReadGlobal("lists"), ReadGlobal("destroyed")));
+	}
+
+	[Fact]
+	public void ProcessV2_ThreadList_InvalidHexadecimalEntry_DestroysItsCallerOwnedStringList()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs("""
+		             pid=77; lists=0; destroyed=0
+		             getOpenedProcessID=function() return pid end
+		             createStringList=function()
+		               lists=lists+1
+		               return {Count=0, destroy=function() destroyed=destroyed+1 end}
+		             end
+		             getThreadlist=function(list) list[0]='not-hex'; list.Count=1 end
+		             """);
+		ProcessTools tools = new(CreateNativeProcessDispatch(77), new TargetResources(),
+			new TargetTransitionGuards([]), CreateProcessFiles());
+
+		Assert.Throws<CheatEngineToolException>(() => tools.ListThreads(Token));
+
+		Assert.Equal((1L, 1L), (ReadGlobal("lists"), ReadGlobal("destroyed")));
+	}
+
+	[Fact]
 	public void ProcessV2_ThreadList_DestroysItsCallerOwnedStringListWhenCollectionFails()
 	{
 		using RuntimeScope scope = CreateScope();
@@ -247,7 +299,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 		             getOpenedProcessID=function() return pid end
 		             createStringList=function()
 		               lists=lists+1
-		               return {Count=0, Strings={}, destroy=function() destroyed=destroyed+1 end}
+		               return {Count=0, destroy=function() destroyed=destroyed+1 end}
 		             end
 		             getThreadlist=function(list) error('thread enumeration failed', 0) end
 		             """);
