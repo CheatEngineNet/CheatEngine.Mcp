@@ -162,6 +162,119 @@ public sealed partial class RecordToolsTests
 	}
 
 	[Fact]
+	public void GetSelected_NoSelection_ReturnsTheNormalUnselectedResult()
+	{
+		RecordTarget target = new();
+
+		RecordSelection selection = new RecordReadTools(target.Dispatch).GetSelected(Token);
+
+		Assert.Equal(new RecordSelection(false, null), selection);
+		Assert.Equal(["Tables.TryGetSelectedRecord"], target.Calls);
+	}
+
+	[Fact]
+	public void GetSelected_KnownRecord_MapsTheCurrentClientSnapshot()
+	{
+		RecordTarget target = new()
+		{
+			SelectedId = 2
+		};
+		target.Records.AddRange([Snapshot(1, 0, "Health"), Snapshot(2, 1, "Ammo", "game.exe+24", "30")]);
+
+		RecordSelection selection = new RecordReadTools(target.Dispatch).GetSelected(Token);
+
+		Assert.True(selection.Selected);
+		RecordEntry record = Assert.IsType<RecordEntry>(selection.Record);
+		Assert.Equal((2, "Ammo", "game.exe+24", "30"),
+			(record.Id, record.Description, record.Address, record.Value));
+		Assert.Equal(["Tables.TryGetSelectedRecord"], target.Calls);
+	}
+
+	[Fact]
+	public void Select_KnownRecord_ForwardsItsIdAndReturnsTheMappedSnapshot()
+	{
+		RecordTarget target = new();
+		target.Records.Add(Snapshot(7, 0, "Health", "game.exe+10", "99"));
+
+		RecordEntry selected = new RecordMutationTools(target.Dispatch).Select(7, Token);
+
+		Assert.Equal((7, "Health", "game.exe+10", "99"),
+			(selected.Id, selected.Description, selected.Address, selected.Value));
+		Assert.Equal(7, target.SelectedId);
+		Assert.Equal(["Tables.SelectRecord"], target.Calls);
+	}
+
+	[Fact]
+	public void Move_ParentAndRoot_ForwardTheExactParentRequestsAndReturnMappedRecords()
+	{
+		RecordTarget target = new();
+		target.Records.AddRange([Snapshot(2, 0, "Ammo"), Snapshot(7, 1, "Player", variableType: VariableType.Grouped)]);
+		RecordMutationTools tools = new(target.Dispatch);
+
+		RecordMoveResult nested = tools.Move(2, 7, Token);
+		RecordMoveResult root = tools.Move(2, cancellationToken: Token);
+
+		Assert.Equal((2, "Ammo"), (nested.Record.Id, nested.Record.Description));
+		Assert.Equal((2, "Ammo"), (root.Record.Id, root.Record.Description));
+		Assert.Equal([(2, 7), (2, (int?) null)], target.Parents);
+		Assert.Equal(["Tables.SetParent", "Tables.SetParent"], target.Calls);
+	}
+
+	[Fact]
+	public void Move_SelfParent_RefusesBeforeAnyClientMutation()
+	{
+		RecordTarget target = new();
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			new RecordMutationTools(target.Dispatch).Move(5, 5, Token));
+
+		Assert.Equal((ToolErrorKind.InvalidArgument, ToolHostEffect.NotStarted, "parentId"),
+			(exception.Error.Kind, exception.Error.HostEffect, Parameter(exception)));
+		Assert.Empty(target.Calls);
+		Assert.Empty(target.Parents);
+	}
+
+	[Fact]
+	public void Group_ParentedMembers_PreservesRequestedOrderAndRecordsTheClientEffects()
+	{
+		RecordTarget target = new();
+		target.Records.AddRange(
+		[
+			Snapshot(1, 0, "Health"), Snapshot(2, 1, "Ammo"),
+			Snapshot(3, 2, "Player", variableType: VariableType.Grouped)
+		]);
+
+		RecordGroupResult result = new RecordMutationTools(target.Dispatch).Group("Stats", [2, 1], 3, Token);
+
+		Assert.Equal((4, "Stats"), (result.Group.Id, result.Group.Description));
+		Assert.Equal([2, 1], result.Records.Select(static record => record.Id));
+		Assert.Equal(new MemoryRecordDefinition("Stats", "0", string.Empty, VariableType.Grouped,
+			new MemoryRecordId(3)), Assert.Single(target.Definitions));
+		Assert.Equal([(2, 4), (1, 4)], target.Parents);
+		Assert.Equal(["Tables.Create", "Tables.SetParent", "Tables.SetParent", "Tables.GetRecord"], target.Calls);
+	}
+
+	[Fact]
+	public void Group_LaterParentRefusal_LeavesTheGroupAndEarlierMoveInPlace()
+	{
+		RecordTarget target = new()
+		{
+			RefusedParentId = 2
+		};
+		target.Records.AddRange([Snapshot(1, 0, "Health"), Snapshot(2, 1, "Ammo")]);
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			new RecordMutationTools(target.Dispatch).Group("Stats", [1, 2], cancellationToken: Token));
+
+		Assert.Equal((ToolErrorKind.HostRefused, ToolHostEffect.Started),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Equal(new MemoryRecordDefinition("Stats", "0", string.Empty, VariableType.Grouped, null),
+			Assert.Single(target.Definitions));
+		Assert.Equal([(1, 3)], target.Parents);
+		Assert.Equal(["Tables.Create", "Tables.SetParent", "Tables.SetParent"], target.Calls);
+	}
+
+	[Fact]
 	public void Create_BatchContainingAutoAssemblerWithoutGate_RefusesBeforeCreatingAnyRecord()
 	{
 		RecordTarget target = new(new McpFeatureOptions { EnableAutoAssembler = false });
@@ -1609,6 +1722,20 @@ public sealed partial class RecordToolsTests
 			get;
 		} = [];
 
+		/// <summary>The current selected record, or null when Cheat Engine has no address-list selection.</summary>
+		internal int? SelectedId
+		{
+			get;
+			set;
+		}
+
+		/// <summary>The child for which the typed Client refuses a parent change after earlier mutations.</summary>
+		internal int? RefusedParentId
+		{
+			get;
+			init;
+		}
+
 		/// <summary>Ids the Client reports as handed out before a later table load.</summary>
 		internal HashSet<int> StaleIds
 		{
@@ -1659,6 +1786,8 @@ public sealed partial class RecordToolsTests
 				nameof(ITableClient.GetRecordAt) => Records[(int) values[0]!],
 				nameof(ITableClient.GetRecord) => Get(new MemoryRecordId(((MemoryRecordId) values[0]!).Value)),
 				nameof(ITableClient.TryGetRecord) => TryGet(values),
+				nameof(ITableClient.TryGetSelectedRecord) => TryGetSelected(values),
+				nameof(ITableClient.SelectRecord) => Select(new MemoryRecordId(((MemoryRecordId) values[0]!).Value)),
 				nameof(ITableClient.GetHierarchy) => Tree((MemoryRecordId) values[0]!,
 					(MemoryRecordHierarchyRequest) values[1]!),
 				nameof(ITableClient.Create) => Add((MemoryRecordDefinition) values[0]!),
@@ -1754,6 +1883,26 @@ public sealed partial class RecordToolsTests
 			return true;
 		}
 
+		private bool TryGetSelected(object?[] values)
+		{
+			if (SelectedId is not { } id)
+			{
+				values[0] = default(MemoryRecordSnapshot);
+				values[1] = default(CheatEngineFailure);
+				return false;
+			}
+
+			values[0] = Get(new MemoryRecordId(id));
+			values[1] = default(CheatEngineFailure);
+			return true;
+		}
+
+		private MemoryRecordSnapshot Select(MemoryRecordId id)
+		{
+			SelectedId = id.Value;
+			return Get(id);
+		}
+
 		private MemoryRecordSnapshot Add(MemoryRecordDefinition definition)
 		{
 			Definitions.Add(definition);
@@ -1808,6 +1957,12 @@ public sealed partial class RecordToolsTests
 
 		private MemoryRecordSnapshot Parent(MemoryRecordId child, MemoryRecordId? parent)
 		{
+			if (child.Value == RefusedParentId)
+			{
+				throw new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, "Tables.SetParent",
+					"Cheat Engine refused the parent change.", hostEffect: CheatEngineHostEffect.Started).ToException();
+			}
+
 			Parents.Add((child.Value, parent?.Value));
 			return Get(child);
 		}

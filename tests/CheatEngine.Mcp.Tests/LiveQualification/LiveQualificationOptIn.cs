@@ -55,6 +55,7 @@ internal static class LiveQualificationOptIn
 			"compiler-extended" => LiveQualificationScenario.CompilerExtended,
 			"compiler-injection" => LiveQualificationScenario.CompilerInjection,
 			"lifecycle" => LiveQualificationScenario.Lifecycle,
+			"workflows" => LiveQualificationScenario.Workflows,
 			"performance" => LiveQualificationScenario.Performance,
 			"soak" => LiveQualificationScenario.Soak,
 			"dispatch-diagnostic" => LiveQualificationScenario.DispatchDiagnostic,
@@ -62,7 +63,7 @@ internal static class LiveQualificationOptIn
 		};
 		if (selectedScenario is null)
 		{
-			return Refuse($"{ScenarioVariable} must be smoke, compiler, compiler-extended, compiler-injection, lifecycle, performance, soak, or dispatch-diagnostic.");
+			return Refuse($"{ScenarioVariable} must be smoke, compiler, compiler-extended, compiler-injection, lifecycle, workflows, performance, soak, or dispatch-diagnostic.");
 		}
 
 		LiveQualificationScenario scenario = selectedScenario.Value;

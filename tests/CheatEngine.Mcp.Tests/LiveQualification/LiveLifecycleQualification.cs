@@ -8,7 +8,8 @@ internal static class LiveLifecycleQualification
 	[SupportedOSPlatform("windows")]
 	internal static async Task RunAsync(LiveQualificationInputs inputs)
 	{
-		Assert.Equal(LiveQualificationScenario.Lifecycle, inputs.Scenario);
+		Assert.True(inputs.Scenario is LiveQualificationScenario.Lifecycle or LiveQualificationScenario.Workflows);
+		bool reloadPlugins = inputs.Scenario == LiveQualificationScenario.Lifecycle;
 		LiveSandboxSession? sandbox = null;
 		LiveLifecycleSession? connection = null;
 		Exception? failure = null;
@@ -17,14 +18,16 @@ internal static class LiveLifecycleQualification
 		{
 			sandbox = await LiveSandboxSession.StartAsync(inputs, LiveSandboxOptions.Smoke with
 			{
-				LifecycleQualification = true
+				LifecycleQualification = reloadPlugins,
+				WorkflowQualification = !reloadPlugins
 			});
 			connection = await LiveLifecycleSession.ConnectAsync(sandbox);
 			await connection.AttachBothAsync();
 			await connection.VerifyBothAsync();
 			await LiveResourceQualification.VerifyAsync(sandbox, connection.Gateway);
+			await LiveAdditionalReadQualification.VerifyAsync(sandbox, connection.Gateway);
 			await LiveWorkflowQualification.VerifyAsync(sandbox, connection.Gateway);
-			for (int cycle = 0; cycle < 3; cycle++)
+			for (int cycle = 0; cycle < (reloadPlugins ? 3 : 0); cycle++)
 			{
 				await connection.CyclePluginAsync("A");
 			}
@@ -42,9 +45,9 @@ internal static class LiveLifecycleQualification
 			await connection.RejectStaleAsync(before.InstanceId);
 			await connection.AttachBothAsync();
 			await connection.VerifyBothAsync();
-			sandbox.Record("lifecycle_workload", new
+			sandbox.Record(reloadPlugins ? "lifecycle_workload" : "workflow_restart_workload", new
 			{
-				pluginCycles = 3,
+				pluginCycles = reloadPlugins ? 3 : 0,
 				targetRestarts = 1,
 				gatewayRestarts = 1,
 				hostRestarts = 1

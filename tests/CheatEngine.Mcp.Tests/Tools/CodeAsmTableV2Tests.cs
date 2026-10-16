@@ -440,6 +440,36 @@ public sealed class CodeAsmTableV2Tests : IDisposable
 		Assert.Empty(harness.Resources.List());
 	}
 
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public void ApplyAndCodePatch_RetainExactLeaseMetadataAndReleaseOriginalDisable(bool codePatch)
+	{
+		AutoAssemblerHarness harness = new();
+		const string supplied = "[ENABLE]\nnop\n[DISABLE]\nnop";
+		const string generated = "[ENABLE]\nassert(401000,8B C3)\n401000:\ndb 90 90\n\n[DISABLE]\n401000:\ndb 8B C3";
+		AsmPatchApplied applied = codePatch
+			? harness.Tools.ApplyCodePatch("401000", "8b c3", "90 90", "owned", Token)
+			: harness.Tools.Apply(supplied, "owned", Token);
+		try
+		{
+			Assert.Equal((true, "owned", false, false),
+				(applied.Retained, applied.Name, applied.AppliedAfterTargetChange, applied.RequiresManualRecovery));
+			Assert.Equal(codePatch ? generated : supplied, harness.AppliedScript!.Value.Source);
+			Assert.Equal("owned", harness.AppliedScript.Value.Name);
+			Assert.Equal(new AsmPatchInfo(applied.PatchId, "owned", 1, false, true, false, false),
+				Assert.Single(harness.Tools.ListPatches().Patches));
+			Assert.Single(harness.Resources.List());
+		}
+		finally
+		{
+			Assert.True(harness.Tools.ReleasePatch(applied.PatchId, Token).Released);
+		}
+		Assert.Equal((1, 1), (harness.ApplyCalls, harness.ReleaseCalls));
+		Assert.Empty(harness.Tools.ListPatches().Patches);
+		Assert.Empty(harness.Resources.List());
+	}
+
 	[Fact]
 	public void Apply_AfterTargetChange_ReportsTheActualUnretainedReleaseOutcome()
 	{
@@ -677,7 +707,20 @@ public sealed class CodeAsmTableV2Tests : IDisposable
 		{
 			_appliedAfterTargetChange = appliedAfterTargetChange;
 			Resources = new TargetResources();
-			Tools = new AsmTools(CreateDispatch(new RecordingDispatcher(), features ?? new McpFeatureOptions()),
+			IInspectionClient inspection = ClientTestDouble.Create<IInspectionClient>((method, arguments) =>
+			{
+				Assert.Equal(nameof(IInspectionClient.TryResolveAddress), method.Name);
+				Assert.Equal("401000", Assert.IsType<SymbolExpression>(arguments![0]).Value);
+				arguments[2] = new Address(0x401000);
+				arguments[3] = default(CheatEngineFailure);
+				return true;
+			});
+			IOptions<McpExecutionOptions> execution = Options.Create(new McpExecutionOptions());
+			ToolDispatch dispatch = new(ClientTestDouble.Client(new RecordingDispatcher().Dispatcher, CancellationToken.None,
+				(nameof(ICheatEngineClient.Inspection), inspection)),
+				new McpFeatureGate(Options.Create(features ?? new McpFeatureOptions())), execution,
+				new DispatchStatistics(execution), TimeProvider.System, new RecordingLogger<ToolDispatch>());
+			Tools = new AsmTools(dispatch,
 				Resources,
 				ClientTestDouble.Create<IAutoAssemblerClient>(AutoAssembler));
 		}
@@ -692,6 +735,11 @@ public sealed class CodeAsmTableV2Tests : IDisposable
 		{
 			get;
 			private set;
+		}
+
+		internal AutoAssemblerScript? AppliedScript
+		{
+			get; private set;
 		}
 
 		internal TargetResources Resources
@@ -712,6 +760,7 @@ public sealed class CodeAsmTableV2Tests : IDisposable
 			}
 
 			ApplyCalls++;
+			AppliedScript = Assert.IsType<AutoAssemblerScript>(arguments![0]);
 			return ClientTestDouble.Create<IAutoAssemblerPatchLease>(Lease);
 		}
 

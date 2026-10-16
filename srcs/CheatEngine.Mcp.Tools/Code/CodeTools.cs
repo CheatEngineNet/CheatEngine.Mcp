@@ -388,7 +388,7 @@ public sealed class CodeTools
 		}
 
 		CodeLuaComments comments = _dispatch.RunLua(CheatEngineToolNames.CodeGetComments, CodeScripts.GetComments,
-			CodeLuaJsonContext.Default.CodeLuaComments, cancellationToken, expressions);
+			CodeLuaJsonContext.Default.CodeLuaComments, cancellationToken, (object) expressions);
 		return new CodeComments([
 			.. comments.Comments.Select(comment => new CodeComment(comment.Address, comment.Comment))
 		]);

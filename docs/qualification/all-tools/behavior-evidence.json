@@ -1,0 +1,3189 @@
+{
+  "schema": "cheatengine-mcp-behavior-evidence/v1",
+  "boundary": "Reviewed existing success assertions are partial evidence. Fixed Lua bodies bypass the adapter and do not qualify it. No row establishes native CE success.",
+  "tools": [
+    {
+      "name": "aob_find",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.AobFind_IncludeMapped_OverrideIsOnDuringEveryPatternScanAndEndsOnce",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaAobMappedTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal([\"401000\"], result.Results[0].Matches); Assert.Equal(new object?[] { true, true }, duringScans);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.AobFind_IncludeMapped_OverrideIsOnDuringEveryPatternScanAndEndsOnce"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "aob_find_value",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Aob.AobToolsTests.FindValue_Value_IsEncodedAsTheTargetBytesWithItsDefaultAlignment",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Aob/AobToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(pattern, request!.Value.Pattern.Value); Assert.Equal([\"401000\"], result.Result.Matches); Assert.Equal(1, target.Dispatcher.Calls);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Aob.AobToolsTests.FindValue_Value_IsEncodedAsTheTargetBytesWithItsDefaultAlignment(valueType: Double, value: \"1\", pattern: \"00 00 00 00 00 00 F0 3F\", alignment: 4)",
+            "CheatEngine.Mcp.Tests.Tools.Aob.AobToolsTests.FindValue_Value_IsEncodedAsTheTargetBytesWithItsDefaultAlignment(valueType: Float, value: \"1.5\", pattern: \"00 00 C0 3F\", alignment: 4)",
+            "CheatEngine.Mcp.Tests.Tools.Aob.AobToolsTests.FindValue_Value_IsEncodedAsTheTargetBytesWithItsDefaultAlignment(valueType: Int16, value: \"-2\", pattern: \"FE FF\", alignment: 2)",
+            "CheatEngine.Mcp.Tests.Tools.Aob.AobToolsTests.FindValue_Value_IsEncodedAsTheTargetBytesWithItsDefaultAlignment(valueType: Int32, value: \"100\", pattern: \"64 00 00 00\", alignment: 4)",
+            "CheatEngine.Mcp.Tests.Tools.Aob.AobToolsTests.FindValue_Value_IsEncodedAsTheTargetBytesWithItsDefaultAlignment(valueType: Int64, value: \"1\", pattern: \"01 00 00 00 00 00 00 00\", alignment: 4)",
+            "CheatEngine.Mcp.Tests.Tools.Aob.AobToolsTests.FindValue_Value_IsEncodedAsTheTargetBytesWithItsDefaultAlignment(valueType: Int8, value: \"-1\", pattern: \"FF\", alignment: 1)",
+            "CheatEngine.Mcp.Tests.Tools.Aob.AobToolsTests.FindValue_Value_IsEncodedAsTheTargetBytesWithItsDefaultAlignment(valueType: String, value: \"Hi\", pattern: \"48 69\", alignment: 1)",
+            "CheatEngine.Mcp.Tests.Tools.Aob.AobToolsTests.FindValue_Value_IsEncodedAsTheTargetBytesWithItsDefaultAlignment(valueType: UInt32, value: \"0xDEADBEEF\", pattern: \"EF BE AD DE\", alignment: 4)",
+            "CheatEngine.Mcp.Tests.Tools.Aob.AobToolsTests.FindValue_Value_IsEncodedAsTheTargetBytesWithItsDefaultAlignment(valueType: UInt8, value: \"0x7F\", pattern: \"7F\", alignment: 1)",
+            "CheatEngine.Mcp.Tests.Tools.Aob.AobToolsTests.FindValue_Value_IsEncodedAsTheTargetBytesWithItsDefaultAlignment(valueType: WString, value: \"Hi\", pattern: \"48 00 69 00\", alignment: 1)"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "aob_generate_signature",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Aob.AobToolsTests.GenerateSignature_UniquePattern_NormalizesWildcardsAndVerifiesTheMatchStart",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Aob/AobToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(new AobSignature(\"401002\", \"game.exe\", AobSignatureGenerator.CheatEngine, true, true, \"48 8B ?? 05\", \"401000\", 2, 4, 1), signature);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Aob.AobToolsTests.GenerateSignature_UniquePattern_NormalizesWildcardsAndVerifiesTheMatchStart"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "asm_apply",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.CodeAsmTableV2Tests.ApplyAndCodePatch_RetainExactLeaseMetadataAndReleaseOriginalDisable",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CodeAsmTableV2Tests.cs",
+          "scope": "adapter",
+          "oracle": "Exact supplied/generated ENABLE and DISABLE bytes; retained lease metadata, one release, empty patch/resource lists afterward.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.CodeAsmTableV2Tests.ApplyAndCodePatch_RetainExactLeaseMetadataAndReleaseOriginalDisable(codePatch: False)"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "asm_apply_code_patch",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.CodeAsmTableV2Tests.ApplyAndCodePatch_RetainExactLeaseMetadataAndReleaseOriginalDisable",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CodeAsmTableV2Tests.cs",
+          "scope": "adapter",
+          "oracle": "Exact supplied/generated ENABLE and DISABLE bytes; retained lease metadata, one release, empty patch/resource lists afterward.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.CodeAsmTableV2Tests.ApplyAndCodePatch_RetainExactLeaseMetadataAndReleaseOriginalDisable(codePatch: True)"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "asm_assemble",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.CoreAdapterQualificationTests.Assemble_SequentialInstructions_ForwardActualOriginsAndEncodingOptions",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CoreAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "8BC3C3 bytes, lengths and source order, origins 401000 then 401002, exact encoding/range-check requests.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.CoreAdapterQualificationTests.Assemble_SequentialInstructions_ForwardActualOriginsAndEncodingOptions"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "asm_check",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.CodeAsmTableV2Tests.Check_AcceptedEnable_AlsoChecksTheDisableSection",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CodeAsmTableV2Tests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(new AsmCheckResult(false, \"Error in line 4 (bad) :This instruction can't be compiled\", false, AsmScriptSection.Disable), result);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.CodeAsmTableV2Tests.Check_AcceptedEnable_AlsoChecksTheDisableSection"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "asm_generate_api_hook",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.AsmV2_GenerateApiHook_JoinsCheatEnginesTwoSectionsAndPreservesEveryArgument",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaAsmDebuggerV2Tests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(expectedScript, generated.Script); Assert.Equal((\"401000\", \"401005\", \"newCall\", \"x64\", true), observed globals);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.AsmV2_GenerateApiHook_JoinsCheatEnginesTwoSectionsAndPreservesEveryArgument"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "asm_generate_injection",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.CodeAsmTableV2Tests.GenerateInjection_ProducesReviewedRollbackScript",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CodeAsmTableV2Tests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal((\"48895C2408\", \"mcpHook\"), (result.ExpectedBytes, result.SymbolName)); Assert.Contains(\"[DISABLE]\", result.Script);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.CodeAsmTableV2Tests.GenerateInjection_ProducesReviewedRollbackScript"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "asm_list_patches",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.CodeAsmTableV2Tests.ApplyAndCodePatch_RetainExactLeaseMetadataAndReleaseOriginalDisable",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CodeAsmTableV2Tests.cs",
+          "scope": "adapter",
+          "oracle": "Exact supplied/generated ENABLE and DISABLE bytes; retained lease metadata, one release, empty patch/resource lists afterward.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.CodeAsmTableV2Tests.ApplyAndCodePatch_RetainExactLeaseMetadataAndReleaseOriginalDisable(codePatch: False)",
+            "CheatEngine.Mcp.Tests.Tools.CodeAsmTableV2Tests.ApplyAndCodePatch_RetainExactLeaseMetadataAndReleaseOriginalDisable(codePatch: True)"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "asm_release_patch",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.CodeAsmTableV2Tests.ReleasePatch_CompletedLease_ForgetsTheRetainedPatchAndResource",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CodeAsmTableV2Tests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.True(stopped.Released); Assert.Empty(harness.Resources.List());",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.CodeAsmTableV2Tests.ReleasePatch_CompletedLease_ForgetsTheRetainedPatchAndResource"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "code_clear_dissect",
+      "cases": [
+        {
+          "suite": "portable",
+          "scope": "adapter",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.CoreAdapterQualificationTests.DissectorViews_MapFixedLuaPagesAndClearSideEffect",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CoreAdapterQualificationTests.cs",
+          "oracle": "Known reference, string, function-page and clear result fields are asserted; the four fixed-Lua operation names occur in the requested order.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.CoreAdapterQualificationTests.DissectorViews_MapFixedLuaPagesAndClearSideEffect"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "code_decode",
+      "cases": [
+        {
+          "suite": "portable",
+          "scope": "adapter",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.CoreAdapterQualificationTests.DecodeAndDisassemble_MapTypedInstructionsInRequestedOrder",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CoreAdapterQualificationTests.cs",
+          "oracle": "Known typed or fixed-Lua snapshots are asserted against the returned tool result; exact forwarded requests and operation order are also checked.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.CoreAdapterQualificationTests.DecodeAndDisassemble_MapTypedInstructionsInRequestedOrder"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "code_disassemble",
+      "cases": [
+        {
+          "suite": "portable",
+          "scope": "adapter",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.CoreAdapterQualificationTests.DecodeAndDisassemble_MapTypedInstructionsInRequestedOrder",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CoreAdapterQualificationTests.cs",
+          "oracle": "Known typed or fixed-Lua snapshots are asserted against the returned tool result; exact forwarded requests and operation order are also checked.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.CoreAdapterQualificationTests.DecodeAndDisassemble_MapTypedInstructionsInRequestedOrder"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "code_disassemble_bytes",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.CodeDisassembleBytes_SpacedText_ReachesDisassembleBytesAsContiguousDigits",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaCodeTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(new CodeByteDisassembly(\"1000\", \"mov rax,[00001007]\"), result); Assert.Equal((\"488B0500000000\", 0x1000L), (ReadGlobal(\"receivedBytes\"), ReadGlobal(\"receivedOrigin\")));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.CodeDisassembleBytes_SpacedText_ReachesDisassembleBytesAsContiguousDigits"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "code_find_references",
+      "cases": [
+        {
+          "suite": "portable",
+          "scope": "adapter",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.CoreAdapterQualificationTests.DissectorViews_MapFixedLuaPagesAndClearSideEffect",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CoreAdapterQualificationTests.cs",
+          "oracle": "Known reference, string, function-page and clear result fields are asserted; the four fixed-Lua operation names occur in the requested order.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.CoreAdapterQualificationTests.DissectorViews_MapFixedLuaPagesAndClearSideEffect"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "code_find_strings",
+      "cases": [
+        {
+          "suite": "portable",
+          "scope": "adapter",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.CoreAdapterQualificationTests.DissectorViews_MapFixedLuaPagesAndClearSideEffect",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CoreAdapterQualificationTests.cs",
+          "oracle": "Known reference, string, function-page and clear result fields are asserted; the four fixed-Lua operation names occur in the requested order.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.CoreAdapterQualificationTests.DissectorViews_MapFixedLuaPagesAndClearSideEffect"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "code_get_comments",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.CodeComments_StubbedApi_KeepsReadOrderAndWritesTheRequestedComment",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaCodeQualificationTests.cs",
+          "scope": "fixed_lua_body",
+          "oracle": "Assert.Equal([new CodeComment(\"401000\", \"entry\"), new CodeComment(\"402000\", null)], read.Comments);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.CodeComments_StubbedApi_KeepsReadOrderAndWritesTheRequestedComment"
+          ]
+        },
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.CodeTableQualificationTests.CodeComments_ForwardOrderedExpressionsAndReturnTheFixedLuaValues",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CodeTableQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Ordered arguments and all comment result fields",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.CodeTableQualificationTests.CodeComments_ForwardOrderedExpressionsAndReturnTheFixedLuaValues"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "code_get_function",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.CodeGetFunction_StubbedApi_ReturnsBoundariesAndJumpDestination",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaCodeQualificationTests.cs",
+          "scope": "fixed_lua_body",
+          "oracle": "Assert.Equal(new CodeLuaFunction(true, \"401020\", \"401000\", \"401080\", 128, true), result);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.CodeGetFunction_StubbedApi_ReturnsBoundariesAndJumpDestination"
+          ]
+        },
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.CodeTableQualificationTests.CodeGetFunction_MapsKnownBoundariesAndJumpDestination",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CodeTableQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Independent boundaries, size and jump destination",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.CodeTableQualificationTests.CodeGetFunction_MapsKnownBoundariesAndJumpDestination"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "code_get_function_graph",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Code.CodeFunctionGraphTests.GetFunctionGraph_LoopBranchAndCalls_SplitsBlocksAtEveryLeader",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Code/CodeFunctionGraphTests.cs",
+          "scope": "adapter",
+          "oracle": "Exact five block boundaries/terminators/successors, direct and indirect calls, ten instructions and symbol lookup.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Code.CodeFunctionGraphTests.GetFunctionGraph_LoopBranchAndCalls_SplitsBlocksAtEveryLeader"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "code_list_functions",
+      "cases": [
+        {
+          "suite": "portable",
+          "scope": "adapter",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.CoreAdapterQualificationTests.DissectorViews_MapFixedLuaPagesAndClearSideEffect",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CoreAdapterQualificationTests.cs",
+          "oracle": "Known reference, string, function-page and clear result fields are asserted; the four fixed-Lua operation names occur in the requested order.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.CoreAdapterQualificationTests.DissectorViews_MapFixedLuaPagesAndClearSideEffect"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "code_poll_job",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.CoreAdapterQualificationTests.DissectJob_KnownRange_PollsRetainedEventAndReleasesJob",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CoreAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known 16-byte range and completed progress, one retained dissect event, cursor/repeat-poll semantics, stopped job and empty resources.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.CoreAdapterQualificationTests.DissectJob_KnownRange_PollsRetainedEventAndReleasesJob"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "code_set_comment",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.CodeComments_StubbedApi_KeepsReadOrderAndWritesTheRequestedComment",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaCodeQualificationTests.cs",
+          "scope": "fixed_lua_body",
+          "oracle": "Assert.Equal(new CodeComment(\"403000\", \"updated\"), written); Assert.Equal((0x403000L, \"updated\"), globals);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.CodeComments_StubbedApi_KeepsReadOrderAndWritesTheRequestedComment"
+          ]
+        },
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.CodeTableQualificationTests.CodeSetComment_ForwardsExactAddressAndBlankCommentToTheFixedBody",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CodeTableQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Exact address/blank comment and returned fields",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.CodeTableQualificationTests.CodeSetComment_ForwardsExactAddressAndBlankCommentToTheFixedBody"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "code_start_dissect",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.CoreAdapterQualificationTests.DissectJob_KnownRange_PollsRetainedEventAndReleasesJob",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CoreAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known 16-byte range and completed progress, one retained dissect event, cursor/repeat-poll semantics, stopped job and empty resources.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.CoreAdapterQualificationTests.DissectJob_KnownRange_PollsRetainedEventAndReleasesJob"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "code_start_search",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.CodeAsmTableV2Tests.StartSearch_StopWhileNativeCallRuns_ReportsPartialThenReleasesTheJob",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CodeAsmTableV2Tests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.True(stopped.AlreadyReleased); Assert.Equal(JobState.Stopped, job.State);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.CodeAsmTableV2Tests.StartSearch_StopWhileNativeCallRuns_ReportsPartialThenReleasesTheJob"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "debugger_attach",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_AttachAndControlOperations_ForwardKnownArgumentsAndResults",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaDebuggerAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known attachment/status/context/register/thread/stack results and exact continuation/control arguments through inert CE APIs.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_AttachAndControlOperations_ForwardKnownArgumentsAndResults"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "debugger_break_thread",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_AttachAndControlOperations_ForwardKnownArgumentsAndResults",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaDebuggerAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known attachment/status/context/register/thread/stack results and exact continuation/control arguments through inert CE APIs.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_AttachAndControlOperations_ForwardKnownArgumentsAndResults"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "debugger_continue",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_AttachAndControlOperations_ForwardKnownArgumentsAndResults",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaDebuggerAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known attachment/status/context/register/thread/stack results and exact continuation/control arguments through inert CE APIs.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_AttachAndControlOperations_ForwardKnownArgumentsAndResults"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "debugger_delete_breakpoint",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_BreakpointLifecycle_TracksThenReleasesTheKnownOwnedBreakpoint",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaDebuggerAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known breakpoint attributes, normalized resolved address, tracked resource and deletion by owned CE breakpoint ID.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_BreakpointLifecycle_TracksThenReleasesTheKnownOwnedBreakpoint"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "debugger_detach",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Debugger.DebuggerToolsTests.Detach_JobCompletedInLua_NoLongerBlocks",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Debugger/DebuggerToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.True(detached.Detached); Assert.Equal(TargetResourceState.Ended, Assert.Single(harness.Resources.List()).State);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Debugger.DebuggerToolsTests.Detach_JobCompletedInLua_NoLongerBlocks"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "debugger_get_context",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_AttachAndControlOperations_ForwardKnownArgumentsAndResults",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaDebuggerAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known attachment/status/context/register/thread/stack results and exact continuation/control arguments through inert CE APIs.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_AttachAndControlOperations_ForwardKnownArgumentsAndResults"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "debugger_get_stack_trace",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_AttachAndControlOperations_ForwardKnownArgumentsAndResults",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaDebuggerAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known attachment/status/context/register/thread/stack results and exact continuation/control arguments through inert CE APIs.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_AttachAndControlOperations_ForwardKnownArgumentsAndResults"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "debugger_get_status",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_AttachAndControlOperations_ForwardKnownArgumentsAndResults",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaDebuggerAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known attachment/status/context/register/thread/stack results and exact continuation/control arguments through inert CE APIs.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_AttachAndControlOperations_ForwardKnownArgumentsAndResults"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "debugger_list_breakpoints",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Debugger.PreparedBreakpointNavigationTests.ExplicitList_PreparesMaxCopyAndProjectsRequestedAndDefaultLimits",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Debugger/PreparedBreakpointNavigationTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal((2, 3, true), (explicitPage.Breakpoints.Length, explicitPage.Total, explicitPage.Truncated));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Debugger.PreparedBreakpointNavigationTests.ExplicitList_PreparesMaxCopyAndProjectsRequestedAndDefaultLimits"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "debugger_poll_capture",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Debugger.DebuggerToolsTests.Capture_PollThenStop_RetainsTypedHitsAndReleasesTheLuaJob",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Debugger/DebuggerToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal((\"401010\", 17L, \"1\"), (hit.Context.Ip, hit.Context.ThreadId, hit.Context.Registers[\"RAX\"])); Assert.Equal((started.JobId, JobState.Running, 1L, 1L, false, 0L), (...));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Debugger.DebuggerToolsTests.Capture_PollThenStop_RetainsTypedHitsAndReleasesTheLuaJob"
+          ]
+        },
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_CaptureTraceAndRunTo_CreateBoundedJobsWithKnownReceipts",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaDebuggerAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known target/address/TTL, capture hit at 401000, trace RAX=1, run-to continuation and ledger/job cleanup.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_CaptureTraceAndRunTo_CreateBoundedJobsWithKnownReceipts"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "debugger_poll_trace",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_CaptureTraceAndRunTo_CreateBoundedJobsWithKnownReceipts",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaDebuggerAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known target/address/TTL, capture hit at 401000, trace RAX=1, run-to continuation and ledger/job cleanup.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_CaptureTraceAndRunTo_CreateBoundedJobsWithKnownReceipts"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "debugger_run_to",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_CaptureTraceAndRunTo_CreateBoundedJobsWithKnownReceipts",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaDebuggerAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known target/address/TTL, capture hit at 401000, trace RAX=1, run-to continuation and ledger/job cleanup.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_CaptureTraceAndRunTo_CreateBoundedJobsWithKnownReceipts"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "debugger_set_breakpoint",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_BreakpointLifecycle_TracksThenReleasesTheKnownOwnedBreakpoint",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaDebuggerAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known breakpoint attributes, normalized resolved address, tracked resource and deletion by owned CE breakpoint ID.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_BreakpointLifecycle_TracksThenReleasesTheKnownOwnedBreakpoint"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "debugger_set_register",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_AttachAndControlOperations_ForwardKnownArgumentsAndResults",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaDebuggerAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known attachment/status/context/register/thread/stack results and exact continuation/control arguments through inert CE APIs.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_AttachAndControlOperations_ForwardKnownArgumentsAndResults"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "debugger_set_thread_ignored",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_AttachAndControlOperations_ForwardKnownArgumentsAndResults",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaDebuggerAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known attachment/status/context/register/thread/stack results and exact continuation/control arguments through inert CE APIs.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_AttachAndControlOperations_ForwardKnownArgumentsAndResults"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "debugger_start_capture",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_CaptureTraceAndRunTo_CreateBoundedJobsWithKnownReceipts",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaDebuggerAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known target/address/TTL, capture hit at 401000, trace RAX=1, run-to continuation and ledger/job cleanup.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_CaptureTraceAndRunTo_CreateBoundedJobsWithKnownReceipts"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "debugger_start_trace",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_CaptureTraceAndRunTo_CreateBoundedJobsWithKnownReceipts",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaDebuggerAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known target/address/TTL, capture hit at 401000, trace RAX=1, run-to continuation and ledger/job cleanup.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_CaptureTraceAndRunTo_CreateBoundedJobsWithKnownReceipts"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "debugger_step",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_AttachAndControlOperations_ForwardKnownArgumentsAndResults",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaDebuggerAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known attachment/status/context/register/thread/stack results and exact continuation/control arguments through inert CE APIs.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_AttachAndControlOperations_ForwardKnownArgumentsAndResults"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "dotnet_get_method_parameters",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.DotNetParameterAndObjectAdapters_MapKnownFieldsAndNormalizedInputs",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/ManagedAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known parameter type-name conversion and object field value/offset, with normalized inputs.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.DotNetParameterAndObjectAdapters_MapKnownFieldsAndNormalizedInputs"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "dotnet_get_object",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.DotNetParameterAndObjectAdapters_MapKnownFieldsAndNormalizedInputs",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/ManagedAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known parameter type-name conversion and object field value/offset, with normalized inputs.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.DotNetParameterAndObjectAdapters_MapKnownFieldsAndNormalizedInputs"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "dotnet_get_status",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.DotNetDiscoveryAdapters_MapStatusDomainsAndModulesWithRequestedPage",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/ManagedAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known attachment/domain/module fields, totals and exact normalized page/handle arguments.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.DotNetDiscoveryAdapters_MapStatusDomainsAndModulesWithRequestedPage"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "dotnet_get_type",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.DotNetTypeAdapters_MapPagesDetailsAndMethodsWithFilters",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/ManagedAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known type/base/field/method values and normalized handle, page and filter arguments.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.DotNetTypeAdapters_MapPagesDetailsAndMethodsWithFilters"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "dotnet_list_domains",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.DotNetDiscoveryAdapters_MapStatusDomainsAndModulesWithRequestedPage",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/ManagedAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known attachment/domain/module fields, totals and exact normalized page/handle arguments.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.DotNetDiscoveryAdapters_MapStatusDomainsAndModulesWithRequestedPage"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "dotnet_list_methods",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.DotNetTypeAdapters_MapPagesDetailsAndMethodsWithFilters",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/ManagedAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known type/base/field/method values and normalized handle, page and filter arguments.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.DotNetTypeAdapters_MapPagesDetailsAndMethodsWithFilters"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "dotnet_list_modules",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.DotNetDiscoveryAdapters_MapStatusDomainsAndModulesWithRequestedPage",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/ManagedAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known attachment/domain/module fields, totals and exact normalized page/handle arguments.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.DotNetDiscoveryAdapters_MapStatusDomainsAndModulesWithRequestedPage"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "dotnet_list_types",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.DotNetTypeAdapters_MapPagesDetailsAndMethodsWithFilters",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/ManagedAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known type/base/field/method values and normalized handle, page and filter arguments.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.DotNetTypeAdapters_MapPagesDetailsAndMethodsWithFilters"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "dotnet_poll_instance_search",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.DotNet.DotNetToolsTests.InstanceSearch_StartPollAndStop_RetainsTheBoundedResultThenDiscardsIt",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/DotNet/DotNetToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal([new DotNetInstance(\"1000\"), new DotNetInstance(\"2000\")], page.Instances); Assert.Equal((1L, 2L, false, 0L), (...)); Assert.Equal((0, 0), (harness.Jobs.Count, harness.Resources.Count));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.DotNet.DotNetToolsTests.InstanceSearch_StartPollAndStop_RetainsTheBoundedResultThenDiscardsIt"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "dotnet_start_instance_search",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.DotNet.DotNetToolsTests.InstanceSearch_StartPollAndStop_RetainsTheBoundedResultThenDiscardsIt",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/DotNet/DotNetToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.StartsWith($\"dotnetinstances-{harness.Jobs.Namespace}-\", started.JobId, StringComparison.Ordinal); Assert.Equal((\"module\", \"token\", 2), (started.ModuleHandle, started.TypeToken, started.MaximumResults));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.DotNet.DotNetToolsTests.InstanceSearch_StartPollAndStop_RetainsTheBoundedResultThenDiscardsIt"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "exec_call_local",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ExecutionAdapter_CallLocal_EnablesTheFeatureAndForwardsTheKnownResult",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaExecutionAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Actual adapter through standalone Lua with inert CE API doubles: known result and forwarded arguments; file-backed cases also check held-file release.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ExecutionAdapter_CallLocal_EnablesTheFeatureAndForwardsTheKnownResult"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "exec_call_method",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ExecutionAdapter_CallMethod_ResolvesMethodAndInstanceBeforeCalling",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaExecutionAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Actual adapter through standalone Lua with inert CE API doubles: known result and forwarded arguments; file-backed cases also check held-file release.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ExecutionAdapter_CallMethod_ResolvesMethodAndInstanceBeforeCalling"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "exec_call_remote",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ExecutionAdapter_CallRemote_ResolvesTheFunctionAndForwardsTypedArguments",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaExecutionAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Actual adapter through standalone Lua with inert CE API doubles: known result and forwarded arguments; file-backed cases also check held-file release.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ExecutionAdapter_CallRemote_ResolvesTheFunctionAndForwardsTypedArguments"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "exec_compile_c",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ExecutionAdapter_CompileC_TargetSelfForwardsFlagsAndSortsTheKnownSymbols",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaExecutionAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Actual adapter through standalone Lua with inert CE API doubles: known result and forwarded arguments; file-backed cases also check held-file release.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ExecutionAdapter_CompileC_TargetSelfForwardsFlagsAndSortsTheKnownSymbols"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "exec_compile_csharp",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ExecutionAdapter_CompileCSharp_ExportsTheNativeCompilerArtifact",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaExecutionAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Actual adapter through standalone Lua with inert CE API doubles: known result and forwarded arguments; file-backed cases also check held-file release.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ExecutionAdapter_CompileCSharp_ExportsTheNativeCompilerArtifact"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "exec_inject_dotnet",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ExecutionAdapter_InjectDotNet_HoldsTheApprovedAssemblyAndForwardsEveryArgument",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaExecutionAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Actual adapter through standalone Lua with inert CE API doubles: known result and forwarded arguments; file-backed cases also check held-file release.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ExecutionAdapter_InjectDotNet_HoldsTheApprovedAssemblyAndForwardsEveryArgument"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "exec_inject_library",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ExecutionAdapter_InjectLibrary_HoldsTheApprovedArtifactAndForwardsTheWaitFlag",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaExecutionAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Actual adapter through standalone Lua with inert CE API doubles: known result and forwarded arguments; file-backed cases also check held-file release.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ExecutionAdapter_InjectLibrary_HoldsTheApprovedArtifactAndForwardsTheWaitFlag"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "kernel_get_status",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.KernelAdapter_GetStatus_EnablesKernelFeatureAndCopiesKnownState",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaExecutionAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Actual adapter through standalone Lua with inert CE API doubles: known result and forwarded arguments; file-backed cases also check held-file release.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.KernelAdapter_GetStatus_EnablesKernelFeatureAndCopiesKnownState"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "kernel_initialize_dbvm",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Kernel.KernelToolsTests.InitializeDbvm_PassesCheatEnginesWarningAndTheReasonSeparately",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Kernel/KernelToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(new KernelDbvmInitialization(true, offload, \"Watch a page\"), result); Assert.Contains(\"Watch a page\", source);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Kernel.KernelToolsTests.InitializeDbvm_PassesCheatEnginesWarningAndTheReasonSeparately(offload: False)",
+            "CheatEngine.Mcp.Tests.Tools.Kernel.KernelToolsTests.InitializeDbvm_PassesCheatEnginesWarningAndTheReasonSeparately(offload: True)"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "kernel_poll_watch",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Kernel.KernelToolsTests.PollWatch_DrainsDbvmThenReadsThePageThroughTheJobPoll",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Kernel/KernelToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal([1L, 2L], page.Events.Select(static item => item.SourceIndex)); Assert.Equal((\"401000\", \"1\", \"1AB000\"), (page.Events[0].Rip, page.Events[0].Rax, page.Events[0].Cr3));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Kernel.KernelToolsTests.PollWatch_DrainsDbvmThenReadsThePageThroughTheJobPoll"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "kernel_read_physical",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.KernelAdapter_ReadPhysical_EnablesKernelFeatureAndReturnsTheRequestedByteRange",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaExecutionAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Actual adapter through standalone Lua with inert CE API doubles: known result and forwarded arguments; file-backed cases also check held-file release.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.KernelAdapter_ReadPhysical_EnablesKernelFeatureAndReturnsTheRequestedByteRange"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "kernel_start_watch",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Kernel.KernelToolsTests.StartWatch_RangeThatEndsAtThePageBoundary_IsArmed",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Kernel/KernelToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal((physicalAddress, byteSize), (started.PhysicalAddress, started.ByteSize));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Kernel.KernelToolsTests.StartWatch_RangeThatEndsAtThePageBoundary_IsArmed(physicalAddress: \"2000\", byteSize: 4096)",
+            "CheatEngine.Mcp.Tests.Tools.Kernel.KernelToolsTests.StartWatch_RangeThatEndsAtThePageBoundary_IsArmed(physicalAddress: \"2800\", byteSize: 2048)",
+            "CheatEngine.Mcp.Tests.Tools.Kernel.KernelToolsTests.StartWatch_RangeThatEndsAtThePageBoundary_IsArmed(physicalAddress: \"2FFF\", byteSize: 1)"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "kernel_translate_address",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.KernelAdapter_TranslateAddress_ResolvesTheVirtualAddressBeforeTheDbkCall",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaExecutionAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Actual adapter through standalone Lua with inert CE API doubles: known result and forwarded arguments; file-backed cases also check held-file release.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.KernelAdapter_TranslateAddress_ResolvesTheVirtualAddressBeforeTheDbkCall"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "kernel_write_physical",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.KernelAdapter_WritePhysical_EnablesKernelFeatureAndForwardsEachByte",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaExecutionAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Actual adapter through standalone Lua with inert CE API doubles: known result and forwarded arguments; file-backed cases also check held-file release.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.KernelAdapter_WritePhysical_EnablesKernelFeatureAndForwardsEachByte"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "lua_execute",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Lua.LuaToolQualificationTests.Execute_Success_UsesTheUnsafeAdapterAndKeepsCopiedValuesAndOpaqueCount",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Lua/LuaToolQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Unsafe adapter result values and opaque count",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Lua.LuaToolQualificationTests.Execute_Success_UsesTheUnsafeAdapterAndKeepsCopiedValuesAndOpaqueCount"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "lua_find_api",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Lua.LuaToolQualificationTests.FindApi_ForwardsExactPageArgumentsAndReturnsEveryKnownPageField",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Lua/LuaToolQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Exact query/page arguments and complete page result",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Lua.LuaToolQualificationTests.FindApi_ForwardsExactPageArgumentsAndReturnsEveryKnownPageField"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "memory_allocate",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Memory.MemoryAllocationToolsTests.Allocate_Executable_RequestsExecuteReadWriteAndTracksTheLease",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Memory/MemoryAllocationToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal((\"cave\", \"7FF000010000\", 64L, true), (info.Name, info.Address, info.Size, info.Executable));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemoryAllocationToolsTests.Allocate_Executable_RequestsExecuteReadWriteAndTracksTheLease"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "memory_compare",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Memory.MemoryReadToolsTests.Compare_Differences_ListsRunsAndStopsAtTheLimit",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Memory/MemoryReadToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal([new MemoryDifference(\"1\", 2, \"02 03\", \"09 09\"), new MemoryDifference(\"6\", 1, \"07\", \"00\")], all.Differences);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemoryReadToolsTests.Compare_Differences_ListsRunsAndStopsAtTheLimit"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "memory_compare_snapshot",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Memory.MemorySnapshotToolsTests.CompareSnapshot_TwoSnapshots_ListsChangedSlotsWithoutAnyDispatch",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Memory/MemorySnapshotToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal([new SnapshotChange(\"10004\", \"4\", \"0\", \"2\"), new SnapshotChange(\"1000C\", \"C\", \"0\", \"255\")], diff.Changes);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemorySnapshotToolsTests.CompareSnapshot_TwoSnapshots_ListsChangedSlotsWithoutAnyDispatch"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "memory_copy",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Memory.MemoryWriteToolsTests.Copy_Range_ReadsTheWholeSourceBeforeWritingTheDestination",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Memory/MemoryWriteToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(new MemoryCopyResult(\"1000\", \"2001\", 3), result);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemoryWriteToolsTests.Copy_Range_ReadsTheWholeSourceBeforeWritingTheDestination"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "memory_create_snapshot",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Memory.MemorySnapshotToolsTests.CreateSnapshot_ReadableRange_CopiesTheBytesAndDescribesTheTarget",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Memory/MemorySnapshotToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(memory, store.Get(\"before\", \"name\").Image.Bytes);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemorySnapshotToolsTests.CreateSnapshot_ReadableRange_CopiesTheBytesAndDescribesTheTarget"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "memory_delete_snapshot",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Memory.MemorySnapshotToolsTests.DeleteSnapshot_FreesItsBytesAndAnUnknownNameIsNotFound",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Memory/MemorySnapshotToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(new MemorySnapshotDeleted(\"gone\", 16), deleted);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemorySnapshotToolsTests.DeleteSnapshot_FreesItsBytesAndAnUnknownNameIsNotFound"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "memory_dump_to_file",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Memory.MemoryFileToolsTests.DumpToFile_ReadableRange_WritesTheBytesAndLeavesNoTemporaryFile",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Memory/MemoryFileToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(memory, File.ReadAllBytes(path));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemoryFileToolsTests.DumpToFile_ReadableRange_WritesTheBytesAndLeavesNoTemporaryFile"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "memory_free",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Memory.MemoryAllocationToolsTests.Free_RetryableRelease_KeepsTheAllocationTrackedUntilAReleaseCompletes",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Memory/MemoryAllocationToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(ResourceReleaseKind.Released, released.Release.Kind); Assert.Empty(harness.Resources.List());",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemoryAllocationToolsTests.Free_RetryableRelease_KeepsTheAllocationTrackedUntilAReleaseCompletes"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "memory_get_address_info",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Memory.MemoryInfoToolsTests.GetAddressInfo_ResolvedAndUnresolved_DescribesEachInOneDispatch",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Memory/MemoryInfoToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal((\"401010\", \"game.exe+1010\", \"game.exe\", \".text\", (bool?) false), (player.Address, player.Symbol, player.Module, player.Section, player.IsSystemModule));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemoryInfoToolsTests.GetAddressInfo_ResolvedAndUnresolved_DescribesEachInOneDispatch"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "memory_hash",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Memory.MemoryReadToolsTests.Hash_ChunkedRange_MatchesTheManagedDigest",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Memory/MemoryReadToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(memory)), sha256.Hash);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemoryReadToolsTests.Hash_ChunkedRange_MatchesTheManagedDigest"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "memory_list_regions",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Memory.MemoryInfoToolsTests.ListRegions_Filters_KeepMatchingRegionsInAddressOrderAndPage",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Memory/MemoryInfoToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal([\"10000\", \"401000\", \"402000\", \"500000\"], all.Regions.Select(static region => region.Base));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemoryInfoToolsTests.ListRegions_Filters_KeepMatchingRegionsInAddressOrderAndPage"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "memory_list_snapshots",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Memory.MemorySnapshotToolsTests.ListSnapshots_OldestFirst_ReportsTheBytesWithoutAnyDispatch",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Memory/MemorySnapshotToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal([\"one\", \"two\"], list.Snapshots.Select(static snapshot => snapshot.Name));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemorySnapshotToolsTests.ListSnapshots_OldestFirst_ReportsTheBytesWithoutAnyDispatch"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "memory_load_from_file",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Memory.MemoryFileToolsTests.LoadFromFile_FileLargerThanOneChunk_WritesContiguousBoundedBlocks",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Memory/MemoryFileToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(new FileLoadResult(path, \"1000\", input.Length), result);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemoryFileToolsTests.LoadFromFile_FileLargerThanOneChunk_WritesContiguousBoundedBlocks"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "memory_read",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Memory.MemoryReadToolsTests.Read_FixedType_RoutesToTheTypedPrimitiveOfItsWidth",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Memory/MemoryReadToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(new MemoryReadResult(\"401010\", type, expected), result);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemoryReadToolsTests.Read_FixedType_RoutesToTheTypedPrimitiveOfItsWidth(type: Double, expected: \"-0.25\")",
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemoryReadToolsTests.Read_FixedType_RoutesToTheTypedPrimitiveOfItsWidth(type: Float, expected: \"1.5\")",
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemoryReadToolsTests.Read_FixedType_RoutesToTheTypedPrimitiveOfItsWidth(type: Int16, expected: \"-300\")",
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemoryReadToolsTests.Read_FixedType_RoutesToTheTypedPrimitiveOfItsWidth(type: Int32, expected: \"1337\")",
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemoryReadToolsTests.Read_FixedType_RoutesToTheTypedPrimitiveOfItsWidth(type: Int64, expected: \"-9000000000\")",
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemoryReadToolsTests.Read_FixedType_RoutesToTheTypedPrimitiveOfItsWidth(type: Int8, expected: \"-5\")",
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemoryReadToolsTests.Read_FixedType_RoutesToTheTypedPrimitiveOfItsWidth(type: Pointer, expected: \"7FF6A1B2C3D0\")",
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemoryReadToolsTests.Read_FixedType_RoutesToTheTypedPrimitiveOfItsWidth(type: UInt16, expected: \"60000\")",
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemoryReadToolsTests.Read_FixedType_RoutesToTheTypedPrimitiveOfItsWidth(type: UInt32, expected: \"4000000000\")",
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemoryReadToolsTests.Read_FixedType_RoutesToTheTypedPrimitiveOfItsWidth(type: UInt64, expected: \"18000000000000000000\")",
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemoryReadToolsTests.Read_FixedType_RoutesToTheTypedPrimitiveOfItsWidth(type: UInt8, expected: \"200\")"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "memory_read_batch",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Memory.MemoryReadToolsTests.ReadBatch_MixedItems_ReadsEachFixedTypeInOneTypedBatchAndKeepsOrder",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Memory/MemoryReadToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal([\"1\", \"0.5\", \"90 C3\", \"2\", null], result.Items.Select(static item => item.Value));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemoryReadToolsTests.ReadBatch_MixedItems_ReadsEachFixedTypeInOneTypedBatchAndKeepsOrder"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "memory_read_samples",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Memory.MemorySampleToolsTests.ReadSamples_ValueChanges_KeepTheFirstValueAndEveryChangeWithItsTime",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Memory/MemorySampleToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal([new MemorySamplePoint(0, \"5\"), new MemorySamplePoint(200, \"6\"), new MemorySamplePoint(400, \"5\")], first.Changes);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemorySampleToolsTests.ReadSamples_ValueChanges_KeepTheFirstValueAndEveryChangeWithItsTime"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "memory_set_protection",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Memory.MemoryWriteToolsTests.SetProtection_FixedScript_ReportsPreviousAndCurrentAccess",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Memory/MemoryWriteToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(new ProtectionChange(\"401000\", 4096, new ProtectionFlags(true, false, true), new ProtectionFlags(true, true, true)), change);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemoryWriteToolsTests.SetProtection_FixedScript_ReportsPreviousAndCurrentAccess"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "memory_write",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Memory.MemoryWriteToolsTests.Write_Int32_PreReadsPreviousWritesTypedAndVerifiesTheReadBack",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Memory/MemoryWriteToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(new MemoryWriteResult(\"1000\", 4, \"64 00 00 00\", true), result);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemoryWriteToolsTests.Write_Int32_PreReadsPreviousWritesTypedAndVerifiesTheReadBack"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "memory_write_batch",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Memory.MemoryWriteToolsTests.WriteBatch_ConsecutiveTypes_WriteInRequestOrderAndVerify",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Memory/MemoryWriteToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal((5, false), (result.Written, result.Verified)); Assert.Equal([2], result.Mismatched!);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemoryWriteToolsTests.WriteBatch_ConsecutiveTypes_WriteInRequestOrderAndVerify"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "module_find_patches",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Modules.ModulePatchToolTests.FindPatches_HookedCode_ReportsTheRangesAfterApplyingRelocations",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Modules/ModulePatchToolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(new ModulePatch(\"7FFA00004040\", \".text\", 5, \"91 92 93 94 95\", \"E9 11 22 33 44\", \"sample.Alpha+30\"), patch);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Modules.ModulePatchToolTests.FindPatches_HookedCode_ReportsTheRangesAfterApplyingRelocations"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "module_get",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Modules.ModuleToolTests.Get_Module_ReportsSectionsWithTheirFlagsThePeFieldsAndThePdb",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Modules/ModuleToolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(\"game.exe\", result.Name);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Modules.ModuleToolTests.Get_Module_ReportsSectionsWithTheirFlagsThePeFieldsAndThePdb"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "module_list",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Modules.ModuleToolTests.List_AttachedProcess_PagesTheFilteredModulesInBothFormats",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Modules/ModuleToolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(2, result.Total);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Modules.ModuleToolTests.List_AttachedProcess_PagesTheFilteredModulesInBothFormats"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "module_list_exports",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Modules.ModuleToolTests.ListExports_Module_PagesExportsByOrdinalWithForwarders",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Modules/ModuleToolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(2, result.Total);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Modules.ModuleToolTests.ListExports_Module_PagesExportsByOrdinalWithForwarders"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "module_list_imports",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Modules.ModuleImportToolTests.ListImports_Module_ListsEverySlotWithItsValueAndTarget",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Modules/ModuleImportToolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal((\"sample.dll\", 6, (int?) null), (list.Module, list.Total, list.NextOffset)); Assert.Equal(expected, list.Imports); Assert.Equal(1, target.Dispatcher.Calls);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Modules.ModuleImportToolTests.ListImports_Module_ListsEverySlotWithItsValueAndTarget"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "mono_attach",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.MonoGatedMutationAdapters_DeclareTheGateMapResultsAndReleaseAttachment",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/ManagedAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known attachment/JIT/invocation values, exact arguments and detach/resource cleanup.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.MonoGatedMutationAdapters_DeclareTheGateMapResultsAndReleaseAttachment"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "mono_compile_method",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.MonoGatedMutationAdapters_DeclareTheGateMapResultsAndReleaseAttachment",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/ManagedAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known attachment/JIT/invocation values, exact arguments and detach/resource cleanup.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.MonoGatedMutationAdapters_DeclareTheGateMapResultsAndReleaseAttachment"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "mono_detach",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Mono.MonoToolsTests.AttachThenDetach_ReleasesTheActivationOwnedCollectorResource",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Mono/MonoToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(TargetResourceState.Ended, Assert.Single(harness.Resources.List()).State);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Mono.MonoToolsTests.AttachThenDetach_ReleasesTheActivationOwnedCollectorResource"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "mono_find_class",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.MonoLookupAdapters_MapClassMethodAndStaticAddressWithExactHandles",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/ManagedAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known class/method/static address and exact normalized lookup handles/names.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.MonoLookupAdapters_MapClassMethodAndStaticAddressWithExactHandles"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "mono_find_method",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.MonoLookupAdapters_MapClassMethodAndStaticAddressWithExactHandles",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/ManagedAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known class/method/static address and exact normalized lookup handles/names.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.MonoLookupAdapters_MapClassMethodAndStaticAddressWithExactHandles"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "mono_get_object",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Mono.MonoToolsTests.GetObject_TrimmedAddressAndBounds_ReachTheObjectBodyInOneDispatch",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Mono/MonoToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(expected, result); Assert.Equal(1, harness.Dispatches);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Mono.MonoToolsTests.GetObject_TrimmedAddressAndBounds_ReachTheObjectBodyInOneDispatch(maxBacktrack: 0, maximumFields: 1)",
+            "CheatEngine.Mcp.Tests.Tools.Mono.MonoToolsTests.GetObject_TrimmedAddressAndBounds_ReachTheObjectBodyInOneDispatch(maxBacktrack: 65536, maximumFields: 2048)"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "mono_get_static_field_address",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.MonoLookupAdapters_MapClassMethodAndStaticAddressWithExactHandles",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/ManagedAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known class/method/static address and exact normalized lookup handles/names.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.MonoLookupAdapters_MapClassMethodAndStaticAddressWithExactHandles"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "mono_get_status",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.MonoDiscoveryAdapters_MapStatusAndPagedCollectorResults",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/ManagedAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known collector version, assembly/image/class/field/method values, totals and exact page/filter arguments.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.MonoDiscoveryAdapters_MapStatusAndPagedCollectorResults"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "mono_invoke_method",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.MonoGatedMutationAdapters_DeclareTheGateMapResultsAndReleaseAttachment",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/ManagedAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known attachment/JIT/invocation values, exact arguments and detach/resource cleanup.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.MonoGatedMutationAdapters_DeclareTheGateMapResultsAndReleaseAttachment"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "mono_list_assemblies",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.MonoDiscoveryAdapters_MapStatusAndPagedCollectorResults",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/ManagedAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known collector version, assembly/image/class/field/method values, totals and exact page/filter arguments.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.MonoDiscoveryAdapters_MapStatusAndPagedCollectorResults"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "mono_list_classes",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.MonoDiscoveryAdapters_MapStatusAndPagedCollectorResults",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/ManagedAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known collector version, assembly/image/class/field/method values, totals and exact page/filter arguments.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.MonoDiscoveryAdapters_MapStatusAndPagedCollectorResults"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "mono_list_fields",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.MonoDiscoveryAdapters_MapStatusAndPagedCollectorResults",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/ManagedAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known collector version, assembly/image/class/field/method values, totals and exact page/filter arguments.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.MonoDiscoveryAdapters_MapStatusAndPagedCollectorResults"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "mono_list_methods",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.MonoDiscoveryAdapters_MapStatusAndPagedCollectorResults",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/ManagedAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Known collector version, assembly/image/class/field/method values, totals and exact page/filter arguments.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.ManagedAdapterQualificationTests.MonoDiscoveryAdapters_MapStatusAndPagedCollectorResults"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "mono_poll_instance_search",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Mono.MonoToolsTests.InstanceSearch_StartPollAndStop_RetainsTheBoundedResultThenDiscardsIt",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Mono/MonoToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal([new MonoInstance(\"3000\"), new MonoInstance(\"4000\")], page.Instances); Assert.Equal((0, 0), (harness.Jobs.Count, harness.Resources.Count));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Mono.MonoToolsTests.InstanceSearch_StartPollAndStop_RetainsTheBoundedResultThenDiscardsIt"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "mono_start_instance_search",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Mono.MonoToolsTests.InstanceSearch_StartPollAndStop_RetainsTheBoundedResultThenDiscardsIt",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Mono/MonoToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.StartsWith($\"monoinstances-{harness.Jobs.Namespace}-\", started.JobId, StringComparison.Ordinal); Assert.Equal((\"class\", 2), (started.ClassHandle, started.MaximumResults));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Mono.MonoToolsTests.InstanceSearch_StartPollAndStop_RetainsTheBoundedResultThenDiscardsIt"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "pointer_create_map",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Pointer.PointerJobToolTests.CreateMapThenFindPaths_Jobs_StoreRankedModuleRootedPaths",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Pointer/PointerJobToolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal((PointerJobState.Ready, PointerFixture.ProcessId, 8, 3, false, 100), (map.State, map.ProcessId, map.PointerSize, map.Pointers, map.Incomplete, map.ProgressPercent));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Pointer.PointerJobToolTests.CreateMapThenFindPaths_Jobs_StoreRankedModuleRootedPaths"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "pointer_delete_map",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Pointer.PointerJobToolTests.DeleteMap_RunningCapture_StopsItsJobAndForgetsTheMap",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Pointer/PointerJobToolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(new PointerDeleteResult(\"map\", true), deleted); Assert.Empty(fixture.Maps.ListMaps().Maps);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Pointer.PointerJobToolTests.DeleteMap_RunningCapture_StopsItsJobAndForgetsTheMap"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "pointer_delete_scan",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Pointer.PointerJobToolTests.DeleteScanAndMap_EndedJobs_AreNotCancelledAndFreeTheStore",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Pointer/PointerJobToolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(new PointerDeleteResult(\"hp\", false), fixture.Scans.DeleteScan(\"hp\", Token)); Assert.Empty(fixture.Scans.ListScans().Scans);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Pointer.PointerJobToolTests.DeleteScanAndMap_EndedJobs_AreNotCancelledAndFreeTheStore"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "pointer_find_paths",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Pointer.PointerJobToolTests.CreateMapThenFindPaths_Jobs_StoreRankedModuleRootedPaths",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Pointer/PointerJobToolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal((PointerJobState.Ready, 2, false, false, \"21020\"), (searched.State, searched.Count, searched.Incomplete, searched.TraversalLimited, searched.Target));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Pointer.PointerJobToolTests.CreateMapThenFindPaths_Jobs_StoreRankedModuleRootedPaths"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "pointer_find_references",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Pointer.PointerReferenceToolTests.FindReferences_LiveExact_ScansTheAlignedLittleEndianPointerInWritableMemory",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Pointer/PointerReferenceToolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(new PointerReference(\"10100\", \"20000\", \"0\", \"game.exe+100\"), reference);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Pointer.PointerReferenceToolTests.FindReferences_LiveExact_ScansTheAlignedLittleEndianPointerInWritableMemory"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "pointer_get_access_info",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.PointerAccess_PaddedHexFacts_NormalizesMapsAndObservedAddress",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaPointerAccessTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(PointerAccessStatus.Supported, result.Status); Assert.Equal(\"1010\", result.EffectiveAddress);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.PointerAccess_PaddedHexFacts_NormalizesMapsAndObservedAddress(instruction: \"mov eax,[game.exe+10]\")",
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.PointerAccess_PaddedHexFacts_NormalizesMapsAndObservedAddress(instruction: \"mov eax,[rax+10]\")"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "pointer_list_maps",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Pointer.PointerJobToolTests.ListTools_ThroughTheServer_ReturnStructuredMapsAndScans",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Pointer/PointerJobToolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal((\"map\", \"ready\"), (map.GetProperty(\"mapName\").GetString(), map.GetProperty(\"state\").GetString()));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Pointer.PointerJobToolTests.ListTools_ThroughTheServer_ReturnStructuredMapsAndScans"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "pointer_list_paths",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Pointer.PointerJobToolTests.CreateMapThenFindPaths_Jobs_StoreRankedModuleRootedPaths",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Pointer/PointerJobToolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(\"[[\\\"game.exe\\\"+100]+10]+20\", best.Expression);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Pointer.PointerJobToolTests.CreateMapThenFindPaths_Jobs_StoreRankedModuleRootedPaths"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "pointer_list_scans",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Pointer.PointerJobToolTests.RescanPaths_UnreadableHop_KeepsThePathUnresolvedUnlessDropped",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Pointer/PointerJobToolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.True(fixture.Scans.ListScans().Scans.Single().Incomplete);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Pointer.PointerJobToolTests.RescanPaths_UnreadableHop_KeepsThePathUnresolvedUnlessDropped"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "pointer_load_map",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Pointer.PointerFileToolTests.SaveAndLoadMap_UsesAllowedRootAndReportsUnknownImportCompleteness",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Pointer/PointerFileToolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(new PointerEntry(0x1010, 0x2000), Assert.Single(map.Entries));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Pointer.PointerFileToolTests.SaveAndLoadMap_UsesAllowedRootAndReportsUnknownImportCompleteness"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "pointer_load_scan",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Pointer.PointerFileToolTests.SaveAndLoadScan_PreservesContextButInvalidatesOldMatches",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Pointer/PointerFileToolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal([-0x20L, 0x40], restored.Offsets); Assert.Equal(PointerVerification.Unresolved, restored.Verification);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Pointer.PointerFileToolTests.SaveAndLoadScan_PreservesContextButInvalidatesOldMatches"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "pointer_read_chain",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Pointer.PointerChainToolTests.ReadChain_NegativeOffset_ReportsEveryHopAndTheFinalValueInOneDispatch",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Pointer/PointerChainToolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(\"21020\", result.Address); Assert.Equal(\"1234\", result.Value);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Pointer.PointerChainToolTests.ReadChain_NegativeOffset_ReportsEveryHopAndTheFinalValueInOneDispatch"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "pointer_read_chains",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Pointer.PointerBatchToolTests.ReadChains_X64SignedOffsetsAndComparison_ReportsStableCandidateOutcomes",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Pointer/PointerBatchToolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(2, result.Summary.Processed); Assert.Equal(1, result.Summary.Matches);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Pointer.PointerBatchToolTests.ReadChains_X64SignedOffsetsAndComparison_ReportsStableCandidateOutcomes"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "pointer_rescan_paths",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Pointer.PointerJobToolTests.RescanPaths_NewMapAndLiveMemory_KeepOnlyPathsThatStillReachTheTarget",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Pointer/PointerJobToolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(new PointerRescanResult(\"hp\", 1, 1, 0, 0, false), live);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Pointer.PointerJobToolTests.RescanPaths_NewMapAndLiveMemory_KeepOnlyPathsThatStillReachTheTarget"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "pointer_save_map",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Pointer.PointerFileToolTests.SaveAndLoadMap_UsesAllowedRootAndReportsUnknownImportCompleteness",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Pointer/PointerFileToolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(path, saved.FilePath); Assert.True(File.Exists(path));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Pointer.PointerFileToolTests.SaveAndLoadMap_UsesAllowedRootAndReportsUnknownImportCompleteness"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "pointer_save_scan",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Pointer.PointerFileToolTests.SaveAndLoadScan_PreservesContextButInvalidatesOldMatches",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Pointer/PointerFileToolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(\"MCP.pointer-scan.v2\", saved.Format);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Pointer.PointerFileToolTests.SaveAndLoadScan_PreservesContextButInvalidatesOldMatches"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "process_attach",
+      "cases": [
+        {
+          "suite": "portable",
+          "scope": "adapter",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.CoreAdapterQualificationTests.ProcessListCurrentAndAttach_ForwardTypedRequestsAndMapResults",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CoreAdapterQualificationTests.cs",
+          "oracle": "Known typed or fixed-Lua snapshots are asserted against the returned tool result; exact forwarded requests and operation order are also checked.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.CoreAdapterQualificationTests.ProcessListCurrentAndAttach_ForwardTypedRequestsAndMapResults"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "process_create",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ProcessV2_FixedEffects_ReturnObservedTypedHostState",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaRuntimeProcessScanV2Tests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(88, created.ProcessId); Assert.Equal(1L, ReadGlobal(\"created\"));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ProcessV2_FixedEffects_ReturnObservedTypedHostState"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "process_get_current",
+      "cases": [
+        {
+          "suite": "portable",
+          "scope": "adapter",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.CoreAdapterQualificationTests.ProcessListCurrentAndAttach_ForwardTypedRequestsAndMapResults",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CoreAdapterQualificationTests.cs",
+          "oracle": "Known typed or fixed-Lua snapshots are asserted against the returned tool result; exact forwarded requests and operation order are also checked.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.CoreAdapterQualificationTests.ProcessListCurrentAndAttach_ForwardTypedRequestsAndMapResults"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "process_list",
+      "cases": [
+        {
+          "suite": "portable",
+          "scope": "adapter",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.CoreAdapterQualificationTests.ProcessListCurrentAndAttach_ForwardTypedRequestsAndMapResults",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CoreAdapterQualificationTests.cs",
+          "oracle": "Known typed or fixed-Lua snapshots are asserted against the returned tool result; exact forwarded requests and operation order are also checked.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.CoreAdapterQualificationTests.ProcessListCurrentAndAttach_ForwardTypedRequestsAndMapResults"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "process_list_threads",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ProcessV2_FixedEffects_ReturnObservedTypedHostState",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaRuntimeProcessScanV2Tests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(new long[] { 100, 200, 300 }, threads.Threads);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ProcessV2_FixedEffects_ReturnObservedTypedHostState"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "process_open_file",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ProcessV2_FixedEffects_ReturnObservedTypedHostState",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaRuntimeProcessScanV2Tests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal((99, 4096L, fileName, false), opened tuple);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ProcessV2_FixedEffects_ReturnObservedTypedHostState"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "process_save_file",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ProcessV2_FixedEffects_ReturnObservedTypedHostState",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaRuntimeProcessScanV2Tests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal((true, fileName), saved tuple);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ProcessV2_FixedEffects_ReturnObservedTypedHostState"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "process_set_paused",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ProcessV2_Pause_IsRecordedBlocksATargetChangeAndIsResumedByTheRelease",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaProcessPauseTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.NotNull(paused.ResourceId); Assert.True(tools.Resources...);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ProcessV2_Pause_IsRecordedBlocksATargetChangeAndIsResumedByTheRelease"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "process_set_pointer_size",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ProcessV2_FixedEffects_ReturnObservedTypedHostState",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaRuntimeProcessScanV2Tests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(4, pointerSize.PointerSize);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ProcessV2_FixedEffects_ReturnObservedTypedHostState"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "record_clear",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Record.RecordClearToolsTests.Clear_NestedRecords_UsesTheBoundedWalkAndReturnsTheCompleteCount",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Record/RecordClearToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(new RecordClearResult(5), result);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Record.RecordClearToolsTests.Clear_NestedRecords_UsesTheBoundedWalkAndReturnsTheCompleteCount"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "record_create",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.Create_ValueRecord_CreatesThroughFixedLuaAndWritesTheValueLast",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Record/RecordToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal((1, \"Health\", \"game.exe+20\", \"100\"), (created.Id, created.Description, created.Address, created.Value));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.Create_ValueRecord_CreatesThroughFixedLuaAndWritesTheValueLast"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "record_delete",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.Delete_UsesTypedDeleteAfterItCopiesEveryRequestedRecord",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Record/RecordToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(2, result.Deleted);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.Delete_UsesTypedDeleteAfterItCopiesEveryRequestedRecord"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "record_find",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.ListAndFind_DescribeTheWholeListWithNestedRecords",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Record/RecordToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal([6, 7], page.Records.Select(static record => record.Id).ToArray());",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.ListAndFind_DescribeTheWholeListWithNestedRecords"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "record_get",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.Get_IncludeDropdown_CopiesEveryDropdownInOneBoundedLuaPass",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Record/RecordToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal([mode, linked], result.Records.Select(static record => record.Dropdown).ToArray());",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.Get_IncludeDropdown_CopiesEveryDropdownInOneBoundedLuaPass"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "record_get_selected",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.GetSelected_KnownRecord_MapsTheCurrentClientSnapshot",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Record/RecordToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Known selected snapshot and exact typed Client call",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.GetSelected_KnownRecord_MapsTheCurrentClientSnapshot"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "record_group",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.Group_ParentedMembers_PreservesRequestedOrderAndRecordsTheClientEffects",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Record/RecordToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Ordered members, exact group definition and parent requests",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.Group_ParentedMembers_PreservesRequestedOrderAndRecordsTheClientEffects"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "record_list",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.List_PagesTheWholeListThroughTheTypedTableClient",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Record/RecordToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(3, page.Total);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.List_PagesTheWholeListThroughTheTypedTableClient"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "record_move",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.Move_ParentAndRoot_ForwardTheExactParentRequestsAndReturnMappedRecords",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Record/RecordToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Parent/root requests and returned records",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.Move_ParentAndRoot_ForwardTheExactParentRequestsAndReturnMappedRecords"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "record_select",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.Select_KnownRecord_ForwardsItsIdAndReturnsTheMappedSnapshot",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Record/RecordToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Selected ID, mapped snapshot and exact Client request",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.Select_KnownRecord_ForwardsItsIdAndReturnsTheMappedSnapshot"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "record_set_active",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.SetActive_ParentThatReachesNoAutoAssemblerRecord_ChangesWithoutTheFeature",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Record/RecordToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(new RecordActivation(5, true, true, false), Assert.Single(result.Records));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.SetActive_ParentThatReachesNoAutoAssemblerRecord_ChangesWithoutTheFeature"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "record_set_dropdown",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.SetDropdown_ReplacesTheListThroughFixedLuaAndReadsItBack",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Record/RecordToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal((4, stored), (result.Record.Id, result.Record.Dropdown));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.SetDropdown_ReplacesTheListThroughFixedLuaAndReadsItBack"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "record_set_script",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.SetScript_AutoAssemblerRecord_UsesFixedLuaAndReadsBack",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Record/RecordToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(12, result.Record.Id);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.SetScript_AutoAssemblerRecord_UsesFixedLuaAndReadsBack"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "record_update",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.Update_AddressValueAndOffsets_AppliesAddressThenOffsetsThenValue",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Record/RecordToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal((\"game.exe+100\", \"5\"), (result.Records[0].Address, result.Records[0].Value));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.Update_AddressValueAndOffsets_AppliesAddressThenOffsetsThenValue"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "runtime_get_info",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Runtime.RuntimeToolsTests.GetInfo_ReportsEveryGateOfTheActivation",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Runtime/RuntimeToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(expected, info.Gates);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Runtime.RuntimeToolsTests.GetInfo_ReportsEveryGateOfTheActivation(autoAssembler: False, unsafeLua: False, targetCodeExecution: False, kernelAccess: False)",
+            "CheatEngine.Mcp.Tests.Tools.Runtime.RuntimeToolsTests.GetInfo_ReportsEveryGateOfTheActivation(autoAssembler: False, unsafeLua: True, targetCodeExecution: False, kernelAccess: True)",
+            "CheatEngine.Mcp.Tests.Tools.Runtime.RuntimeToolsTests.GetInfo_ReportsEveryGateOfTheActivation(autoAssembler: True, unsafeLua: False, targetCodeExecution: True, kernelAccess: False)",
+            "CheatEngine.Mcp.Tests.Tools.Runtime.RuntimeToolsTests.GetInfo_ReportsEveryGateOfTheActivation(autoAssembler: True, unsafeLua: True, targetCodeExecution: True, kernelAccess: True)"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "runtime_get_overview",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Runtime.RuntimeToolsTests.GetOverview_CarriesTheGatesInItsRuntimeSection",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Runtime/RuntimeToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(expected, overview.Runtime.Gates);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Runtime.RuntimeToolsTests.GetOverview_CarriesTheGatesInItsRuntimeSection"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "runtime_list_jobs",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.RuntimeProcessScanV2ContractTests.RuntimeReleaseResources_ReleasesTrackedStateAndRuntimeStopJobRoutesToRegistry",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/RuntimeProcessScanV2ContractTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Contains(tools.ListJobs(Token).Jobs, status => status.JobId == job.Id);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.RuntimeProcessScanV2ContractTests.RuntimeReleaseResources_ReleasesTrackedStateAndRuntimeStopJobRoutesToRegistry"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "runtime_list_resources",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.RuntimeProcessScanV2ContractTests.RuntimeReleaseResources_ReleasesTrackedStateAndRuntimeStopJobRoutesToRegistry",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/RuntimeProcessScanV2ContractTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Contains(listed.Resources, item => item.Id == resource.Descriptor.Id);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.RuntimeProcessScanV2ContractTests.RuntimeReleaseResources_ReleasesTrackedStateAndRuntimeStopJobRoutesToRegistry"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "runtime_release_resources",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.RuntimeProcessScanV2ContractTests.RuntimeReleaseResources_ReleasesTrackedStateAndRuntimeStopJobRoutesToRegistry",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/RuntimeProcessScanV2ContractTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.True(released.Release.IsComplete); Assert.Equal(1, resource.ReleaseCalls);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.RuntimeProcessScanV2ContractTests.RuntimeReleaseResources_ReleasesTrackedStateAndRuntimeStopJobRoutesToRegistry"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "runtime_stop_job",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.RuntimeProcessScanV2ContractTests.RuntimeReleaseResources_ReleasesTrackedStateAndRuntimeStopJobRoutesToRegistry",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/RuntimeProcessScanV2ContractTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.True(stopped.Released); Assert.DoesNotContain(tools.ListJobs(Token).Jobs, status => status.JobId == job.Id);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.RuntimeProcessScanV2ContractTests.RuntimeReleaseResources_ReleasesTrackedStateAndRuntimeStopJobRoutesToRegistry"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "scan_delete",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Scan.ScanToolsV2Tests.IndependentSessions_NarrowReadAndDelete_AffectOnlyTheNamedSession",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Scan/ScanToolsV2Tests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.True(deleted.Removed); Assert.Null(deleted.Status); Assert.Equal((1, 0, 1, 0), (alpha.NextCalls, beta.NextCalls, alpha.ReleaseCalls, beta.ReleaseCalls));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Scan.ScanToolsV2Tests.IndependentSessions_NarrowReadAndDelete_AffectOnlyTheNamedSession"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "scan_first",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ScanV2_MainScannerFirstReadResetAndStop_UseTypedBoundedResults",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaRuntimeProcessScanV2Tests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal((\"main\", \"ui\", \"Scanning\"), (started.ScannerName, started.Mode, started.State));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ScanV2_MainScannerFirstReadResetAndStop_UseTypedBoundedResults"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "scan_get_status",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ScanV2_MainScannerFirstReadResetAndStop_UseTypedBoundedResults",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaRuntimeProcessScanV2Tests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(\"ResultsReady\", tools.GetStatus(...).State);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ScanV2_MainScannerFirstReadResetAndStop_UseTypedBoundedResults"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "scan_list_results",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ScanV2_MainScannerFirstReadResetAndStop_UseTypedBoundedResults",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaRuntimeProcessScanV2Tests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(3UL, page.Count); Assert.Equal(\"ABCD\", page.Results[0].Address);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ScanV2_MainScannerFirstReadResetAndStop_UseTypedBoundedResults"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "scan_list_scanners",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ScanV2_MainScannerStatus_ReportsTheScanSettingsOfTheUi",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaScanOptionsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(expected, tools.ListScanners(Token).Scanners);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ScanV2_MainScannerStatus_ReportsTheScanSettingsOfTheUi"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "scan_next",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ScanV2_MainScannerComparison_UsesTheExpectedNativeControlIndex",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaRuntimeProcessScanV2Tests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(\"Scanning\", status.State); Assert.Equal(expectedIndex, ReadGlobal(\"requestedComparison\"));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ScanV2_MainScannerComparison_UsesTheExpectedNativeControlIndex(first: False, comparison: \"between\", value: \"10\", upperValue: \"20\", expectedIndex: 3)",
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ScanV2_MainScannerComparison_UsesTheExpectedNativeControlIndex(first: False, comparison: \"changed\", value: null, upperValue: null, expectedIndex: 8)",
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ScanV2_MainScannerComparison_UsesTheExpectedNativeControlIndex(first: False, comparison: \"decreased\", value: null, upperValue: null, expectedIndex: 6)",
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ScanV2_MainScannerComparison_UsesTheExpectedNativeControlIndex(first: False, comparison: \"decreasedBy\", value: \"10\", upperValue: null, expectedIndex: 7)",
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ScanV2_MainScannerComparison_UsesTheExpectedNativeControlIndex(first: False, comparison: \"exact\", value: \"10\", upperValue: null, expectedIndex: 0)",
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ScanV2_MainScannerComparison_UsesTheExpectedNativeControlIndex(first: False, comparison: \"greater\", value: \"10\", upperValue: null, expectedIndex: 1)",
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ScanV2_MainScannerComparison_UsesTheExpectedNativeControlIndex(first: False, comparison: \"increased\", value: null, upperValue: null, expectedIndex: 4)",
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ScanV2_MainScannerComparison_UsesTheExpectedNativeControlIndex(first: False, comparison: \"increasedBy\", value: \"10\", upperValue: null, expectedIndex: 5)",
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ScanV2_MainScannerComparison_UsesTheExpectedNativeControlIndex(first: False, comparison: \"less\", value: \"10\", upperValue: null, expectedIndex: 2)",
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ScanV2_MainScannerComparison_UsesTheExpectedNativeControlIndex(first: False, comparison: \"unchanged\", value: null, upperValue: null, expectedIndex: 9)"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "scan_reset",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ScanV2_MainScannerFirstReadResetAndStop_UseTypedBoundedResults",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaRuntimeProcessScanV2Tests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(\"Created\", tools.Reset(...).Status!.State);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ScanV2_MainScannerFirstReadResetAndStop_UseTypedBoundedResults"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "scan_stop",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ScanV2_MainScannerFirstReadResetAndStop_UseTypedBoundedResults",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaRuntimeProcessScanV2Tests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.True(stopped.StopRequested);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ScanV2_MainScannerFirstReadResetAndStop_UseTypedBoundedResults"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "speedhack_get_state",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.SpeedhackV2_SetSpeedOne_AtNormalSpeed_ChangesNothingAndNeverHooks",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaSpeedhackToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(expectedState, tools.GetState(Token));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.SpeedhackV2_SetSpeedOne_AtNormalSpeed_ChangesNothingAndNeverHooks(symbolBefore: False)",
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.SpeedhackV2_SetSpeedOne_AtNormalSpeed_ChangesNothingAndNeverHooks(symbolBefore: True)"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "speedhack_set_speed",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.SpeedhackV2_SetSpeedOne_WhileTheTargetIsSpedUp_RestoresWithoutActivating",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaSpeedhackToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(expected, result);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.SpeedhackV2_SetSpeedOne_WhileTheTargetIsSpedUp_RestoresWithoutActivating(stubs: \"configuredSpeed = 1; wantedSpeed = 2.5\")",
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.SpeedhackV2_SetSpeedOne_WhileTheTargetIsSpedUp_RestoresWithoutActivating(stubs: \"configuredSpeed = 2.5; wantedSpeed = 2.5\")"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "structure_add_elements",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.StructureAddElements_NewOffsets_ReportTheSortedIndicesAndRollBackARefusal",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaStructureTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal([4, 1], change.Indices);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.StructureAddElements_NewOffsets_ReportTheSortedIndicesAndRollBackARefusal"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "structure_autoguess",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Structures.StructureToolsTests.Autoguess_Address_IsResolvedByTheClientAndReadFromTheOffset",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Structures/StructureToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(40, summary.ElementCount);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Structures.StructureToolsTests.Autoguess_Address_IsResolvedByTheClientAndReadFromTheOffset"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "structure_compare",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Structures.StructureToolsTests.Compare_AlongAStructure_UsesItsElementsNamesAndTypes",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Structures/StructureToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(\"flags\", Assert.Single(result.Rows).Name);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Structures.StructureToolsTests.Compare_AlongAStructure_UsesItsElementsNamesAndTypes"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "structure_create",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Structures.StructureToolsTests.Create_Elements_AreEncodedAsVartypeDisplayAndByteSize",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Structures/StructureToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(2, result.ElementCount);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Structures.StructureToolsTests.Create_Elements_AreEncodedAsVartypeDisplayAndByteSize"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "structure_delete",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.StructureDelete_KnownThenAgain_DestroysOnceThenIsNotFound",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaStructureTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(new StructureDeleted(\"Enemy\"), tools.Delete(\"Enemy\", StructureToken));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.StructureDelete_KnownThenAgain_DestroysOnceThenIsNotFound"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "structure_fill_from_dotnet",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.StructureFillFromDotNet_HaltedMissingOrFound_FollowsTheCollector",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaStructureTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(new StructureSummary(\"Game.Player\", 8, 1), filled);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.StructureFillFromDotNet_HaltedMissingOrFound_FollowsTheCollector"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "structure_generate_c_header",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Structures.StructureHeaderToolsTests.GenerateCHeader_CheatEngineText_IsReturnedWithEveryDeclaredStructure",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Structures/StructureHeaderToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Contains(\"struct Player\", result.Text, StringComparison.Ordinal);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Structures.StructureHeaderToolsTests.GenerateCHeader_CheatEngineText_IsReturnedWithEveryDeclaredStructure"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "structure_get",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Structures.StructureToolsTests.Get_CheatEngineElementFields_MapToContractTypesAndOffsets",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Structures/StructureToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(\"health\", result.Elements[0].Name);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Structures.StructureToolsTests.Get_CheatEngineElementFields_MapToContractTypesAndOffsets"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "structure_get_pdb_layout",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Structures.StructureToolsTests.GetPdbLayout_Fields_MapOffsetsAndReportedTypes",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Structures/StructureToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal((\"4\", \"int32\"), (result.Fields[0].Offset, result.Fields[0].ValueType));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Structures.StructureToolsTests.GetPdbLayout_Fields_MapOffsetsAndReportedTypes"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "structure_list",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Structures.StructureToolsTests.List_Filter_ReachesTheScriptAsArgumentsAndItsPageIsReturned",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Structures/StructureToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(\"Player\", Assert.Single(result.Structures).Name);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Structures.StructureToolsTests.List_Filter_ReachesTheScriptAsArgumentsAndItsPageIsReturned"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "structure_read",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Structures.StructureToolsTests.Read_TwoAddresses_DecodesEveryElementAndNullsWhatIsUnreadable",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Structures/StructureToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal([\"7\", \"8\"], result.Elements[0].Values);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Structures.StructureToolsTests.Read_TwoAddresses_DecodesEveryElementAndNullsWhatIsUnreadable"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "structure_remove_elements",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.StructureRemoveElements_Indices_RemoveHighestFirstAndRefuseOutOfRange",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaStructureTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal([2, 0], change.Indices);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.StructureRemoveElements_Indices_RemoveHighestFirstAndRefuseOutOfRange"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "structure_set_name",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.StructureSetName_StubbedStructures_RenamesInPlaceAndRefusesTakenOrMissingNames",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaStructureTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(new StructureSummary(\"Hero\", 32, 4), renamed);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.StructureSetName_StubbedStructures_RenamesInPlaceAndRefusesTakenOrMissingNames"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "structure_update_elements",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Structures.StructureToolsTests.UpdateElements_DisplayWithoutType_IsCheckedByTheScriptAgainstTheCurrentType",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Structures/StructureToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "The fixed-Lua request encodes hexadecimal flags and the dtHexadecimal type; returned change indices equal [1].",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Structures.StructureToolsTests.UpdateElements_DisplayWithoutType_IsCheckedByTheScriptAgainstTheCurrentType"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "structure_write_element",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Structures.StructureToolsTests.WriteElement_Int32_WritesTheEncodedBytesAtTheElementAndReadsThemBack",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Structures/StructureToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(\"9\", result.Value);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Structures.StructureToolsTests.WriteElement_Int32_WritesTheEncodedBytesAtTheElementAndReadsThemBack"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "symbol_add_module",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Symbol.SymbolToolTests.AddModule_LocalFile_LoadsTheNormalizedPathAtTheResolvedBase",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Symbol/SymbolToolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(new SymbolModuleLoad(pdb, \"140000000\", true), load); Assert.Equal(1, target.Dispatcher.Calls);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Symbol.SymbolToolTests.AddModule_LocalFile_LoadsTheNormalizedPathAtTheResolvedBase"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "symbol_enable_sources",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Symbol.SymbolToolTests.EnableSources_Windows_ReportsExternalAccessAndUsesOnlyFixedLuaArguments",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Symbol/SymbolToolTests.cs",
+          "scope": "adapter",
+          "oracle": "Known Windows enabled/kernel disabled/external access result and exact boolean fixed-Lua arguments.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Symbol.SymbolToolTests.EnableSources_Windows_ReportsExternalAccessAndUsesOnlyFixedLuaArguments"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "symbol_find",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Symbol.SymbolFindToolTests.Find_WithoutModule_ChecksTheProcessAndPassesTheTextOnlyAsAnArgument",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Symbol/SymbolFindToolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(\"playerHealth\", Assert.Single(result.Symbols).Name);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Symbol.SymbolFindToolTests.Find_WithoutModule_ChecksTheProcessAndPassesTheTextOnlyAsAnArgument"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "symbol_get_module_preference",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ModuleSymbolGetModulePreference_Stubbed_CopiesAtMost1024NamesAndRefusesAMissingHostList",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaModuleSymbolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal([\"game\", \"engine\", \"kernel32\"], current.Modules);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ModuleSymbolGetModulePreference_Stubbed_CopiesAtMost1024NamesAndRefusesAMissingHostList"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "symbol_list_registered",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ModuleSymbolListRegistered_Stubbed_CopiesEveryFieldIntoTheRecord",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaModuleSymbolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(new RegisteredSymbolEntry(\"playerBase\", false, \"140000010\"), list.Symbols[0]);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ModuleSymbolListRegistered_Stubbed_CopiesEveryFieldIntoTheRecord"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "symbol_register",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Symbol.SymbolRegistrationToolTests.Register_Symbol_IsAnOwnedLeaseTrackedAsASymbolResource",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Symbol/SymbolRegistrationToolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal((\"playerBase\", \"400010\", false), (symbol.Name, symbol.Address, symbol.DoNotSave));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Symbol.SymbolRegistrationToolTests.Register_Symbol_IsAnOwnedLeaseTrackedAsASymbolResource"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "symbol_reload",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Symbol.SymbolToolTests.Reload_Scope_StartsTheReloadAndReportsDone",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Symbol/SymbolToolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal((scope, true), (result.Scope, result.Done));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Symbol.SymbolToolTests.Reload_Scope_StartsTheReloadAndReportsDone(scope: All, module: null, arguments: \"[1] = \\\"all\\\", [2] = nil\")",
+            "CheatEngine.Mcp.Tests.Tools.Symbol.SymbolToolTests.Reload_Scope_StartsTheReloadAndReportsDone(scope: Dotnet, module: \"Assembly-CSharp.dll\", arguments: \"[1] = \\\"dotnet\\\", [2] = \\\"Assembly-CSharp.dll\\\"\")",
+            "CheatEngine.Mcp.Tests.Tools.Symbol.SymbolToolTests.Reload_Scope_StartsTheReloadAndReportsDone(scope: NewModules, module: null, arguments: \"[1] = \\\"new_modules\\\", [2] = nil\")"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "symbol_resolve",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Symbol.SymbolToolTests.Resolve_Expressions_ResolveInBandWithNamesSymbolsAndPerItemErrors",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Symbol/SymbolToolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(\"401010\", result.Items[0].Address);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Symbol.SymbolToolTests.Resolve_Expressions_ResolveInBandWithNamesSymbolsAndPerItemErrors"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "symbol_set_module_preference",
+      "cases": [
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ModuleSymbolSetModulePreference_Stubbed_MovesModulesFirstOrReplacesAndReadsBack",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaModuleSymbolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal([\"solo\"], replaced.Modules);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.ModuleSymbolSetModulePreference_Stubbed_MovesModulesFirstOrReplacesAndReadsBack"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "symbol_unregister",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Symbol.SymbolRegistrationToolTests.Unregister_OwnedSymbol_ReleasesItsLeaseAndForgetsIt",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Symbol/SymbolRegistrationToolTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.True(result.Release.IsComplete);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Symbol.SymbolRegistrationToolTests.Unregister_OwnedSymbol_ReleasesItsLeaseAndForgetsIt"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "table_list_files",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.CodeAsmTableV2Tests.ListFiles_AllowedRoots_ReturnsOnlyTablesAndSkipsNestedJunctions",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CodeAsmTableV2Tests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(2, result.Total); Assert.Equal([\"first.ct\", \"second.XML\"], names);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.CodeAsmTableV2Tests.ListFiles_AllowedRoots_ReturnsOnlyTablesAndSkipsNestedJunctions"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "table_load",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.CodeTableQualificationTests.TableLoad_InspectedDataTable_ForwardsPinnedTrustedFileAndMerge",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CodeTableQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "One inspected XML record without executable content, trusted file/merge forwarding, one Client load, unchanged source.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.CodeTableQualificationTests.TableLoad_InspectedDataTable_ForwardsPinnedTrustedFileAndMerge(merge: False)",
+            "CheatEngine.Mcp.Tests.Tools.CodeTableQualificationTests.TableLoad_InspectedDataTable_ForwardsPinnedTrustedFileAndMerge(merge: True)"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "table_save",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.CodeTableQualificationTests.TableSave_AllowedDestination_ForwardsTheTrustedPathAndReportsTheCreatedFile",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CodeTableQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(new TableSaveResult(destination, false), result); Assert.Equal(\"<CheatTable />\", File.ReadAllText(destination));",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.CodeTableQualificationTests.TableSave_AllowedDestination_ForwardsTheTrustedPathAndReportsTheCreatedFile"
+          ]
+        },
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.CodeTableQualificationTests.TableSave_AllowedDestination_ForwardsTheTrustedPathAndReportsTheCreatedFile",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CodeTableQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "Trusted destination and independently created file",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.CodeTableQualificationTests.TableSave_AllowedDestination_ForwardsTheTrustedPathAndReportsTheCreatedFile"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "util_calculate",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Util.UtilToolsTests.Calculate_UsesUnsigned64BitWraparound",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Util/UtilToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(unsignedValue, result.UnsignedValue); Assert.Equal(signedValue, result.SignedValue);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Util.UtilToolsTests.Calculate_UsesUnsigned64BitWraparound(expression: \"(1 << 63) + (1 << 63)\", unsignedValue: \"0\", signedValue: \"0\", hex: \"0\")",
+            "CheatEngine.Mcp.Tests.Tools.Util.UtilToolsTests.Calculate_UsesUnsigned64BitWraparound(expression: \"~0\", unsignedValue: \"18446744073709551615\", signedValue: \"-1\", hex: \"FFFFFFFFFFFFFFFF\")",
+            "CheatEngine.Mcp.Tests.Tools.Util.UtilToolsTests.Calculate_UsesUnsigned64BitWraparound(expression: \"0x8000000000000000 >> 1\", unsignedValue: \"4611686018427387904\", signedValue: \"4611686018427387904\", hex: \"4000000000000000\")",
+            "CheatEngine.Mcp.Tests.Tools.Util.UtilToolsTests.Calculate_UsesUnsigned64BitWraparound(expression: \"0xFFFFFFFFFFFFFFFF + 2\", unsignedValue: \"1\", signedValue: \"1\", hex: \"1\")"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "util_convert_value",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Util.UtilToolsTests.ConvertValue_Scalar_UsesTheRequestedByteOrderAndTargetInterpretation",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Util/UtilToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Assert.Equal(expected, result.Value);",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Util.UtilToolsTests.ConvertValue_Scalar_UsesTheRequestedByteOrderAndTargetInterpretation"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    }
+  ]
+}

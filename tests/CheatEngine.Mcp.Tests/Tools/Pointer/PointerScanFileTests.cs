@@ -81,6 +81,24 @@ public sealed class PointerScanFileTests
 	}
 
 	[Fact]
+	public void Load_NonSeekableOver32MiBStream_RejectsBeforeParsingAndLeavesInputOpen()
+	{
+		byte[] content = new byte[PointerScanFile.MaximumBytes + 1];
+		Array.Fill(content, (byte) ' ');
+		Encoding.UTF8.GetBytes("""
+			{"version":2,"mapName":"m","target":0,"width":8,"paths":[],"incomplete":false}
+			""").CopyTo(content, 0);
+		using ChunkedReadStream input = new(content, 81920);
+
+		InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
+			PointerScanFile.Load(input, CancellationToken.None));
+
+		Assert.Equal("Pointer scan JSON exceeds the 33554432-byte limit.", exception.Message);
+		Assert.Equal(PointerScanFile.MaximumBytes + 1, input.BytesRead);
+		Assert.False(input.WasDisposed);
+	}
+
+	[Fact]
 	public void Load_JsonExceedingMaximumDepth_Rejects()
 	{
 		using MemoryStream json = Json("""
@@ -88,6 +106,110 @@ public sealed class PointerScanFileTests
 			""");
 
 		Assert.ThrowsAny<JsonException>(() => PointerScanFile.Load(json, CancellationToken.None));
+	}
+
+	[Fact]
+	public void SaveLoad_Version2_ExplicitCompleteCoverage_RoundTripsWithoutChangingIncompleteState()
+	{
+		PointerScanSnapshot original = new("complete", 0x401000, 8,
+		[
+			new PointerPath(0x400000, null, 0, [-8, 16])
+		], true, CoverageIncomplete: false);
+		using MemoryStream json = new();
+
+		PointerScanFile.Save(json, original, CancellationToken.None);
+		json.Position = 0;
+		PointerScanSnapshot loaded = PointerScanFile.Load(json, CancellationToken.None);
+
+		Assert.True(loaded.Incomplete);
+		Assert.False(loaded.CoverageIncomplete);
+		Assert.Equal([-8L, 16], Assert.Single(loaded.Paths).Offsets);
+	}
+
+	[Fact]
+	public void Save_InvalidMapName_FailsBeforeWritingAnyJson()
+	{
+		PointerScanSnapshot invalid = new("   ", 0, 8,
+		[
+			new PointerPath(0x400000, null, 0, [0])
+		], false);
+		using MemoryStream output = new();
+
+		ArgumentException exception = Assert.Throws<ArgumentException>(() =>
+			PointerScanFile.Save(output, invalid, CancellationToken.None));
+
+		Assert.Equal("snapshot", exception.ParamName);
+		Assert.Empty(output.ToArray());
+	}
+
+	[Theory]
+	[MemberData(nameof(InvalidSnapshotCaseIds))]
+	public void Validate_InvalidSnapshot_RejectsTheSpecificInvariant(string caseId)
+	{
+		(PointerScanSnapshot snapshot, string expectedMessage) = CreateInvalidSnapshot(caseId);
+		ArgumentException exception = Assert.Throws<ArgumentException>(() => PointerScanFile.Validate(snapshot));
+
+		Assert.Equal("snapshot", exception.ParamName);
+		Assert.Contains(expectedMessage, exception.Message, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Load_NonSeekablePartialReads_ConsumesAllChunksAndPreservesCallerStreamOwnership()
+	{
+		byte[] content = Encoding.UTF8.GetBytes(
+			"{\"version\":2,\"mapName\":\"chunked\",\"target\":4096,\"width\":8,\"paths\":[],\"incomplete\":false}");
+		using ChunkedReadStream input = new(content, chunkSize: 3);
+
+		PointerScanSnapshot loaded = PointerScanFile.Load(input, CancellationToken.None);
+
+		Assert.Equal(("chunked", 4096UL, 8), (loaded.MapName, loaded.Target, loaded.Width));
+		Assert.False(input.WasDisposed);
+		Assert.Equal(content.Length, input.BytesRead);
+	}
+
+	[Fact]
+	public void Load_PartialReadFailure_LeavesCallerOwnedInputOpen()
+	{
+		byte[] content = Encoding.UTF8.GetBytes("{\"version\":2");
+		using ChunkedReadStream input = new(content, chunkSize: 4, failAfterFirstRead: true);
+
+		Assert.Throws<IOException>(() => PointerScanFile.Load(input, CancellationToken.None));
+
+		Assert.False(input.WasDisposed);
+		Assert.Equal(4, input.BytesRead);
+	}
+
+	[Theory]
+	[MemberData(nameof(MalformedSchemaCaseIds))]
+	public void Load_MalformedOrPartialSchema_Rejects(string caseId)
+	{
+		using MemoryStream json = Json(CreateMalformedSchemaContent(caseId));
+
+		Assert.Throws<InvalidDataException>(() => PointerScanFile.Load(json, CancellationToken.None));
+	}
+
+	[Fact]
+	public void Load_WriteOnlyStream_RejectsBeforeAttemptingToRead()
+	{
+		using WriteOnlyStream input = new();
+
+		ArgumentException exception = Assert.Throws<ArgumentException>(() =>
+			PointerScanFile.Load(input, CancellationToken.None));
+
+		Assert.Equal("input", exception.ParamName);
+		Assert.Equal(0, input.ReadAttempts);
+	}
+
+	[Fact]
+	public void Save_ReadOnlyStream_RejectsBeforeAttemptingToWrite()
+	{
+		PointerScanSnapshot snapshot = new("map", 0, 8, [new PointerPath(0, null, 0, [0])], false);
+		using MemoryStream output = new(Array.Empty<byte>(), writable: false);
+
+		ArgumentException exception = Assert.Throws<ArgumentException>(() =>
+			PointerScanFile.Save(output, snapshot, CancellationToken.None));
+
+		Assert.Equal("output", exception.ParamName);
 	}
 
 	[Fact]
@@ -127,6 +249,45 @@ public sealed class PointerScanFileTests
 
 	private static MemoryStream Json(string content) => new(Encoding.UTF8.GetBytes(content));
 
+	public static IEnumerable<object[]> InvalidSnapshotCaseIds =>
+	[
+		["invalid_width"],
+		["contradictory_coverage"],
+		["narrow_target_overflow"],
+		["absolute_path_offset"]
+	];
+
+	private static (PointerScanSnapshot Snapshot, string ExpectedMessage) CreateInvalidSnapshot(string caseId) => caseId switch
+	{
+		"invalid_width" =>
+			(new PointerScanSnapshot("map", 0, 3, [new PointerPath(0, null, 0, [0])], false), "width must be 4 or 8"),
+		"contradictory_coverage" =>
+			(new PointerScanSnapshot("map", 0, 8, [new PointerPath(0, null, 0, [0])], false, CoverageIncomplete: true),
+				"incomplete source"),
+		"narrow_target_overflow" =>
+			(new PointerScanSnapshot("map", uint.MaxValue + 1UL, 4, [new PointerPath(0, null, 0, [0])], false), "target does not fit"),
+		"absolute_path_offset" =>
+			(new PointerScanSnapshot("map", 0, 8, [new PointerPath(0, null, 1, [0])], false), "Absolute pointer paths"),
+		_ => throw new ArgumentOutOfRangeException(nameof(caseId), caseId, "Unknown invalid snapshot case.")
+	};
+
+	public static IEnumerable<object[]> MalformedSchemaCaseIds =>
+	[
+		["empty_file"],
+		["missing_width"],
+		["paths_not_array"],
+		["offsets_not_array"]
+	];
+
+	private static string CreateMalformedSchemaContent(string caseId) => caseId switch
+	{
+		"empty_file" => "",
+		"missing_width" => "{\"version\":2,\"mapName\":\"m\",\"target\":0,\"paths\":[],\"incomplete\":false}",
+		"paths_not_array" => "{\"version\":2,\"mapName\":\"m\",\"target\":0,\"width\":8,\"paths\":{},\"incomplete\":false}",
+		"offsets_not_array" => "{\"version\":2,\"mapName\":\"m\",\"target\":0,\"width\":8,\"paths\":[{\"baseAddress\":0,\"module\":null,\"moduleOffset\":0,\"offsets\":0}],\"incomplete\":false}",
+		_ => throw new ArgumentOutOfRangeException(nameof(caseId), caseId, "Unknown malformed schema case.")
+	};
+
 	private sealed class DeclaredLengthStream(long length) : Stream
 	{
 		public override bool CanRead => true;
@@ -148,5 +309,88 @@ public sealed class PointerScanFileTests
 		public override long Seek(long offset, SeekOrigin origin) => Position;
 		public override void SetLength(long value) => throw new NotSupportedException();
 		public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+	}
+
+	private sealed class ChunkedReadStream(byte[] content, int chunkSize, bool failAfterFirstRead = false) : Stream
+	{
+		private readonly byte[] _content = content;
+		private readonly int _chunkSize = chunkSize;
+		private readonly bool _failAfterFirstRead = failAfterFirstRead;
+		private int _position;
+		private int _readCount;
+
+		internal bool WasDisposed
+		{
+			get; private set;
+		}
+		internal int BytesRead => _position;
+		public override bool CanRead => !WasDisposed;
+		public override bool CanSeek => false;
+		public override bool CanWrite => false;
+		public override long Length => throw new NotSupportedException();
+		public override long Position
+		{
+			get => _position;
+			set => throw new NotSupportedException();
+		}
+
+		public override void Flush() => throw new NotSupportedException();
+		public override int Read(byte[] buffer, int offset, int count)
+		{
+			if (_failAfterFirstRead && _readCount > 0)
+			{
+				throw new IOException("Synthetic partial-read failure.");
+			}
+
+			int remaining = _content.Length - _position;
+			if (remaining == 0)
+			{
+				return 0;
+			}
+
+			int read = Math.Min(Math.Min(remaining, count), _chunkSize);
+			Array.Copy(_content, _position, buffer, offset, read);
+			_position += read;
+			_readCount++;
+			return read;
+		}
+
+		public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+		public override void SetLength(long value) => throw new NotSupportedException();
+		public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+		protected override void Dispose(bool disposing)
+		{
+			WasDisposed = true;
+			base.Dispose(disposing);
+		}
+	}
+
+	private sealed class WriteOnlyStream : Stream
+	{
+		internal int ReadAttempts
+		{
+			get; private set;
+		}
+		public override bool CanRead => false;
+		public override bool CanSeek => false;
+		public override bool CanWrite => true;
+		public override long Length => 0;
+		public override long Position
+		{
+			get; set;
+		}
+		public override void Flush()
+		{
+		}
+		public override int Read(byte[] buffer, int offset, int count)
+		{
+			ReadAttempts++;
+			throw new NotSupportedException();
+		}
+		public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+		public override void SetLength(long value) => throw new NotSupportedException();
+		public override void Write(byte[] buffer, int offset, int count)
+		{
+		}
 	}
 }

@@ -4,8 +4,8 @@
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="CheatEngine.Client" Version="1.0.0"/>
-    <PackageVersion Include="CheatEngine.SDK" Version="2.0.0"/>
+    <PackageVersion Include="CheatEngine.Client" Version="1.1.0"/>
+    <PackageVersion Include="CheatEngine.SDK" Version="2.0.1"/>
     <PackageVersion Include="Costura.Fody" Version="6.2.0"/>
     <PackageVersion Include="Fody" Version="6.9.3"/>
     <PackageVersion Include="ModelContextProtocol" Version="2.2.0"/>

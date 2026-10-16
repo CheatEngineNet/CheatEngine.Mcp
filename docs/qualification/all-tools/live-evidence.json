@@ -1,0 +1,339 @@
+{
+  "schema": "cheatengine-mcp-live-evidence/v1",
+  "boundary": "Reviewed live positive evidence only. A row is verified only when its receipt, any required cleanup receipt, and a fully passed/restored live summary are present.",
+  "tools": [
+    {
+      "name": "runtime_get_info",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyGatesAsync",
+      "oracle": "gates unsafeLua, autoAssembler, targetCodeExecution, kernelAccess are all false",
+      "receipt": "live_workflow_gates",
+      "cleanupReceipt": "none",
+      "scope": "safe_gate"
+    },
+    {
+      "name": "memory_allocate",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyMemoryAsync",
+      "oracle": "source/destination size == 128 and source executable == false",
+      "receipt": "live_workflow_memory",
+      "cleanupReceipt": "live_workflow_memory_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "memory_write_batch",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyMemoryAsync",
+      "oracle": "written == 3; verified == true; mismatched == null",
+      "receipt": "live_workflow_memory",
+      "cleanupReceipt": "live_workflow_memory_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "memory_read",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyMemoryAsync",
+      "oracle": "InitialBatchValues and scalar round-trips assert exact values including endian/string/wide/64-bit",
+      "receipt": "live_workflow_memory",
+      "cleanupReceipt": "live_workflow_memory_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "memory_read_batch",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyMemoryAsync",
+      "oracle": "failed == 1; readable items equal 1 and MCP; unreadable item error == memory_read_failed",
+      "receipt": "live_workflow_memory",
+      "cleanupReceipt": "live_workflow_memory_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "memory_hash",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyMemoryAsync",
+      "oracle": "hash equals SHA256 of known 16-byte buffer",
+      "receipt": "live_workflow_memory",
+      "cleanupReceipt": "live_workflow_memory_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "memory_copy",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyMemoryAsync",
+      "oracle": "returned source and destination equal requested addresses; subsequent MemoryCompare reports equal with no differences for the known 16-byte buffer",
+      "receipt": "live_workflow_memory",
+      "cleanupReceipt": "live_workflow_memory_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "memory_compare",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyMemoryAsync",
+      "oracle": "equal == true; truncated == false; differences empty",
+      "receipt": "live_workflow_memory",
+      "cleanupReceipt": "live_workflow_memory_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "memory_create_snapshot",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyMemoryAsync",
+      "oracle": "unreadableBytes == 0 and unreadable empty",
+      "receipt": "live_workflow_memory",
+      "cleanupReceipt": "live_workflow_memory_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "memory_compare_snapshot",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyMemoryAsync",
+      "oracle": "compared/skipped/total == (4,0,1) and changed address equals destination",
+      "receipt": "live_workflow_memory",
+      "cleanupReceipt": "live_workflow_memory_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "memory_set_protection",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyMemoryAsync",
+      "oracle": "current read true, write false, execute false",
+      "receipt": "live_workflow_memory",
+      "cleanupReceipt": "live_workflow_memory_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "scan_get_status",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyScannerAsync",
+      "oracle": "main settings memPrivate is true",
+      "receipt": "live_workflow_scanner",
+      "cleanupReceipt": "live_workflow_scanner_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "scan_first",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyScannerAsync",
+      "oracle": "successful first scan is followed by AssertScan exact result",
+      "receipt": "live_workflow_scanner",
+      "cleanupReceipt": "live_workflow_scanner_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "scan_next",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyScannerAsync",
+      "oracle": "changed/increased/decreased transitions each followed by AssertScan exact address/value",
+      "receipt": "live_workflow_scanner",
+      "cleanupReceipt": "live_workflow_scanner_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "scan_list_results",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "AssertScanAsync",
+      "oracle": "single result address/value; hasMore false",
+      "receipt": "live_workflow_scanner",
+      "cleanupReceipt": "live_workflow_scanner_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "scan_reset",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyScannerAsync",
+      "oracle": "removed == false; subsequent ScanFirst succeeds on the reset scanner and returns exactly the expected address/value 25 for the range 20..30",
+      "receipt": "live_workflow_scanner",
+      "cleanupReceipt": "live_workflow_scanner_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "aob_find",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyAobAsync",
+      "oracle": "two exact patterns and AssertAob each match at address+16",
+      "receipt": "live_workflow_aob",
+      "cleanupReceipt": "live_workflow_aob_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "aob_find_value",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyAobAsync",
+      "oracle": "result pattern == 04 03 02 01 and AssertAob at address+32",
+      "receipt": "live_workflow_aob",
+      "cleanupReceipt": "live_workflow_aob_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "code_get_function_graph",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyControlFlowAsync",
+      "oracle": "entry/start/end, instructionCount 7, 3 blocks and terminators/successors asserted; truncation case asserted",
+      "receipt": "live_workflow_cfg",
+      "cleanupReceipt": "live_workflow_cfg_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "module_list",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyModulesAsync",
+      "oracle": "expected module found; base and size > 0; is64Bit matches sandbox",
+      "receipt": "live_workflow_modules",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "module_get",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyModulesAsync",
+      "oracle": "base matches and sections include executable; PE machine matches architecture",
+      "receipt": "live_workflow_modules",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "module_list_imports",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyModulesAsync",
+      "oracle": "total > 0 and each import dll nonblank",
+      "receipt": "live_workflow_modules",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "symbol_resolve",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyModulesAsync",
+      "oracle": "two items; no errors; both address equal module base",
+      "receipt": "live_workflow_modules",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "module_find_patches",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyModulesAsync",
+      "oracle": "module matches; comparedBytes > 0; unreadable == 0; truncated false",
+      "receipt": "live_workflow_modules",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "structure_create",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyStructuresAsync",
+      "oracle": "elementCount == 2 and size >= 6",
+      "receipt": "live_workflow_structures",
+      "cleanupReceipt": "live_workflow_structures_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "structure_read",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyStructuresAsync",
+      "oracle": "health and flags rows equal HealthValues/FlagValues",
+      "receipt": "live_workflow_structures",
+      "cleanupReceipt": "live_workflow_structures_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "structure_compare",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyStructuresAsync",
+      "oracle": "row offset/name/classification == (4,flags,discriminator)",
+      "receipt": "live_workflow_structures",
+      "cleanupReceipt": "live_workflow_structures_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "structure_write_element",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyStructuresAsync",
+      "oracle": "returned value == 9 and subsequent memory_read == 9",
+      "receipt": "live_workflow_structures",
+      "cleanupReceipt": "live_workflow_structures_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "structure_generate_c_header",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyStructuresAsync",
+      "oracle": "generator managed; text contains structure name, int32_t health, uint16_t flags",
+      "receipt": "live_workflow_structures",
+      "cleanupReceipt": "live_workflow_structures_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "process_get_current",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveAdditionalReadQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "isOpen true; PID equals owned HostA target; pointer size equals target architecture; selectionEpoch >= 0",
+      "receipt": "all_tools_process_get_current",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "process_list",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveAdditionalReadQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "target PID present; truncated false",
+      "receipt": "all_tools_process_list",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "process_list_threads",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveAdditionalReadQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "threads nonempty and every thread ID > 0; truncated false",
+      "receipt": "all_tools_process_list_threads",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "process_set_pointer_size",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveAdditionalReadQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "returned and subsequent current pointerSize equal captured width; PID and selection epoch are unchanged",
+      "receipt": "all_tools_process_set_pointer_size",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "memory_get_address_info",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveAdditionalReadQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "single item no error; committed/private region readable+writable; pointerValue present",
+      "receipt": "all_tools_memory_get_address_info",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "memory_read_samples",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveAdditionalReadQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "ticks > 0; one series; exact address, sample count, value 20260926, no errors/truncation",
+      "receipt": "all_tools_memory_read_samples",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "lua_find_api",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveAdditionalReadQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "total > 0; lines nonempty; every line contains getAddressSafe and positive line number",
+      "receipt": "all_tools_lua_find_api",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "code_disassemble_bytes",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveAdditionalReadQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "90 returns text containing nop; C3 returns text containing ret; origin 0",
+      "receipt": "all_tools_code_disassemble_bytes",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    }
+  ]
+}

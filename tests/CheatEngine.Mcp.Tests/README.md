@@ -89,4 +89,9 @@ A tool guarded by a capability needs a test that proves it makes no mutating Cli
 Every fixed Lua script needs both a portable test and a NativeLua test.
 Do not treat portable tests as evidence of native Cheat Engine host compatibility.
 
+The [full-tool qualification checklist](../../docs/qualification/all-tools/README.md) and its reviewed
+per-tool evidence map distinguish routing, adapter results using doubles, direct Lua-body results and live
+host results. Generate the evidence report with `eng/Write-AllToolQualificationReport.ps1` after collecting
+the relevant TRX files. A catalog-wide routing pass alone does not establish that every backend tool works.
+
 For repository-wide build, formatting, package, and contribution requirements, see [CONTRIBUTING.md](../../CONTRIBUTING.md).

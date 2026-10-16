@@ -163,6 +163,13 @@ internal sealed class FakeBackend : IAsyncDisposable
 		get;
 	} = new(StringComparer.Ordinal);
 
+	/// <summary>The name of the most recently forwarded tool call.</summary>
+	internal string? LastToolName
+	{
+		get;
+		private set;
+	}
+
 	/// <summary>The <c>_meta</c> of every forwarded <c>tools/call</c>, in arrival order; <see langword="null" /> when absent.</summary>
 	internal ConcurrentQueue<JsonObject?> ReceivedMeta
 	{
@@ -352,6 +359,7 @@ internal sealed class FakeBackend : IAsyncDisposable
 		CancellationToken cancellationToken)
 	{
 		Interlocked.Increment(ref _forwardedCalls);
+		LastToolName = request.Name;
 		ReceivedMeta.Enqueue(request.Meta?.DeepClone().AsObject());
 		lock (LastArguments)
 		{

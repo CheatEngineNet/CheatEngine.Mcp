@@ -10,5 +10,6 @@ internal enum LiveQualificationScenario
 	Lifecycle,
 	Performance,
 	Soak,
-	DispatchDiagnostic
+	DispatchDiagnostic,
+	Workflows
 }
