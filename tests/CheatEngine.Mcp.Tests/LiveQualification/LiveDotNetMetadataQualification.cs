@@ -118,7 +118,12 @@ internal static class LiveDotNetMetadataQualification
 				JsonNode modules = await FindModuleAsync(instance, Text(domain!, "handle"), fileName);
 				if (modules["module"] is { } module)
 				{
-					return new JsonObject { ["page"] = page, ["modules"] = modules["page"]!, ["module"] = module };
+					return new JsonObject
+					{
+						["page"] = page.DeepClone(),
+						["modules"] = modules["page"]!.DeepClone(),
+						["module"] = module.DeepClone()
+					};
 				}
 			}
 
@@ -144,7 +149,7 @@ internal static class LiveDotNetMetadataQualification
 				string.Equals(Path.GetFileName(Text(item, "name")), fileName, StringComparison.OrdinalIgnoreCase));
 			if (module is not null)
 			{
-				return new JsonObject { ["page"] = page, ["module"] = module };
+				return new JsonObject { ["page"] = page.DeepClone(), ["module"] = module.DeepClone() };
 			}
 
 			if (page["nextOffset"] is not { } next)

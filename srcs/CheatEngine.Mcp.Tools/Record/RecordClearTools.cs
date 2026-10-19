@@ -12,9 +12,10 @@ namespace CheatEngine.Mcp.Tools.Record;
 public sealed class RecordClearTools(ToolDispatch dispatch)
 {
 	/// <summary>
-	///     Walks every record before one clear. Cheat Engine's <c>Count</c> and <c>getMemoryRecord</c> index the
+	///     Walks every record before deleting any. Cheat Engine's <c>Count</c> and <c>getMemoryRecord</c> index the
 	///     address-list tree with nested records included, and each record's children are queued too, so a record is
-	///     queued once by its <c>ID</c> and counted once.
+	///     queued once by its <c>ID</c> and counted once. Only IDs survive the preflight: destroying a parent or running
+	///     an OnDestroy callback can also destroy another queued record, so every ID is resolved again before deletion.
 	/// </summary>
 	internal const string ClearScript = """
 	                                    local list = getAddressList()
@@ -47,10 +48,19 @@ public sealed class RecordClearTools(ToolDispatch dispatch)
 	                                        for child = 0, record.Count - 1 do
 	                                            enqueue(record.Child[child])
 	                                        end
+	                                        queue[index] = record.ID
 	                                        index = index + 1
 	                                    end
-	                                    local ok = pcall(function() list.clear() end)
-	                                    if not ok then return mcp.err('host_refused', 'Cheat Engine could not clear the address list; inspect it before retrying.', 'unknown') end
+	                                    local ok, failure = pcall(function()
+	                                        for index = last, 1, -1 do
+	                                            local record = list.getMemoryRecordByID(queue[index])
+	                                            if record ~= nil then record.destroy() end
+	                                        end
+	                                    end)
+	                                    if not ok then
+	                                        local detail = type(failure) == 'string' and string.sub(failure, 1, 512) or 'unspecified host error'
+	                                        return mcp.err('host_refused', 'Cheat Engine could not clear the address list: ' .. detail .. '; inspect it before retrying.', 'unknown')
+	                                    end
 	                                    if list.Count ~= 0 then return mcp.err('partial_effect', 'Some address-list records remain after clear.', 'started') end
 	                                    return {deleted = last}
 	                                    """;

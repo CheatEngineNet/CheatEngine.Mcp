@@ -66,6 +66,20 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 	internal string TargetImagePath => _targetHostPath ?? _targetPath ??
 		throw new InvalidOperationException("The owned target image has not been prepared.");
 
+	internal string TargetManagedAssemblyPath
+	{
+		get
+		{
+			string path = Path.ChangeExtension(_targetPath ??
+				throw new InvalidOperationException("The owned target has not been prepared."), ".dll");
+			if (!Path.IsPathFullyQualified(path) || !File.Exists(path))
+			{
+				throw new FileNotFoundException("The owned target's managed assembly is missing.", path);
+			}
+			return path;
+		}
+	}
+
 	public LiveCompilerRoots CompilerA => CompilerRoots("A");
 
 	public LiveCompilerRoots CompilerB => CompilerRoots("B");

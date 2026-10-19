@@ -147,8 +147,8 @@ internal static class LiveFileRecordQualification
 			new Dictionary<string, object?> { ["address"] = address, ["path"] = dump });
 		Assert.Equal(8L, loaded["bytesWritten"]!.GetValue<long>());
 		JsonNode read = await CallAsync(instance, CheatEngineToolNames.MemoryRead,
-			new Dictionary<string, object?> { ["address"] = address, ["valueType"] = "bytes", ["length"] = 8 });
-		Assert.Equal("210000002C000000", Text(read, "value"));
+			new Dictionary<string, object?> { ["address"] = address, ["valueType"] = "bytes", ["size"] = 8 });
+		Assert.Equal("21 00 00 00 2C 00 00 00", Text(read, "value"));
 		Receipt(sandbox, CheatEngineToolNames.MemoryLoadFromFile, loaded);
 	}
 

@@ -110,28 +110,54 @@ public sealed partial class NativeLuaToolRuntimeTests
 			RecordLuaScripts.SetOffsets, RecordJsonContext.Default.RecordLuaChanged, Token, id, offsets);
 	}
 
+	private const string RecordClearStubs = """
+	                                        vtAutoAssembler = 11
+	                                        destroyCalls = 0
+	                                        childA = {ID = 3, Type = 0, Active = false, Count = 0, Child = {}}
+	                                        childB = {ID = 4, Type = 0, Active = false, Count = 0, Child = {}}
+	                                        childC = {ID = 5, Type = 0, Active = false, Count = 0, Child = {}}
+	                                        topA = {ID = 1, Type = 0, Active = false, Count = 2, Child = {[0] = childA, [1] = childB}}
+	                                        topB = {ID = 2, Type = 0, Active = false, Count = 1, Child = {[0] = childC}}
+	                                        records = {topA, childA, childB, topB, childC}
+	                                        byId = {[1] = topA, [2] = topB, [3] = childA, [4] = childB, [5] = childC}
+	                                        addressList = {}
+	                                        refreshIndex = function()
+	                                            indexed = {}
+	                                            for _, record in ipairs(records) do
+	                                                if byId[record.ID] ~= nil and (not rootsOnly or record == topA or record == topB) then
+	                                                    indexed[#indexed + 1] = record
+	                                                end
+	                                            end
+	                                            addressList.Count = #indexed
+	                                        end
+	                                        local function eraseTree(record)
+	                                            for child = 0, record.Count - 1 do eraseTree(record.Child[child]) end
+	                                            byId[record.ID] = nil
+	                                        end
+	                                        for _, record in ipairs(records) do
+	                                            record.destroy = function()
+	                                                if byId[record.ID] == nil then error('record already destroyed') end
+	                                                destroyCalls = destroyCalls + 1
+	                                                eraseTree(record)
+	                                                refreshIndex()
+	                                            end
+	                                        end
+	                                        addressList.getMemoryRecord = function(index) return indexed[index + 1] end
+	                                        addressList.getMemoryRecordByID = function(id) return byId[id] end
+	                                        getAddressList = function() return addressList end
+	                                        refreshIndex()
+	                                        """;
+
 	[Fact]
 	public void RecordClear_NestedStubbedAddressList_CountsEveryChildBeforeClearing()
 	{
 		using RuntimeScope scope = CreateScope();
-		InstallStubs("""
-		             vtAutoAssembler = 17
-		             clearCalls = 0
-		             childA = {ID = 3, Type = 0, Active = false, Count = 0, Child = {}}
-		             childB = {ID = 4, Type = 0, Active = false, Count = 0, Child = {}}
-		             childC = {ID = 5, Type = 0, Active = false, Count = 0, Child = {}}
-		             topA = {ID = 1, Type = 0, Active = false, Count = 2, Child = {[0] = childA, [1] = childB}}
-		             topB = {ID = 2, Type = 0, Active = false, Count = 1, Child = {[0] = childC}}
-		             addressList = {Count = 2}
-		             addressList.getMemoryRecord = function(index) return index == 0 and topA or topB end
-		             addressList.clear = function() clearCalls = clearCalls + 1; addressList.Count = 0 end
-		             getAddressList = function() return addressList end
-		             """);
+		InstallStubs(RecordClearStubs + "\nrootsOnly = true; refreshIndex()");
 
 		RecordClearResult result = new RecordClearTools(CreateNativeDispatch(new McpFeatureOptions())).Clear(Token);
 
 		Assert.Equal(new RecordClearResult(5), result);
-		Assert.Equal(1L, ReadGlobal("clearCalls"));
+		Assert.Equal(5L, ReadGlobal("destroyCalls"));
 		Assert.Equal(0L, ModuleSymbolRead("addressList.Count"));
 	}
 
@@ -140,31 +166,47 @@ public sealed partial class NativeLuaToolRuntimeTests
 	{
 		using RuntimeScope scope = CreateScope();
 		// Like Cheat Engine: Count and getMemoryRecord index the whole tree, nested records included.
-		InstallStubs("""
-		             vtAutoAssembler = 11
-		             clearCalls = 0
-		             childA = {ID = 3, Type = 0, Active = false, Count = 0, Child = {}}
-		             childB = {ID = 4, Type = 0, Active = false, Count = 0, Child = {}}
-		             childC = {ID = 5, Type = vtAutoAssembler, Active = true, Count = 0, Child = {}}
-		             topA = {ID = 1, Type = 0, Active = false, Count = 2, Child = {[0] = childA, [1] = childB}}
-		             topB = {ID = 2, Type = 0, Active = false, Count = 1, Child = {[0] = childC}}
-		             tree = {[0] = topA, [1] = childA, [2] = childB, [3] = topB, [4] = childC}
-		             addressList = {Count = 5}
-		             addressList.getMemoryRecord = function(index) return tree[index] end
-		             addressList.clear = function() clearCalls = clearCalls + 1; addressList.Count = 0 end
-		             getAddressList = function() return addressList end
-		             """);
+		InstallStubs(RecordClearStubs + "\nchildC.Type = vtAutoAssembler; childC.Active = true");
 
-		// The nested active script is found before anything changes, and the list is then cleared once.
+		// The nested active script is found before anything changes; enabling the gate permits deletion.
 		CheatEngineToolException gated = Assert.Throws<CheatEngineToolException>(() =>
 			new RecordClearTools(CreateNativeDispatch(new McpFeatureOptions { EnableAutoAssembler = false }))
 				.Clear(Token));
+		Assert.Equal((5L, 0L), (ModuleSymbolRead("addressList.Count"), ReadGlobal("destroyCalls")));
 		RecordClearResult result = new RecordClearTools(CreateNativeDispatch(new McpFeatureOptions())).Clear(Token);
 
 		Assert.Equal(new RecordClearResult(5), result);
 		Assert.Equal(ToolErrorKind.CapabilityDisabled, gated.Error.Kind);
-		Assert.Equal(1L, ReadGlobal("clearCalls"));
+		Assert.Equal(5L, ReadGlobal("destroyCalls"));
+		Assert.Equal(0L, ModuleSymbolRead("addressList.Count"));
 		LuaFixedScriptAssert.NeverLoadsCode(RecordClearTools.ClearScript);
+	}
+
+	[Fact]
+	public void RecordClear_DestroyCallbackRemovesOtherRecords_DoesNotUseDestroyedObjects()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(RecordClearStubs + """
+
+		                                  local destroyChild = childC.destroy
+		                                  childC.destroy = function() destroyChild(); topA.destroy() end
+		                                  """);
+
+		RecordClearResult result = new RecordClearTools(CreateNativeDispatch(new McpFeatureOptions())).Clear(Token);
+
+		Assert.Equal(new RecordClearResult(5), result);
+		Assert.Equal((0L, 3L), (ModuleSymbolRead("addressList.Count"), ReadGlobal("destroyCalls")));
+	}
+
+	[Fact]
+	public void RecordClear_EmptyAddressListWithoutClearMethod_ReturnsZero()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs("getAddressList = function() return {Count = 0} end");
+
+		RecordClearResult result = new RecordClearTools(CreateNativeDispatch(new McpFeatureOptions())).Clear(Token);
+
+		Assert.Equal(new RecordClearResult(0), result);
 	}
 
 	[Fact]
@@ -173,11 +215,12 @@ public sealed partial class NativeLuaToolRuntimeTests
 		using RuntimeScope scope = CreateScope();
 		InstallStubs("""
 		             vtAutoAssembler = 17
-		             clearCalls = 0
+		             destroyCalls = 0
 		             active = {ID = 1, Type = vtAutoAssembler, Active = true, Count = 0, Child = {}}
 		             addressList = {Count = 1}
 		             addressList.getMemoryRecord = function(_) return active end
-		             addressList.clear = function() clearCalls = clearCalls + 1; addressList.Count = 0 end
+		             addressList.getMemoryRecordByID = function(id) return active end
+		             active.destroy = function() destroyCalls = destroyCalls + 1; addressList.Count = 0 end
 		             getAddressList = function() return addressList end
 		             """);
 
@@ -189,7 +232,72 @@ public sealed partial class NativeLuaToolRuntimeTests
 			(exception.Error.Kind, exception.Error.HostEffect));
 		Assert.Equal("Set Mcp:EnableAutoAssembler to true in appsettings.json, then disable and re-enable the plugin.",
 			exception.Error.Hint);
-		Assert.Equal((1L, 0L), (ModuleSymbolRead("addressList.Count"), ReadGlobal("clearCalls")));
+		Assert.Equal((1L, 0L), (ModuleSymbolRead("addressList.Count"), ReadGlobal("destroyCalls")));
+	}
+
+	[Theory]
+	[InlineData("error('address list busy', 0)", "address list busy")]
+	[InlineData("error({}, 0)", "unspecified host error")]
+	[InlineData("error(string.rep('x', 1024), 0)", null)]
+	public void RecordClear_HostThrows_ReportsBoundedDetailAndUnknownEffect(string failure, string? expectedDetail)
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs("""
+		             vtAutoAssembler = 11
+		             destroyCalls = 0
+		             record = {ID = 1, Type = 0, Active = false, Count = 0, Child = {}}
+		             addressList = {Count = 1}
+		             addressList.getMemoryRecord = function(_) return record end
+		             addressList.getMemoryRecordByID = function(_) return record end
+		             getAddressList = function() return addressList end
+		             """ + "\nrecord.destroy = function() destroyCalls = destroyCalls + 1; " + failure + " end");
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			new RecordClearTools(CreateNativeDispatch(new McpFeatureOptions())).Clear(Token));
+
+		Assert.Equal((ToolErrorKind.HostRefused, ToolHostEffect.Unknown),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Equal("Cheat Engine could not clear the address list: " + (expectedDetail ?? new string('x', 512)) +
+			"; inspect it before retrying.", exception.Error.Message);
+		Assert.Equal((1L, 1L), (ModuleSymbolRead("addressList.Count"), ReadGlobal("destroyCalls")));
+	}
+
+	[Fact]
+	public void RecordClear_DestroyCallbackAddsARecord_LeavesItAndReportsPartialEffect()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(RecordClearStubs + """
+
+		                                  local destroyChild = childC.destroy
+		                                  childC.destroy = function()
+		                                      destroyChild()
+		                                      local record = {ID = 6, Type = 0, Count = 0, Child = {}}
+		                                      byId[6] = record
+		                                      records[#records + 1] = record
+		                                      refreshIndex()
+		                                  end
+		                                  """);
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			new RecordClearTools(CreateNativeDispatch(new McpFeatureOptions())).Clear(Token));
+
+		Assert.Equal((ToolErrorKind.PartialEffect, ToolHostEffect.Started),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Equal((1L, 5L), (ModuleSymbolRead("addressList.Count"), ReadGlobal("destroyCalls")));
+		Assert.Equal(6L, ModuleSymbolRead("addressList.getMemoryRecord(0).ID"));
+	}
+
+	[Fact]
+	public void RecordClear_TooManyRecords_RefusesBeforeEnumeratingOrDeleting()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs("getAddressList = function() return {Count = 100001} end");
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			new RecordClearTools(CreateNativeDispatch(new McpFeatureOptions())).Clear(Token));
+
+		Assert.Equal((ToolErrorKind.LimitExceeded, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
 	}
 
 	[Fact]

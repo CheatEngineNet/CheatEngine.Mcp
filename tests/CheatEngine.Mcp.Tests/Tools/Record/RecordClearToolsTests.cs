@@ -5,7 +5,7 @@ using CheatEngine.Mcp.Tools.Record;
 
 namespace CheatEngine.Mcp.Tests.Tools.Record;
 
-/// <summary>The complete address-list clear: its fixed Lua walk counts child records before the single clear operation.</summary>
+/// <summary>The complete address-list clear: its fixed Lua walk counts child records before deleting any.</summary>
 public sealed class RecordClearToolsTests
 {
 	private static CancellationToken Token => TestContext.Current.CancellationToken;
