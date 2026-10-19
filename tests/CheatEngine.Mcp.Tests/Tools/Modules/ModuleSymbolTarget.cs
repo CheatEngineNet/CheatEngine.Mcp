@@ -131,6 +131,12 @@ internal sealed class ModuleSymbolTarget
 		set;
 	}
 
+	/// <summary>Runs after a process snapshot is captured, to model a selection change between observations.</summary>
+	internal Action? AfterCurrentProcess
+	{
+		get; set;
+	}
+
 	internal List<ModuleInfo> Modules
 	{
 		get;
@@ -244,8 +250,10 @@ internal sealed class ModuleSymbolTarget
 				"No process is attached.", hostEffect: CheatEngineHostEffect.NotStarted).ToException();
 		}
 
-		return new ProcessSnapshot(new TargetProcessId(CurrentProcessId), "game.exe", null, TargetBackend.LocalProcess,
+		ProcessSnapshot snapshot = new(new TargetProcessId(CurrentProcessId), "game.exe", null, TargetBackend.LocalProcess,
 			CheatEngineArchitecture.X64, PointerSize.Bit64, 8, null, SelectionEpoch);
+		AfterCurrentProcess?.Invoke();
+		return snapshot;
 	}
 
 	private bool TryCurrentProcess(object?[] arguments)
@@ -288,7 +296,7 @@ internal sealed class ModuleSymbolTarget
 				}
 			case nameof(IInspectionClient.GetModuleSections):
 				return Sections.TryGetValue(((ModuleName) arguments[0]!).Value, out ModuleSectionInfo[]? sections)
-					? sections.ToImmutableArray()
+					? [.. sections]
 					: ImmutableArray<ModuleSectionInfo>.Empty;
 			case nameof(IInspectionClient.TryResolveAddress):
 				{

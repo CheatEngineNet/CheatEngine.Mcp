@@ -5,6 +5,15 @@ components listed below. This file is self-contained: it names each component wi
 reproduces the license texts at the end. It ships with `LICENSE` beside the bundled plugin (`CheatEngine.Mcp.dll`) and
 the gateway executable (`CheatEngine.Mcp.Gateway.exe`).
 
+## Source dependencies
+
+Client and SDK are built from Git submodules, not restored as NuGet packages. The source licenses are reproduced below.
+
+| Component | Source commit | License | Copyright | Shipped in |
+|---|---|---|---|---|
+| CheatEngine.Client | feaf14a0fad0bbbb869bbe4badb547304aa81d8f | MIT | Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.Client contributors | Embedded plugin dependencies and gateway |
+| CheatEngine.SDK | 06c529f84e47295e3ca7a4e81ca808b9c4686b3a | MIT | Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.SDK contributors | Six SDK runtime assemblies in the plugin and gateway; native `cheatengine-sdk-lua-bridge.dll` in the plugin |
+
 ## NuGet packages
 
 Each `package` library of the plugin and gateway `deps.json` files has one row. `ThirdPartyNoticesTests` fails when a
@@ -12,13 +21,6 @@ shipped package has no row.
 
 | Package | Version | License | Copyright | Shipped in | License text |
 |---|---|---|---|---|---|
-| CheatEngine.Client | 1.1.0 | MIT | Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.Client contributors | Metapackage, no files | [MIT License](#mit-license) |
-| CheatEngine.Client.Abstractions | 1.1.0 | MIT | Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.Client contributors | Embedded plugin dependencies, gateway | [MIT License](#mit-license) |
-| CheatEngine.Client.Core | 1.1.0 | MIT | Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.Client contributors | Embedded plugin dependencies, gateway | [MIT License](#mit-license) |
-| CheatEngine.Client.Extensions.DependencyInjection | 1.1.0 | MIT | Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.Client contributors | Embedded plugin dependencies, gateway | [MIT License](#mit-license) |
-| CheatEngine.Client.Fluent | 1.1.0 | MIT | Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.Client contributors | Embedded plugin dependencies, gateway | [MIT License](#mit-license) |
-| CheatEngine.Client.Hosting | 1.1.0 | MIT | Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.Client contributors | Embedded plugin dependencies, gateway | [MIT License](#mit-license) |
-| CheatEngine.SDK | 2.0.1 | MIT | Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.SDK contributors | Embedded plugin dependencies: the seven `CheatEngine.SDK*.dll` assemblies and the native `cheatengine-sdk-lua-bridge.dll`. Gateway: the managed assemblies only | [MIT License](#mit-license) |
 | Costura.Fody | 6.2.0 | MIT | Copyright (c) 2012 Simon Cropp and contributors | Plugin: embedded dependencies and injected loader code | [MIT License](#mit-license) |
 | Microsoft.Extensions.AI.Abstractions | 10.10.1 | MIT | Copyright (c) .NET Foundation; © Microsoft Corporation | Embedded plugin dependencies, gateway | [MIT License](#mit-license) |
 | ModelContextProtocol | 2.2.0 | Apache-2.0 (MIT for earlier contributions not yet relicensed) | © Model Context Protocol a Series of LF Projects, LLC. | Embedded plugin dependencies, gateway | [Apache License 2.0](#apache-license-20), [MIT License](#mit-license) |
@@ -43,12 +45,12 @@ contains neither: Cheat Engine hosts the plugin on the .NET runtimes installed o
 
 | Framework | Version | License | Copyright | Shipped in | License text |
 |---|---|---|---|---|---|
-| Microsoft.NETCore.App | 10.0.12 | MIT, plus the notices of the components it includes | Copyright (c) .NET Foundation and Contributors | Gateway only | [MIT License](#mit-license) and the runtime pack's `THIRD-PARTY-NOTICES.TXT` |
-| Microsoft.AspNetCore.App | 10.0.12 | MIT, plus the notices of the components it includes | Copyright (c) .NET Foundation and Contributors | Gateway only | [MIT License](#mit-license) and the runtime pack's `THIRD-PARTY-NOTICES.TXT` |
+| Microsoft.NETCore.App | 10.0.13 | MIT, plus the notices of the components it includes | Copyright (c) .NET Foundation and Contributors | Gateway only | [MIT License](#mit-license) and the runtime pack's `THIRD-PARTY-NOTICES.TXT` |
+| Microsoft.AspNetCore.App | 10.0.13 | MIT, plus the notices of the components it includes | Copyright (c) .NET Foundation and Contributors | Gateway only | [MIT License](#mit-license) and the runtime pack's `THIRD-PARTY-NOTICES.TXT` |
 
 The component notices of the two frameworks are long and change with every servicing release. They are the
 `THIRD-PARTY-NOTICES.TXT` files of the `microsoft.netcore.app.runtime.win-x64` and
-`microsoft.aspnetcore.app.runtime.win-x64` 10.0.12 packages, found in the NuGet cache after a restore. When the pinned
+`microsoft.aspnetcore.app.runtime.win-x64` 10.0.13 packages, found in the NuGet cache after a restore. When the pinned
 SDK changes the runtime version, update this table.
 
 ## Not redistributed
@@ -62,8 +64,8 @@ SDK changes the runtime version, update this table.
 
 | Component | Upstream license file |
 |---|---|
-| CheatEngine.Client 1.1.0 | <https://github.com/CheatEngineNet/CheatEngine.Client/blob/cfdcb0018c9d64108ed2f533658daa755ec65e19/LICENSE> (the source commit of the packages) |
-| CheatEngine.SDK 2.0.1 | <https://github.com/CheatEngineNet/CheatEngine.SDK/blob/06c529f84e47295e3ca7a4e81ca808b9c4686b3a/LICENSE> (the source commit of the package) |
+| CheatEngine.Client | <https://github.com/CheatEngineNet/CheatEngine.Client/blob/2b73ac208eaef7cca91339329946d4f8ddfc6ee5/LICENSE> (the recorded submodule commit) |
+| CheatEngine.SDK | <https://github.com/CheatEngineNet/CheatEngine.SDK/blob/06c529f84e47295e3ca7a4e81ca808b9c4686b3a/LICENSE> (the recorded submodule commit) |
 | Microsoft.Extensions.AI.Abstractions 10.10.1 | <https://github.com/dotnet/extensions/blob/59e1741f6fb45cf7ae08e2df088aef71537a7bc4/LICENSE> (the source commit of the package) |
 | ModelContextProtocol 2.2.0 | <https://github.com/modelcontextprotocol/csharp-sdk/blob/6fa3825973949a9c4f0cd8af344e15a8db09dc35/LICENSE> and <https://github.com/modelcontextprotocol/csharp-sdk/blob/6fa3825973949a9c4f0cd8af344e15a8db09dc35/THIRD-PARTY-NOTICES.txt> (the source commit of the packages) |
 | .NET runtime packs 10.0.12 | `LICENSE.TXT` and `THIRD-PARTY-NOTICES.TXT` of the runtime packs |

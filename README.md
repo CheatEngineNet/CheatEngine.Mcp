@@ -1,12 +1,37 @@
 # CheatEngine.Mcp
 
-CheatEngine.Mcp connects a local AI client to Cheat Engine 7.7 x64 through the Model Context Protocol (MCP).
-It combines a plugin loaded by Cheat Engine with a standalone stdio gateway.
-One gateway can discover several Cheat Engine processes and route each request to the instance you choose.
+CheatEngine.Mcp is a Windows integration that connects MCP-compatible AI clients to **Cheat Engine 7.7 x64**.
+It provides structured tools for inspecting processes, analyzing memory and code, and managing Cheat Engine workflows.
+A plugin runs inside Cheat Engine; one standalone stdio gateway connects your client to one or more explicitly selected instances.
 
-> **Beta:** The current source builds one plugin DLL and a separate gateway executable for Windows x64.
-> Published builds are listed under [Releases](https://github.com/CheatEngineNet/CheatEngine.Mcp/releases); follow the instructions included with that version.
-> Build from this checkout to test the current single-DLL packaging.
+> **Beta software.** Download a matching plugin and gateway from [Releases](https://github.com/CheatEngineNet/CheatEngine.Mcp/releases) and follow that package's instructions.
+> This README describes the current source; features may differ from the latest published build.
+
+[Capabilities](#capabilities) · [Installation](#install-and-connect) · [First use](#first-use) · [Configuration](#configuration) · [Troubleshooting](#troubleshooting) · [Development](#build-from-source)
+
+## Capabilities
+
+The current source exposes **206 Cheat Engine tools**, plus the gateway's `instance_list` tool.
+
+| Area | Supported workflows |
+| --- | --- |
+| Processes and instances | Discover multiple hosts, page a stable process snapshot, select a target, and inspect modules, threads, and regions. |
+| Memory | Read and write typed values and batches; sample values over time; compare, copy, hash, and snapshot bounded ranges. |
+| Search | Run value scans and AOB searches; discover UTF-8 and UTF-16LE strings with filtering and pagination. |
+| Pointers | Follow and validate chains with per-hop evidence; scan, rescan, and manage pointer maps. |
+| Code analysis | Disassemble and decode instructions; inspect references, function graphs, and explicitly addressed vtable slots. |
+| Structures and records | Define, compare, import, and export layouts; manage address-list records, freezes, and Cheat Engine tables. |
+| Symbols and managed runtimes | Resolve and manage symbols; inspect supported Mono and .NET targets. |
+| Investigation | Preserve versioned notes with observations, confidence, and module-relative bindings; search imported offline IL2CPP metadata. |
+| Debugging and execution | Use supported debugger operations, patches, assembly, Lua, and compiled-code workflows subject to capability settings. |
+| Session management | Inspect jobs and retained resources, monitor progress, and release or restore owned state. |
+
+The [tool map](srcs/CheatEngine.Mcp.Resources/Knowledge/Documents/tool-map.md) lists domains and capability requirements.
+The live MCP schema defines the exact arguments and results for the connected build.
+Runtime-specific tools require the corresponding Cheat Engine and target support; see [Verification](#verification) for the distinction between automated coverage and live qualification.
+
+Feature contracts: [persistent notes](docs/investigation-notes.md), [offline IL2CPP](docs/offline-il2cpp.md),
+[structure interchange](docs/structure-interchange.md), and [process pagination](docs/process-pagination.md).
 
 ## How it works
 
@@ -23,10 +48,8 @@ The gateway verifies the backend's identity and routes calls by the explicit `in
 It does not start Cheat Engine, select a process, or choose an instance for you.
 Documents and prompts remain available through the gateway even when Cheat Engine is closed.
 
-**The default setup needs no MCP settings file, fixed port, URL, API key, or second gateway per Cheat Engine process.**
+The default setup discovers instances automatically: no fixed port, backend URL, or manually configured access token is needed.
 Run the gateway and Cheat Engine under the same Windows user account.
-
-[Install and connect](#install-and-connect) | [First use](#first-use) | [Multiple instances](#multiple-cheat-engine-instances) | [Configuration](#configuration) | [Troubleshooting](#troubleshooting) | [Build from source](#build-from-source) | [Projects](#repository-layout)
 
 ## Install and connect
 
@@ -37,7 +60,7 @@ The ZIP includes **`CheatEngine.Mcp.dll`**, the gateway executable, installation
 Each release has one complete Windows x64 ZIP and `SHA256SUMS.txt`; separate plugin, skill, DLL, or EXE downloads are unnecessary.
 When upgrading, disable the plugin, close Cheat Engine and the gateway, and remove the old plugin entry. Replace the plugin DLL and gateway executable with the matching files from one build; do not mix versions. Then add `CheatEngine.Mcp.dll` as described below. An old folder deployment is no longer needed.
 
-To build the same layout from source instead, run this from the repository root with .NET SDK **10.0.401**, PowerShell 7, and the Windows C++ build tools required by Native AOT:
+To build the same layout from source, use the .NET SDK pinned in [`global.json`](global.json), PowerShell 7, and the Windows C++ build tools required by Native AOT:
 
 ```powershell
 pwsh -NoProfile -File eng/Publish.ps1 -Configuration Release
@@ -47,7 +70,7 @@ The result is in `artifacts/dist/release/`:
 
 | Item | Purpose |
 | --- | --- |
-| `CheatEngine.Mcp.dll` | Cheat Engine plugin with its managed dependencies and native Lua bridge embedded by Costura/Fody. |
+| `CheatEngine.Mcp.dll` | Cheat Engine plugin, including its managed dependencies and native Lua bridge. |
 | `CheatEngine.Mcp.Gateway.exe` | Standalone Windows x64 MCP server launched by your AI client. |
 | `README.md` | Installation and configuration instructions. |
 | `LICENSE` and `THIRD-PARTY-NOTICES.md` | License and dependency notices for the distribution. |
@@ -215,9 +238,8 @@ The default registry is `%LOCALAPPDATA%\CheatEngine.Mcp\instances`; its records 
 
 ## Tools, resources, and prompts
 
-The tools cover process selection, value scans, typed memory, pointers, AOBs, disassembly, structures, address-list records, symbols, Mono/.NET inspection, debugger operations, and more.
-Some operations change Cheat Engine or target state; use the tool's live annotations, capability requirements, result, and cleanup guidance.
-The [tool map](srcs/CheatEngine.Mcp.Resources/Knowledge/Documents/tool-map.md) is the searchable index.
+Tools return structured results, including operation-specific failures and partial outcomes.
+Some operations change Cheat Engine or target state; consult each tool's annotations, capability requirements, result, and cleanup guidance.
 
 The gateway serves project knowledge as `cheatengine://docs/{slug}` resources and guided prompts even without a running plugin.
 Examples include [getting started](srcs/CheatEngine.Mcp.Resources/Knowledge/Documents/getting-started.md), [workflows](srcs/CheatEngine.Mcp.Resources/Knowledge/Documents/workflows.md), and [errors and recovery](srcs/CheatEngine.Mcp.Resources/Knowledge/Documents/errors-and-recovery.md).
@@ -260,18 +282,21 @@ Disabling the plugin does not automatically undo every Cheat Engine-owned change
 
 ## Build from source
 
-The repository pins .NET SDK **10.0.401** in [`global.json`](global.json).
+The repository pins its required .NET SDK in [`global.json`](global.json).
 PowerShell 7 and the Windows C++ build tools are needed for the Native AOT distribution.
-From the repository root:
+Clone with `git clone --recurse-submodules`, or initialize the recorded dependency revisions from an existing checkout:
 
 ```powershell
+git submodule update --init --recursive
 dotnet restore CheatEngine.Mcp.slnx --locked-mode
-dotnet build CheatEngine.Mcp.slnx --no-restore
-dotnet test --solution CheatEngine.Mcp.slnx --no-restore --no-build --filter-not-trait Category=LiveQualification --filter-not-trait Category=NativeLua --fail-skips on
+dotnet build CheatEngine.Mcp.slnx -c Release --no-restore
+dotnet test --solution CheatEngine.Mcp.slnx -c Release --no-restore --no-build --filter-not-trait Category=LiveQualification --filter-not-trait Category=NativeLua --fail-skips on
 pwsh -NoProfile -File eng/Publish.ps1 -Configuration Release
 ```
 
-Project dependencies are centrally versioned in [`Directory.Packages.props`](Directory.Packages.props) and locked per project.
+Client and SDK build from the Git submodules in [`externals/`](.gitmodules), with exact commits recorded by this repository.
+They track upstream `main`; normal builds use the recorded commits and do not download a newer revision.
+Other NuGet dependencies are centrally versioned in [`Directory.Packages.props`](Directory.Packages.props) and locked per project.
 The plugin is framework-dependent inside Cheat Engine; the gateway is published as a self-contained Windows x64 Native AOT executable.
 The [contributor guide](CONTRIBUTING.md#build-and-test) covers CI checks, formatting, contract snapshots, and packaging.
 
@@ -287,12 +312,19 @@ GitHub upload is explicit; see [Releases](CONTRIBUTING.md#releases).
 
 ## Verification
 
-The portable xUnit v3 suite uses Client doubles and real local HTTP/stdio hosts; it does not require Cheat Engine.
-The optional NativeLua suite needs a Lua 5.3 x64 DLL.
-The live two-instance qualification starts private Cheat Engine copies and requires an explicit maintainer-requested opt-in.
-See the [test project guide](tests/CheatEngine.Mcp.Tests/README.md) and [live qualification instructions](CONTRIBUTING.md#live-qualification).
-The publish script smoke-tests the gateway executable.
-A passing portable suite does not by itself qualify the native Cheat Engine host.
+Verification is split by the boundary being exercised:
+
+| Layer | What it verifies |
+| --- | --- |
+| Portable tests | Tool behavior against Client doubles, input validation, contracts, resource limits, and real local HTTP/stdio routing. |
+| Seeded fuzz tests | Bounded generated cases for value encoding, malformed input, pointer files, IL2CPP dumps, string discovery, vtables, and pointer chains. Seeds make failures reproducible. |
+| NativeLua tests | The Lua bridge against a Lua 5.3 x64 DLL, without starting Cheat Engine or attaching to a target. |
+| Live qualification | Known-value workflows in private Cheat Engine copies with disposable targets, plus isolation, restart, and cleanup checks. Requires explicit opt-in. |
+| Distribution checks | Loading the bundled plugin in isolation and checking the published gateway's MCP protocol. |
+
+The [all-tool qualification report](docs/qualification/all-tools/README.md) distinguishes positive adapter evidence, routing checks, expected refusals, and verified native behavior for each tool.
+A passing portable suite or successful routing call does not establish native success for every tool.
+See the [test project guide](tests/CheatEngine.Mcp.Tests/README.md) and [live qualification instructions](CONTRIBUTING.md#live-qualification) for prerequisites and commands.
 
 ## Repository layout
 
@@ -312,7 +344,7 @@ Each linked README documents its own project's layout, dependencies, and contrib
 
 ## Migration, contributing, and license
 
-This branch is a breaking redesign of CeMCP 1.x.
+Version 2 is a breaking redesign of CeMCP 1.x.
 The plugin is now a single bundled DLL paired with the matching gateway executable; tool names and result contracts have changed, and instance routing is explicit.
 Consult the [live tool schema](srcs/CheatEngine.Mcp.Resources/Knowledge/Documents/tool-map.md) when migrating scripts or prompts.
 

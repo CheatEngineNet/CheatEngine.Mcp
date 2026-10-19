@@ -4,6 +4,8 @@ using CheatEngine.Mcp.Tools.Code;
 using CheatEngine.Mcp.Tools.Debugger;
 using CheatEngine.Mcp.Tools.DotNet;
 using CheatEngine.Mcp.Tools.Exec;
+using CheatEngine.Mcp.Tools.Il2Cpp;
+using CheatEngine.Mcp.Tools.Investigation;
 using CheatEngine.Mcp.Tools.Kernel;
 using CheatEngine.Mcp.Tools.Lua;
 using CheatEngine.Mcp.Tools.Memory;
@@ -65,7 +67,9 @@ public static class CheatEngineToolsBuilderExtensions
 				.AddDotNetTools()
 				.AddMonoTools()
 				.AddKernelTools()
-				.AddLuaTools();
+				.AddLuaTools()
+				.AddInvestigationTools()
+				.AddIl2CppTools();
 		}
 	}
 }

@@ -43,7 +43,7 @@ public sealed partial class ToolDispatch
 	private readonly LuaJsonBufferPool _buffers = new();
 	private readonly IFixedLuaExecutor _fixedLua;
 	private readonly ILogger<ToolDispatch> _logger;
-	private readonly ConditionalWeakTable<string, McpFeature[]> _luaRequirements = new();
+	private readonly ConditionalWeakTable<string, McpFeature[]> _luaRequirements = [];
 	private readonly int _maximumConcurrency;
 	private readonly DispatchStatistics _statistics;
 	private readonly TimeProvider _time;
@@ -252,6 +252,23 @@ public sealed partial class ToolDispatch
 
 		return Run(operation, token => ExecuteUnsafeLua(operation, unsafeLua, wrapped, resultType, token),
 			cancellationToken);
+	}
+
+	/// <summary>Checks the exact fixed-Lua argument encoding budget without dispatching or executing a script.</summary>
+	/// <param name="operation">The public tool name for a typed validation failure.</param>
+	/// <param name="arguments">The same values the later fixed script will receive.</param>
+	public void ValidateLuaArguments(string operation, params ReadOnlySpan<object?> arguments)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(operation);
+		try
+		{
+			_ = LuaToolRuntime.BuildSource(string.Empty, _budgetMilliseconds, arguments);
+		}
+		catch (ArgumentException exception)
+		{
+			throw new CheatEngineToolException(new ToolError(ToolErrorKind.InvalidArgument, exception.Message,
+				operation, ToolHostEffect.NotStarted, false), exception);
+		}
 	}
 
 	private string PrepareLua<T>(string operation, string body, JsonTypeInfo<T> resultType,

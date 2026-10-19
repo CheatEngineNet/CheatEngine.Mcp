@@ -1,0 +1,8 @@
+<Project>
+  <!-- Imported by the Client checkout for both NuGet graph discovery and compilation. ProjectReference
+       AdditionalProperties alone does not configure NuGet's recursive restore graph. -->
+  <PropertyGroup>
+    <CheatEngineSdkSourceRoot>$(MSBuildThisFileDirectory)CheatEngine.SDK</CheatEngineSdkSourceRoot>
+    <CheatEngineSourceLockFileDirectory>$(MSBuildThisFileDirectory)../eng/locks/source</CheatEngineSourceLockFileDirectory>
+  </PropertyGroup>
+</Project>

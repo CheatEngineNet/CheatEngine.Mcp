@@ -49,14 +49,14 @@ public sealed partial class WorkflowPromptTests
 	private static readonly HashSet<string> NonToolIdentifiers = new(
 		WorkflowValues.ErrorKinds.Concat(Enum.GetValues<RecordActivationFailureReason>()
 				.Select(static reason => JsonSerializer.Deserialize<string>(JsonSerializer.Serialize(reason))!))
-			.Concat(["speedhack_wantedspeed", "mono_error_ok"]), StringComparer.Ordinal);
+			.Concat(["speedhack_wantedspeed", "mono_error_ok", "il2cpp_data"]), StringComparer.Ordinal);
 
 	private static readonly Lazy<McpPrimitiveCatalog> PromptCatalog =
 		new(static () => McpPrimitiveCatalog.Create(KnowledgeResourceTests.KnowledgeManifest));
 
 	/// <summary>Every workflow prompt.</summary>
 	public static TheoryData<string> PromptNames =>
-		new(CheatEngineWorkflows.All.Select(static workflow => workflow.Prompt));
+		[.. CheatEngineWorkflows.All.Select(static workflow => workflow.Prompt)];
 
 	[Fact]
 	public void Prompts_Names_AreThePlannedWorkflows()
@@ -118,8 +118,7 @@ public sealed partial class WorkflowPromptTests
 	[Fact]
 	public void Prompts_Methods_DeclareTheDefinitionArgumentsInOrder()
 	{
-		MethodInfo[] methods = typeof(CheatEngineWorkflowPrompts).GetMethods(BindingFlags.Public | BindingFlags.Static)
-			.Where(static method => method.GetCustomAttribute<McpServerPromptAttribute>() is not null).ToArray();
+		MethodInfo[] methods = [.. typeof(CheatEngineWorkflowPrompts).GetMethods(BindingFlags.Public | BindingFlags.Static).Where(static method => method.GetCustomAttribute<McpServerPromptAttribute>() is not null)];
 
 		Assert.Equal(CheatEngineWorkflows.All.Select(static workflow => workflow.Prompt).Order(StringComparer.Ordinal),
 			methods.Select(static method => method.GetCustomAttribute<McpServerPromptAttribute>()!.Name!)
@@ -198,15 +197,15 @@ public sealed partial class WorkflowPromptTests
 		List<string> sizes = [];
 		foreach (WorkflowDefinition workflow in CheatEngineWorkflows.All)
 		{
-			GetPromptResult result = await GetAsync(pipeline, workflow.Prompt, new Dictionary<string, object?>());
+			GetPromptResult result = await GetAsync(pipeline, workflow.Prompt, []);
 			int size = RenderedLength(result);
 			sizes.Add($"{workflow.Prompt}={size}");
 			Assert.True(size <= WorkflowPrompt.MaximumRenderedLength,
 				$"{workflow.Prompt} renders {size} characters; the budget is {WorkflowPrompt.MaximumRenderedLength}.");
 			string text = Assert.IsType<TextContentBlock>(result.Messages[0].Content).Text;
-			string[] cited = SnakeToken().Matches(text).Select(static match => match.Value)
+			string[] cited = [.. SnakeToken().Matches(text).Select(static match => match.Value)
 				.Where(static token => IsToolDomain(token.Split('_')[0]) && !NonToolIdentifiers.Contains(token))
-				.Distinct(StringComparer.Ordinal).ToArray();
+				.Distinct(StringComparer.Ordinal)];
 			Assert.NotEmpty(cited);
 			Assert.All(cited, token => Assert.True(CheatEngineToolNames.All.Contains(token),
 				$"{workflow.Prompt} cites '{token}', which is not a frozen tool name."));
@@ -465,8 +464,8 @@ public sealed partial class WorkflowPromptTests
 		Assert.Contains("](cheatengine://docs/workflows/shared-code-filter)", text, StringComparison.Ordinal);
 		Assert.DoesNotContain(".md)", text, StringComparison.Ordinal);
 		Assert.Equal("Find what writes or accesses an address", result.Description);
-		ResourceLinkBlock[] links = result.Messages.Skip(1).Select(static message =>
-			Assert.IsType<ResourceLinkBlock>(message.Content)).ToArray();
+		ResourceLinkBlock[] links = [.. result.Messages.Skip(1).Select(static message =>
+			Assert.IsType<ResourceLinkBlock>(message.Content))];
 		Assert.All(result.Messages, static message => Assert.Equal(Role.User, message.Role));
 		Assert.Equal(["cheatengine://docs/debugger", "cheatengine://docs/code-analysis"],
 			links.Select(static link => link.Uri));
@@ -493,8 +492,8 @@ public sealed partial class WorkflowPromptTests
 		await using TestMcpPipeline pipeline =
 			await TestMcpPipeline.StartAsync(KnowledgeResourceTests.KnowledgeManifest, McpPrimitiveBinding.Catalog);
 
-		GetPromptResult patch = await GetAsync(pipeline, "patch_branch", new Dictionary<string, object?>());
-		GetPromptResult writer = await GetAsync(pipeline, "find_writer", new Dictionary<string, object?>());
+		GetPromptResult patch = await GetAsync(pipeline, "patch_branch", []);
+		GetPromptResult writer = await GetAsync(pipeline, "find_writer", []);
 
 		Assert.Contains(WorkflowPrompt.Preamble + "\n\nNeeds Mcp:EnableAutoAssembler for its gated steps.\n\nInputs",
 			Assert.IsType<TextContentBlock>(patch.Messages[0].Content).Text, StringComparison.Ordinal);
@@ -572,7 +571,7 @@ public sealed partial class WorkflowPromptTests
 			await TestMcpPipeline.StartAsync(KnowledgeResourceTests.KnowledgeManifest, McpPrimitiveBinding.Catalog);
 
 		string free = Assert.IsType<TextContentBlock>((await GetAsync(pipeline, "call_game_function",
-			new Dictionary<string, object?>())).Messages[0].Content).Text;
+			[])).Messages[0].Content).Text;
 		string method = Assert.IsType<TextContentBlock>((await GetAsync(pipeline, "call_game_function",
 			new Dictionary<string, object?> { ["instanceAddress"] = "[game.exe+10]+8" })).Messages[0].Content).Text;
 
@@ -695,7 +694,7 @@ public sealed partial class WorkflowPromptTests
 				static builder => builder.AddPrompts());
 		await using TestMcpPipeline pipeline = await TestMcpPipeline.StartAsync(manifest, McpPrimitiveBinding.Catalog);
 
-		GetPromptResult result = await GetAsync(pipeline, "speedhack", new Dictionary<string, object?>());
+		GetPromptResult result = await GetAsync(pipeline, "speedhack", []);
 
 		ResourceLinkBlock link = Assert.IsType<ResourceLinkBlock>(result.Messages[1].Content);
 		Assert.Equal("cheatengine://docs/speedhack", link.Uri);

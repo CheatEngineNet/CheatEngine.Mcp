@@ -1,4 +1,16 @@
 <Project>
+  <Target Name="CeMcpPreserveSourceConfiguration" BeforeTargets="AssignProjectConfiguration"
+          DependsOnTargets="IncludeTransitiveProjectReferences">
+    <ItemGroup>
+      <ProjectReference Update="@(ProjectReference)"
+                        Condition="$([System.String]::Copy('%(ProjectReference.FullPath)').Contains('/externals/')) or $([System.String]::Copy('%(ProjectReference.FullPath)').Contains('\externals\'))"
+                        AdditionalProperties="%(ProjectReference.AdditionalProperties);ShouldUnsetParentConfigurationAndPlatform=false"/>
+    </ItemGroup>
+  </Target>
+  <Import Project="$(CeMcpSdkSourceRoot)/src/CheatEngine.SDK/build/CheatEngine.SDK.targets"
+          Condition="'$(McpPluginProject)' == 'true'"/>
+  <Import Project="$(CeMcpClientSourceRoot)/libs/CheatEngine.Client.Hosting/buildTransitive/CheatEngine.Client.Hosting.targets"
+          Condition="'$(McpPluginProject)' == 'true'"/>
   <!--
     CEMCP001: the plugin must never ship an app-local copy of an assembly that the shared frameworks
     (Microsoft.NETCore.App / Microsoft.AspNetCore.App) provide. Cheat Engine loads the plugin into its own
@@ -49,7 +61,16 @@
     enable dynamic loading and copy the native Lua bridge, which must never happen in a library.
     Both guards key on properties, never on project or assembly names, so renames cannot bypass them.
   -->
+  <!-- Capture declared references during evaluation. Design-time builds add transitive references before
+       PrepareForBuild, but the boundary below governs only the references declared by this project. -->
+  <ItemGroup>
+    <_CeMcpDeclaredProjectReference Include="@(ProjectReference)"/>
+  </ItemGroup>
   <Target Name="CeMcpVerifyPluginProfile" BeforeTargets="PrepareForBuild">
+    <ItemGroup>
+      <_CeMcpDirectSdkProject Include="@(_CeMcpDeclaredProjectReference)"
+                            Condition="$([System.String]::Copy('%(_CeMcpDeclaredProjectReference.Filename)').StartsWith('CheatEngine.SDK'))"/>
+    </ItemGroup>
     <Error Code="CEMCP002"
            Condition="'$(CheatEngineClientPluginProject)' == 'true' and '$(McpPluginProject)' != 'true'"
            Text="CheatEngineClientPluginProject is reserved for the plugin project, which sets McpPluginProject."/>
@@ -57,8 +78,11 @@
            Condition="'$(McpPluginProject)' == 'true' and '$(CheatEngineClientPluginProject)' != 'true'"
            Text="The plugin project must set CheatEngineClientPluginProject=true so the Client plugin profile is validated."/>
     <Error Code="CEMCP003"
-           Condition="'$(CheatEngineClientPluginProject)' != 'true' and '@(PackageReference->WithMetadataValue('Identity', 'CheatEngine.SDK'))' != ''"
+           Condition="'$(CheatEngineClientPluginProject)' != 'true' and '@(_CeMcpDirectSdkProject)' != ''"
            Text="Only the plugin project may reference CheatEngine.SDK directly; libraries receive its compile assets through CheatEngine.Client."/>
+    <Error Code="CEMCP007"
+           Condition="'@(PackageReference->WithMetadataValue('Identity', 'CheatEngine.SDK'))' != '' or '@(PackageReference->WithMetadataValue('Identity', 'CheatEngine.Client'))' != ''"
+           Text="CheatEngine.Client and CheatEngine.SDK are source submodules. Use their ProjectReferences instead of NuGet packages."/>
   </Target>
 
   <!--

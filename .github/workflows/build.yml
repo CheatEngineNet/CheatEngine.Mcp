@@ -18,10 +18,11 @@ jobs:
         uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
+          submodules: recursive
       - name: Setup .NET
         uses: actions/setup-dotnet@v6.0.0
         with:
-          dotnet-version: "10.0.401"
+          dotnet-version: "10.0.402"
       - name: Restore
         run: dotnet restore CheatEngine.Mcp.slnx --locked-mode
       - name: Build Debug

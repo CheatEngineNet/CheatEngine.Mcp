@@ -14,7 +14,13 @@ public sealed record ProcessListResult(
 	[property: Description("The copied process summaries.")]
 	ProcessSummary[] Processes,
 	[property: Description("Whether the host had more matching processes than this response contains.")]
-	bool Truncated);
+	bool Truncated,
+	[property: Description("An opaque cursor for the next page of the same frozen process snapshot; omitted when this page is final and for legacy unpaged listings.")]
+	string? NextCursor = null,
+	[property: Description("Whether Cheat Engine reported more matching processes than the frozen 4096-process snapshot copied; omitted for legacy unpaged listings.")]
+	bool? SnapshotTruncated = null,
+	[property: Description("The number of process summaries retained in the frozen snapshot; omitted for legacy unpaged listings.")]
+	int? SnapshotTotal = null);
 
 /// <summary>The process Cheat Engine selected after an explicit attachment.</summary>
 public sealed record ProcessAttachResult(

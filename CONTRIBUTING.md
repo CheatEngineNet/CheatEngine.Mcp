@@ -11,7 +11,7 @@ Each project's `README.md` states its role and dependencies, the [test project R
 ## Ground rules
 
 - Keep to responsible use: features, examples and tests target software you own or are authorized to modify, and the project does not accept work whose purpose is to bypass anti-cheat, DRM or license checks; see [SECURITY.md](SECURITY.md) and the [safety document](srcs/CheatEngine.Mcp.Resources/Knowledge/Documents/safety.md).
-- Cheat Engine is reached only through the `CheatEngine.Client` NuGet package; the plugin project alone also references `CheatEngine.SDK` directly, for the generated entry point and the native Lua bridge. No source checkout, submodule or other Cheat Engine wrapper.
+- Cheat Engine is reached through the `CheatEngine.Client` source submodule. The plugin project alone references SDK runtime projects directly and imports its generators and native bridge. Keep both submodules pinned to reviewed commits from their upstream `main` branches; do not add Client or SDK NuGet references.
 - Never expose a bearer token: not in code, tests, logs, screenshots, issues or pull requests. The same goes for discovery records under `%LOCALAPPDATA%\CheatEngine.Mcp\instances`, personal paths and e-mail addresses.
 - Preserve licenses, notices and provenance headers, and unrelated work you find in the tree: never reset, discard or reformat it wholesale.
 - Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md), never in a public issue or pull request.
@@ -36,7 +36,7 @@ Each project's `README.md` states its role and dependencies, the [test project R
 | Tool | Why |
 |---|---|
 | Windows x64 | The plugin, the native Lua bridge and the live target are x64-only. |
-| .NET SDK 10.0.401, exactly | [`global.json`](global.json) pins it with `rollForward: disable` and `allowPrerelease: false`; `dotnet --version` in the repository root must print `10.0.401`. |
+| .NET SDK 10.0.402, exactly | [`global.json`](global.json) pins it with `rollForward: disable` and `allowPrerelease: false`; `dotnet --version` in the repository root must print `10.0.402`. |
 | PowerShell 7 (`pwsh`) | Runs [`eng/Publish.ps1`](eng/Publish.ps1). |
 | Visual Studio or the Visual Studio Build Tools with the C++ desktop workload and the Windows SDK | Required to publish the Windows x64 Native AOT gateway with the MSVC linker. |
 | A Lua 5.3 x64 DLL, such as Cheat Engine's `lua53-64.dll` | Only for the NativeLua tests. |
@@ -51,6 +51,7 @@ Any editor works, but see [Formatting](#formatting) before you commit from JetBr
 Run these from the repository root; they are the commands that the CI workflow, [`.github/workflows/build.yml`](.github/workflows/build.yml), runs on every pull request:
 
 ```powershell
+git submodule update --init --recursive
 dotnet restore CheatEngine.Mcp.slnx --locked-mode
 dotnet build CheatEngine.Mcp.slnx --no-restore
 dotnet test --solution CheatEngine.Mcp.slnx --no-restore --no-build --filter-not-trait Category=LiveQualification --filter-not-trait Category=NativeLua --fail-skips on
@@ -65,6 +66,25 @@ dotnet format whitespace CheatEngine.Mcp.slnx --no-restore --verify-no-changes
   It writes `artifacts/dist/<configuration>/`: `CheatEngine.Mcp.dll`, `CheatEngine.Mcp.Gateway.exe`, `README.md`, `LICENSE` and `THIRD-PARTY-NOTICES.md`, and it refuses to run when any other file is there. `-OutputDirectory` selects an isolated distribution folder when a running gateway locks the default executable.
   Standard `dotnet publish` builds the framework-dependent plugin; Costura embeds managed dependencies and the native bridge. The component manifests remain build outputs and are not installed. The layout is described in [Get the deployment files](README.md#1-get-the-deployment-files).
 - `--fail-skips on` turns a skipped test into a failure: tests that cannot run in an environment are excluded by trait, never skipped.
+
+### Updating Client and SDK sources
+
+The two dependencies live in `externals/CheatEngine.Client` and `externals/CheatEngine.SDK`.
+Git records their exact commits, while `.gitmodules` identifies `main` as the update branch.
+To prepare a dependency update:
+
+```powershell
+git submodule update --remote externals/CheatEngine.Client externals/CheatEngine.SDK
+dotnet restore CheatEngine.Mcp.slnx --force-evaluate
+dotnet restore srcs/CheatEngine.Mcp.Gateway -p:PublishProfile=Standalone --force-evaluate
+```
+
+Review the upstream changes and regenerated lock files, and update the source revisions in `THIRD-PARTY-NOTICES.md`.
+Run the build, tests and distribution checks above, then commit the two Git pointers with the MCP changes.
+Normal restores and CI use `git submodule update --init --recursive`, which reproduces the recorded revisions.
+Client's source-mode dependency locks live in `eng/locks/source`; the dependency repositories retain their own package-build locks.
+Source projects use their own build settings and artifact folders. MCP explicitly imports the plugin consumer assets and generators through `eng/SourcePlugin.props`.
+The SDK's checked-in native bridge is used as-is; rebuilding it belongs to the SDK's native build workflow.
 
 ### NativeLua tests
 

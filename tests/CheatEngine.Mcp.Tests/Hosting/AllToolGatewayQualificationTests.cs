@@ -26,7 +26,7 @@ public sealed class AllToolGatewayQualificationTests(AllToolGatewayFixture fixtu
 	{
 		string[] names = BackendToolNames();
 
-		Assert.Equal(193, names.Length);
+		Assert.Equal(206, names.Length);
 		Assert.Equal(names.Distinct(StringComparer.Ordinal).Count(), names.Length);
 		Assert.Equal(names, TestComposition.GatewayTools.Skip(1).Select(static tool => tool.Name));
 	}
@@ -151,7 +151,7 @@ public sealed class AllToolGatewayQualificationTests(AllToolGatewayFixture fixtu
 
 	private static string[] BackendToolNames()
 	{
-		return McpPrimitiveCatalog.Create(TestComposition.BackendManifest).Tools.Select(static tool => tool.Name).ToArray();
+		return [.. McpPrimitiveCatalog.Create(TestComposition.BackendManifest).Tools.Select(static tool => tool.Name)];
 	}
 
 	private static Dictionary<string, object?> RoutedArguments(FakeBackend backend, string tool, string marker)

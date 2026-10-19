@@ -2,6 +2,8 @@
   <PropertyGroup>
     <RepoRoot>$(MSBuildThisFileDirectory)</RepoRoot>
     <ArtifactsPath>$(RepoRoot)artifacts</ArtifactsPath>
+    <!-- Source dependency projects are intentionally outside the MCP solution inventory. Preserve the selected configuration. -->
+    <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
     <LangVersion>14.0</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -39,4 +41,5 @@
     <VerifyReferenceTrimCompatibility>true</VerifyReferenceTrimCompatibility>
   </PropertyGroup>
   <Import Project="$(RepoRoot)eng/Tests.props" Condition="$(MSBuildProjectName.EndsWith('.Tests'))"/>
+  <Import Project="$(RepoRoot)eng/SourceDependencies.props"/>
 </Project>

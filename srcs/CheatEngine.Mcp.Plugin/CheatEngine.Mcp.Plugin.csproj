@@ -1,4 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="../../eng/SourcePlugin.props"/>
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>CheatEngine.Mcp</AssemblyName>
@@ -25,9 +26,13 @@
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App"/>
-    <PackageReference Include="CheatEngine.Client"/>
-    <!-- Direct SDK build assets generate the entry point and copy the native Lua bridge. -->
-    <PackageReference Include="CheatEngine.SDK"/>
+    <ProjectReference Include="$(CeMcpClientSourceRoot)/src/CheatEngine.Client/CheatEngine.Client.csproj"
+                     />
+    <!-- The plugin owns the SDK bootstrap; SourcePlugin.props imports its consumer build assets and generators. -->
+    <ProjectReference Include="$(CeMcpSdkSourceRoot)/libs/CheatEngine.SDK.Engine/CheatEngine.SDK.Engine.csproj"
+                     />
+    <ProjectReference Include="$(CeMcpSdkSourceRoot)/libs/CheatEngine.SDK.Hosting/CheatEngine.SDK.Hosting.csproj"
+                     />
     <PackageReference Include="Costura.Fody" PrivateAssets="all"/>
     <PackageReference Include="Fody" PrivateAssets="all"/>
     <PackageReference Include="ModelContextProtocol.AspNetCore"/>

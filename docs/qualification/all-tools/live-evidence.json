@@ -334,6 +334,699 @@
       "receipt": "all_tools_code_disassemble_bytes",
       "cleanupReceipt": "none",
       "scope": "read_only_workflow"
+    },
+    {
+      "name": "process_attach",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveLifecycleQualification.cs",
+      "testMethod": "RunAsync",
+      "oracle": "Both selected PIDs equal the owned target PIDs and both known fixture values equal 20260926",
+      "receipt": "all_tools_process_attach",
+      "cleanupReceipt": "none",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "memory_find_strings",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveInspectionQualification.cs",
+      "testMethod": "VerifyStringsAsync",
+      "oracle": "UTF8/UTF16LE exact text, byte addresses and byte lengths; two pages and independent literal filters",
+      "receipt": "all_tools_memory_find_strings",
+      "cleanupReceipt": "live_inspection_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "memory_read_vtable",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveInspectionQualification.cs",
+      "testMethod": "VerifyVtableAsync",
+      "oracle": "Owned object and direct table report exact pointer width, slot addresses, null slot and pointer values",
+      "receipt": "all_tools_memory_read_vtable",
+      "cleanupReceipt": "live_inspection_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "pointer_read_chain",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveInspectionQualification.cs",
+      "testMethod": "VerifyChainsAsync",
+      "oracle": "Known signed -10/+20 chain returns exact two hops, final address and 20261019",
+      "receipt": "all_tools_pointer_read_chain",
+      "cleanupReceipt": "live_inspection_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "pointer_read_chains",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveInspectionQualification.cs",
+      "testMethod": "VerifyChainsAsync",
+      "oracle": "Known chain matches target, reads 20261019, has exact optional hops and unchanged compact summary",
+      "receipt": "all_tools_pointer_read_chains",
+      "cleanupReceipt": "live_inspection_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "memory_write",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveInspectionQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "512 known bytes verified then independently decoded as strings, vtable slots and a signed pointer chain",
+      "receipt": "all_tools_memory_write",
+      "cleanupReceipt": "live_inspection_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "memory_free",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveInspectionQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Exact allocation name and size; release.isComplete true; repeated free returns not_found",
+      "receipt": "all_tools_memory_free",
+      "cleanupReceipt": "live_inspection_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "record_create",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveCatalogStateQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Created record has the exact owned description, address and value 17",
+      "receipt": "all_tools_record_create",
+      "cleanupReceipt": "live_catalog_state_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "record_list",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveCatalogStateQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Listing contains the exact created record ID",
+      "receipt": "all_tools_record_list",
+      "cleanupReceipt": "live_catalog_state_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "record_get",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveCatalogStateQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Returned record has the exact created description, address and value 17",
+      "receipt": "all_tools_record_get",
+      "cleanupReceipt": "live_catalog_state_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "record_find",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveCatalogStateQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Unique description filter returns total 1 and exact created record ID",
+      "receipt": "all_tools_record_find",
+      "cleanupReceipt": "live_catalog_state_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "record_update",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveCatalogStateQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Updated description and value 23 match requested values",
+      "receipt": "all_tools_record_update",
+      "cleanupReceipt": "live_catalog_state_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "record_set_active",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveCatalogStateQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Owned numeric record transitions true then false; record_get independently observes both states",
+      "receipt": "all_tools_record_set_active",
+      "cleanupReceipt": "live_catalog_state_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "record_delete",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveCatalogStateQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "deleted equals 1 and subsequent record_list no longer contains the ID",
+      "receipt": "all_tools_record_delete",
+      "cleanupReceipt": "live_catalog_state_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "structure_list",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveCatalogStateQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Listing contains the exact created structure name",
+      "receipt": "all_tools_structure_list",
+      "cleanupReceipt": "live_catalog_state_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "structure_get",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveCatalogStateQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "New named structure has zero elements; later reads verify typed element mutation",
+      "receipt": "all_tools_structure_get",
+      "cleanupReceipt": "live_catalog_state_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "structure_add_elements",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveCatalogStateQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "elementCount equals 1 and added index equals 0; subsequent structure_get verifies the member",
+      "receipt": "all_tools_structure_add_elements",
+      "cleanupReceipt": "live_catalog_state_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "structure_update_elements",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveCatalogStateQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "subsequent structure_get reports counterUpdated at offset 0 with int32 type",
+      "receipt": "all_tools_structure_update_elements",
+      "cleanupReceipt": "live_catalog_state_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "structure_remove_elements",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveCatalogStateQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "elementCount equals 0 and subsequent structure_get returns no elements",
+      "receipt": "all_tools_structure_remove_elements",
+      "cleanupReceipt": "live_catalog_state_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "structure_set_name",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveCatalogStateQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Renamed structure reports requested name and cleanup deletes it under that name",
+      "receipt": "all_tools_structure_set_name",
+      "cleanupReceipt": "live_catalog_state_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "structure_delete",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveCatalogStateQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Subsequent structure_list no longer contains the deleted name",
+      "receipt": "all_tools_structure_delete",
+      "cleanupReceipt": "live_catalog_state_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "symbol_register",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveCatalogStateQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Exact name/address and doNotSave true; subsequent listing confirms ownership",
+      "receipt": "all_tools_symbol_register",
+      "cleanupReceipt": "live_catalog_state_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "symbol_list_registered",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveCatalogStateQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Exactly one matching owned symbol with exact name and address",
+      "receipt": "all_tools_symbol_list_registered",
+      "cleanupReceipt": "live_catalog_state_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "symbol_find",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveCatalogStateQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Search contains the registered exact name and address",
+      "receipt": "all_tools_symbol_find",
+      "cleanupReceipt": "live_catalog_state_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "symbol_unregister",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveCatalogStateQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Returned name matches and subsequent registered-symbol listing is empty",
+      "receipt": "all_tools_symbol_unregister",
+      "cleanupReceipt": "live_catalog_state_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "memory_list_snapshots",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyMemoryAsync",
+      "oracle": "Owned snapshot has exact address, size 16, and target PID; total bytes include it.",
+      "receipt": "all_tools_memory_list_snapshots",
+      "cleanupReceipt": "live_workflow_memory_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "memory_delete_snapshot",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
+      "testMethod": "VerifyMemoryAsync",
+      "oracle": "Deletion names the owned snapshot, frees 16 bytes, removes it from the list and reduces total bytes by 16.",
+      "receipt": "all_tools_memory_delete_snapshot",
+      "cleanupReceipt": "live_workflow_memory_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "code_decode",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveInspectionQualification.cs",
+      "testMethod": "VerifyCodeAndRegionAsync",
+      "oracle": "Known byte 90 decodes to a one-byte nop at the exact owned address.",
+      "receipt": "all_tools_code_decode",
+      "cleanupReceipt": "live_inspection_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "code_disassemble",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveInspectionQualification.cs",
+      "testMethod": "VerifyCodeAndRegionAsync",
+      "oracle": "Known bytes 90 C3 produce exactly nop and ret at consecutive owned addresses with one-byte sizes.",
+      "receipt": "all_tools_code_disassemble",
+      "cleanupReceipt": "live_inspection_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "memory_list_regions",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveInspectionQualification.cs",
+      "testMethod": "VerifyCodeAndRegionAsync",
+      "oracle": "One committed region covers the two-byte owned range, with total 1 and no truncation.",
+      "receipt": "all_tools_memory_list_regions",
+      "cleanupReceipt": "live_inspection_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "investigation_create_note",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveRoadmapQualification.cs",
+      "testMethod": "VerifyNotesAsync",
+      "oracle": "Created note has the requested unique name and revision 1.",
+      "receipt": "all_tools_investigation_create_note",
+      "cleanupReceipt": "none",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "investigation_export_notes",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveRoadmapQualification.cs",
+      "testMethod": "VerifyNotesAsync",
+      "oracle": "Export receipt and independently parsed host file agree on v1 format, one note, exact name, revision 2 and body.",
+      "receipt": "all_tools_investigation_export_notes",
+      "cleanupReceipt": "none",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "investigation_search_notes",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveRoadmapQualification.cs",
+      "testMethod": "VerifyNotesAsync",
+      "oracle": "One matching note is returned with the exact name and revision 1.",
+      "receipt": "all_tools_investigation_search_notes",
+      "cleanupReceipt": "none",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "investigation_update_note",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveRoadmapQualification.cs",
+      "testMethod": "VerifyNotesAsync",
+      "oracle": "Expected revision update yields revision 2 with exact final title and body.",
+      "receipt": "all_tools_investigation_update_note",
+      "cleanupReceipt": "none",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "il2cpp_delete_dump",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveRoadmapQualification.cs",
+      "testMethod": "VerifyIl2CppAsync",
+      "oracle": "Deleting the exact owned dataset returns deleted=true.",
+      "receipt": "all_tools_il2cpp_delete_dump",
+      "cleanupReceipt": "all_tools_il2cpp_delete_dump",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "il2cpp_find_members",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveRoadmapQualification.cs",
+      "testMethod": "VerifyIl2CppAsync",
+      "oracle": "Type and method-name filters return the single known Tick method with its independently PE-derived RVA.",
+      "receipt": "all_tools_il2cpp_find_members",
+      "cleanupReceipt": "all_tools_il2cpp_delete_dump",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "il2cpp_find_types",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveRoadmapQualification.cs",
+      "testMethod": "VerifyIl2CppAsync",
+      "oracle": "Case-insensitive probe filter returns the single known type named Probe.",
+      "receipt": "all_tools_il2cpp_find_types",
+      "cleanupReceipt": "all_tools_il2cpp_delete_dump",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "il2cpp_import_dump",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveRoadmapQualification.cs",
+      "testMethod": "VerifyIl2CppAsync",
+      "oracle": "Owned synthetic dump imports dump_cs_v1 version 1 with exactly one type and two members.",
+      "receipt": "all_tools_il2cpp_import_dump",
+      "cleanupReceipt": "all_tools_il2cpp_delete_dump",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "il2cpp_resolve_method",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveRoadmapQualification.cs",
+      "testMethod": "VerifyIl2CppAsync",
+      "oracle": "Bound resolution equals independently observed owned Process.MainModule.BaseAddress plus the fixture PE RVA and the exact owned PID.",
+      "receipt": "all_tools_il2cpp_resolve_method",
+      "cleanupReceipt": "all_tools_il2cpp_delete_dump",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "structure_export",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveRoadmapQualification.cs",
+      "testMethod": "VerifyStructuresAsync",
+      "oracle": "Two-layout closure and target pointer width are exported; a second export after native deletion/import is byte-for-byte identical.",
+      "receipt": "all_tools_structure_export",
+      "cleanupReceipt": "live_roadmap_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "structure_import",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveRoadmapQualification.cs",
+      "testMethod": "VerifyStructuresAsync",
+      "oracle": "Import restores two layouts and exact health field type/offset and pointer child; re-export is byte-for-byte identical.",
+      "receipt": "all_tools_structure_import",
+      "cleanupReceipt": "live_roadmap_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "pointer_create_map",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LivePointerPersistenceQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Bounded owned graph reaches ready with exactly two pointers, 16+pointerWidth bytes read, zero unreadable bytes and incomplete=false.",
+      "receipt": "all_tools_pointer_create_map",
+      "cleanupReceipt": "live_pointer_persistence_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "pointer_delete_map",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LivePointerPersistenceQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Deletion names the owned map and follow-up map listing proves its absence.",
+      "receipt": "all_tools_pointer_delete_map",
+      "cleanupReceipt": "live_pointer_persistence_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "pointer_delete_scan",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LivePointerPersistenceQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Deletion names the owned scan and follow-up scan listing proves its absence.",
+      "receipt": "all_tools_pointer_delete_scan",
+      "cleanupReceipt": "live_pointer_persistence_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "pointer_find_paths",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LivePointerPersistenceQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Bounded depth-two search reaches ready with exactly two paths through the independently constructed graph.",
+      "receipt": "all_tools_pointer_find_paths",
+      "cleanupReceipt": "live_pointer_persistence_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "pointer_find_references",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LivePointerPersistenceQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Map source returns the known pointer slot at owned base+256 referencing owned base+288.",
+      "receipt": "all_tools_pointer_find_references",
+      "cleanupReceipt": "live_pointer_persistence_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "pointer_list_maps",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LivePointerPersistenceQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Listing includes the exact owned ready map; cleanup listing excludes deleted maps.",
+      "receipt": "all_tools_pointer_list_maps",
+      "cleanupReceipt": "live_pointer_persistence_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "pointer_list_paths",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LivePointerPersistenceQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Paths equal base+272 with offsets [20] and base+256 with offsets [-10,20], in depth order.",
+      "receipt": "all_tools_pointer_list_paths",
+      "cleanupReceipt": "live_pointer_persistence_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "pointer_list_scans",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LivePointerPersistenceQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Listing includes the exact owned ready scan; cleanup listing excludes deleted scans.",
+      "receipt": "all_tools_pointer_list_scans",
+      "cleanupReceipt": "live_pointer_persistence_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "pointer_load_map",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LivePointerPersistenceQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Loaded map has the requested new name and exact target pointer width; rescan against it verifies both known paths.",
+      "receipt": "all_tools_pointer_load_map",
+      "cleanupReceipt": "live_pointer_persistence_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "pointer_load_scan",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LivePointerPersistenceQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Reload uses the requested new name and reproduces both exact graph paths with signed offsets.",
+      "receipt": "all_tools_pointer_load_scan",
+      "cleanupReceipt": "live_pointer_persistence_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "pointer_rescan_paths",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LivePointerPersistenceQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Rescan using the reloaded map returns count=2, verified=2, removed=0.",
+      "receipt": "all_tools_pointer_rescan_paths",
+      "cleanupReceipt": "live_pointer_persistence_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "pointer_save_map",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LivePointerPersistenceQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The requested owned map file is created and subsequently loaded to rescan the independently known graph.",
+      "receipt": "all_tools_pointer_save_map",
+      "cleanupReceipt": "live_pointer_persistence_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "pointer_save_scan",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LivePointerPersistenceQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The owned scan file exists and its subsequent reload reproduces both independently expected paths.",
+      "receipt": "all_tools_pointer_save_scan",
+      "cleanupReceipt": "live_pointer_persistence_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "memory_dump_to_file",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveFileRecordQualification.cs",
+      "testMethod": "VerifyFilesAsync",
+      "oracle": "Dump writes 8 bytes with zero zero-filled bytes; host file equals the independently supplied 0B00000016000000 buffer.",
+      "receipt": "all_tools_memory_dump_to_file",
+      "cleanupReceipt": "live_file_record_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "memory_load_from_file",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveFileRecordQualification.cs",
+      "testMethod": "VerifyFilesAsync",
+      "oracle": "Load writes 8 bytes from a newly supplied host buffer; subsequent target read equals 210000002C000000.",
+      "receipt": "all_tools_memory_load_from_file",
+      "cleanupReceipt": "live_file_record_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "record_select",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveFileRecordQualification.cs",
+      "testMethod": "VerifyRecordsAndTableAsync",
+      "oracle": "Selection returns the second owned record ID, and record_get_selected independently returns that same ID.",
+      "receipt": "all_tools_record_select",
+      "cleanupReceipt": "live_file_record_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "record_get_selected",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveFileRecordQualification.cs",
+      "testMethod": "VerifyRecordsAndTableAsync",
+      "oracle": "Selected=true and record ID equals the independently retained second owned record ID.",
+      "receipt": "all_tools_record_get_selected",
+      "cleanupReceipt": "live_file_record_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "record_set_dropdown",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveFileRecordQualification.cs",
+      "testMethod": "VerifyRecordsAndTableAsync",
+      "oracle": "A separate record_get returns exact dropdown value 33 and description thirty-three with the requested three flags.",
+      "receipt": "all_tools_record_set_dropdown",
+      "cleanupReceipt": "live_file_record_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "record_group",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveFileRecordQualification.cs",
+      "testMethod": "VerifyRecordsAndTableAsync",
+      "oracle": "New group has two children and returns both independently retained owned record IDs.",
+      "receipt": "all_tools_record_group",
+      "cleanupReceipt": "live_file_record_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "record_move",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveFileRecordQualification.cs",
+      "testMethod": "VerifyRecordsAndTableAsync",
+      "oracle": "Moving the second child to root returns its exact ID; a subsequent group read reports one remaining child.",
+      "receipt": "all_tools_record_move",
+      "cleanupReceipt": "live_file_record_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "record_clear",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveFileRecordQualification.cs",
+      "testMethod": "VerifyRecordsAndTableAsync",
+      "oracle": "Clear reports three deleted records and a separate record_list reports total zero.",
+      "receipt": "all_tools_record_clear",
+      "cleanupReceipt": "live_file_record_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "table_save",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveFileRecordQualification.cs",
+      "testMethod": "VerifyRecordsAndTableAsync",
+      "oracle": "New CT file is independently parsed for exactly three owned entries, expected addresses, int32 type, group hierarchy and dropdown text.",
+      "receipt": "all_tools_table_save",
+      "cleanupReceipt": "live_file_record_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "table_list_files",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveFileRecordQualification.cs",
+      "testMethod": "VerifyRecordsAndTableAsync",
+      "oracle": "File list includes the exact newly saved CT path under the only private allowed table root.",
+      "receipt": "all_tools_table_list_files",
+      "cleanupReceipt": "live_file_record_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "table_load",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveFileRecordQualification.cs",
+      "testMethod": "VerifyRecordsAndTableAsync",
+      "oracle": "After verified clear, load restores exactly three records; independent list/get checks prove descriptions, addresses, values, group child and dropdown contents.",
+      "receipt": "all_tools_table_load",
+      "cleanupReceipt": "live_file_record_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "process_set_paused",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveFileRecordQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Pause returns paused=true and a tracked resource present in runtime_list_resources; resume reports false and removes that same resource.",
+      "receipt": "all_tools_process_set_paused",
+      "cleanupReceipt": "live_file_record_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "code_set_comment",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveCodeAnalysisQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Set names the exact owned address/comment and a separate code_get_comments round trip returns both unchanged.",
+      "receipt": "all_tools_code_set_comment",
+      "cleanupReceipt": "live_code_analysis_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "code_get_comments",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveCodeAnalysisQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "One explicit owned address yields exactly that address and its independently supplied comment.",
+      "receipt": "all_tools_code_get_comments",
+      "cleanupReceipt": "live_code_analysis_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "code_start_search",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveCodeAnalysisQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Bounded four-byte NOP RET NOP RET search completes with exactly two matches at owned base and base+2, each byte90 and size1.",
+      "receipt": "all_tools_code_start_search",
+      "cleanupReceipt": "live_code_analysis_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "code_poll_job",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveCodeAnalysisQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Completed retained page from sequence0 has exactly the two independently expected NOP events, matching event/instruction addresses, no drops and no more page.",
+      "receipt": "all_tools_code_poll_job",
+      "cleanupReceipt": "live_code_analysis_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "code_start_dissect",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDissectionQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Completed bounded dissection returns exactly one dissect event with the independently allocated start address and size.",
+      "receipt": "all_tools_code_start_dissect",
+      "cleanupReceipt": "live_dissection_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "code_find_references",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDissectionQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The known direct relative call is the only reference to the independently computed callee address.",
+      "receipt": "all_tools_code_find_references",
+      "cleanupReceipt": "live_dissection_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "code_find_strings",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDissectionQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The referenced string has the independently supplied ASCII content and buffer address.",
+      "receipt": "all_tools_code_find_strings",
+      "cleanupReceipt": "live_dissection_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "code_list_functions",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDissectionQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The sole referenced function equals the independently computed direct-call destination.",
+      "receipt": "all_tools_code_list_functions",
+      "cleanupReceipt": "live_dissection_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "code_get_function",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDissectionQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The owned instruction fixture has the expected CE function estimate and jump-destination result; this heuristic oracle must pass native validation before this row qualifies.",
+      "receipt": "all_tools_code_get_function",
+      "cleanupReceipt": "live_dissection_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "code_clear_dissect",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDissectionQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Clear returns true and separate function, string and reference queries all report empty results.",
+      "receipt": "all_tools_code_clear_dissect",
+      "cleanupReceipt": "live_dissection_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "module_list_exports",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveModuleExportQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The exact owned-target kernel32 path/base/machine and independent PE file exports match filtered ordinals, names, addresses or forwarders, totals, continuation offsets and replay; direct and forwarded export shapes are both checked.",
+      "receipt": "all_tools_module_list_exports",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
     }
   ]
 }

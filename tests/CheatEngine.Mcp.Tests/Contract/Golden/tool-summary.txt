@@ -60,7 +60,16 @@ exec_compile_c | Compile C source | false,true,false,true | blocking_native | ta
 exec_compile_csharp | Compile managed source | false,true,false,true | blocking_native | target_code_execution
 exec_inject_dotnet | Inject managed assembly | false,true,false,true | blocking_native | target_code_execution
 exec_inject_library | Inject native library | false,true,false,true | blocking_native | target_code_execution
+il2cpp_delete_dump | Delete IL2CPP dump | false,true,true,false | short | -
+il2cpp_find_members | Find IL2CPP members | true,false,true,false | short | -
+il2cpp_find_types | Find IL2CPP types | true,false,true,false | short | -
+il2cpp_import_dump | Import IL2CPP dump | false,false,false,true | short | -
+il2cpp_resolve_method | Resolve IL2CPP method | true,false,true,false | short | -
 instance_list | List Cheat Engine instances | true,false,true,false | gateway | -
+investigation_create_note | Create investigation note | false,false,false,true | short | -
+investigation_export_notes | Export investigation notes | false,true,false,true | short | -
+investigation_search_notes | Search investigation notes | true,false,true,true | short | -
+investigation_update_note | Update investigation note | false,false,false,true | short | -
 kernel_get_status | Get DBK and DBVM status | true,false,true,false | short | kernel_access
 kernel_initialize_dbvm | Initialize DBVM | false,true,false,false | may_prompt | kernel_access
 kernel_poll_watch | Poll DBVM watch | false,true,false,false | blocking_native | kernel_access
@@ -77,6 +86,7 @@ memory_copy | Copy memory | false,true,false,false | short | -
 memory_create_snapshot | Create a memory snapshot | false,false,false,false | short | -
 memory_delete_snapshot | Delete a memory snapshot | false,true,true,false | short | -
 memory_dump_to_file | Dump memory to a file | false,true,true,true | short | -
+memory_find_strings | Find memory strings | true,false,true,false | short | -
 memory_free | Free memory | false,true,true,false | short | -
 memory_get_address_info | Describe addresses | true,false,true,false | short | -
 memory_hash | Hash memory | true,false,true,false | short | -
@@ -86,6 +96,7 @@ memory_load_from_file | Load memory from a file | false,true,true,true | short |
 memory_read | Read memory | true,false,true,false | short | -
 memory_read_batch | Read many addresses | true,false,true,false | short | -
 memory_read_samples | Sample values over time | true,false,true,false | short | -
+memory_read_vtable | Read a vtable | true,false,true,false | short | -
 memory_set_protection | Set memory protection | false,true,false,false | short | -
 memory_write | Write memory | false,true,false,false | short | -
 memory_write_batch | Write many addresses | false,true,false,false | short | -
@@ -169,10 +180,12 @@ structure_autoguess | Auto-guess a structure | false,true,false,false | short | 
 structure_compare | Compare structure instances | true,false,true,false | short | -
 structure_create | Create a structure | false,false,false,false | short | -
 structure_delete | Delete a structure | false,true,true,false | short | -
+structure_export | Export structures | false,true,false,true | short | -
 structure_fill_from_dotnet | Fill a structure from .NET | false,true,false,false | blocking_native | -
 structure_generate_c_header | Generate a C header | true,false,true,false | short | -
 structure_get | Get a structure | true,false,true,false | short | -
 structure_get_pdb_layout | Get a PDB structure layout | true,false,true,false | short | -
+structure_import | Import structures | false,true,false,true | short | -
 structure_list | List structures | true,false,true,false | short | -
 structure_read | Read structure values | true,false,true,false | short | -
 structure_remove_elements | Remove structure elements | false,true,true,false | short | -

@@ -138,7 +138,7 @@ pwsh -NoProfile -File eng/Publish.ps1 -Configuration Debug
 ~~~
 
 Publishing Native AOT on Windows requires the Visual Studio Build Tools or Visual Studio C++ desktop workload and the Windows SDK.
-The repository pins .NET SDK 10.0.401 with roll-forward disabled.
+The repository pins .NET SDK 10.0.402 with roll-forward disabled.
 
 ## Contributor guidance
 

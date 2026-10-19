@@ -1,6 +1,6 @@
 namespace CheatEngine.Mcp.Tools.Structures;
 
-/// <summary>The composition entry point of the <c>structure</c> tool domain (15 tools in the v2 catalog).</summary>
+/// <summary>The composition entry point of the <c>structure</c> tool domain (17 tools in the v2 catalog).</summary>
 public static class StructureToolsBuilderExtensions
 {
 	extension(ICheatEngineMcpBuilder builder)
@@ -15,11 +15,13 @@ public static class StructureToolsBuilderExtensions
 			ArgumentNullException.ThrowIfNull(builder);
 			return builder
 				.AddJsonTypeInfoResolver(StructuresJsonContext.Default)
+				.AddJsonTypeInfoResolver(StructureInterchangeJsonContext.Default)
 				.AddToolType<StructureTools>()
 				.AddToolType<StructureElementTools>()
 				.AddToolType<StructureValueTools>()
 				.AddToolType<StructureCompareTools>()
-				.AddToolType<StructureHeaderTools>();
+				.AddToolType<StructureHeaderTools>()
+				.AddToolType<StructureInterchangeTools>();
 		}
 	}
 }

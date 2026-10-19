@@ -5,6 +5,11 @@ exec_compile_c
 exec_compile_csharp
 exec_inject_dotnet
 exec_inject_library
+il2cpp_import_dump
+investigation_create_note
+investigation_export_notes
+investigation_search_notes
+investigation_update_note
 lua_execute
 lua_find_api
 memory_dump_to_file
@@ -19,6 +24,8 @@ process_create
 process_list
 process_open_file
 process_save_file
+structure_export
+structure_import
 symbol_add_module
 symbol_enable_sources
 table_list_files

@@ -7,8 +7,10 @@ using CheatEngine.Client;
 using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Lua;
 using CheatEngine.Client.Memory;
+using CheatEngine.Client.Processes;
 using CheatEngine.Client.Results;
 using CheatEngine.Mcp.Core.Features;
+using CheatEngine.Mcp.Core.Files;
 using CheatEngine.Mcp.Core.Values;
 using CheatEngine.Mcp.Tests.Support;
 using CheatEngine.Mcp.Tools.Structures;
@@ -42,7 +44,7 @@ internal sealed class StructureToolHarness
 {
 	private readonly Dictionary<ulong, byte> _memory = [];
 
-	internal StructureToolHarness()
+	internal StructureToolHarness(ProcessSnapshot? process = null)
 	{
 		ILuaClient lua = ClientTestDouble.Create<ILuaClient>((method, arguments) =>
 		{
@@ -77,7 +79,7 @@ internal sealed class StructureToolHarness
 					return Read(read.Address.ToUInt64(), read.Length);
 				case nameof(IMemoryClient.WriteBytes):
 					MemoryBytesWriteRequest write = (MemoryBytesWriteRequest) arguments![0]!;
-					byte[] bytes = write.Bytes.ToArray();
+					byte[] bytes = [.. write.Bytes];
 					Writes.Add((write.Address.ToUInt64(), bytes));
 					Map(write.Address.ToUInt64(), bytes);
 					return null;
@@ -102,9 +104,12 @@ internal sealed class StructureToolHarness
 				"The expression does not resolve.", null, CheatEngineHostEffect.NotStarted);
 			return false;
 		});
+		IProcessClient processes = ClientTestDouble.Create<IProcessClient>((method, _) =>
+			method.Name == nameof(IProcessClient.GetCurrentProcess) && process is { } snapshot
+				? snapshot : throw new NotSupportedException($"No process result is configured for {method.Name}."));
 		Client = ClientTestDouble.Client(Dispatcher.Dispatcher, CancellationToken.None,
 			(nameof(ICheatEngineClient.Lua), lua), (nameof(ICheatEngineClient.Memory), memory),
-			(nameof(ICheatEngineClient.Inspection), inspection));
+			(nameof(ICheatEngineClient.Inspection), inspection), (nameof(ICheatEngineClient.Processes), processes));
 		IOptions<McpExecutionOptions> execution = Options.Create(new McpExecutionOptions());
 		Dispatch = new ToolDispatch(Client, new McpFeatureGate(Options.Create(new McpFeatureOptions())), execution,
 			new DispatchStatistics(execution), TimeProvider.System, new RecordingLogger<ToolDispatch>(),
@@ -195,6 +200,9 @@ internal sealed class StructureToolHarness
 	{
 		ServiceCollection activation = new();
 		activation.AddSingleton(Client);
+		activation.AddSingleton(new McpFilePaths(new McpFileOptions(),
+			Path.Combine(Path.GetTempPath(), "CheatEngine.Mcp.StructureTests", "registry"),
+			Path.Combine(Path.GetTempPath(), "CheatEngine.Mcp.StructureTests", "data")));
 		activation.AddLogging();
 		activation.AddScoped<IFixedLuaExecutor, PluginFixedLuaExecutor>();
 		new CheatEngineMcpBuilder(activation, CheatEngineMcpMode.Backend).AddExecutionServices().AddStructureTools();

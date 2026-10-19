@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig"/>
+    <File Path=".gitmodules"/>
     <File Path="CONTRIBUTING.md"/>
     <File Path="Directory.Build.props"/>
     <File Path="Directory.Build.targets"/>
@@ -13,6 +14,8 @@
   </Folder>
   <Folder Name="/eng/">
     <File Path="eng/Publish.ps1"/>
+    <File Path="eng/SourceDependencies.props"/>
+    <File Path="eng/SourcePlugin.props"/>
     <File Path="eng/Tests.props"/>
   </Folder>
   <Folder Name="/libs/">

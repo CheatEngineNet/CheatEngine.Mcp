@@ -25,7 +25,7 @@ public sealed class ToolCatalogContractTests
 		{ "instance", 1 },
 		{ "runtime", 6 },
 		{ "process", 9 },
-		{ "memory", 19 },
+		{ "memory", 21 },
 		{ "scan", 8 },
 		{ "aob", 3 },
 		{ "pointer", 16 },
@@ -37,26 +37,27 @@ public sealed class ToolCatalogContractTests
 		{ "asm", 8 },
 		{ "record", 14 },
 		{ "table", 3 },
-		{ "structure", 15 },
+		{ "structure", 17 },
 		{ "debugger", 18 },
 		{ "exec", 7 },
 		{ "dotnet", 10 },
 		{ "mono", 15 },
 		{ "kernel", 7 },
-		{ "lua", 2 }
+		{ "lua", 2 },
+		{ "investigation", 4 },
+		{ "il2cpp", 5 }
 	};
 
 	[Fact]
-	public void ToolNames_Constants_Are194UniqueNamesSplitBetweenBackendAndGateway()
+	public void ToolNames_Constants_Are207UniqueNamesSplitBetweenBackendAndGateway()
 	{
-		string[] constants = typeof(CheatEngineToolNames).GetFields(BindingFlags.Public | BindingFlags.Static)
+		string[] constants = [.. typeof(CheatEngineToolNames).GetFields(BindingFlags.Public | BindingFlags.Static)
 			.Where(static field => field.IsLiteral)
-			.Select(static field => (string) field.GetRawConstantValue()!)
-			.ToArray();
+			.Select(static field => (string) field.GetRawConstantValue()!)];
 
-		Assert.Equal(194, constants.Length);
+		Assert.Equal(207, constants.Length);
 		Assert.Equal(constants.Order(StringComparer.Ordinal), CheatEngineToolNames.All.Order(StringComparer.Ordinal));
-		Assert.Equal(193, CheatEngineToolNames.Backend.Count);
+		Assert.Equal(206, CheatEngineToolNames.Backend.Count);
 		Assert.Equal([CheatEngineToolNames.InstanceList],
 			CheatEngineToolNames.All.Except(CheatEngineToolNames.Backend));
 	}
@@ -236,21 +237,20 @@ public sealed class ToolCatalogContractTests
 
 	private static string[] ReadLines(string golden)
 	{
-		return File.ReadAllLines(Path.Combine(RepositoryPaths.Root, "tests", "CheatEngine.Mcp.Tests", "Contract",
+		return [.. File.ReadAllLines(Path.Combine(RepositoryPaths.Root, "tests", "CheatEngine.Mcp.Tests", "Contract",
 				"Golden", golden))
-			.Where(static line => line.Length > 0 && !line.StartsWith('#'))
-			.ToArray();
+			.Where(static line => line.Length > 0 && !line.StartsWith('#'))];
 	}
 
 	private static MapEntry[] ReadMap()
 	{
-		return ReadLines("legacy-tool-map.txt").Select(static line =>
+		return [.. ReadLines("legacy-tool-map.txt").Select(static line =>
 		{
 			string[] columns = line.Split(" | ");
 			Assert.True(columns.Length == 4, $"'{line}' must have four columns.");
 			string[] targets = columns[2] == "-" ? [] : columns[2].Split(", ");
 			return new MapEntry(columns[0], columns[1], targets, columns[3]);
-		}).ToArray();
+		})];
 	}
 
 	private sealed record MapEntry(string OldName, string Kind, string[] Targets, string Note);

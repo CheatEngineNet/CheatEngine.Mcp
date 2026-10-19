@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
@@ -30,6 +31,13 @@ internal static class LiveWorkflowQualification
 		await VerifyControlFlowAsync(sandbox, instance);
 		await VerifyModulesAsync(sandbox, instance);
 		await VerifyStructuresAsync(sandbox, instance);
+		await LiveInspectionQualification.VerifyAsync(sandbox, instance);
+		await LiveCatalogStateQualification.VerifyAsync(sandbox, instance);
+		await LiveRoadmapQualification.VerifyAsync(sandbox, instance);
+		await LiveFileRecordQualification.VerifyAsync(sandbox, instance);
+		await LiveCodeAnalysisQualification.VerifyAsync(sandbox, instance);
+		await LiveModuleExportQualification.VerifyAsync(sandbox, instance);
+		await LiveDissectionQualification.VerifyAsync(sandbox, instance);
 	}
 
 	internal static async Task VerifyGatesAsync(LiveSandboxSession sandbox, LiveMcpInstanceClient instance)
@@ -163,11 +171,29 @@ internal static class LiveWorkflowQualification
 			snapshotCreated = true;
 			Assert.Equal(0, snapshotResult["unreadableBytes"]!.GetValue<int>());
 			Assert.Empty(snapshotResult["unreadable"]!.AsArray());
+			JsonNode listedSnapshots = await CallAsync(instance, CheatEngineToolNames.MemoryListSnapshots);
+			JsonNode listedSnapshot = Assert.Single(listedSnapshots["snapshots"]!.AsArray(),
+				item => Text(item, "name") == snapshot)!;
+			Assert.Equal(dst, Text(listedSnapshot, "address"));
+			Assert.Equal(16, listedSnapshot["size"]!.GetValue<int>());
+			Assert.Equal(sandbox.HostA.TargetProcessId, listedSnapshot["processId"]!.GetValue<int>());
+			Assert.True(listedSnapshots["totalBytes"]!.GetValue<long>() >= 16);
+			sandbox.Record("all_tools_memory_list_snapshots", listedSnapshots.DeepClone());
 			await WriteAsync(instance, dst, "int32", "7");
 			JsonNode diff = await CallAsync(instance, CheatEngineToolNames.MemoryCompareSnapshot,
 				new Dictionary<string, object?> { ["name"] = snapshot, ["valueType"] = "int32", ["alignment"] = 4, ["change"] = "changed", ["offset"] = 0, ["limit"] = 10 });
 			Assert.Equal((4, 0, 1), (diff["compared"]!.GetValue<int>(), diff["skipped"]!.GetValue<int>(), diff["total"]!.GetValue<int>()));
 			Assert.Equal(dst, Text(Assert.Single(diff["changes"]!.AsArray()), "address"));
+			JsonNode deletedSnapshot = await CallAsync(instance, CheatEngineToolNames.MemoryDeleteSnapshot,
+				new Dictionary<string, object?> { ["name"] = snapshot });
+			snapshotCreated = false;
+			Assert.Equal(snapshot, Text(deletedSnapshot, "name"));
+			Assert.Equal(16, deletedSnapshot["freedBytes"]!.GetValue<int>());
+			JsonNode afterDeletion = await CallAsync(instance, CheatEngineToolNames.MemoryListSnapshots);
+			Assert.DoesNotContain(afterDeletion["snapshots"]!.AsArray(), item => Text(item, "name") == snapshot);
+			Assert.Equal(listedSnapshots["totalBytes"]!.GetValue<long>() - 16,
+				afterDeletion["totalBytes"]!.GetValue<long>());
+			sandbox.Record("all_tools_memory_delete_snapshot", deletedSnapshot.DeepClone());
 
 			JsonNode protection = await CallAsync(instance, CheatEngineToolNames.MemorySetProtection,
 				new Dictionary<string, object?> { ["address"] = dst, ["size"] = 16, ["read"] = true, ["write"] = false, ["execute"] = false });
@@ -402,17 +428,26 @@ internal static class LiveWorkflowQualification
 	{
 		JsonNode listed = await CallAsync(instance, CheatEngineToolNames.ModuleList, new Dictionary<string, object?> { ["format"] = "detailed", ["limit"] = 1000 });
 		string expected = sandbox.TargetArchitecture == "x86" ? "dotnet.exe" : "CheatEngine.Mcp.LiveTarget.exe";
-		JsonNode module = Assert.Single(listed["modules"]!.AsArray(), item => string.Equals(Text(item, "name"), expected, StringComparison.OrdinalIgnoreCase))!;
+		using Process target = Process.GetProcessById(sandbox.HostA.TargetProcessId);
+		using ProcessModule executable = target.MainModule ?? throw new InvalidOperationException("The owned target has no main module.");
+		string imageBase = ((ulong) executable.BaseAddress).ToString("X", CultureInfo.InvariantCulture);
+		// WOW64 enumeration can contain multiple entries with the executable's name. Verify the independently
+		// observed image base instead of assuming that a basename uniquely identifies the target module.
+		sandbox.Record("live_workflow_module_candidates", listed.DeepClone());
+		JsonNode[] matches = [.. listed["modules"]!.AsArray().Where(item =>
+			string.Equals(Text(item, "name"), expected, StringComparison.OrdinalIgnoreCase) && Text(item, "base") == imageBase).Select(item => item!)];
+		Assert.NotEmpty(matches);
+		JsonNode module = matches[0];
 		string name = Text(module, "name"), @base = Text(module, "base");
 		Assert.True(Parse(@base) > 0);
 		Assert.True(module["size"]!.GetValue<long>() > 0);
 		Assert.Equal(sandbox.TargetArchitecture == "x64", module["is64Bit"]!.GetValue<bool>());
-		JsonNode details = await CallAsync(instance, CheatEngineToolNames.ModuleGet, new Dictionary<string, object?> { ["module"] = name });
+		JsonNode details = await CallAsync(instance, CheatEngineToolNames.ModuleGet, new Dictionary<string, object?> { ["module"] = imageBase });
 		Assert.Equal(@base, Text(details, "base"));
 		Assert.NotEmpty(details["sections"]!.AsArray());
 		Assert.Contains(details["sections"]!.AsArray(), section => section!["executable"]?.GetValue<bool>() == true);
 		Assert.Equal(sandbox.TargetArchitecture, Text(details["pe"], "machine"));
-		JsonNode imports = await CallAsync(instance, CheatEngineToolNames.ModuleListImports, new Dictionary<string, object?> { ["module"] = name, ["includeDelayLoaded"] = true, ["offset"] = 0, ["limit"] = 1000 });
+		JsonNode imports = await CallAsync(instance, CheatEngineToolNames.ModuleListImports, new Dictionary<string, object?> { ["module"] = imageBase, ["includeDelayLoaded"] = true, ["offset"] = 0, ["limit"] = 1000 });
 		Assert.True(imports["total"]!.GetValue<int>() > 0);
 		foreach (JsonNode? import in imports["imports"]!.AsArray())
 		{
@@ -427,7 +462,7 @@ internal static class LiveWorkflowQualification
 			Assert.Null(item!["error"]);
 			Assert.Equal(@base, Text(item, "address"));
 		}
-		JsonNode patches = await CallAsync(instance, CheatEngineToolNames.ModuleFindPatches, new Dictionary<string, object?> { ["module"] = name, ["includeNonExecutable"] = false, ["limit"] = 1024 });
+		JsonNode patches = await CallAsync(instance, CheatEngineToolNames.ModuleFindPatches, new Dictionary<string, object?> { ["module"] = imageBase, ["includeNonExecutable"] = false, ["limit"] = 1024 });
 		Assert.Equal(name, Text(patches, "module"));
 		Assert.True(patches["comparedBytes"]!.GetValue<long>() > 0);
 		Assert.Equal(0L, patches["unreadableBytes"]!.GetValue<long>());
@@ -688,7 +723,7 @@ internal static class LiveWorkflowQualification
 	private static async Task<JsonNode> CallAsync(LiveMcpInstanceClient client, string tool, IReadOnlyDictionary<string, object?>? arguments = null) => await client.CallToolAsync(tool, arguments) ?? throw new InvalidDataException($"Tool '{tool}' returned no payload.");
 	private static JsonNode Payload(LiveMcpToolResult result) => result.Payload ?? throw new InvalidDataException("Expected error returned no payload.");
 	private static string Text(JsonNode? node, string property) => node?[property]?.GetValue<string>() ?? throw new InvalidDataException($"Missing string '{property}'.");
-	private static string[] Strings(JsonNode? node) => node is null ? [] : node.AsArray().Select(item => item!.GetValue<string>()).ToArray();
+	private static string[] Strings(JsonNode? node) => node is null ? [] : [.. node.AsArray().Select(item => item!.GetValue<string>())];
 	private static ulong Parse(string value) => ulong.Parse(value.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? value[2..] : value, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture);
 	private static string At(string address, int offset) => checked(Parse(address) + (ulong) offset).ToString("X", CultureInfo.InvariantCulture);
 	private static async Task CleanupAsync(List<Exception> failures, Func<Task> action)

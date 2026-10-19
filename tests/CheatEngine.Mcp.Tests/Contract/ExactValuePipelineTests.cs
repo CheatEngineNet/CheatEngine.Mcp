@@ -1,6 +1,9 @@
+using System.Collections.Immutable;
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 
+using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Results;
 using CheatEngine.Mcp.Core.Contract;
@@ -32,27 +35,29 @@ public sealed class ExactValuePipelineTests
 	public async Task MemoryRead_ExactAndEmptyValues_RemainStringsThroughClientAndGateway(string valueType,
 		string expected, string address)
 	{
-		TargetDouble target = new();
-		target.Memory = (method, arguments) =>
+		TargetDouble target = new()
 		{
-			if (valueType == "string")
+			Memory = (method, arguments) =>
 			{
-				Assert.Equal(nameof(IMemoryClient.ReadString), method.Name);
-				return string.Empty;
-			}
+				if (valueType == "string")
+				{
+					Assert.Equal(nameof(IMemoryClient.ReadString), method.Name);
+					return string.Empty;
+				}
 
-			Assert.Equal(nameof(IMemoryClient.ReadPrimitive), method.Name);
-			Assert.Equal(ulong.Parse(address, NumberStyles.HexNumber, CultureInfo.InvariantCulture),
-				Assert.IsType<Address>(arguments[0]).ToUInt64());
-			return valueType switch
-			{
-				"int64" => (object) long.Parse(expected, CultureInfo.InvariantCulture),
-				"uint64" => ulong.Parse(expected, CultureInfo.InvariantCulture),
-				"pointer" => new Address(ulong.MaxValue),
-				"uint8" => (byte) 0,
-				"int32" => 0,
-				_ => throw new InvalidOperationException("Unexpected value type.")
-			};
+				Assert.Equal(nameof(IMemoryClient.ReadPrimitive), method.Name);
+				Assert.Equal(ulong.Parse(address, NumberStyles.HexNumber, CultureInfo.InvariantCulture),
+					Assert.IsType<Address>(arguments[0]).ToUInt64());
+				return valueType switch
+				{
+					"int64" => (object) long.Parse(expected, CultureInfo.InvariantCulture),
+					"uint64" => ulong.Parse(expected, CultureInfo.InvariantCulture),
+					"pointer" => new Address(ulong.MaxValue),
+					"uint8" => (byte) 0,
+					"int32" => 0,
+					_ => throw new InvalidOperationException("Unexpected value type.")
+				};
+			}
 		};
 		using TestActivation activation = new(target.Client);
 		await using TestMcpPipeline pipeline = await TestMcpPipeline.StartAsync(activation.Manifest,
@@ -111,7 +116,7 @@ public sealed class ExactValuePipelineTests
 			Assert.Equal(nameof(IMemoryClient.TryReadString), method.Name);
 			bool available = ++stringReads == 1;
 			arguments[1] = available ? string.Empty : null;
-			arguments[2] = available ? default(CheatEngineFailure) :
+			arguments[2] = available ? default :
 				new CheatEngineFailure(CheatEngineFailureKind.MemoryReadFailed, "Memory.ReadString",
 					"The fixture page is unreadable.", hostEffect: CheatEngineHostEffect.NotApplied);
 			return available;
@@ -136,6 +141,95 @@ public sealed class ExactValuePipelineTests
 		Assert.False(items[2].TryGetProperty("value", out _));
 		Assert.Equal("memory_read_failed", items[2].GetProperty("error").GetProperty("kind").GetString());
 		Assert.Equal(2, stringReads);
+		Assert.Equal(0, target.Mutations);
+	}
+
+	[Theory]
+	[InlineData("utf8", 7)]
+	[InlineData("utf16_le", 8)]
+	public async Task MemoryFindStrings_UnicodeAndWideAddress_RoundTripAcrossClientAndGateway(string encoding,
+		int expectedBytes)
+	{
+		TargetDouble target = new();
+		byte[] bytes = (encoding == "utf8" ? Encoding.UTF8 : Encoding.Unicode).GetBytes("hé😊");
+		target.Memory = (method, arguments) =>
+		{
+			Assert.Equal(nameof(IMemoryClient.ReadBytes), method.Name);
+			MemoryBytesReadRequest request = Assert.IsType<MemoryBytesReadRequest>(arguments[0]);
+			Assert.Equal(0x20000000000001UL, request.Address.ToUInt64());
+			Assert.Equal(expectedBytes, request.Length);
+			return bytes.ToImmutableArray();
+		};
+		using TestActivation activation = new(target.Client);
+		await using TestMcpPipeline pipeline = await TestMcpPipeline.StartAsync(activation.Manifest,
+			McpPrimitiveBinding.FromTargets(activation.Targets));
+		string arguments = $$"""{"address":"20000000000001","size":{{expectedBytes}},"encoding":"{{encoding}}","minLength":3}""";
+
+		CallToolResult direct = await pipeline.CallAsync(CheatEngineToolNames.MemoryFindStrings, arguments);
+		JsonElement routed = await AssertGatewayRoundTripAsync(CheatEngineToolNames.MemoryFindStrings, arguments, direct);
+
+		Assert.Equal(encoding, routed.GetProperty("encoding").GetString());
+		Assert.Equal(1, routed.GetProperty("total").GetInt32());
+		Assert.False(routed.GetProperty("truncated").GetBoolean());
+		Assert.False(routed.TryGetProperty("nextOffset", out _));
+		JsonElement match = Assert.Single(routed.GetProperty("strings").EnumerateArray());
+		Assert.Equal("20000000000001", match.GetProperty("address").GetString());
+		Assert.Equal("hé😊", match.GetProperty("text").GetString());
+		Assert.Equal(expectedBytes, match.GetProperty("byteLength").GetInt32());
+		Assert.True(match.GetProperty("startsAtRangeBoundary").GetBoolean());
+		Assert.True(match.GetProperty("endsAtRangeBoundary").GetBoolean());
+		Assert.Single(target.CallsTo("Memory"));
+		Assert.Equal(0, target.Mutations);
+	}
+
+	[Fact]
+	public async Task MemoryReadVtable_WidePointersNullAndUnreadableSlots_RoundTripAcrossClientAndGateway()
+	{
+		TargetDouble target = new()
+		{
+			Memory = (method, arguments) =>
+			{
+				Assert.Equal(nameof(IMemoryClient.ReadBytesDetailed), method.Name);
+				MemoryBytesReadRequest request = Assert.IsType<MemoryBytesReadRequest>(arguments[0]);
+				Assert.Equal(8, request.Length);
+				return request.Address.ToUInt64() switch
+				{
+					0x20000000000001 => new MemoryBytesReadOutcome(8, [.. BitConverter.GetBytes(ulong.MaxValue)], null),
+					0x20000000000009 => new MemoryBytesReadOutcome(8, [.. new byte[8]], null),
+					0x20000000000011 => new MemoryBytesReadOutcome(8, [], new CheatEngineFailure(
+						CheatEngineFailureKind.MemoryReadFailed, "Memory.ReadBytesDetailed", "Unreadable fixture slot.",
+						hostEffect: CheatEngineHostEffect.Completed)),
+					_ => throw new InvalidOperationException("Unexpected vtable slot.")
+				};
+			},
+			Inspection = (method, arguments) =>
+				{
+					Assert.Equal(nameof(IInspectionClient.TryResolveName), method.Name);
+					Assert.Equal(ulong.MaxValue, Assert.IsType<Address>(arguments[0]).ToUInt64());
+					arguments[1] = "game!VirtualMethod";
+					arguments[2] = default(CheatEngineFailure);
+					return true;
+				}
+		};
+		using TestActivation activation = new(target.Client);
+		await using TestMcpPipeline pipeline = await TestMcpPipeline.StartAsync(activation.Manifest,
+			McpPrimitiveBinding.FromTargets(activation.Targets));
+		const string arguments = """{"address":"20000000000001","addressIsVtable":true,"count":3}""";
+
+		CallToolResult direct = await pipeline.CallAsync(CheatEngineToolNames.MemoryReadVtable, arguments);
+		JsonElement routed = await AssertGatewayRoundTripAsync(CheatEngineToolNames.MemoryReadVtable, arguments, direct);
+
+		Assert.Equal("20000000000001", routed.GetProperty("vtableAddress").GetString());
+		Assert.Equal(8, routed.GetProperty("pointerBytes").GetInt32());
+		JsonElement slots = routed.GetProperty("slots");
+		Assert.Equal(3, slots.GetArrayLength());
+		Assert.Equal("FFFFFFFFFFFFFFFF", slots[0].GetProperty("functionAddress").GetString());
+		Assert.Equal("game!VirtualMethod", slots[0].GetProperty("symbol").GetString());
+		Assert.Equal("0", slots[1].GetProperty("functionAddress").GetString());
+		Assert.False(slots[1].TryGetProperty("symbol", out _));
+		Assert.False(slots[2].TryGetProperty("functionAddress", out _));
+		Assert.Equal("memory_read_failed", slots[2].GetProperty("error").GetProperty("kind").GetString());
+		Assert.Equal(3, target.CallsTo("Memory").Length);
 		Assert.Equal(0, target.Mutations);
 	}
 

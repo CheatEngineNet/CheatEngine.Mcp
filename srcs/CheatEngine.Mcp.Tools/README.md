@@ -40,13 +40,13 @@ preserve the complete catalog and its ordering.
 
 ## Tool domains
 
-The current v2 catalog contains 193 backend tools in 21 domains.
+The current v2 catalog contains 206 backend tools in 23 domains.
 
 | Folder and registration | Tools | Scope |
 | --- | ---: | --- |
 | `Runtime/` - `AddRuntimeTools()` | 6 | Server and capability information, resource cleanup, and jobs. |
 | `Processes/` - `AddProcessTools()` | 9 | Process discovery, target selection, pause and resume operations. |
-| `Memory/` - `AddMemoryTools()` | 19 | Reads, writes, protection, allocations, files, snapshots, and samples. |
+| `Memory/` - `AddMemoryTools()` | 21 | Reads, writes, string discovery, vtable inspection, protection, allocations, files, snapshots, and samples. |
 | `Scan/` - `AddScanTools()` | 8 | Main value-scanner lifecycle, criteria, results, and named scanners. |
 | `Aob/` - `AddAobTools()` | 3 | Array-of-bytes search and signature generation. |
 | `Pointer/` - `AddPointerTools()` | 16 | Supplied access facts, batch chains, maps, references, scans, and persisted scan files. |
@@ -58,13 +58,15 @@ The current v2 catalog contains 193 backend tools in 21 domains.
 | `Asm/` - `AddAsmTools()` | 8 | Assembly, script checks, patches, injection, and API-hook templates. |
 | `Record/` - `AddRecordTools()` | 14 | Address-list records, grouping, scripts, dropdowns, and cleanup. |
 | `Table/` - `AddTableTools()` | 3 | Cheat-table loading, saving, and file listing. |
-| `Structures/` - `AddStructureTools()` | 15 | Structure Dissect definitions, elements, values, comparison, and C headers. |
+| `Structures/` - `AddStructureTools()` | 17 | Structure Dissect definitions, elements, values, comparison, C headers, and interchange. |
 | `Debugger/` - `AddDebuggerTools()` | 18 | Debugger sessions, breakpoints, threads, context, capture, traces, and stepping. |
 | `Exec/` - `AddExecTools()` | 7 | Native and managed injection, calls, and C/C# compilation. |
 | `DotNet/` - `AddDotNetTools()` | 10 | Managed-runtime domains, types, methods, objects, and instance searches. |
 | `Mono/` - `AddMonoTools()` | 15 | Mono attachment, metadata, fields, invocation, objects, and instance searches. |
 | `Kernel/` - `AddKernelTools()` | 7 | DBVM, address translation, physical memory, and watches. |
 | `Lua/` - `AddLuaTools()` | 2 | Caller-authored Lua execution and Cheat Engine Lua API lookup. |
+| `Investigation/` - `AddInvestigationTools()` | 4 | Durable notes, revision conflicts, searches, exports, and module/RVA bindings. |
+| `Il2Cpp/` - `AddIl2CppTools()` | 5 | Offline dump import, type/member searches, build-bound RVA resolution, and dataset release. |
 
 The live descriptions and exact input/output schemas are the source of truth
 for a client. The repository's human-readable index is the
@@ -83,6 +85,7 @@ must not cross Cheat Engine activations:
 | `MappedMemoryOverride` | `Scan/` and `Aob/` | Shared `MEM_MAPPED` scanner override. |
 | `PointerStore` | `Pointer/` | Pointer maps and scan state. |
 | `SymbolRegistrations` | `Symbol/` | Symbols registered by MCP. |
+| `Il2CppDumpStore` | `Il2Cpp/` | Immutable imported metadata datasets, released explicitly or with the activation. |
 | `MainScannerTransitionGuard` | `AddTools()` | Prevents unsafe target changes while the main scanner is active. |
 
 Core owns the other activation resources: the dispatch ledger, target-resource

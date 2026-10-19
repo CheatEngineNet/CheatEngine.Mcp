@@ -1,0 +1,8 @@
+[submodule "externals/CheatEngine.SDK"]
+	path = externals/CheatEngine.SDK
+	url = https://github.com/CheatEngineNet/CheatEngine.SDK.git
+	branch = main
+[submodule "externals/CheatEngine.Client"]
+	path = externals/CheatEngine.Client
+	url = https://github.com/CheatEngineNet/CheatEngine.Client.git
+	branch = main

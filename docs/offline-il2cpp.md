@@ -1,0 +1,11 @@
+# Offline IL2CPP dump import
+
+`il2cpp_import_dump` accepts the deliberately narrow `dump_cs_v1` text contract. It is for offline lookup from a local UTF-8 `dump.cs`; it does not parse arbitrary C#, `global-metadata.dat`, APK files, or a target process.
+
+The parser recognizes `// Image N: Assembly-CSharp.dll - N`, `// Namespace: Name`, and class, struct, interface, or enum declarations carrying `// TypeDefIndex: N`. Within a type it recognizes `// Fields` followed by semicolon-terminated field declarations, and `// Methods` followed immediately by `// RVA: 0x...` or `// RVA: -1` and a method declaration. Attribute lines and `// Properties` declarations are skipped. TypeDefIndex is required. Field offsets are read only from a trailing `// 0x...`; static and const fields have no offset. An RVA of `-1` has no resolvable address.
+
+Image headers must precede all types, have contiguous zero-based image numbers, and have nondecreasing type-index starts. Equal starts represent empty images; a type belongs to the last image whose start is no greater than its index. Type indices must be unique and increasing. Method declarations must end in `;` or an empty `{ }` body. Standalone block comments, including generic-instantiation annotations, are ignored; their contents do not add members.
+
+An import is immutable and returns an opaque dataset id. At most four datasets, each source at most 16 MiB, are retained. Each dataset is limited to 4,096 image headers, 20,000 types and 100,000 members; each source line is limited to 8,192 characters. Imports are rejected before publication when UTF-8 is invalid, the supported shape is missing, duplicate type ids appear, a method lacks its immediately preceding RVA comment, or a bound is exceeded. Use `il2cpp_delete_dump` before replacing an import.
+
+`il2cpp_find_types` and `il2cpp_find_members` perform stable filtered paging without target access. `il2cpp_resolve_method` requires that the import included `modulePath`, which is an original local PE file. The importer records its bounded PE build identity and only resolves a dump-provided RVA after the attached target's same-named module matches it. Resolution reports an observed address and PE section classification; it does not claim that a method is callable or execute anything.

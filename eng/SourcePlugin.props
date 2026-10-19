@@ -1,0 +1,27 @@
+<Project>
+  <!-- Source ProjectReferences do not import a package's build or buildTransitive assets. Import the same
+       consumer contracts explicitly; each dependency still owns its own repository-wide build settings. -->
+  <Import Project="$(CeMcpSdkSourceRoot)/src/CheatEngine.SDK/build/CheatEngine.SDK.props"/>
+  <Import Project="$(CeMcpClientSourceRoot)/libs/CheatEngine.Client.Hosting/buildTransitive/CheatEngine.Client.Hosting.props"/>
+  <PropertyGroup>
+    <!-- The SDK consumer props use the packed layout. Source builds use the audited, checked-in bridge. -->
+    <_CheatEngineSdkLuaBridgePath>$(CeMcpSdkSourceRoot)/native/cheatengine-sdk-lua-bridge/runtimes/win-x64/native/cheatengine-sdk-lua-bridge.dll</_CheatEngineSdkLuaBridgePath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Content Include="$(_CheatEngineSdkLuaBridgePath)" Link="cheatengine-sdk-lua-bridge.dll"
+             CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Pack="false" Visible="false"/>
+    <!-- Analyzer ProjectReferences are not transitive; the plugin compiler needs the same components as a package consumer. -->
+    <ProjectReference Include="$(CeMcpSdkSourceRoot)/analyzers/CheatEngine.SDK.Analyzers/CheatEngine.SDK.Analyzers.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all"/>
+    <ProjectReference Include="$(CeMcpSdkSourceRoot)/analyzers/CheatEngine.SDK.Analyzers.CodeFixes/CheatEngine.SDK.Analyzers.CodeFixes.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all"/>
+    <ProjectReference Include="$(CeMcpSdkSourceRoot)/source-generators/CheatEngine.SDK.SourceGenerators.EntryPoint/CheatEngine.SDK.SourceGenerators.EntryPoint.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all"/>
+    <ProjectReference Include="$(CeMcpSdkSourceRoot)/source-generators/CheatEngine.SDK.SourceGenerators.LuaBindings/CheatEngine.SDK.SourceGenerators.LuaBindings.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all"/>
+    <ProjectReference Include="$(CeMcpSdkSourceRoot)/source-generators/CheatEngine.SDK.SourceGenerators.Shared/CheatEngine.SDK.SourceGenerators.Shared.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all"/>
+    <ProjectReference Include="$(CeMcpClientSourceRoot)/source-generators/CheatEngine.Client.SourceGenerators.Lua/CheatEngine.Client.SourceGenerators.Lua.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all"/>
+  </ItemGroup>
+</Project>

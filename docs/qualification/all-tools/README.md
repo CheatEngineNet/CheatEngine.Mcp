@@ -1,6 +1,6 @@
 # Full tool qualification
 
-The current catalog contains 193 backend tools and the gateway's `instance_list` tool.
+The current catalog contains 206 backend tools and the gateway's `instance_list` tool.
 Every tool needs a reviewed success case with known inputs, an independent result or side-effect oracle,
 and cleanup verification. Catalog discovery, routing, disabled-feature refusals and compilation of a fixed
 Lua body do not establish successful native execution.
@@ -37,14 +37,62 @@ Lua body do not establish successful native execution.
 - [ ] Qualify successful gated operations and DBK/DBVM operations in their required environments.
 - [ ] Qualify all tools on the exact replacement product bundle after fixes, including restart and cleanup.
 
-The machine-readable report contains one row for each of the 194 tools. It keeps routing, tests using
+The machine-readable report contains one row for each of the 207 tools. It keeps routing, tests using
 doubles, direct fixed-Lua bodies and live results separate. The reviewed
-[`behavior-evidence.json`](behavior-evidence.json) maps positive adapter evidence for all 193 backend names.
+[`behavior-evidence.json`](behavior-evidence.json) maps positive adapter evidence for all 206 backend names.
 Each mapped test lists its exact required TRX case names; every case must occur once and pass.
 Passing only one branch of a parameterized test cannot qualify another branch's tool.
 These cases use Client or CE API doubles, including real standalone Lua where applicable. They are partial
 cases, not complete behavior partitions or native CE qualification. The gateway's local discovery checks
-bring the advertised catalog total to 194. A live mapping requires its own concrete oracle and cleanup receipts.
+bring the advertised catalog total to 207. A live mapping requires its own concrete oracle and cleanup receipts.
+
+## Roadmap verification from 2026-10-19
+
+The expanded roadmap build passed with zero warnings or errors. The portable Release suite passed 5,551 tests,
+and standalone Lua 5.3 passed 658 tests, with zero failures or skips. The report verifies routing for all 207
+advertised names and positive adapter evidence for all 206 backend tools. Eleven seeded fuzz tests exercise
+1,792 generated cases, including valid and malformed offline IL2CPP dumps.
+
+Fresh combined coverage reaches **21,597 / 22,890 handwritten product C# lines (94.35%)**. The union excludes
+generated files and tests. Line hits do not prove every decision outcome, embedded Lua branch or native host behavior.
+The private distribution passed its isolated plugin-load probe and Native AOT gateway smoke check.
+
+These results are retained under `artifacts/test-results/ai-analysis-20261019/roadmap-portable-release-2`,
+`roadmap-native-lua-1`, `roadmap-tool-report-portable-1`, and `roadmap-product-coverage-1.json`.
+The expanded native fixtures are being reviewed and run separately; a prepared live mapping is not a passing result.
+The inspection baseline below remains historical evidence for its own bundle.
+
+## Inspection additions from 2026-10-19
+
+The catalog adds `memory_find_strings` and `memory_read_vtable`. The existing `pointer_read_chains` gains optional
+completed-hop traces while preserving its compact default and read budget. The new portable adapter cases assert
+Unicode decoding, byte addresses, paging, bounded previews, pointer widths, ordered slots, per-slot errors and
+target-change rejection. MCP and gateway cases preserve wide addresses and distinguish null pointers from failed
+reads. Updated contract snapshots and positive adapter mappings include both new tools.
+
+The verified inspection baseline passed 5,387 portable tests in both Debug and Release and 651 standalone NativeLua
+tests, with no failures or skips. Nine deterministic fuzz tests cover 1,600 generated cases across values, pointer
+files, Unicode memory inspection, virtual tables and pointer chains. The .NET SDK and CI use 10.0.402; the matching
+bundle passed the isolated plugin-load probe and Native AOT gateway smoke check.
+
+Private x64 run `20261019T073555Z-2c66` and x86 run `20261019T074249Z-5578` passed with two owned targets and two
+private CE copies. Both restored user state, preserved the source installation and reported no cleanup failures.
+The x86 fixture was corrected to select the main module by an independently observed base address because CE can
+report duplicate identical module names under WOW64; the earlier failed run remains diagnostic evidence only.
+
+Each architecture's report verifies 196 routing cases, 195 positive adapter mappings and 62 native success mappings.
+The remaining 133 backend tools are unverified for native success. The sessions include target/gateway/host restarts,
+but zero plugin reload cycles and no enabled optional capability gates.
+
+The package hashes were:
+
+| File | SHA-256 |
+| --- | --- |
+| `CheatEngine.Mcp.dll` | `1969546DF46C548D4AFB4408886493F538C5FCF9458D9E3DF36ECBBF41C71047` |
+| `CheatEngine.Mcp.Gateway.exe` | `ADA1A445E21D79E354EBBA842B13822C662E83946194B23BD1574B30E533687D` |
+
+Further roadmap implementation is underway. These receipts qualify the inspection baseline only; new changes need
+fresh builds and reports. Earlier coverage percentages below retain their original measurement date.
 
 ## Automated results from 2026-10-16
 

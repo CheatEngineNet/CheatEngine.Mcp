@@ -1013,6 +1013,150 @@
       "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
     },
     {
+      "name": "il2cpp_delete_dump",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Il2Cpp.Il2CppDumpStoreTests.Tools_OfflineCatalogOperations_ImportSearchResolveAndDelete",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Il2Cpp/Il2CppDumpStoreTests.cs",
+          "scope": "adapter",
+          "oracle": "Production tools import owned PE-bound metadata, return exact type/member facts, resolve the expected module-relative address and explicitly delete the dataset.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Il2Cpp.Il2CppDumpStoreTests.Tools_OfflineCatalogOperations_ImportSearchResolveAndDelete"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "il2cpp_find_members",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Il2Cpp.Il2CppDumpStoreTests.Tools_OfflineCatalogOperations_ImportSearchResolveAndDelete",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Il2Cpp/Il2CppDumpStoreTests.cs",
+          "scope": "adapter",
+          "oracle": "Production tools import owned PE-bound metadata, return exact type/member facts, resolve the expected module-relative address and explicitly delete the dataset.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Il2Cpp.Il2CppDumpStoreTests.Tools_OfflineCatalogOperations_ImportSearchResolveAndDelete"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "il2cpp_find_types",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Il2Cpp.Il2CppDumpStoreTests.Tools_OfflineCatalogOperations_ImportSearchResolveAndDelete",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Il2Cpp/Il2CppDumpStoreTests.cs",
+          "scope": "adapter",
+          "oracle": "Production tools import owned PE-bound metadata, return exact type/member facts, resolve the expected module-relative address and explicitly delete the dataset.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Il2Cpp.Il2CppDumpStoreTests.Tools_OfflineCatalogOperations_ImportSearchResolveAndDelete"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "il2cpp_import_dump",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Il2Cpp.Il2CppDumpStoreTests.Tools_OfflineCatalogOperations_ImportSearchResolveAndDelete",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Il2Cpp/Il2CppDumpStoreTests.cs",
+          "scope": "adapter",
+          "oracle": "Production tools import owned PE-bound metadata, return exact type/member facts, resolve the expected module-relative address and explicitly delete the dataset.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Il2Cpp.Il2CppDumpStoreTests.Tools_OfflineCatalogOperations_ImportSearchResolveAndDelete"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "il2cpp_resolve_method",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Il2Cpp.Il2CppDumpStoreTests.Tools_OfflineCatalogOperations_ImportSearchResolveAndDelete",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Il2Cpp/Il2CppDumpStoreTests.cs",
+          "scope": "adapter",
+          "oracle": "Production tools import owned PE-bound metadata, return exact type/member facts, resolve the expected module-relative address and explicitly delete the dataset.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Il2Cpp.Il2CppDumpStoreTests.Tools_OfflineCatalogOperations_ImportSearchResolveAndDelete"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "investigation_create_note",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Investigation.InvestigationToolsTests.CreateThenRestartSearch_RecoversTheImmutableRevision",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Investigation/InvestigationToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Exact canonical name, revision, title, body, tags, confidence and observations survive reconstruction and persisted JSON reread.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Investigation.InvestigationToolsTests.CreateThenRestartSearch_RecoversTheImmutableRevision"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "investigation_export_notes",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Investigation.InvestigationToolsTests.Search_PaginatesOrdinalLatestAndExportUsesEnvelopeWithoutHostPath",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Investigation/InvestigationToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Version-one envelope has exact ordered names, count and updated title/revision; result omits host path.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Investigation.InvestigationToolsTests.Search_PaginatesOrdinalLatestAndExportUsesEnvelopeWithoutHostPath"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "investigation_search_notes",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Investigation.InvestigationToolsTests.Search_PaginatesOrdinalLatestAndExportUsesEnvelopeWithoutHostPath",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Investigation/InvestigationToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Exact latest-only ordinal page, total, continuation and independently decoded export rows.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Investigation.InvestigationToolsTests.Search_PaginatesOrdinalLatestAndExportUsesEnvelopeWithoutHostPath"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "investigation_update_note",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Investigation.InvestigationToolsTests.Update_CompetingExpectedRevision_AllowsExactlyOneImmutableSuccessor",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Investigation/InvestigationToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Revision two succeeds once; stale expected revision returns invalid_state and exactly two immutable files remain.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Investigation.InvestigationToolsTests.Update_CompetingExpectedRevision_AllowsExactlyOneImmutableSuccessor"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
       "name": "kernel_get_status",
       "cases": [
         {
@@ -1272,6 +1416,22 @@
       "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
     },
     {
+      "name": "memory_find_strings",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Memory.MemoryStringToolsTests.FindStrings_Utf8MultibyteRuns_ReadsTheExactRangeOnceAndReturnsExactAddresses",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Memory/MemoryStringToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Exact requested address and byte count, one read, exact Unicode text and byte offsets, total and boundary flags.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemoryStringToolsTests.FindStrings_Utf8MultibyteRuns_ReadsTheExactRangeOnceAndReturnsExactAddresses"
+          ]
+        }
+      ],
+      "remaining": "Native success and cleanup on the exact product bundle remain unverified."
+    },
+    {
       "name": "memory_free",
       "cases": [
         {
@@ -1424,6 +1584,22 @@
         }
       ],
       "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "memory_read_vtable",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Memory.MemoryVtableToolsTests.ReadVtable_ObjectAddress_ReadsTheFirstPointerThenNamesEachNonNullSlot",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Memory/MemoryVtableToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Object pointer resolves the expected table, exact ordered function pointers and symbols, target pointer width and one memory read per pointer.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Memory.MemoryVtableToolsTests.ReadVtable_ObjectAddress_ReadsTheFirstPointerThenNamesEachNonNullSlot"
+          ]
+        }
+      ],
+      "remaining": "Native success and cleanup on the exact product bundle remain unverified."
     },
     {
       "name": "memory_set_protection",
@@ -2770,6 +2946,22 @@
       "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
     },
     {
+      "name": "structure_export",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Structures.StructureInterchangeToolsTests.Export_ProductionAdapter_WritesNormalizedV1ClosureAndExactLuaBounds",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Structures/StructureInterchangeToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Production export writes expected version, pointer width and child reference with exact Lua bounds.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Structures.StructureInterchangeToolsTests.Export_ProductionAdapter_WritesNormalizedV1ClosureAndExactLuaBounds"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
       "name": "structure_fill_from_dotnet",
       "cases": [
         {
@@ -2828,6 +3020,22 @@
           "oracle": "Assert.Equal((\"4\", \"int32\"), (result.Fields[0].Offset, result.Fields[0].ValueType));",
           "requiredCases": [
             "CheatEngine.Mcp.Tests.Tools.Structures.StructureToolsTests.GetPdbLayout_Fields_MapOffsetsAndReportedTypes"
+          ]
+        }
+      ],
+      "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
+    },
+    {
+      "name": "structure_import",
+      "cases": [
+        {
+          "suite": "portable",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Structures.StructureInterchangeToolsTests.Import_ProductionAdapter_ValidFilePassesEncodedNestedReferencesToOneLuaMutation",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Structures/StructureInterchangeToolsTests.cs",
+          "scope": "adapter",
+          "oracle": "Production import encodes child references into one Lua mutation and returns expected roots, width and layout count.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.Tools.Structures.StructureInterchangeToolsTests.Import_ProductionAdapter_ValidFilePassesEncodedNestedReferencesToOneLuaMutation"
           ]
         }
       ],

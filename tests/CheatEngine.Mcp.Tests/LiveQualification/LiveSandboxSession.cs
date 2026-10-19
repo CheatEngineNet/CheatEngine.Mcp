@@ -34,7 +34,6 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 	private string? _repository;
 	private string? _targetHostPath;
 	private string? _targetPath;
-	private string _targetArchitecture = "x64";
 	private string? _source;
 	private CheatEngineRegistryGuard? _stateGuard;
 	private ICheatEngineUserStateScope? _userState;
@@ -60,9 +59,12 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		get;
 	}
 
-	public string TargetArchitecture => _targetArchitecture;
+	public string TargetArchitecture { get; private set; } = "x64";
 
 	public string RunDirectory => _layout.RunDirectory;
+
+	internal string TargetImagePath => _targetHostPath ?? _targetPath ??
+		throw new InvalidOperationException("The owned target image has not been prepared.");
 
 	public LiveCompilerRoots CompilerA => CompilerRoots("A");
 
@@ -363,13 +365,13 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 	{
 		string repository = inputs.RepositoryRoot;
 		_repository = repository;
-		_targetArchitecture = inputs.TargetArchitecture;
-		_targetPath = TargetExecutablePath(repository, _targetArchitecture);
+		TargetArchitecture = inputs.TargetArchitecture;
+		_targetPath = TargetExecutablePath(repository, TargetArchitecture);
 		if (!File.Exists(_targetPath))
 		{
 			throw new FileNotFoundException("Build the selected disposable live target before live qualification.", _targetPath);
 		}
-		if (_targetArchitecture == "x86")
+		if (TargetArchitecture == "x86")
 		{
 			_targetHostPath = X86DotnetHostPath();
 			if (!File.Exists(_targetHostPath))
@@ -527,7 +529,10 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		File.Copy(Path.Combine(pluginSource, PluginFileName), Path.Combine(pluginDirectory, PluginFileName));
 		if (_options.RequiresCapabilityConfiguration)
 		{
-			string[] allowedRoots = _options.CompilerQualification ? [CompilerRoots(name).Output] : [];
+			string[] allowedRoots = _options.CompilerQualification ? [CompilerRoots(name).Output]
+				: _options.WorkflowQualification || _options.LifecycleQualification
+					? [Path.Combine(_layout.RunDirectory, "roadmap-qualification"), Path.Combine(_layout.RunDirectory, "pointer-qualification")]
+					: [];
 			File.WriteAllText(Path.Combine(pluginDirectory, "appsettings.json"), JsonSerializer.Serialize(new
 			{
 				Mcp = new
@@ -543,7 +548,9 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 				},
 				CheatEngineClient = new
 				{
-					AllowedTableRoots = Array.Empty<string>()
+					AllowedTableRoots = _options.WorkflowQualification || _options.LifecycleQualification
+						? new[] { Path.Combine(_layout.RunDirectory, "roadmap-qualification", "tables") }
+						: []
 				}
 			}));
 		}
@@ -665,7 +672,7 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 	{
 		string target = _targetPath ?? throw new InvalidOperationException("Live target path was not prepared.");
 		ProcessStartInfo start;
-		if (_targetArchitecture == "x86")
+		if (TargetArchitecture == "x86")
 		{
 			start = CreateStartInfo(_targetHostPath ??
 				throw new InvalidOperationException("The x86 .NET host was not prepared."));
@@ -692,12 +699,9 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		}
 
 		int width = manifest["pointerWidth"]!.GetValue<int>();
-		if (width != (_targetArchitecture == "x86" ? 32 : 64))
-		{
-			throw new InvalidOperationException($"Target manifest {name} reported pointer width {width}, not the requested {_targetArchitecture} width.");
-		}
-
-		return new LiveTargetManifest(manifest["address"]!.GetValue<string>(),
+		return width != (TargetArchitecture == "x86" ? 32 : 64)
+			? throw new InvalidOperationException($"Target manifest {name} reported pointer width {width}, not the requested {TargetArchitecture} width.")
+			: new LiveTargetManifest(manifest["address"]!.GetValue<string>(),
 			manifest["pointerRootAddress"]!.GetValue<string>(), manifest["pointerTargetAddress"]!.GetValue<string>(),
 			manifest["zeroPointerRootAddress"]!.GetValue<string>(), manifest["unreadableRootAddress"]!.GetValue<string>());
 	}
@@ -705,12 +709,9 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 	internal static string DistributionDirectory(string repository, string configuration)
 	{
 		string? custom = Environment.GetEnvironmentVariable("CHEATENGINE_MCP_LIVE_QUALIFICATION_DISTRIBUTION_DIRECTORY");
-		if (custom is not null && !Path.IsPathFullyQualified(custom))
-		{
-			throw new InvalidOperationException("The live qualification distribution directory must be absolute.");
-		}
-
-		return custom ?? Path.Combine(repository, "artifacts", "dist", configuration);
+		return custom is not null && !Path.IsPathFullyQualified(custom)
+			? throw new InvalidOperationException("The live qualification distribution directory must be absolute.")
+			: custom ?? Path.Combine(repository, "artifacts", "dist", configuration);
 	}
 
 	private void ValidateDistribution(string distribution)
@@ -722,8 +723,8 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 
 		LiveCompilerCandidate.RequireNoReparseAncestors(distribution);
 		string[] expected = [PluginFileName, "CheatEngine.Mcp.Gateway.exe", "LICENSE", "README.md", "THIRD-PARTY-NOTICES.md"];
-		string[] actual = Directory.EnumerateFiles(distribution, "*", SearchOption.TopDirectoryOnly)
-			.Select(Path.GetFileName).Where(name => name is not null).Select(name => name!).Order(StringComparer.Ordinal).ToArray();
+		string[] actual = [.. Directory.EnumerateFiles(distribution, "*", SearchOption.TopDirectoryOnly)
+			.Select(Path.GetFileName).Where(name => name is not null).Select(name => name!).Order(StringComparer.Ordinal)];
 		if (!actual.SequenceEqual(expected.Order(StringComparer.Ordinal), StringComparer.Ordinal)
 			|| Directory.EnumerateDirectories(distribution, "*", SearchOption.TopDirectoryOnly).Any()
 			|| actual.Any(name => new FileInfo(Path.Combine(distribution, name)).Length <= 0))
@@ -763,8 +764,8 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		}
 
 		string gatewayDirectory = Path.GetDirectoryName(GatewayExecutablePath)!;
-		string[] gatewayFiles = Directory.EnumerateFileSystemEntries(gatewayDirectory)
-			.Select(path => Path.GetFileName(path)!).Order(StringComparer.Ordinal).ToArray();
+		string[] gatewayFiles = [.. Directory.EnumerateFileSystemEntries(gatewayDirectory)
+			.Select(path => Path.GetFileName(path)!).Order(StringComparer.Ordinal)];
 		if (!gatewayFiles.SequenceEqual(["CheatEngine.Mcp.Gateway.exe"], StringComparer.Ordinal))
 		{
 			throw new InvalidOperationException(
@@ -780,8 +781,8 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 
 	private static string[] RelativeFiles(string directory)
 	{
-		return Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories)
-			.Select(path => Path.GetRelativePath(directory, path)).Order(StringComparer.Ordinal).ToArray();
+		return [.. Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories)
+			.Select(path => Path.GetRelativePath(directory, path)).Order(StringComparer.Ordinal)];
 	}
 
 	private async Task<InstanceDescriptor> WaitForInstanceAsync(OwnedHost host, TimeSpan timeout)
@@ -928,12 +929,9 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		await File.WriteAllTextAsync(Path.Combine(_layout.RunDirectory, $"scan-request-{name}.txt"), action);
 		await WaitUntilAsync(() => File.Exists(response), host.Process!, TimeSpan.FromSeconds(10));
 		string[] lines = await File.ReadAllLinesAsync(response);
-		if (lines.Length != 8 || lines[0] != "ok")
-		{
-			throw new InvalidOperationException($"Native scan UI probe failed: {string.Join("; ", lines)}");
-		}
-
-		return lines;
+		return lines.Length != 8 || lines[0] != "ok"
+			? throw new InvalidOperationException($"Native scan UI probe failed: {string.Join("; ", lines)}")
+			: lines;
 	}
 
 	private string BuildDriver(string stopPath, string pluginPath, string name)

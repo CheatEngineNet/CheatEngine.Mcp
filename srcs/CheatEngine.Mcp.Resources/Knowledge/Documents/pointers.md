@@ -70,13 +70,13 @@ Stack-relative POP, BT/BTC/BTR/BTS, and prefixed text are unsupported; bracket a
 
 ## Validate several supplied chains
 
-`pointer_read_chains` accepts `{id,base,offsets}` candidates, optional `target` comparison and `valueType`, without changing scans.
-Bounds: 128 candidates, 64 offsets each, 4,096 pointer/value reads, 65,536 final-value bytes; each dispatch allows 32 candidates and 128 reads.
-`chainStatus`, `comparisonStatus`, and `valueStatus` are independent: failed value reads retain the resolved address and comparison.
-`matchesOnly=true` retains all error/miss counts in `summary`.
-Cancellation preserves completed candidates; submitted minus processed is unprocessed, and `cancelled` reports interruption.
-`target_changed` discards mixed-target results.
-Module roots rebase; absolute roots remain absolute, so revalidate after restarts.
+`pointer_read_chains` checks `{id,base,offsets}` against optional `target` and `valueType`, without changing scans.
+Limits: 128 candidates, 64 offsets each, 4,096 reads, 65,536 value bytes; 32 candidates/128 reads per dispatch.
+`chainStatus`, `comparisonStatus`, `valueStatus` are independent. `matchesOnly=true` preserves `summary` counts.
+Cancellation keeps completed candidates; `cancelled` marks interruption. `target_changed` discards mixed results.
+Module roots rebase; absolute roots do not.
+`pointer_read_chains(includeHops=true)` adds ordered `hops` (`readAt`, `pointer`, signed hex `offset`, `next`) without
+extra reads. Failures keep the completed prefix; unresolved roots have none. Omit it for compact results.
 
 ## Manual method: from a writer back to a static root
 

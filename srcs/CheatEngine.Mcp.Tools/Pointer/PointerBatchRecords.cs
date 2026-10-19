@@ -66,7 +66,9 @@ public sealed record PointerChainCandidateResult(
 	[property: Description("The final value as text when valueStatus is read.")]
 	string? Value,
 	[property: Description("The final-value read error when valueStatus is failed.")]
-	ToolError? ValueError);
+	ToolError? ValueError,
+	[property: Description("Completed pointer dereferences in order when includeHops is true. An unreadable or invalid hop is excluded; omitted by default.")]
+	IReadOnlyList<PointerHop>? Hops = null);
 
 /// <summary>Counts covering submitted candidates, including ones hidden by matchesOnly.</summary>
 public sealed record PointerChainBatchSummary(

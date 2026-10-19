@@ -1,8 +1,7 @@
 # Tool map
 
-Every served tool by domain, with its gate and purpose. Pick a tool here, then read its schema in `tools/list`, the
-authority for parameters, bounds, defaults and results. Task guides: [workflows](workflows.md); first calls:
-[getting started](getting-started.md).
+Pick a tool by domain and gate; its `tools/list` schema defines the contract.
+Guides: [getting started](getting-started.md), [workflows](workflows.md).
 
 ## Reading the map
 
@@ -11,13 +10,10 @@ authority for parameters, bounds, defaults and results. Task guides: [workflows]
 - A failure sets `isError` and carries `error` with `kind`, `message`, `hostEffect`, `retryable` and maybe `hint`.
   Repeat a mutation only after `hostEffect` `not_started` or `not_applied`; otherwise inspect first
   ([errors and recovery](errors-and-recovery.md)).
-- A `*_start_*` tool returns a `jobId` for its domain's `*_poll_*` tool, which pages from `afterSequence` 0, then
-  `nextAfterSequence`; pointer jobs are read with `pointer_list_maps` and `pointer_list_scans`, `debugger_run_to` with
-  `runtime_list_jobs`. `runtime_stop_job` stops any job, and every job ends at its TTL (at most 300 s).
-- Allocations, patches, named scanners, registered symbols, MCP breakpoints, a speed other than 1, MCP's pause and Mono
-  attachment, and jobs are resources: list them with `runtime_list_resources` and release them with
-  `runtime_release_resources` before switching processes ([cleanup](../Workflows/cleanup-session.md)). Snapshots,
-  pointer maps and pointer scans are MCP memory, not resources.
+- Poll code jobs with `code_poll_job(afterSequence=0)`, then `nextAfterSequence`; pointer jobs use `pointer_list_maps`/`pointer_list_scans`,
+  `debugger_run_to` uses `runtime_list_jobs`. `runtime_stop_job` stops jobs; their TTL is at most 300 s.
+- Release target resources before switching processes ([cleanup](../Workflows/cleanup-session.md)). Snapshots,
+  pointer maps/scans and offline datasets are MCP memory; notes are durable files.
 - **Gate** (all on by default, shown by `runtime_get_info`, not a sandbox;
   [configuration](configuration.md#capability-gates)): **UL** `Mcp:EnableUnsafeLua`, **AA** `Mcp:EnableAutoAssembler`,
   **TCE** `Mcp:EnableTargetCodeExecution`, **KA** `Mcp:EnableKernelAccess`. A plain gate is in `_meta`
@@ -54,7 +50,7 @@ IgnoreUsesMono off), opening a process makes CE inject its Mono data collector; 
 
 | Tool | Gate | Purpose |
 |---|---|---|
-| `process_list` | | List up to 4096 local processes, filtered by name. |
+| `process_list` | | List/filter processes; opt into frozen pages with `pageSize`, then use only `cursor` (30 s expiry). |
 | `process_attach` | →TCE | Select a process by id or exact name; refused while retained state or a scan blocks it. |
 | `process_get_current` | | The selected process: open state, id, name, pointer size, selection epoch. |
 | `process_create` | →TCE | Launch a validated, pinned executable through CE and select it. |
@@ -74,7 +70,9 @@ samples) handles big-endian numbers.
 |---|---|---|
 | `memory_read` | | Read a typed value, up to 1024 consecutive values, a string or raw bytes. |
 | `memory_read_batch` | | Read up to 1024 addresses with their own types; per-item errors stay in band. |
-| `memory_read_samples` | | Sample up to 64 addresses for at most 10 s and keep each value's changes. |
+| `memory_find_strings` | | Find/page UTF-8 or UTF-16LE text in a selected range. |
+| `memory_read_vtable` | | Read bounded virtual-table slots with names and errors. |
+| `memory_read_samples` | | Sample changes at up to 64 addresses for at most 10 s. |
 | `memory_write` | | Write a typed value, string or bytes; returns up to 64 previous bytes and reads back by default. |
 | `memory_write_batch` | | Write up to 1024 typed items in order; not atomic, a failure reports what was written. |
 | `memory_get_address_info` | | Describe up to 256 addresses: symbol, module, section, region, pointer value, RTTI class. |
@@ -282,6 +280,8 @@ Guide: [structures](structures.md).
 | `structure_write_element` | | Write one element's value and read it back. |
 | `structure_compare` | | Find the fields that tell two groups of instances apart. |
 | `structure_generate_c_header` | | Write C declarations for a structure and its children. |
+| `structure_export` | | Export selected layouts and pointer-child closure as versioned JSON under an allowed root. |
+| `structure_import` | | Validate/import layouts with matching pointer width; refuse existing names and roll back failures. |
 
 ## debugger
 
@@ -324,14 +324,8 @@ Guide: [calling a game function once](x64-injection.md#calling-a-game-function-o
 | `exec_compile_c` | TCE →KA | Compile C source into new memory or at an address you own. `blocking_native` |
 | `exec_compile_csharp` | TCE | Compile C# through CE and export to a required approved-root assembly path; does not inject. `blocking_native` |
 
-- `exec_call_remote` and `exec_call_method` take up to 16 typed arguments, each value a JSON string:
-  `exec_call_remote(functionAddress="<address>", arguments=[{type="integer", value="10"}])`. A buffer is
-  `memory_allocate` memory kept until the call has ended. Both refuse a paused or debugger-stopped target.
-- `exec_call_method.classRegister` (default 1, ECX/RCX) carries `this`; on x64, 1 is the member call with arguments
-  from RDX/XMM1.
-- `exec_inject_dotnet` refuses quotes, braces, control characters, long strings and an active Mono collector. CE waits
-  without limit: only the MCP call timeout (45 s in the gateway) ends the request, and CE stays blocked.
-- `exec_compile_c(kernelMode=true)` allocates kernel memory, needs KA and is refused with an address.
+Execution may outlive a client timeout; inspect effects before retrying. Keep argument buffers allocated until the
+call ends. See the linked guide and schemas for ABI and compilation limits.
 
 ## dotnet
 
@@ -371,6 +365,31 @@ Guide: [Mono and .NET](mono-and-dotnet.md), [Unity IL2CPP](unity-il2cpp.md).
 | `mono_get_object` | | Find the object containing an address: its start, class and field values. `host_scan` |
 | `mono_start_instance_search` | | Start a job that finds candidate instances by vtable. `host_scan` |
 | `mono_poll_instance_search` | | Poll an instance search. |
+
+## investigation
+
+Use an existing allowed directory. Notes append immutable revisions; updates require the latest revision. Search
+pages latest names; optional binding validation checks the current PE build. Limits: 4096 revisions, 16 MiB total.
+
+| Tool | Gate | Purpose |
+|---|---|---|
+| `investigation_create_note` | | Persist findings, tags, confidence, observations and an optional module/RVA binding. |
+| `investigation_search_notes` | | Search/page latest historical notes; optionally validate returned bindings. |
+| `investigation_update_note` | | Append a revision; retain/validate, replace, or explicitly clear its binding. |
+| `investigation_export_notes` | | Export matching latest notes in a versioned JSON envelope; never replace canonical revisions. |
+
+## il2cpp
+
+Offline `dump_cs_v1` imports are activation-owned, limited to four datasets of 16 MiB each. Supply the original PE
+module file at import to bind method RVAs. Resolving one checks build identity; it does not execute the method.
+
+| Tool | Gate | Purpose |
+|---|---|---|
+| `il2cpp_import_dump` | | Import supported UTF-8 dump.cs text and record source identity. |
+| `il2cpp_find_types` | | Filter/page imported type metadata. |
+| `il2cpp_find_members` | | Filter/page methods or fields, optionally within one type. |
+| `il2cpp_resolve_method` | | Validate an imported RVA against the matching loaded module. |
+| `il2cpp_delete_dump` | | Release an imported dataset. |
 
 ## kernel
 

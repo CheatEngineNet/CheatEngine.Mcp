@@ -4,6 +4,41 @@ How a Windows process lays out its memory and what the region, module and addres
 whether an address is static, to explain a failed read, to choose what a scan covers, before changing protection, or
 before editing a file through Cheat Engine's file-as-process mode.
 
+## Discover text in a selected range
+
+Use `memory_find_strings(address="game.exe+2000", size=4096, encoding="utf8", minLength=4)` when you do not yet
+know the text to search for. It discovers printable Unicode runs in that explicit range, up to 1 MiB per call.
+Use `encoding="utf16_le"` for Windows wide strings; UTF-16 decoding starts at the supplied address, so choose the
+correct alignment. `minLength` counts Unicode scalar values. Invalid encoding, NUL and non-printable characters
+separate runs rather than being replaced by invented text.
+
+`memory_find_strings(contains="Player")` applies an ordinal case-insensitive literal filter over the full run, including text beyond its
+preview. `offset` and `limit` page matching runs (at most 256 per page); follow `nextOffset` when present. Each result
+contains its absolute address, full byte length, and a preview of at most 256 Unicode scalar values with an explicit
+truncation flag. The range can begin or end in the middle of a longer string. Inspect the range-boundary flags and
+expand the range if context is needed. These are readable byte runs, not proof of a language-level string object.
+
+The entire range must be readable; an unreadable span fails instead of returning a silently incomplete search.
+Choose a readable span with `memory_list_regions` or `memory_get_address_info` first. Each page reads the range again,
+so target changes can move results between pages; the tool does not freeze target threads or retain a snapshot.
+If you already know the exact text, use `aob_find_value(valueType="string" or "wstring")` to search a wider scope.
+
+## Inspect native virtual-table slots
+
+`memory_read_vtable(address="<object address>", count=16)` reads the pointer at the supplied object/subobject address
+as its table address, then returns the selected slots using the target's 4- or 8-byte pointer width. If the table
+address is already known, pass `addressIsVtable=true`. `startIndex` selects the first slot (0 to 4095), and `count`
+limits the page to 1 through 128 slots. Returned slot indices are absolute indices, not page-relative indices.
+
+Each slot reports its address, stored function address and any available symbol name. An unreadable slot has its own
+error while other slots remain inspectable; a null slot is preserved as a zero pointer. There is no automatic
+end-of-table inference, class verification or function invocation. A native object can contain multiple vtables;
+supply the intended subobject address. The pointer table might also be ordinary data, and readable entries are not
+proof that they are executable functions.
+
+Combine `memory_get_address_info(includeRtti=true)` for RTTI context with `code_disassemble` or
+`code_get_function_graph` on a selected nonzero slot. Inspect one bounded page before deciding what to explore next.
+
 ## Address space and pages
 
 - A 64-bit process owns user addresses `0` to `7FFFFFFFFFFF`. A 32-bit process on 64-bit Windows (WoW64) gets 2 GB, or

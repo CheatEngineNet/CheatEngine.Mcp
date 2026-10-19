@@ -46,7 +46,8 @@ public sealed class PointerBatchTools
 	[Description(
 		"Validates up to 128 supplied pointer chains without creating a scan. Each chain dereferences then adds its signed hexadecimal offset. " +
 		"Module expressions are resolved afresh in every bounded slice; absolute roots remain absolute after a target restart. " +
-		"An unreadable hop, target comparison, and optional final-value read are reported independently per candidate.")]
+		"An unreadable hop, target comparison, and optional final-value read are reported independently per candidate. " +
+		"Set includeHops to return the completed dereferences for each listed candidate without extra memory reads.")]
 	public PointerChainBatchResult ReadChains(
 		[Description("One to 128 candidates with a unique id, base expression and one to 64 signed hexadecimal offsets.")]
 		PointerChainCandidate[] candidates,
@@ -58,6 +59,8 @@ public sealed class PointerBatchTools
 		int? length = null,
 		[Description("Return only matching candidate entries while summary counts still include misses and errors.")]
 		bool matchesOnly = false,
+		[Description("Include every completed pointer hop (read address, pointer, signed offset and next address) per listed candidate; false keeps the compact result.")]
+		bool includeHops = false,
 		CancellationToken cancellationToken = default)
 	{
 		PreparedCandidate[] prepared = Prepare(candidates);
@@ -109,7 +112,7 @@ public sealed class PointerBatchTools
 						try
 						{
 							EnsureSameTarget(client, process, token);
-							outcomes.Add(Follow(client, process, prepared[index], width, expected, valueType, length, token));
+							outcomes.Add(Follow(client, process, prepared[index], width, expected, valueType, length, includeHops, token));
 						}
 						catch (OperationCanceledException) when (token.IsCancellationRequested)
 						{
@@ -275,8 +278,9 @@ public sealed class PointerBatchTools
 
 	private static PointerChainCandidateResult Follow(ICheatEngineClient client, ProcessSnapshot process,
 		PreparedCandidate candidate, int width,
-		ulong? expected, McpValueType? valueType, int? length, CancellationToken token)
+		ulong? expected, McpValueType? valueType, int? length, bool includeHops, CancellationToken token)
 	{
+		List<PointerHop>? hops = includeHops ? new(candidate.Offsets.Length) : null;
 		try
 		{
 			EnsureSameTarget(client, process, token);
@@ -292,22 +296,22 @@ public sealed class PointerBatchTools
 					EnsureSameTarget(client, process, token);
 					CheatEngineToolException mapped = CheatEngineToolException.FromFailure(failure,
 						client.Stopping.IsCancellationRequested);
-					if (mapped.Error.Kind is ToolErrorKind.TargetChanged)
-					{
-						throw mapped;
-					}
-
-					return failure.Kind is CheatEngineFailureKind.MemoryReadFailed
-						? Unreadable(candidate.Id, index, current, expected is not null, valueType is not null)
-						: Error(candidate.Id, mapped.Error, expected is not null, valueType is not null);
+					return mapped.Error.Kind is ToolErrorKind.TargetChanged
+						? throw mapped
+						: failure.Kind is CheatEngineFailureKind.MemoryReadFailed
+						? Unreadable(candidate.Id, index, current, expected is not null, valueType is not null, hops)
+						: Error(candidate.Id, mapped.Error, expected is not null, valueType is not null, hops);
 				}
 				EnsureSameTarget(client, process, token);
 
-				if (!PointerMap.TryAdd(pointer.ToUInt64(), candidate.Offsets[index], width, out current))
+				if (!PointerMap.TryAdd(pointer.ToUInt64(), candidate.Offsets[index], width, out ulong next))
 				{
 					return Error(candidate.Id, CheatEngineToolException.InvalidArgument("offsets",
-						"pointer plus offset leaves the target address space.").Error, expected is not null, valueType is not null);
+						"pointer plus offset leaves the target address space.").Error, expected is not null, valueType is not null, hops);
 				}
+				hops?.Add(new PointerHop(HexFormat.Address(current), HexFormat.Address(pointer),
+					HexFormat.Offset(candidate.Offsets[index]), HexFormat.Address(next)));
+				current = next;
 			}
 
 			PointerChainComparisonStatus comparison = expected is null
@@ -316,7 +320,7 @@ public sealed class PointerBatchTools
 			if (valueType is not { } type)
 			{
 				return new PointerChainCandidateResult(candidate.Id, PointerChainResolutionStatus.Resolved,
-					HexFormat.Address(current), null, null, null, comparison, PointerChainValueStatus.NotRequested, null, null);
+					HexFormat.Address(current), null, null, null, comparison, PointerChainValueStatus.NotRequested, null, null, hops);
 			}
 
 			try
@@ -326,60 +330,54 @@ public sealed class PointerBatchTools
 				EnsureSameTarget(client, process, token);
 				return new PointerChainCandidateResult(candidate.Id, PointerChainResolutionStatus.Resolved,
 					HexFormat.Address(current), null, null, null, comparison, PointerChainValueStatus.Read,
-					value, null);
+					value, null, hops);
 			}
 			catch (CheatEngineClientException exception)
 			{
 				CheatEngineToolException mapped = CheatEngineToolException.FromFailure(exception.Failure,
 					client.Stopping.IsCancellationRequested);
-				if (mapped.Error.Kind is ToolErrorKind.TargetChanged)
-				{
-					throw mapped;
-				}
-
-				return new PointerChainCandidateResult(candidate.Id, PointerChainResolutionStatus.Resolved,
+				return mapped.Error.Kind is ToolErrorKind.TargetChanged
+					? throw mapped
+					: new PointerChainCandidateResult(candidate.Id, PointerChainResolutionStatus.Resolved,
 					HexFormat.Address(current), null, null, null, comparison, PointerChainValueStatus.Failed, null,
-					mapped.Error);
+					mapped.Error, hops);
 			}
 			catch (CheatEngineToolException exception) when (exception.Error.Kind is not ToolErrorKind.TargetChanged)
 			{
 				return new PointerChainCandidateResult(candidate.Id, PointerChainResolutionStatus.Resolved,
 					HexFormat.Address(current), null, null, null, comparison, PointerChainValueStatus.Failed, null,
-					exception.Error);
+					exception.Error, hops);
 			}
 		}
 		catch (CheatEngineToolException exception) when (exception.Error.Kind is not ToolErrorKind.TargetChanged)
 		{
-			return Error(candidate.Id, exception.Error, expected is not null, valueType is not null);
+			return Error(candidate.Id, exception.Error, expected is not null, valueType is not null, hops);
 		}
 		catch (CheatEngineClientException exception)
 		{
 			CheatEngineToolException mapped = CheatEngineToolException.FromFailure(exception.Failure,
 				client.Stopping.IsCancellationRequested);
-			if (mapped.Error.Kind is ToolErrorKind.TargetChanged)
-			{
-				throw mapped;
-			}
-
-			return Error(candidate.Id, mapped.Error,
-				expected is not null, valueType is not null);
+			return mapped.Error.Kind is ToolErrorKind.TargetChanged
+				? throw mapped
+				: Error(candidate.Id, mapped.Error,
+				expected is not null, valueType is not null, hops);
 		}
 	}
 
 	private static PointerChainCandidateResult Unreadable(string id, int hop, ulong readAt, bool comparisonRequested,
-		bool valueRequested)
+		bool valueRequested, IReadOnlyList<PointerHop>? hops)
 	{
 		return new PointerChainCandidateResult(id, PointerChainResolutionStatus.Unreadable, null, hop,
 			HexFormat.Address(readAt), null, comparisonRequested ? PointerChainComparisonStatus.NotResolved : PointerChainComparisonStatus.NotRequested,
-			valueRequested ? PointerChainValueStatus.NotAttempted : PointerChainValueStatus.NotRequested, null, null);
+			valueRequested ? PointerChainValueStatus.NotAttempted : PointerChainValueStatus.NotRequested, null, null, hops);
 	}
 
 	private static PointerChainCandidateResult Error(string id, ToolError error, bool comparisonRequested,
-		bool valueRequested)
+		bool valueRequested, IReadOnlyList<PointerHop>? hops)
 	{
 		return new PointerChainCandidateResult(id, PointerChainResolutionStatus.Error, null, null, null, error,
 			comparisonRequested ? PointerChainComparisonStatus.NotResolved : PointerChainComparisonStatus.NotRequested,
-			valueRequested ? PointerChainValueStatus.NotAttempted : PointerChainValueStatus.NotRequested, null, null);
+			valueRequested ? PointerChainValueStatus.NotAttempted : PointerChainValueStatus.NotRequested, null, null, hops);
 	}
 
 	private static PointerChainBatchSummary Summarize(int submitted, IEnumerable<PointerChainCandidateResult> candidates,

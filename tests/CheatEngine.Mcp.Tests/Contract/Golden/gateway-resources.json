@@ -150,7 +150,7 @@
       "uri": "cheatengine://docs/memory-model",
       "description": "Regions, protections, module sections, heaps, stacks and what static means in a Windows process; why a read fails, how to change protection safely, and which tool answers which question about an address.",
       "mimeType": "text/markdown",
-      "size": 20927
+      "size": 23746
     },
     {
       "name": "doc_mono_and_dotnet",
@@ -166,7 +166,7 @@
       "uri": "cheatengine://docs/pointers",
       "description": "Pointer notation and offset order, reading a chain, manual chains from a writer, pointer maps, path searches, rescans and their limits, ranking chains, storing them in records, and fallbacks.",
       "mimeType": "text/markdown",
-      "size": 29048
+      "size": 29044
     },
     {
       "name": "doc_safety",
@@ -198,7 +198,7 @@
       "uri": "cheatengine://docs/tool-map",
       "description": "Every tool by domain with its purpose, the setting (gate) it needs and its dispatch class; the running schema stays the authority for parameters and results.",
       "mimeType": "text/markdown",
-      "size": 26065
+      "size": 26964
     },
     {
       "name": "doc_troubleshooting_scans",

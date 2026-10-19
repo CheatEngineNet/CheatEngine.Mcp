@@ -18,6 +18,17 @@ dotnet test --solution CheatEngine.Mcp.slnx --no-restore --no-build --filter-not
 Run `dotnet restore CheatEngine.Mcp.slnx --locked-mode` and `dotnet build CheatEngine.Mcp.slnx --no-restore` first when the solution has not already been restored and built.
 `--fail-skips on` makes an accidental skipped test fail, so an unavailable environment must be excluded by its trait instead of hidden by a skip.
 
+### Seeded fuzz tests
+
+The portable suite includes bounded, deterministic generated cases without an extra fuzzing dependency.
+`Fuzzing/` covers integer encoding, invalid value inputs, hexadecimal parsing, pointer-scan file schemas, and 192 generated valid/malformed IL2CPP dump cases.
+`MemoryInspectionFuzzTests` covers UTF-8/UTF-16LE string spans and pagination, malformed byte sequences, and x86/x64 vtable reads.
+`PointerBatchFuzzTests` covers generated signed-offset graphs, unreadable prefixes, exact hop output, and read budgets.
+
+These tests use fixed seeds and independent byte or graph expectations. Reproduce a failure with the reported seed and case index before changing the generator.
+All loops and allocations are bounded, honor test cancellation, and run in the normal portable CI suite.
+They exercise managed input handling and Client doubles; they do not replace native host qualification or sustained coverage-guided fuzzing.
+
 ### Native Lua tests
 
 The `NativeLua` category loads fixed Lua scripts into a real x64 Lua 5.3 DLL while stubbing Cheat Engine APIs.
@@ -48,6 +59,7 @@ The compiler-only qualification is a separately approved scenario. It is never s
 | `Architecture/` | Project graph, layering, composition, deployment, and repository rules. |
 | `Contract/` | MCP catalog, initialization, schema, composition, license, and deployment snapshots. |
 | `Core/` | Primitive composition, execution, state, JSON, target handling, and shared utilities. |
+| `Fuzzing/` | Seeded value, parser, and pointer-file boundary cases. |
 | `Tools/` | Tool-domain behavior, validation, result contracts, jobs, and resource ownership. |
 | `Resources/` | Knowledge documents, resource metadata, live-resource projections, URI validation, and completion. |
 | `Prompts/` | Workflow prompt schemas, completion, validation, rendering, and linked documentation. |

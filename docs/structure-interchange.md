@@ -1,0 +1,9 @@
+# Structure interchange v1
+
+`structure_export` writes selected Structure Dissect definitions and their transitive pointer-child layouts to a strict JSON v1 file. `structure_import` reads the same format and creates new definitions only.
+
+The document contains `version: 1`, `pointerWidth` (4 or 8), ordered `roots`, and ordered `layouts`. Each layout carries `name`, `internal`, and an ordered `fields` array. A field records `offset`, `name`, `valueType`, `display`, `byteSize`, `childStructure`, and `childStructureStart`. The schema reserves `customType`, `bitStart`, and `bitSize`; v1 import refuses them because the public creation API cannot restore them safely. Export also refuses custom, binary, embedded/nested, and unknown CE field kinds rather than silently dropping data.
+
+The file is capped at 16 MiB, 128 layouts, 1,024 fields per layout, and 4,096 fields total. Import arguments must also fit the fixed Lua encoder's 4 MiB budget after UTF-8 byte escaping; export checks this before publishing a file. It rejects duplicate or unknown JSON properties, repeated names, missing child layouts, invalid types, and an incompatible target pointer width. Export follows actual child handles, including private children, and refuses distinct referenced layouts sharing one name.
+
+Export requires a `.json` file under `Mcp:Files:AllowedRoots` and commits atomically. Import accepts a local `.json` path, validates the complete document before the mutating Lua transaction, and refuses any name already present in Cheat Engine. It creates all layouts privately, adds fields, wires pointer children in a second phase, then publishes only after every layout succeeds. If native creation fails, it destroys private handles in reverse order; an unconfirmed cleanup reports a partial effect rather than claiming no effect.

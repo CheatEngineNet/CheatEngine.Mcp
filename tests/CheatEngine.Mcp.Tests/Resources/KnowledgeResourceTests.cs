@@ -34,7 +34,8 @@ public sealed partial class KnowledgeResourceTests
 {
 	private const int DocumentBudgetBytes = 24 * 1024;
 	private const int PointerDocumentBudgetBytes = 28 * 1024;
-	private const int ToolMapDocumentBudgetBytes = 25 * 1024;
+	// The 207-tool catalog includes the notebook, offline metadata and interchange domains.
+	private const int ToolMapDocumentBudgetBytes = 27 * 1024;
 	private const int TotalBudgetBytes = 704 * 1024;
 
 	private static readonly string[] LiveResourceUris =
@@ -81,9 +82,9 @@ public sealed partial class KnowledgeResourceTests
 	[Fact]
 	public void Knowledge_EmbeddedDocuments_EqualTheExplicitListAndEachFileExists()
 	{
-		string[] files = Directory.EnumerateFiles(DocumentsFolder, "*.md")
+		string[] files = [.. Directory.EnumerateFiles(DocumentsFolder, "*.md")
 			.Select(static path => Path.GetFileNameWithoutExtension(path))
-			.Order(StringComparer.Ordinal).ToArray();
+			.Order(StringComparer.Ordinal)];
 
 		Assert.Equal(CheatEngineKnowledge.DocumentSlugs.Count,
 			CheatEngineKnowledge.DocumentSlugs.Distinct(StringComparer.Ordinal).Count());
@@ -95,9 +96,9 @@ public sealed partial class KnowledgeResourceTests
 	[Fact]
 	public void Knowledge_EmbeddedWorkflows_EqualTheWorkflowFiles()
 	{
-		string[] files = Directory.EnumerateFiles(WorkflowsFolder, "*.md")
+		string[] files = [.. Directory.EnumerateFiles(WorkflowsFolder, "*.md")
 			.Select(static path => Path.GetFileNameWithoutExtension(path))
-			.Order(StringComparer.Ordinal).ToArray();
+			.Order(StringComparer.Ordinal)];
 
 		Assert.NotEmpty(files);
 		Assert.Equal(files, CheatEngineKnowledge.WorkflowNames);

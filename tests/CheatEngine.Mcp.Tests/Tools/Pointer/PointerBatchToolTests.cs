@@ -1,6 +1,5 @@
 using System.Globalization;
 
-using CheatEngine.Client.Processes;
 using CheatEngine.Client.Results;
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Values;
@@ -173,8 +172,10 @@ public sealed class PointerBatchToolTests
 		Assert.Equal(2, fixture.Dispatches);
 	}
 
-	[Fact]
-	public async Task ReadChains_SlicesDeepCandidatesAtTheReadBudgetWithoutReordering()
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task ReadChains_SlicesDeepCandidatesAtTheReadBudgetWithoutReordering(bool includeHops)
 	{
 		await using PointerFixture fixture = new();
 		fixture.PutPointer(PointerFixture.ObjectA, PointerFixture.ObjectA);
@@ -193,13 +194,15 @@ public sealed class PointerBatchToolTests
 			.Select(index => new PointerChainCandidate($"candidate-{index}", "game.exe+100",
 				[.. Enumerable.Repeat("0", PointerChainTools.MaximumOffsets)]))];
 
-		PointerChainBatchResult result = Tools(fixture).ReadChains(candidates, cancellationToken: Token);
+		PointerChainBatchResult result = Tools(fixture).ReadChains(candidates, includeHops: includeHops, cancellationToken: Token);
 		readsByCompletedDispatch.Add(fixture.PrimitiveReads - priorReads);
 
 		Assert.Equal(PointerBatchTools.CandidatesPerDispatch, result.Summary.Processed);
 		Assert.Equal(candidates.Select(static candidate => candidate.Id), result.Candidates.Select(static candidate => candidate.Id));
 		Assert.All(readsByCompletedDispatch, reads => Assert.InRange(reads, 1, PointerBatchTools.MaximumReadsPerDispatch));
 		Assert.Equal(PointerBatchTools.CandidatesPerDispatch * PointerChainTools.MaximumOffsets, fixture.PrimitiveReads);
+		Assert.All(result.Candidates, candidate => Assert.Equal(includeHops ? PointerChainTools.MaximumOffsets : null,
+			candidate.Hops?.Count));
 	}
 
 	[Fact]
@@ -218,8 +221,10 @@ public sealed class PointerBatchToolTests
 		Assert.Equal(1, fixture.PrimitiveReads);
 	}
 
-	[Fact]
-	public async Task ReadChains_Cancellation_ReturnsHonestPartialProgress()
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task ReadChains_Cancellation_ReturnsHonestPartialProgress(bool includeHops)
 	{
 		await using PointerFixture fixture = new();
 		using CancellationTokenSource cancellation = new();
@@ -236,12 +241,13 @@ public sealed class PointerBatchToolTests
 		[
 			new PointerChainCandidate("first", "game.exe+100", ["10", "20"]),
 			new PointerChainCandidate("second", "game.exe+100", ["10", "20"])
-		], cancellationToken: cancellation.Token);
+		], includeHops: includeHops, cancellationToken: cancellation.Token);
 
 		Assert.Equal("first", Assert.Single(result.Candidates).Id);
 		Assert.True(result.Summary.Cancelled);
 		Assert.Equal(1, result.Summary.Processed);
 		Assert.Equal(2, result.Summary.Submitted);
+		Assert.Equal(includeHops ? 2 : null, result.Candidates[0].Hops?.Count);
 	}
 
 	private static PointerBatchTools Tools(PointerFixture fixture)

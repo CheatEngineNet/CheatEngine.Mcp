@@ -76,6 +76,12 @@ public static class CheatEngineToolNames
 	/// <summary>The <c>memory_read_batch</c> tool.</summary>
 	public const string MemoryReadBatch = "memory_read_batch";
 
+	/// <summary>Discover readable strings in a bounded target range.</summary>
+	public const string MemoryFindStrings = "memory_find_strings";
+
+	/// <summary>Inspect a bounded set of native virtual-table slots.</summary>
+	public const string MemoryReadVtable = "memory_read_vtable";
+
 	/// <summary>The <c>memory_write</c> tool.</summary>
 	public const string MemoryWrite = "memory_write";
 
@@ -448,6 +454,12 @@ public static class CheatEngineToolNames
 	/// <summary>The <c>structure_generate_c_header</c> tool.</summary>
 	public const string StructureGenerateCHeader = "structure_generate_c_header";
 
+	/// <summary>The <c>structure_export</c> tool.</summary>
+	public const string StructureExport = "structure_export";
+
+	/// <summary>The <c>structure_import</c> tool.</summary>
+	public const string StructureImport = "structure_import";
+
 	/// <summary>The <c>structure_set_name</c> tool.</summary>
 	public const string StructureSetName = "structure_set_name";
 
@@ -640,6 +652,37 @@ public static class CheatEngineToolNames
 	/// <summary>The <c>lua_find_api</c> tool.</summary>
 	public const string LuaFindApi = "lua_find_api";
 
+	// investigation (4)
+
+	/// <summary>The <c>investigation_create_note</c> tool.</summary>
+	public const string InvestigationCreateNote = "investigation_create_note";
+
+	/// <summary>The <c>investigation_search_notes</c> tool.</summary>
+	public const string InvestigationSearchNotes = "investigation_search_notes";
+
+	/// <summary>The <c>investigation_update_note</c> tool.</summary>
+	public const string InvestigationUpdateNote = "investigation_update_note";
+
+	/// <summary>The <c>investigation_export_notes</c> tool.</summary>
+	public const string InvestigationExportNotes = "investigation_export_notes";
+
+	// il2cpp (5)
+
+	/// <summary>The <c>il2cpp_import_dump</c> tool.</summary>
+	public const string Il2CppImportDump = "il2cpp_import_dump";
+
+	/// <summary>The <c>il2cpp_find_types</c> tool.</summary>
+	public const string Il2CppFindTypes = "il2cpp_find_types";
+
+	/// <summary>The <c>il2cpp_find_members</c> tool.</summary>
+	public const string Il2CppFindMembers = "il2cpp_find_members";
+
+	/// <summary>The <c>il2cpp_resolve_method</c> tool.</summary>
+	public const string Il2CppResolveMethod = "il2cpp_resolve_method";
+
+	/// <summary>The <c>il2cpp_delete_dump</c> tool.</summary>
+	public const string Il2CppDeleteDump = "il2cpp_delete_dump";
+
 	/// <summary>The reviewed backend tool names; every tool a Cheat Engine instance serves.</summary>
 	public static FrozenSet<string> Backend
 	{
@@ -662,6 +705,8 @@ public static class CheatEngineToolNames
 		ProcessSetPointerSize,
 		MemoryRead,
 		MemoryReadBatch,
+		MemoryFindStrings,
+		MemoryReadVtable,
 		MemoryWrite,
 		MemoryWriteBatch,
 		MemoryGetAddressInfo,
@@ -778,6 +823,8 @@ public static class CheatEngineToolNames
 		StructureWriteElement,
 		StructureCompare,
 		StructureGenerateCHeader,
+		StructureExport,
+		StructureImport,
 		StructureSetName,
 		DebuggerAttach,
 		DebuggerDetach,
@@ -837,7 +884,16 @@ public static class CheatEngineToolNames
 		KernelStartWatch,
 		KernelPollWatch,
 		LuaExecute,
-		LuaFindApi);
+		LuaFindApi,
+		InvestigationCreateNote,
+		InvestigationSearchNotes,
+		InvestigationUpdateNote,
+		InvestigationExportNotes,
+		Il2CppImportDump,
+		Il2CppFindTypes,
+		Il2CppFindMembers,
+		Il2CppResolveMethod,
+		Il2CppDeleteDump);
 
 	/// <summary>Every tool name: <see cref="Backend" /> and the gateway's <see cref="InstanceList" />.</summary>
 	public static FrozenSet<string> All

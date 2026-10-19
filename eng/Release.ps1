@@ -77,7 +77,7 @@ function Assert-CosturaResourceInventory([string] $Path) {
             $required = @(
                 'CheatEngine.Client.Abstractions', 'CheatEngine.Client.Core', 'CheatEngine.Client.Extensions.DependencyInjection',
                 'CheatEngine.Client.Fluent', 'CheatEngine.Client.Hosting',
-                'CheatEngine.SDK', 'CheatEngine.SDK.Abi', 'CheatEngine.SDK.Annotations', 'CheatEngine.SDK.Engine',
+                'CheatEngine.SDK.Abi', 'CheatEngine.SDK.Annotations', 'CheatEngine.SDK.Engine',
                 'CheatEngine.SDK.Hosting', 'CheatEngine.SDK.Lua', 'CheatEngine.SDK.Lua.Interop',
                 'CheatEngine.Mcp.Core', 'CheatEngine.Mcp.Hosting', 'CheatEngine.Mcp.Tools',
                 'CheatEngine.Mcp.Resources', 'CheatEngine.Mcp.Prompts',

@@ -26,7 +26,7 @@ internal static partial class McpContractRules
 	/// <summary>The first name segment of every backend tool.</summary>
 	internal static readonly FrozenSet<string> Domains = FrozenSet.Create(StringComparer.Ordinal,
 		"runtime", "process", "memory", "scan", "aob", "pointer", "module", "symbol", "speedhack", "util", "code",
-		"asm", "record", "table", "structure", "debugger", "exec", "dotnet", "mono", "kernel", "lua");
+		"asm", "record", "table", "structure", "debugger", "exec", "dotnet", "mono", "kernel", "lua", "investigation", "il2cpp");
 
 	/// <summary>The first name segment of the gateway's own tools.</summary>
 	internal static readonly FrozenSet<string> GatewayDomains = FrozenSet.Create(StringComparer.Ordinal, "instance");
@@ -35,10 +35,10 @@ internal static partial class McpContractRules
 	internal static readonly FrozenSet<string> Verbs = FrozenSet.Create(StringComparer.Ordinal,
 		"add", "allocate", "apply", "assemble", "attach", "autoguess", "break", "calculate", "call", "check", "clear",
 		"compare", "compile", "continue", "convert", "copy", "create", "decode", "delete", "detach", "disassemble",
-		"dump", "enable", "execute", "fill", "find", "first", "free", "generate", "get", "group", "hash", "initialize",
+		"dump", "enable", "execute", "export", "fill", "find", "first", "free", "generate", "get", "group", "hash", "import", "initialize",
 		"inject",
 		"invoke", "list", "load", "move", "next", "open", "poll", "read", "register", "release", "reload", "remove",
-		"rescan", "reset", "resolve", "run", "save", "select", "set", "start", "step", "stop", "translate",
+		"rescan", "reset", "resolve", "run", "save", "search", "select", "set", "start", "step", "stop", "translate",
 		"unregister", "update", "write");
 
 	/// <summary>Capitalized words a sentence-case title may contain after its first word.</summary>

@@ -12,10 +12,6 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
     groups:
-      # CheatEngine.Client pins its CheatEngine.SDK range, so both move together.
-      cheatengine:
-        patterns:
-          - "CheatEngine.*"
       # A new SDK version can change the MCP contract; review the golden files.
       model-context-protocol:
         patterns:
@@ -30,12 +26,17 @@ updates:
           - "xunit.*"
           - "Microsoft.Testing.*"
     ignore:
-      # CheatEngine.Client 1.0 accepts CheatEngine.SDK 2.x only.
-      - dependency-name: "CheatEngine.SDK"
-        update-types: ["version-update:semver-major"]
       # A new major Microsoft.Extensions.* version belongs to the next .NET release, not to net10.0.
       - dependency-name: "Microsoft.Extensions.*"
         update-types: ["version-update:semver-major"]
+  - package-ecosystem: "gitsubmodule"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      cheatengine-sources:
+        patterns:
+          - "*"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

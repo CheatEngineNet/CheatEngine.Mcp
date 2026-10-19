@@ -1,4 +1,7 @@
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
+using System.Security.Cryptography;
+using System.Text;
 
 using CheatEngine.Client;
 using CheatEngine.Client.Processes;
@@ -17,7 +20,11 @@ namespace CheatEngine.Mcp.Tools.Processes;
 public sealed class ProcessTools
 {
 	private const int MaximumPathLength = 4096;
+	private const int MaximumProcessPageSize = 512;
+	private const int MaximumProcessSnapshots = 4;
+	private const int MaximumSnapshotProcesses = 4096;
 	private const int MaximumThreads = 4096;
+	private static readonly TimeSpan ProcessSnapshotLifetime = TimeSpan.FromSeconds(30);
 
 	private const string CreateScript = """
 	                                    local previous = getOpenedProcessID()
@@ -80,9 +87,12 @@ public sealed class ProcessTools
 	private readonly TargetTransitionGuards _guards;
 	private readonly Lock _pauseLock = new();
 	private readonly TargetResources _resources;
+	private readonly byte[] _processCursorKey = RandomNumberGenerator.GetBytes(32);
+	private readonly Lock _processSnapshotsLock = new();
 	private readonly Lock _threadsLock = new();
 	private readonly TimeProvider _time;
 	private ITargetResource? _pause;
+	private readonly Dictionary<string, ProcessListSnapshot> _processSnapshots = new(StringComparer.Ordinal);
 	private PreparedThreads? _threads;
 	private long _threadsPublishedAt;
 	private long _threadsObservedEpoch = -1;
@@ -108,13 +118,18 @@ public sealed class ProcessTools
 		Destructive = false, Idempotent = true, OpenWorld = true, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"List up to 4096 local processes. Filter with a case-insensitive name substring, then attach by the exact id or exact name.")]
+		"List local processes for an explicit attachment. With no pageSize or cursor this preserves the legacy bounded listing. Set pageSize to create a frozen, PID-then-name sorted snapshot (at most 4096 processes) and use nextCursor for later pages; a cursor expires after 30 seconds, remains only in this backend activation, and does not see process exits or new processes. snapshotTruncated reports when Cheat Engine had more matching processes than the captured snapshot. Attach always needs an explicit current process id or exact name.")]
+	[SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "Preserves the existing positional cancellationToken parameter when adding opt-in paging arguments.")]
 	public ProcessListResult List(
 		[Description("Maximum copied processes, 1 to 4096.")]
 		int maximumResults = 1024,
 		[Description("Optional case-insensitive process-name substring.")]
 		string? nameContains = null,
-		CancellationToken cancellationToken = default)
+		CancellationToken cancellationToken = default,
+		[Description("Start a frozen process-list snapshot and return this many entries, 1 to 512. Omit on continuation calls.")]
+		int? pageSize = null,
+		[Description("The opaque nextCursor from a prior paged response. Continuations must omit nameContains and pageSize and use the legacy default maximumResults.")]
+		string? cursor = null)
 	{
 		if (maximumResults is < 1 or > 4096)
 		{
@@ -126,6 +141,48 @@ public sealed class ProcessTools
 			throw CheatEngineToolException.InvalidArgument("nameContains", "must not exceed 256 characters.");
 		}
 
+		if (cursor is null && pageSize is null)
+		{
+			return LegacyList(maximumResults, nameContains, cancellationToken);
+		}
+
+		if (cursor is null)
+		{
+			if (maximumResults != 1024)
+			{
+				throw CheatEngineToolException.InvalidArgument("maximumResults",
+					"must be the legacy default 1024 when pageSize is supplied.");
+			}
+
+			int page = pageSize!.Value;
+			return page is < 1 or > MaximumProcessPageSize
+				? throw CheatEngineToolException.InvalidArgument("pageSize",
+					$"must be between 1 and {MaximumProcessPageSize}.")
+				: _dispatch.Run(CheatEngineToolNames.ProcessList, token => CreateProcessSnapshot(nameContains, page, token),
+				cancellationToken);
+		}
+
+		if (string.IsNullOrWhiteSpace(cursor) || cursor.Length > 128)
+		{
+			throw CheatEngineToolException.InvalidArgument("cursor", "must be a non-empty cursor returned by process_list.");
+		}
+
+		if (pageSize is not null)
+		{
+			throw CheatEngineToolException.InvalidArgument("pageSize", "must be omitted when cursor is supplied.");
+		}
+
+		return maximumResults != 1024
+			? throw CheatEngineToolException.InvalidArgument("maximumResults",
+				"must be the legacy default 1024 when cursor is supplied.")
+			: nameContains is not null
+			? throw CheatEngineToolException.InvalidArgument("nameContains", "must be omitted when cursor is supplied.")
+			: _dispatch.Run(CheatEngineToolNames.ProcessList, token => ReadProcessSnapshot(cursor, token),
+			cancellationToken);
+	}
+
+	private ProcessListResult LegacyList(int maximumResults, string? nameContains, CancellationToken cancellationToken)
+	{
 		return _dispatch.Run(CheatEngineToolNames.ProcessList, token =>
 		{
 			LocalProcessEnumerationResult listed = _dispatch.Client.Processes.GetLocalProcesses(
@@ -136,6 +193,125 @@ public sealed class ProcessTools
 			], listed.IsTruncated);
 		}, cancellationToken);
 	}
+
+	private ProcessListResult CreateProcessSnapshot(string? nameContains, int pageSize, CancellationToken cancellationToken)
+	{
+		LocalProcessEnumerationResult listed = _dispatch.Client.Processes.GetLocalProcesses(
+			new LocalProcessEnumerationRequest(MaximumSnapshotProcesses, nameContains), cancellationToken);
+		cancellationToken.ThrowIfCancellationRequested();
+		ProcessSummary[] processes = [
+			.. listed.Processes.Select(static process => new ProcessSummary(process.Id.Value, process.Name))
+				.OrderBy(static process => process.ProcessId)
+				.ThenBy(static process => process.ProcessName, StringComparer.Ordinal)
+		];
+		cancellationToken.ThrowIfCancellationRequested();
+		return PublishProcessSnapshot(processes, listed.IsTruncated, pageSize, cancellationToken);
+	}
+
+	private ProcessListResult PublishProcessSnapshot(ProcessSummary[] processes, bool truncated, int pageSize,
+		CancellationToken cancellationToken)
+	{
+		cancellationToken.ThrowIfCancellationRequested();
+		lock (_processSnapshotsLock)
+		{
+			PurgeExpiredProcessSnapshots();
+			while (_processSnapshots.Count >= MaximumProcessSnapshots)
+			{
+				string oldest = _processSnapshots.MinBy(static entry => entry.Value.PublishedAt).Key;
+				_processSnapshots.Remove(oldest);
+			}
+
+			string id;
+			do
+			{
+				id = Guid.NewGuid().ToString("N");
+			}
+			while (_processSnapshots.ContainsKey(id));
+
+			ProcessListSnapshot snapshot = new(processes, truncated, pageSize, _time.GetTimestamp());
+			cancellationToken.ThrowIfCancellationRequested();
+			_processSnapshots.Add(id, snapshot);
+			return ProcessSnapshotPage(id, snapshot, 0);
+		}
+	}
+
+	private ProcessListResult ReadProcessSnapshot(string cursor, CancellationToken cancellationToken)
+	{
+		cancellationToken.ThrowIfCancellationRequested();
+		if (!TryParseProcessCursor(cursor, out string id, out int offset))
+		{
+			throw ProcessSnapshotMissing();
+		}
+
+		lock (_processSnapshotsLock)
+		{
+			PurgeExpiredProcessSnapshots();
+			return !_processSnapshots.TryGetValue(id, out ProcessListSnapshot? snapshot) ||
+				offset <= 0 || offset >= snapshot.Processes.Length || offset % snapshot.PageSize != 0
+				? throw ProcessSnapshotMissing()
+				: ProcessSnapshotPage(id, snapshot, offset);
+		}
+	}
+
+	private ProcessListResult ProcessSnapshotPage(string id, ProcessListSnapshot snapshot, int offset)
+	{
+		int count = Math.Min(snapshot.PageSize, snapshot.Processes.Length - offset);
+		ProcessSummary[] page = snapshot.Processes.AsSpan(offset, count).ToArray();
+		int nextOffset = offset + count;
+		string? next = nextOffset < snapshot.Processes.Length ? ProcessCursor(id, nextOffset) : null;
+		return new ProcessListResult(page, snapshot.Truncated || next is not null, next, snapshot.Truncated,
+			snapshot.Processes.Length);
+	}
+
+	private void PurgeExpiredProcessSnapshots()
+	{
+		long now = _time.GetTimestamp();
+		foreach (string id in _processSnapshots.Where(entry =>
+				 _time.GetElapsedTime(entry.Value.PublishedAt, now) >= ProcessSnapshotLifetime)
+			 .Select(static entry => entry.Key).ToArray())
+		{
+			_processSnapshots.Remove(id);
+		}
+	}
+
+	private string ProcessCursor(string id, int offset)
+	{
+		string unsigned = $"{id}.{offset.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+		string signature = Convert.ToHexStringLower(HMACSHA256.HashData(_processCursorKey, Encoding.ASCII.GetBytes(unsigned))
+			[..12]);
+		return $"{unsigned}.{signature}";
+	}
+
+	private bool TryParseProcessCursor(string cursor, out string id, out int offset)
+	{
+		offset = 0;
+		int signatureSeparator = cursor.LastIndexOf('.');
+		int offsetSeparator = signatureSeparator > 0 ? cursor.LastIndexOf('.', signatureSeparator - 1) : -1;
+		if (offsetSeparator != 32 || signatureSeparator - offsetSeparator is < 2 or > 11 ||
+			cursor.Length - signatureSeparator - 1 != 24 || !int.TryParse(cursor.AsSpan(offsetSeparator + 1,
+				signatureSeparator - offsetSeparator - 1),
+				System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out offset))
+		{
+			id = string.Empty;
+			return false;
+		}
+
+		id = cursor[..offsetSeparator];
+		string unsigned = cursor[..signatureSeparator];
+		string expected = Convert.ToHexStringLower(HMACSHA256.HashData(_processCursorKey, Encoding.ASCII.GetBytes(unsigned))
+			[..12]);
+		return id.All(char.IsAsciiHexDigit) && CryptographicOperations.FixedTimeEquals(
+			Encoding.ASCII.GetBytes(cursor[(signatureSeparator + 1)..]), Encoding.ASCII.GetBytes(expected));
+	}
+
+	private static CheatEngineToolException ProcessSnapshotMissing()
+	{
+		return CheatEngineToolException.InvalidState(
+			"The paged process-list snapshot is unavailable, expired, or belongs to another backend activation.",
+			"Start a new process_list call with pageSize to create a fresh snapshot.");
+	}
+
+	private sealed record ProcessListSnapshot(ProcessSummary[] Processes, bool Truncated, int PageSize, long PublishedAt);
 
 	/// <summary>Attaches Cheat Engine to one requested local process.</summary>
 	[McpServerTool(Name = CheatEngineToolNames.ProcessAttach, Title = "Attach to a process", ReadOnly = false,
@@ -148,17 +324,11 @@ public sealed class ProcessTools
 		string process,
 		CancellationToken cancellationToken = default)
 	{
-		if (string.IsNullOrWhiteSpace(process))
-		{
-			throw CheatEngineToolException.InvalidArgument("process", "is required.");
-		}
-
-		if (process.Length > 1024)
-		{
-			throw CheatEngineToolException.InvalidArgument("process", "must not exceed 1024 characters.");
-		}
-
-		return _dispatch.Run(CheatEngineToolNames.ProcessAttach, token =>
+		return string.IsNullOrWhiteSpace(process)
+			? throw CheatEngineToolException.InvalidArgument("process", "is required.")
+			: process.Length > 1024
+			? throw CheatEngineToolException.InvalidArgument("process", "must not exceed 1024 characters.")
+			: _dispatch.Run(CheatEngineToolNames.ProcessAttach, token =>
 		{
 			ICheatEngineClient client = _dispatch.Client;
 			bool byId = int.TryParse(process, out int requestedId) && requestedId > 0;
@@ -375,12 +545,9 @@ public sealed class ProcessTools
 		int pointerSize,
 		CancellationToken cancellationToken = default)
 	{
-		if (pointerSize is not (4 or 8))
-		{
-			throw CheatEngineToolException.InvalidArgument("pointerSize", "must be 4 or 8.");
-		}
-
-		return _dispatch.RunLua(CheatEngineToolNames.ProcessSetPointerSize, PointerSizeScript,
+		return pointerSize is not (4 or 8)
+			? throw CheatEngineToolException.InvalidArgument("pointerSize", "must be 4 or 8.")
+			: _dispatch.RunLua(CheatEngineToolNames.ProcessSetPointerSize, PointerSizeScript,
 			ProcessJsonContext.Default.ProcessPointerSizeResult, cancellationToken, pointerSize);
 	}
 
@@ -556,18 +723,12 @@ public sealed class ProcessTools
 
 	private static ProcessCurrentResult Current(ICheatEngineClient client, CancellationToken cancellationToken)
 	{
-		if (!client.Processes.TryGetCurrentProcess(out ProcessSnapshot process, out CheatEngineFailure failure,
-				cancellationToken))
-		{
-			if (failure.Kind is CheatEngineFailureKind.TargetNotAttached)
-			{
-				return new ProcessCurrentResult(false);
-			}
-
-			throw CheatEngineToolException.FromFailure(failure, client.Stopping.IsCancellationRequested);
-		}
-
-		return new ProcessCurrentResult(true, process.Id.Value, process.Name, process.ConfiguredPointerSizeBytes,
+		return !client.Processes.TryGetCurrentProcess(out ProcessSnapshot process, out CheatEngineFailure failure,
+				cancellationToken)
+			? failure.Kind is CheatEngineFailureKind.TargetNotAttached
+				? new ProcessCurrentResult(false)
+				: throw CheatEngineToolException.FromFailure(failure, client.Stopping.IsCancellationRequested)
+			: new ProcessCurrentResult(true, process.Id.Value, process.Name, process.ConfiguredPointerSizeBytes,
 			process.SelectionEpoch);
 	}
 

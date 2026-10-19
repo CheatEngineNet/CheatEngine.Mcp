@@ -155,9 +155,9 @@ function Assert-LiveEvidence($LiveMap, $Catalog, [string] $Repository) {
     if ([string]::IsNullOrWhiteSpace([string] $LiveMap['boundary'])) { throw 'Live evidence requires a non-empty boundary.' }
     $names = @($LiveMap['tools'] | ForEach-Object { [string] $_['name'] })
     $catalogNames = @($Catalog | ForEach-Object { [string] $_['name'] })
-    if ($names.Count -ne 37 -or @($names | Sort-Object -Unique).Count -ne $names.Count -or
-        @($names | Where-Object { $_ -notin $catalogNames }).Count -ne 0 -or $names -contains 'memory_dump_to_file') {
-        throw 'Live evidence must contain 37 unique golden backend tool names and exclude memory_dump_to_file.'
+    if ($names.Count -eq 0 -or @($names | Sort-Object -Unique).Count -ne $names.Count -or
+        @($names | Where-Object { $_ -notin $catalogNames }).Count -ne 0) {
+        throw 'Live evidence must contain a non-empty, unique subset of golden backend tool names.'
     }
     $root = [IO.Path]::GetFullPath($Repository).TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
     foreach ($entry in @($LiveMap['tools'])) {

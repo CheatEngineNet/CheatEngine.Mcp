@@ -29,6 +29,7 @@ public sealed class McpContractRulesTests
 		"process_list", "process_attach", "process_get_current", "process_create", "process_open_file",
 		"process_save_file", "process_set_paused", "process_list_threads", "process_set_pointer_size",
 		"memory_read", "memory_read_batch", "memory_write", "memory_write_batch", "memory_get_address_info",
+		"memory_find_strings", "memory_read_vtable",
 		"memory_list_regions", "memory_set_protection", "memory_allocate", "memory_free", "memory_copy",
 		"memory_compare", "memory_hash", "memory_dump_to_file", "memory_load_from_file",
 		"scan_first", "scan_next", "scan_get_status", "scan_list_results", "scan_list_scanners", "scan_reset",
@@ -74,13 +75,15 @@ public sealed class McpContractRulesTests
 		"memory_create_snapshot", "memory_compare_snapshot", "memory_list_snapshots", "memory_delete_snapshot",
 		"memory_read_samples", "aob_find_value", "module_list_imports", "symbol_find", "code_get_function_graph",
 		"structure_generate_c_header", "structure_set_name", "dotnet_get_method_parameters", "record_set_dropdown",
-		"mono_get_object");
+		"mono_get_object", "structure_export", "structure_import",
+		"investigation_create_note", "investigation_search_notes", "investigation_update_note", "investigation_export_notes",
+		"il2cpp_import_dump", "il2cpp_find_types", "il2cpp_find_members", "il2cpp_resolve_method", "il2cpp_delete_dump");
 
 	[Fact]
-	public void PlanCatalogNames_Count_Is193()
+	public void PlanCatalogNames_Count_Is206()
 	{
-		Assert.Equal(193, PlanCatalogNames.Count);
-		Assert.Equal(193, PlanCatalogNames.Select(static row => row.Data).Distinct(StringComparer.Ordinal).Count());
+		Assert.Equal(206, PlanCatalogNames.Count);
+		Assert.Equal(206, PlanCatalogNames.Select(static row => row.Data).Distinct(StringComparer.Ordinal).Count());
 	}
 
 	[Fact]

@@ -5580,6 +5580,1133 @@
     }
   },
   {
+    "name": "il2cpp_delete_dump",
+    "title": "Delete IL2CPP dump",
+    "description": "Explicitly release an imported IL2CPP offline dataset. Import never replaces an existing dataset automatically.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "datasetId": {
+          "description": "The active imported dataset id to release.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "datasetId"
+      ]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "datasetId": {
+          "description": "The released dataset id.",
+          "type": "string"
+        },
+        "deleted": {
+          "description": "Whether a dataset was removed. False when it was already absent.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "datasetId",
+        "deleted"
+      ]
+    },
+    "annotations": {
+      "title": "Delete IL2CPP dump",
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "_meta": {
+      "cheatengine/dispatchClass": "short"
+    }
+  },
+  {
+    "name": "il2cpp_find_members",
+    "title": "Find IL2CPP members",
+    "description": "Find fields or methods in one imported offline dataset, optionally within one type and by case-insensitive name substring, then page stable source order.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "datasetId": {
+          "description": "An active imported dataset id.",
+          "type": "string"
+        },
+        "kind": {
+          "description": "method or field.",
+          "type": "string",
+          "default": "method"
+        },
+        "typeId": {
+          "description": "Optional imported type id.",
+          "type": "string",
+          "default": null
+        },
+        "nameContains": {
+          "description": "Optional case-insensitive member-name substring.",
+          "type": "string",
+          "default": null
+        },
+        "offset": {
+          "description": "Zero-based filtered offset.",
+          "type": "integer",
+          "default": 0
+        },
+        "limit": {
+          "description": "Maximum returned records, 1 to 100.",
+          "type": "integer",
+          "default": 100
+        }
+      },
+      "required": [
+        "datasetId"
+      ]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "datasetId": {
+          "description": "The dataset searched.",
+          "type": "string"
+        },
+        "kind": {
+          "description": "The requested member kind.",
+          "type": "string"
+        },
+        "total": {
+          "description": "The number of matching members before paging.",
+          "type": "integer"
+        },
+        "members": {
+          "description": "The matching members in stable type then source order.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "memberId": {
+                "description": "The stable field or method id.",
+                "type": "string"
+              },
+              "typeId": {
+                "description": "The stable declaring type id.",
+                "type": "string"
+              },
+              "kind": {
+                "description": "field or method.",
+                "type": "string"
+              },
+              "name": {
+                "description": "The member name.",
+                "type": "string"
+              },
+              "signature": {
+                "description": "The emitted declaration without comments or body.",
+                "type": "string"
+              },
+              "offset": {
+                "description": "The field offset as uppercase hexadecimal without 0x, or null for static or const fields.",
+                "type": "string"
+              },
+              "rva": {
+                "description": "The method RVA as uppercase hexadecimal without 0x, or null when the dump reports -1.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "memberId",
+              "typeId",
+              "kind",
+              "name",
+              "signature"
+            ]
+          }
+        },
+        "nextOffset": {
+          "description": "The next filtered offset, omitted after the final page.",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "datasetId",
+        "kind",
+        "total",
+        "members"
+      ]
+    },
+    "annotations": {
+      "title": "Find IL2CPP members",
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "_meta": {
+      "cheatengine/dispatchClass": "short"
+    }
+  },
+  {
+    "name": "il2cpp_find_types",
+    "title": "Find IL2CPP types",
+    "description": "Find types in one imported offline dataset by optional case-insensitive name substring, then page stable image and TypeDefIndex order.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "datasetId": {
+          "description": "An active imported dataset id.",
+          "type": "string"
+        },
+        "nameContains": {
+          "description": "Optional case-insensitive type-name substring.",
+          "type": "string",
+          "default": null
+        },
+        "offset": {
+          "description": "Zero-based filtered offset.",
+          "type": "integer",
+          "default": 0
+        },
+        "limit": {
+          "description": "Maximum returned records, 1 to 100.",
+          "type": "integer",
+          "default": 100
+        }
+      },
+      "required": [
+        "datasetId"
+      ]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "datasetId": {
+          "description": "The dataset searched.",
+          "type": "string"
+        },
+        "total": {
+          "description": "The number of matching types before paging.",
+          "type": "integer"
+        },
+        "types": {
+          "description": "The matching types in stable image then TypeDefIndex order.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "typeId": {
+                "description": "The stable type id, derived from image and TypeDefIndex.",
+                "type": "string"
+              },
+              "image": {
+                "description": "The emitted assembly image name.",
+                "type": "string"
+              },
+              "namespace": {
+                "description": "The emitted namespace, or empty for the global namespace.",
+                "type": "string"
+              },
+              "name": {
+                "description": "The declared type name and generic signature.",
+                "type": "string"
+              },
+              "kind": {
+                "description": "The declared kind: class, struct, interface or enum.",
+                "type": "string"
+              },
+              "typeDefIndex": {
+                "description": "The dump TypeDefIndex.",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "typeId",
+              "image",
+              "namespace",
+              "name",
+              "kind",
+              "typeDefIndex"
+            ]
+          }
+        },
+        "nextOffset": {
+          "description": "The next filtered offset, omitted after the final page.",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "datasetId",
+        "total",
+        "types"
+      ]
+    },
+    "annotations": {
+      "title": "Find IL2CPP types",
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "_meta": {
+      "cheatengine/dispatchClass": "short"
+    }
+  },
+  {
+    "name": "il2cpp_import_dump",
+    "title": "Import IL2CPP dump",
+    "description": "Import a local dump.cs using only the documented dump_cs_v1 text subset. This reads no target process. modulePath is an optional original PE file used only to bind imported method RVAs for later validation; it is never loaded or executed.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "description": "Absolute local UTF-8 dump.cs path, at most 16 MiB.",
+          "type": "string"
+        },
+        "modulePath": {
+          "description": "Optional absolute path of the original PE module that produced the dump.",
+          "type": "string",
+          "default": null
+        }
+      },
+      "required": [
+        "path"
+      ]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "datasetId": {
+          "description": "The opaque dataset id used by subsequent il2cpp tools.",
+          "type": "string"
+        },
+        "format": {
+          "description": "The supported input contract, always dump_cs_v1.",
+          "type": "string"
+        },
+        "formatVersion": {
+          "description": "The format contract version, always 1.",
+          "type": "integer"
+        },
+        "fileName": {
+          "description": "The source file name without its path.",
+          "type": "string"
+        },
+        "length": {
+          "description": "The source file length in bytes.",
+          "type": "integer"
+        },
+        "sha256": {
+          "description": "The uppercase SHA-256 hash of the imported source bytes.",
+          "type": "string"
+        },
+        "typeCount": {
+          "description": "The number of imported types.",
+          "type": "integer"
+        },
+        "memberCount": {
+          "description": "The number of imported fields and methods.",
+          "type": "integer"
+        },
+        "module": {
+          "description": "The original PE build bound for method resolution, or null when no modulePath was supplied.",
+          "type": "object",
+          "properties": {
+            "name": {
+              "description": "The module image name, compared without case.",
+              "type": "string"
+            },
+            "pointerBytes": {
+              "description": "The PE pointer width, 4 or 8 bytes.",
+              "type": "integer"
+            },
+            "fingerprint": {
+              "description": "SHA-256 of normalized PE build metadata; excludes the ASLR image base and is not a code-integrity hash.",
+              "type": "string"
+            },
+            "imageSize": {
+              "description": "The PE SizeOfImage in bytes.",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "name",
+            "pointerBytes",
+            "fingerprint",
+            "imageSize"
+          ]
+        }
+      },
+      "required": [
+        "datasetId",
+        "format",
+        "formatVersion",
+        "fileName",
+        "length",
+        "sha256",
+        "typeCount",
+        "memberCount"
+      ]
+    },
+    "annotations": {
+      "title": "Import IL2CPP dump",
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false
+    },
+    "_meta": {
+      "cheatengine/dispatchClass": "short"
+    }
+  },
+  {
+    "name": "il2cpp_resolve_method",
+    "title": "Resolve IL2CPP method",
+    "description": "Validate an imported method RVA only against the matching currently attached module. This returns an address observation and PE section classification; it neither proves the method is callable nor executes it.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "datasetId": {
+          "description": "An active imported dataset id with an original module binding.",
+          "type": "string"
+        },
+        "methodId": {
+          "description": "An imported method id with a non-negative RVA.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "datasetId",
+        "methodId"
+      ]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "methodId": {
+          "description": "The resolved method id.",
+          "type": "string"
+        },
+        "binding": {
+          "description": "The imported module-relative binding used for validation.",
+          "type": "object",
+          "properties": {
+            "identity": {
+              "description": "The observed module build identity.",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "description": "The module image name, compared without case.",
+                  "type": "string"
+                },
+                "pointerBytes": {
+                  "description": "The PE pointer width, 4 or 8 bytes.",
+                  "type": "integer"
+                },
+                "fingerprint": {
+                  "description": "SHA-256 of normalized PE build metadata; excludes the ASLR image base and is not a code-integrity hash.",
+                  "type": "string"
+                },
+                "imageSize": {
+                  "description": "The PE SizeOfImage in bytes.",
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "name",
+                "pointerBytes",
+                "fingerprint",
+                "imageSize"
+              ]
+            },
+            "rva": {
+              "description": "The relative virtual address as uppercase hexadecimal, without 0x.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "identity",
+            "rva"
+          ]
+        },
+        "resolution": {
+          "description": "The currently validated module-relative address.",
+          "type": "object",
+          "properties": {
+            "module": {
+              "description": "The matching currently loaded module build.",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "description": "The module image name, compared without case.",
+                  "type": "string"
+                },
+                "pointerBytes": {
+                  "description": "The PE pointer width, 4 or 8 bytes.",
+                  "type": "integer"
+                },
+                "fingerprint": {
+                  "description": "SHA-256 of normalized PE build metadata; excludes the ASLR image base and is not a code-integrity hash.",
+                  "type": "string"
+                },
+                "imageSize": {
+                  "description": "The PE SizeOfImage in bytes.",
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "name",
+                "pointerBytes",
+                "fingerprint",
+                "imageSize"
+              ]
+            },
+            "processId": {
+              "description": "The current process id at validation.",
+              "type": "integer"
+            },
+            "selectionEpoch": {
+              "description": "The target-selection epoch at validation.",
+              "type": "integer"
+            },
+            "baseAddress": {
+              "description": "The current module base as uppercase hexadecimal.",
+              "type": "string"
+            },
+            "rva": {
+              "description": "The validated relative virtual address as uppercase hexadecimal.",
+              "type": "string"
+            },
+            "address": {
+              "description": "The resolved address as uppercase hexadecimal. This observation does not authorize execution.",
+              "type": "string"
+            },
+            "executable": {
+              "description": "Whether the PE section declares code or execution; this is not an operating-system page-permission check.",
+              "type": "boolean"
+            },
+            "section": {
+              "description": "The containing PE section, or null for image headers or unmapped padding.",
+              "type": "string",
+              "default": null
+            }
+          },
+          "required": [
+            "module",
+            "processId",
+            "selectionEpoch",
+            "baseAddress",
+            "rva",
+            "address",
+            "executable"
+          ]
+        }
+      },
+      "required": [
+        "methodId",
+        "binding",
+        "resolution"
+      ]
+    },
+    "annotations": {
+      "title": "Resolve IL2CPP method",
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "_meta": {
+      "cheatengine/dispatchClass": "short"
+    }
+  },
+  {
+    "name": "investigation_create_note",
+    "title": "Create investigation note",
+    "description": "Creates a durable named investigation note as immutable revision one in an allowed local directory. Optional module/RVA evidence is bound to the current PE build, never to an absolute address.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "directory": {
+          "description": "An existing allowed local note directory.",
+          "type": "string"
+        },
+        "name": {
+          "description": "A 1 to 64 character ASCII name.",
+          "type": "string"
+        },
+        "title": {
+          "description": "A nonempty title up to 256 characters.",
+          "type": "string"
+        },
+        "body": {
+          "description": "A body up to 16384 characters.",
+          "type": "string"
+        },
+        "tags": {
+          "description": "Optional tags.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": null
+        },
+        "confidence": {
+          "description": "Optional low, medium, or high confidence.",
+          "type": "string",
+          "default": null
+        },
+        "observations": {
+          "description": "Optional observations.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": null
+        },
+        "module": {
+          "description": "Optional loaded module; requires rva.",
+          "type": "string",
+          "default": null
+        },
+        "rva": {
+          "description": "Optional hexadecimal RVA; requires module.",
+          "type": "string",
+          "default": null
+        }
+      },
+      "required": [
+        "directory",
+        "name",
+        "title",
+        "body"
+      ]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "The canonical lower-case note name.",
+          "type": "string"
+        },
+        "revision": {
+          "description": "The immutable revision number.",
+          "type": "integer"
+        },
+        "title": {
+          "description": "The nonempty note title.",
+          "type": "string"
+        },
+        "body": {
+          "description": "The note body.",
+          "type": "string"
+        },
+        "tags": {
+          "description": "The descriptive tags.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "confidence": {
+          "description": "The optional confidence: low, medium, or high.",
+          "type": "string"
+        },
+        "observations": {
+          "description": "The recorded observations.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "binding": {
+          "description": "The optional historical module-relative binding. It never exposes a current address.",
+          "type": "object",
+          "properties": {
+            "identity": {
+              "description": "The observed module build identity.",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "description": "The module image name, compared without case.",
+                  "type": "string"
+                },
+                "pointerBytes": {
+                  "description": "The PE pointer width, 4 or 8 bytes.",
+                  "type": "integer"
+                },
+                "fingerprint": {
+                  "description": "SHA-256 of normalized PE build metadata; excludes the ASLR image base and is not a code-integrity hash.",
+                  "type": "string"
+                },
+                "imageSize": {
+                  "description": "The PE SizeOfImage in bytes.",
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "name",
+                "pointerBytes",
+                "fingerprint",
+                "imageSize"
+              ]
+            },
+            "rva": {
+              "description": "The relative virtual address as uppercase hexadecimal, without 0x.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "identity",
+            "rva"
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "name",
+        "revision",
+        "title",
+        "body",
+        "tags",
+        "observations"
+      ]
+    },
+    "annotations": {
+      "title": "Create investigation note",
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false
+    },
+    "_meta": {
+      "cheatengine/dispatchClass": "short"
+    }
+  },
+  {
+    "name": "investigation_export_notes",
+    "title": "Export investigation notes",
+    "description": "Exports every matching latest note in a versioned JSON envelope, bounded to 16 MiB. Replacing an existing export requires overwrite. Canonical note revision names are always refused as destinations.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "directory": {
+          "description": "An existing local note directory.",
+          "type": "string"
+        },
+        "path": {
+          "description": "A new allowed export file.",
+          "type": "string"
+        },
+        "name": {
+          "description": "Optional name substring.",
+          "type": "string",
+          "default": null
+        },
+        "text": {
+          "description": "Optional text substring.",
+          "type": "string",
+          "default": null
+        },
+        "tag": {
+          "description": "Optional tag filter.",
+          "type": "string",
+          "default": null
+        },
+        "overwrite": {
+          "description": "Permit replacing an existing export.",
+          "type": "boolean",
+          "default": false
+        },
+        "validateBinding": {
+          "description": "Validate bindings against the current target.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "directory",
+        "path"
+      ]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "fileName": {
+          "description": "The destination file name only, not a host path.",
+          "type": "string"
+        },
+        "notes": {
+          "description": "The number of exported latest notes.",
+          "type": "integer"
+        },
+        "format": {
+          "description": "The export envelope format.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fileName",
+        "notes",
+        "format"
+      ]
+    },
+    "annotations": {
+      "title": "Export investigation notes",
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false
+    },
+    "_meta": {
+      "cheatengine/dispatchClass": "short"
+    }
+  },
+  {
+    "name": "investigation_search_notes",
+    "title": "Search investigation notes",
+    "description": "Searches the latest durable note revisions by name, text or tag, with bounded ordinal paging. Optional binding validation applies only to the returned page and requires the matching loaded module build.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "directory": {
+          "description": "An existing local note directory.",
+          "type": "string"
+        },
+        "name": {
+          "description": "Optional name substring up to 64 characters.",
+          "type": "string",
+          "default": null
+        },
+        "text": {
+          "description": "Optional title or body substring up to 256 characters.",
+          "type": "string",
+          "default": null
+        },
+        "tag": {
+          "description": "Optional tag filter up to 64 characters.",
+          "type": "string",
+          "default": null
+        },
+        "offset": {
+          "description": "Zero-based result offset.",
+          "type": "integer",
+          "default": 0
+        },
+        "limit": {
+          "description": "Page size from 1 to 100.",
+          "type": "integer",
+          "default": 50
+        },
+        "validateBinding": {
+          "description": "Validate saved bindings against the current target.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "directory"
+      ]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "total": {
+          "description": "The matching latest notes in this read.",
+          "type": "integer"
+        },
+        "nextOffset": {
+          "description": "The offset for the next page, or null at the end.",
+          "type": "integer"
+        },
+        "truncated": {
+          "description": "Whether another page follows in this read.",
+          "type": "boolean"
+        },
+        "notes": {
+          "description": "The requested page of historical notes.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "description": "The canonical lower-case note name.",
+                "type": "string"
+              },
+              "revision": {
+                "description": "The immutable revision number.",
+                "type": "integer"
+              },
+              "title": {
+                "description": "The nonempty note title.",
+                "type": "string"
+              },
+              "body": {
+                "description": "The note body.",
+                "type": "string"
+              },
+              "tags": {
+                "description": "The descriptive tags.",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "confidence": {
+                "description": "The optional confidence: low, medium, or high.",
+                "type": "string"
+              },
+              "observations": {
+                "description": "The recorded observations.",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "binding": {
+                "description": "The optional historical module-relative binding. It never exposes a current address.",
+                "type": "object",
+                "properties": {
+                  "identity": {
+                    "description": "The observed module build identity.",
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "description": "The module image name, compared without case.",
+                        "type": "string"
+                      },
+                      "pointerBytes": {
+                        "description": "The PE pointer width, 4 or 8 bytes.",
+                        "type": "integer"
+                      },
+                      "fingerprint": {
+                        "description": "SHA-256 of normalized PE build metadata; excludes the ASLR image base and is not a code-integrity hash.",
+                        "type": "string"
+                      },
+                      "imageSize": {
+                        "description": "The PE SizeOfImage in bytes.",
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "pointerBytes",
+                      "fingerprint",
+                      "imageSize"
+                    ]
+                  },
+                  "rva": {
+                    "description": "The relative virtual address as uppercase hexadecimal, without 0x.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "identity",
+                  "rva"
+                ],
+                "default": null
+              }
+            },
+            "required": [
+              "name",
+              "revision",
+              "title",
+              "body",
+              "tags",
+              "observations"
+            ]
+          }
+        }
+      },
+      "required": [
+        "total",
+        "truncated",
+        "notes"
+      ]
+    },
+    "annotations": {
+      "title": "Search investigation notes",
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "_meta": {
+      "cheatengine/dispatchClass": "short"
+    }
+  },
+  {
+    "name": "investigation_update_note",
+    "title": "Update investigation note",
+    "description": "Appends a durable note revision only when expectedRevision is still current. A retained module binding must still match; explicitly replace or clear it when the investigation changes builds.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "directory": {
+          "description": "An existing allowed local note directory.",
+          "type": "string"
+        },
+        "name": {
+          "description": "The note name.",
+          "type": "string"
+        },
+        "expectedRevision": {
+          "description": "The currently observed revision.",
+          "type": "integer"
+        },
+        "title": {
+          "description": "A nonempty title up to 256 characters.",
+          "type": "string"
+        },
+        "body": {
+          "description": "A body up to 16384 characters.",
+          "type": "string"
+        },
+        "tags": {
+          "description": "Optional tags.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": null
+        },
+        "confidence": {
+          "description": "Optional low, medium, or high confidence.",
+          "type": "string",
+          "default": null
+        },
+        "observations": {
+          "description": "Optional observations.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": null
+        },
+        "module": {
+          "description": "Replacement module; requires rva.",
+          "type": "string",
+          "default": null
+        },
+        "rva": {
+          "description": "Replacement RVA; requires module.",
+          "type": "string",
+          "default": null
+        },
+        "clearBinding": {
+          "description": "Clear the binding and do not supply module or rva.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "directory",
+        "name",
+        "expectedRevision",
+        "title",
+        "body"
+      ]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "The canonical lower-case note name.",
+          "type": "string"
+        },
+        "revision": {
+          "description": "The immutable revision number.",
+          "type": "integer"
+        },
+        "title": {
+          "description": "The nonempty note title.",
+          "type": "string"
+        },
+        "body": {
+          "description": "The note body.",
+          "type": "string"
+        },
+        "tags": {
+          "description": "The descriptive tags.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "confidence": {
+          "description": "The optional confidence: low, medium, or high.",
+          "type": "string"
+        },
+        "observations": {
+          "description": "The recorded observations.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "binding": {
+          "description": "The optional historical module-relative binding. It never exposes a current address.",
+          "type": "object",
+          "properties": {
+            "identity": {
+              "description": "The observed module build identity.",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "description": "The module image name, compared without case.",
+                  "type": "string"
+                },
+                "pointerBytes": {
+                  "description": "The PE pointer width, 4 or 8 bytes.",
+                  "type": "integer"
+                },
+                "fingerprint": {
+                  "description": "SHA-256 of normalized PE build metadata; excludes the ASLR image base and is not a code-integrity hash.",
+                  "type": "string"
+                },
+                "imageSize": {
+                  "description": "The PE SizeOfImage in bytes.",
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "name",
+                "pointerBytes",
+                "fingerprint",
+                "imageSize"
+              ]
+            },
+            "rva": {
+              "description": "The relative virtual address as uppercase hexadecimal, without 0x.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "identity",
+            "rva"
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "name",
+        "revision",
+        "title",
+        "body",
+        "tags",
+        "observations"
+      ]
+    },
+    "annotations": {
+      "title": "Update investigation note",
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false
+    },
+    "_meta": {
+      "cheatengine/dispatchClass": "short"
+    }
+  },
+  {
     "name": "kernel_get_status",
     "title": "Get DBK and DBVM status",
     "description": "Read whether DBK and DBVM are already initialized, plus any CR0, CR3, CR4 and DBVM real-CR4 values that Cheat Engine can read. It does not load a driver or initialize DBVM. Null status and register values are unavailable, not false or zero; call this before any kernel operation.",
@@ -7019,6 +8146,149 @@
     }
   },
   {
+    "name": "memory_find_strings",
+    "title": "Find memory strings",
+    "description": "Read one selected contiguous range (at most 1 MiB) once and list printable UTF-8 or UTF-16LE runs. NUL, controls, Unicode format values, line or paragraph separators and invalid encoding delimit runs. This is not a process-wide scan or an atomic snapshot; a run at either requested-range edge can continue outside it, as marked in the result.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "An address or Cheat Engine address expression for the first byte of the contiguous range.",
+          "type": "string"
+        },
+        "size": {
+          "description": "The exact byte count to read once, from 1 to 1048576.",
+          "type": "integer"
+        },
+        "encoding": {
+          "description": "The byte encoding to decode: utf8 (default) or utf16_le.",
+          "type": "string",
+          "enum": [
+            "utf8",
+            "utf16_le"
+          ],
+          "default": "utf8"
+        },
+        "minLength": {
+          "description": "The minimum printable Unicode scalar values in a run, from 1 to 4096 (default 4).",
+          "type": "integer",
+          "default": 4
+        },
+        "contains": {
+          "description": "An optional literal that the full decoded run must contain, compared without case. Preview truncation does not affect this filter.",
+          "type": "string",
+          "default": null
+        },
+        "offset": {
+          "description": "The zero-based matching-run offset.",
+          "type": "integer",
+          "default": 0
+        },
+        "limit": {
+          "description": "The most matching runs to return, from 1 to 256 (default 64).",
+          "type": "integer",
+          "default": 64
+        }
+      },
+      "required": [
+        "address",
+        "size"
+      ]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "The resolved start address of the requested range, uppercase hexadecimal without 0x.",
+          "type": "string"
+        },
+        "size": {
+          "description": "The exact requested byte count that was read once from the selected target.",
+          "type": "integer"
+        },
+        "encoding": {
+          "description": "The encoding used to decode the requested range.",
+          "type": "string",
+          "enum": [
+            "utf8",
+            "utf16_le"
+          ]
+        },
+        "total": {
+          "description": "The total matching printable runs in the requested range before offset and limit paging.",
+          "type": "integer"
+        },
+        "nextOffset": {
+          "description": "The matching-run offset for the next page, omitted when this page includes every match.",
+          "type": "integer"
+        },
+        "truncated": {
+          "description": "Whether offset and limit omitted later matching runs; this does not describe bytes outside the requested range.",
+          "type": "boolean"
+        },
+        "strings": {
+          "description": "The matching printable runs in requested-range order. A run touching a range edge can continue outside the requested range.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "address": {
+                "description": "The exact target address of the run\u0027s first byte, uppercase hexadecimal without 0x.",
+                "type": "string"
+              },
+              "byteLength": {
+                "description": "The full byte length of the run before preview truncation.",
+                "type": "integer"
+              },
+              "text": {
+                "description": "The first at most 256 Unicode scalar values of the run, never split through a surrogate pair.",
+                "type": "string"
+              },
+              "previewTruncated": {
+                "description": "Whether text omits later characters of the run.",
+                "type": "boolean"
+              },
+              "startsAtRangeBoundary": {
+                "description": "Whether the run begins at the requested range\u0027s first byte and might start before that range.",
+                "type": "boolean"
+              },
+              "endsAtRangeBoundary": {
+                "description": "Whether the run ends at the requested range\u0027s last byte and might continue after that range.",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "address",
+              "byteLength",
+              "text",
+              "previewTruncated",
+              "startsAtRangeBoundary",
+              "endsAtRangeBoundary"
+            ]
+          }
+        }
+      },
+      "required": [
+        "address",
+        "size",
+        "encoding",
+        "total",
+        "truncated",
+        "strings"
+      ]
+    },
+    "annotations": {
+      "title": "Find memory strings",
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "_meta": {
+      "cheatengine/dispatchClass": "short"
+    }
+  },
+  {
     "name": "memory_free",
     "title": "Free memory",
     "description": "Free a named allocation made by memory_allocate. An unknown name is not_found. A release that did not complete fails with partial_effect: retryable when nothing was done yet (the name stays and memory_free can be repeated), otherwise the memory may remain in the target and needs manual recovery.",
@@ -8279,6 +9549,146 @@
     },
     "annotations": {
       "title": "Sample values over time",
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "_meta": {
+      "cheatengine/dispatchClass": "short"
+    }
+  },
+  {
+    "name": "memory_read_vtable",
+    "title": "Read a vtable",
+    "description": "Read a fixed range of native vtable slots without invoking them. By default address is an object or subobject and its first pointer is read as the vtable; set addressIsVtable when address already is the table. The target\u0027s x86 or x64 pointer width determines every slot. This does not infer a table\u0027s extent or verify RTTI or a class. An unreadable slot reports its own error while later slots are still read; a null slot is returned as a pointer value.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "An object or subobject address, or a direct vtable address when addressIsVtable is true.",
+          "type": "string"
+        },
+        "addressIsVtable": {
+          "description": "Whether address is already the vtable instead of an object whose first pointer is the vtable.",
+          "type": "boolean",
+          "default": false
+        },
+        "startIndex": {
+          "description": "The zero-based index of the first vtable slot to read, 0 to 4095.",
+          "type": "integer",
+          "default": 0
+        },
+        "count": {
+          "description": "The number of consecutive vtable slots to read, 1 to 128.",
+          "type": "integer",
+          "default": 16
+        }
+      },
+      "required": [
+        "address"
+      ]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "The resolved object or direct vtable address, uppercase hexadecimal without 0x.",
+          "type": "string"
+        },
+        "vtableAddress": {
+          "description": "The vtable address, uppercase hexadecimal without 0x. For an object this is the first pointer stored at address.",
+          "type": "string"
+        },
+        "pointerBytes": {
+          "description": "The target pointer width used for the object pointer and every vtable slot: 4 for x86 or 8 for x64.",
+          "type": "integer"
+        },
+        "startIndex": {
+          "description": "The zero-based index of the first returned vtable slot.",
+          "type": "integer"
+        },
+        "slots": {
+          "description": "The requested vtable slots in ascending index order. This fixed request does not infer the table\u0027s extent.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "index": {
+                "description": "The zero-based vtable index.",
+                "type": "integer"
+              },
+              "slotAddress": {
+                "description": "The slot\u0027s address, uppercase hexadecimal without 0x.",
+                "type": "string"
+              },
+              "functionAddress": {
+                "description": "The function pointer stored in the slot, uppercase hexadecimal without 0x; null only when this slot was not read.",
+                "type": "string",
+                "default": null
+              },
+              "symbol": {
+                "description": "Cheat Engine\u0027s best-effort symbol for a non-null function address; omitted when unavailable.",
+                "type": "string",
+                "default": null
+              },
+              "error": {
+                "description": "Why this slot could not be read; the other slots are unaffected.",
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "description": "The failure class, such as memory_read_failed or not_found.",
+                    "type": "string",
+                    "enum": [
+                      "invalid_argument",
+                      "invalid_state",
+                      "not_found",
+                      "not_attached",
+                      "busy",
+                      "timeout",
+                      "cancelled",
+                      "capability_disabled",
+                      "unsupported",
+                      "target_changed",
+                      "host_refused",
+                      "memory_read_failed",
+                      "memory_write_failed",
+                      "limit_exceeded",
+                      "partial_effect",
+                      "stopping",
+                      "instance_unavailable",
+                      "internal"
+                    ]
+                  },
+                  "message": {
+                    "description": "A caller-facing explanation.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "message"
+                ],
+                "default": null
+              }
+            },
+            "required": [
+              "index",
+              "slotAddress"
+            ]
+          }
+        }
+      },
+      "required": [
+        "address",
+        "vtableAddress",
+        "pointerBytes",
+        "startIndex",
+        "slots"
+      ]
+    },
+    "annotations": {
+      "title": "Read a vtable",
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": false,
@@ -11819,7 +13229,7 @@
   {
     "name": "pointer_read_chains",
     "title": "Read pointer chains",
-    "description": "Validates up to 128 supplied pointer chains without creating a scan. Each chain dereferences then adds its signed hexadecimal offset. Module expressions are resolved afresh in every bounded slice; absolute roots remain absolute after a target restart. An unreadable hop, target comparison, and optional final-value read are reported independently per candidate.",
+    "description": "Validates up to 128 supplied pointer chains without creating a scan. Each chain dereferences then adds its signed hexadecimal offset. Module expressions are resolved afresh in every bounded slice; absolute roots remain absolute after a target restart. An unreadable hop, target comparison, and optional final-value read are reported independently per candidate. Set includeHops to return the completed dereferences for each listed candidate without extra memory reads.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -11885,6 +13295,11 @@
         },
         "matchesOnly": {
           "description": "Return only matching candidate entries while summary counts still include misses and errors.",
+          "type": "boolean",
+          "default": false
+        },
+        "includeHops": {
+          "description": "Include every completed pointer hop (read address, pointer, signed offset and next address) per listed candidate; false keeps the compact result.",
           "type": "boolean",
           "default": false
         }
@@ -12076,6 +13491,38 @@
                   "hostEffect",
                   "retryable"
                 ]
+              },
+              "hops": {
+                "description": "Completed pointer dereferences in order when includeHops is true. An unreadable or invalid hop is excluded; omitted by default.",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "readAt": {
+                      "description": "The address the pointer was read from, uppercase hexadecimal.",
+                      "type": "string"
+                    },
+                    "pointer": {
+                      "description": "The pointer value read there, uppercase hexadecimal.",
+                      "type": "string"
+                    },
+                    "offset": {
+                      "description": "The signed hexadecimal offset added to the pointer.",
+                      "type": "string"
+                    },
+                    "next": {
+                      "description": "The pointer plus the offset: the next address read, or the final address.",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "readAt",
+                    "pointer",
+                    "offset",
+                    "next"
+                  ]
+                },
+                "default": null
               }
             },
             "required": [
@@ -12662,7 +14109,7 @@
   {
     "name": "process_list",
     "title": "List local processes",
-    "description": "List up to 4096 local processes. Filter with a case-insensitive name substring, then attach by the exact id or exact name.",
+    "description": "List local processes for an explicit attachment. With no pageSize or cursor this preserves the legacy bounded listing. Set pageSize to create a frozen, PID-then-name sorted snapshot (at most 4096 processes) and use nextCursor for later pages; a cursor expires after 30 seconds, remains only in this backend activation, and does not see process exits or new processes. snapshotTruncated reports when Cheat Engine had more matching processes than the captured snapshot. Attach always needs an explicit current process id or exact name.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -12673,6 +14120,16 @@
         },
         "nameContains": {
           "description": "Optional case-insensitive process-name substring.",
+          "type": "string",
+          "default": null
+        },
+        "pageSize": {
+          "description": "Start a frozen process-list snapshot and return this many entries, 1 to 512. Omit on continuation calls.",
+          "type": "integer",
+          "default": null
+        },
+        "cursor": {
+          "description": "The opaque nextCursor from a prior paged response. Continuations must omit nameContains and pageSize and use the legacy default maximumResults.",
           "type": "string",
           "default": null
         }
@@ -12704,6 +14161,21 @@
         "truncated": {
           "description": "Whether the host had more matching processes than this response contains.",
           "type": "boolean"
+        },
+        "nextCursor": {
+          "description": "An opaque cursor for the next page of the same frozen process snapshot; omitted when this page is final and for legacy unpaged listings.",
+          "type": "string",
+          "default": null
+        },
+        "snapshotTruncated": {
+          "description": "Whether Cheat Engine reported more matching processes than the frozen 4096-process snapshot copied; omitted for legacy unpaged listings.",
+          "type": "boolean",
+          "default": null
+        },
+        "snapshotTotal": {
+          "description": "The number of process summaries retained in the frozen snapshot; omitted for legacy unpaged listings.",
+          "type": "integer",
+          "default": null
         }
       },
       "required": [
@@ -17775,6 +19247,81 @@
     }
   },
   {
+    "name": "structure_export",
+    "title": "Export structures",
+    "description": "Exports selected Structure Dissect layouts and their pointer-child closure as strict version-1 JSON. Fields that version 1 cannot restore, including embedded, binary and custom fields, are refused rather than omitted.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "names": {
+          "description": "One to 128 root structure names.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "path": {
+          "description": "Absolute local .json destination below an allowed write root.",
+          "type": "string"
+        },
+        "overwrite": {
+          "description": "Replace an existing destination atomically.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "names",
+        "path"
+      ]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "fileName": {
+          "description": "The destination or source file name, without its host path.",
+          "type": "string"
+        },
+        "version": {
+          "description": "The interchange format version.",
+          "type": "integer"
+        },
+        "pointerWidth": {
+          "description": "The target pointer width in bytes, 4 or 8.",
+          "type": "integer"
+        },
+        "names": {
+          "description": "The selected root structure names, in order.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "layoutCount": {
+          "description": "The number of layout definitions in the file.",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "fileName",
+        "version",
+        "pointerWidth",
+        "names",
+        "layoutCount"
+      ]
+    },
+    "annotations": {
+      "title": "Export structures",
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false
+    },
+    "_meta": {
+      "cheatengine/dispatchClass": "short"
+    }
+  },
+  {
     "name": "structure_fill_from_dotnet",
     "title": "Fill a structure from .NET",
     "description": "Adds the fields of the managed object at address, as Cheat Engine\u0027s .NET data collector reports them, to a structure, creating it when missing; give the object\u0027s address, not a field\u0027s. It refuses with busy while the target is paused or stopped in the debugger, and with not_found when no .NET layout is found. The query runs out of process and can block Cheat Engine for a few seconds.",
@@ -18172,6 +19719,68 @@
       "idempotentHint": true,
       "openWorldHint": false,
       "readOnlyHint": true
+    },
+    "_meta": {
+      "cheatengine/dispatchClass": "short"
+    }
+  },
+  {
+    "name": "structure_import",
+    "title": "Import structures",
+    "description": "Imports strict version-1 Structure Dissect JSON. Every layout is validated before mutation; existing names are refused and a failed native transaction rolls back private layouts before publication.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "description": "Absolute local version-1 structure interchange .json file.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "fileName": {
+          "description": "The destination or source file name, without its host path.",
+          "type": "string"
+        },
+        "version": {
+          "description": "The interchange format version.",
+          "type": "integer"
+        },
+        "pointerWidth": {
+          "description": "The target pointer width in bytes, 4 or 8.",
+          "type": "integer"
+        },
+        "names": {
+          "description": "The selected root structure names, in order.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "layoutCount": {
+          "description": "The number of layout definitions in the file.",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "fileName",
+        "version",
+        "pointerWidth",
+        "names",
+        "layoutCount"
+      ]
+    },
+    "annotations": {
+      "title": "Import structures",
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false
     },
     "_meta": {
       "cheatengine/dispatchClass": "short"

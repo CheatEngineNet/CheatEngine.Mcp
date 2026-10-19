@@ -2,7 +2,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace CheatEngine.Mcp.Tools.Memory;
 
-/// <summary>The composition entry point of the <c>memory</c> tool domain (19 tools in the v2 catalog).</summary>
+/// <summary>The composition entry point of the <c>memory</c> tool domain.</summary>
 public static class MemoryToolsBuilderExtensions
 {
 	extension(ICheatEngineMcpBuilder builder)
@@ -23,7 +23,11 @@ public static class MemoryToolsBuilderExtensions
 
 			return builder
 				.AddJsonTypeInfoResolver(MemoryJsonContext.Default)
+				.AddJsonTypeInfoResolver(MemoryStringJsonContext.Default)
+				.AddJsonTypeInfoResolver(MemoryVtableJsonContext.Default)
 				.AddToolType<MemoryReadTools>()
+				.AddToolType<MemoryStringTools>()
+				.AddToolType<MemoryVtableTools>()
 				.AddToolType<MemoryWriteTools>()
 				.AddToolType<MemoryInfoTools>()
 				.AddToolType<MemoryAllocationTools>()

@@ -1,0 +1,8 @@
+<Project>
+  <!-- Git records the exact source revisions. Ordinary builds never fetch or advance a submodule. -->
+  <PropertyGroup>
+    <CeMcpClientSourceRoot>$(RepoRoot)externals/CheatEngine.Client</CeMcpClientSourceRoot>
+    <CeMcpSdkSourceRoot>$(RepoRoot)externals/CheatEngine.SDK</CeMcpSdkSourceRoot>
+    <CheatEngineSdkSourceRoot>$(CeMcpSdkSourceRoot)</CheatEngineSdkSourceRoot>
+  </PropertyGroup>
+</Project>

@@ -24,8 +24,15 @@ internal static class LiveLifecycleQualification
 			connection = await LiveLifecycleSession.ConnectAsync(sandbox);
 			await connection.AttachBothAsync();
 			await connection.VerifyBothAsync();
+			sandbox.Record("all_tools_process_attach", new
+			{
+				processA = sandbox.HostA.TargetProcessId,
+				processB = sandbox.HostB.TargetProcessId,
+				knownValuesVerified = true
+			});
 			await LiveResourceQualification.VerifyAsync(sandbox, connection.Gateway);
 			await LiveAdditionalReadQualification.VerifyAsync(sandbox, connection.Gateway);
+			int noteTargetProcessId = sandbox.HostA.TargetProcessId;
 			await LiveWorkflowQualification.VerifyAsync(sandbox, connection.Gateway);
 			for (int cycle = 0; cycle < (reloadPlugins ? 3 : 0); cycle++)
 			{
@@ -45,6 +52,8 @@ internal static class LiveLifecycleQualification
 			await connection.RejectStaleAsync(before.InstanceId);
 			await connection.AttachBothAsync();
 			await connection.VerifyBothAsync();
+			await LiveRoadmapQualification.VerifyNotesAfterRestartAsync(sandbox,
+				connection.Gateway.Bind(sandbox.HostA.InstanceId), noteTargetProcessId);
 			sandbox.Record(reloadPlugins ? "lifecycle_workload" : "workflow_restart_workload", new
 			{
 				pluginCycles = reloadPlugins ? 3 : 0,
