@@ -39,6 +39,7 @@ internal static class LiveLifecycleQualification
 			await LiveManagedObjectQualification.VerifyAsync(sandbox,
 				connection.Gateway.Bind(sandbox.HostA.InstanceId), sandbox.TargetManagedAssemblyPath);
 			await LiveProcessFileQualification.VerifyAsync(sandbox, connection);
+			await connection.RequireInstancesAsync(sandbox.HostA.InstanceId, sandbox.HostB.InstanceId);
 			await LiveSignatureQualification.VerifyAsync(sandbox, connection.Gateway.Bind(sandbox.HostA.InstanceId));
 			await LiveProcessCreateQualification.VerifyAsync(sandbox, connection.Gateway.Bind(sandbox.HostA.InstanceId),
 				inputs.RepositoryRoot);
@@ -67,7 +68,8 @@ internal static class LiveLifecycleQualification
 				pluginCycles = reloadPlugins ? 3 : 0,
 				targetRestarts = 1,
 				gatewayRestarts = 1,
-				hostRestarts = 1
+				hostRestarts = 2,
+				fileTargetRecoveryHostRestarts = 1
 			});
 		}
 		catch (Exception exception)
