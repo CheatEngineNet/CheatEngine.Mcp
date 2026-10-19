@@ -120,6 +120,86 @@ public sealed partial class NativeLuaToolRuntimeTests
 		Assert.Equal(88L, ReadGlobal("removedBreakpoint"));
 	}
 
+	[Theory]
+	[InlineData("true", true, true)]
+	[InlineData("false", true, false)]
+	[InlineData("{}", false, false)]
+	[InlineData("error('partial context failure')", false, false)]
+	public void DebuggerAdapter_Status_ContextRead_RestoresItsFixedRegisterGlobals(string contextResult, bool stateValid,
+		bool broken)
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs($$"""
+		             local names = {'THREADID', 'EFLAGS', 'EAX', 'EBX', 'ECX', 'EDX', 'ESI', 'EDI', 'EBP', 'ESP', 'EIP',
+		                'RAX', 'RBX', 'RCX', 'RDX', 'RSI', 'RDI', 'RBP', 'RSP', 'R8', 'R9', 'R10', 'R11', 'R12', 'R13',
+		                'R14', 'R15', 'RIP'}
+		             originalRegisters = {}
+		             for index, name in ipairs(names) do
+		                rawset(_G, name, {name = name, index = index})
+		                originalRegisters[name] = rawget(_G, name)
+		             end
+		             rawset(_G, 'THREADID', nil)
+		             rawset(_G, 'EFLAGS', false)
+		             originalRax = rawget(_G, 'RAX')
+		             unrelated = {marker = 'before context'}
+		             originalUnrelated = unrelated
+		             debug_isDebugging = function() return true end
+		             debug_canBreak = function() return true end
+		             debug_isBroken = function() return false end
+		             debug_isStepping = function() return false end
+		             targetIsX86 = function() return true end
+		             debug_getCurrentDebuggerInterface = function() return 1 end
+		             debug_getContext = function(extraregs)
+		                assert(extraregs == false)
+		                for index, name in ipairs(names) do rawset(_G, name, index) end
+		                unrelated.marker = 'written by context'
+		                contextOnlyGlobal = {marker = 'written by context'}
+		                return {{contextResult}}
+		             end
+		             """);
+		using DebuggerToolHarness harness = CreateDebuggerTools();
+
+		DebuggerStatus status = harness.Tools.GetStatus(Token);
+		InstallStubs("""
+		             registersRestored = rawget(_G, 'THREADID') == nil and rawget(_G, 'EFLAGS') == false
+		                and rawget(_G, 'RAX') == originalRax and unrelated == originalUnrelated
+		                and unrelated.marker == 'written by context' and contextOnlyGlobal.marker == 'written by context'
+		             for name, value in pairs(originalRegisters) do
+		                if name ~= 'THREADID' and name ~= 'EFLAGS' and rawget(_G, name) ~= value then
+		                   registersRestored = false
+		                end
+		             end
+		             """);
+
+		Assert.Equal(stateValid, status.StateValid);
+		Assert.Equal(broken, status.Broken);
+		Assert.False(status.ReportedBroken);
+		Assert.True((bool) ReadGlobal("registersRestored")!);
+	}
+
+	[Theory]
+	[InlineData("targetIsX86 = function() return false end")]
+	[InlineData("debug_getCurrentDebuggerInterface = function() return 4 end")]
+	public void DebuggerAdapter_Status_UnsupportedContextPrerequisites_DoNotReadTheContext(string prerequisite)
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs("""
+		             debug_isDebugging = function() return true end
+		             debug_canBreak = function() return true end
+		             debug_isBroken = function() return false end
+		             debug_isStepping = function() return false end
+		             targetIsX86 = function() return true end
+		             debug_getCurrentDebuggerInterface = function() return 1 end
+		             debug_getContext = function(_) contextReads = (contextReads or 0) + 1 return false end
+		             """ + "\n" + prerequisite);
+		using DebuggerToolHarness harness = CreateDebuggerTools();
+
+		DebuggerStatus status = harness.Tools.GetStatus(Token);
+
+		Assert.False(status.StateValid);
+		Assert.Null(ReadGlobal("contextReads"));
+	}
+
 	[Fact]
 	public void DebuggerAdapter_CaptureTraceAndRunTo_CreateBoundedJobsWithKnownReceipts()
 	{

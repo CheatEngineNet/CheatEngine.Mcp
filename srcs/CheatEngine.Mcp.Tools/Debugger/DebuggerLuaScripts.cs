@@ -6,7 +6,7 @@ namespace CheatEngine.Mcp.Tools.Debugger;
 /// <summary>Fixed, bounded Lua bodies for debugger functions missing from CheatEngine.Client.</summary>
 internal static class DebuggerLuaScripts
 {
-	internal const string Status = """
+	internal const string Status = DebuggerStateScripts.ReadContextStopped + "\n" + """
 	                               local function read(name, ...)
 	                                  local value = _G[name](...)
 	                                  assert(type(value) == 'boolean', name .. ' did not return a boolean debugger state')
@@ -25,9 +25,14 @@ internal static class DebuggerLuaScripts
 	                                  if attached then
 	                                     active = interfaceName(debug_getCurrentDebuggerInterface())
 	                                  end
+	                                  local broken = false
+	                                  if attached then
+	                                     local contextBroken, contextRefusal = readDebuggerContextStopped()
+	                                     assert(contextBroken ~= nil, contextRefusal)
+	                                     broken = contextBroken
+	                                  end
 	                                  return {stateValid = true, attached = attached, canBreak = read('debug_canBreak'),
-	                                     broken = attached and read('debug_getContext', false) or false,
-	                                     reportedBroken = attached and read('debug_isBroken') or false, stepping = read('debug_isStepping'),
+	                                     broken = broken, reportedBroken = attached and read('debug_isBroken') or false, stepping = read('debug_isStepping'),
 	                                     activeInterface = active}
 	                               end)
 	                               if not ok then return {stateValid = false, attached = false, canBreak = false, broken = false,

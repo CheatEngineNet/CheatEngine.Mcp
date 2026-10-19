@@ -1,10 +1,22 @@
 using CheatEngine.Mcp.Core.Jobs;
+using CheatEngine.Mcp.Tools.Debugger;
 
 namespace CheatEngine.Mcp.Tools.Speedhack;
 
 /// <summary>Fixed, bounded Lua bodies used by the speedhack tools.</summary>
 internal static class SpeedhackScripts
 {
+	private const string DebuggerContextGuard = DebuggerStateScripts.ReadContextStopped + "\n" + """
+		local function debuggerStopped()
+			local read, attached = pcall(function() return debug_isDebugging() end)
+			if not read or type(attached) ~= 'boolean' then
+				return nil, 'Cheat Engine did not return a boolean debugger state.'
+			end
+			if not attached then return false end
+			return readDebuggerContextStopped()
+		end
+		""" + "\n";
+
 	private const string SymbolProbe = """
 	                                   local function speedhackSymbol(effect)
 	                                     if type(getAddressSafe) ~= 'function' then
@@ -42,7 +54,7 @@ internal static class SpeedhackScripts
 	///     is 1 too. It refuses, like a speed change, while the debugger is stopped or the target is paused, because
 	///     the Unity path restores through <c>mono_invoke_method</c>.
 	/// </summary>
-	internal const string SetNormal = SymbolProbe + """
+	internal const string SetNormal = SymbolProbe + DebuggerContextGuard + """
 		local pid = getOpenedProcessID()
 		if math.type(pid) ~= 'integer' or pid <= 0 then
 			return mcp.err('invalid_state', 'No process is attached.', 'not_started',
@@ -73,17 +85,8 @@ internal static class SpeedhackScripts
 				return { speed = current, hooksInstalled = true, firstActivation = false }
 			end
 		end
-		-- CE 7.7 can return an opaque value from debug_isBroken when no debugger is attached.
-		-- A stopped context is the authoritative check before executing code in the target.
-		local debugging = debug_isDebugging()
-		if type(debugging) ~= 'boolean' then
-			return mcp.err('host_refused', 'Cheat Engine did not return a boolean debugger state.', 'not_started')
-		end
-		local stopped = false
-		if debugging then stopped = debug_getContext(false) end
-		if type(stopped) ~= 'boolean' then
-			return mcp.err('host_refused', 'Cheat Engine did not return a boolean stopped-context state.', 'not_started')
-		end
+		local stopped, stoppedRefusal = debuggerStopped()
+		if stopped == nil then return mcp.err('host_refused', stoppedRefusal, 'not_started') end
 		if stopped then
 			return mcp.err('invalid_state', 'The debugger is stopped at a breakpoint.', 'not_started',
 				'Continue the debugger before changing speed.')
@@ -106,22 +109,13 @@ internal static class SpeedhackScripts
 	///     Sets one valid speed and records a restore action in the Core-owned Lua state root. Arguments are speed, resource
 	///     id and activation namespace. The body is deliberately fixed; callers only provide the number in <c>a[1]</c>.
 	/// </summary>
-	internal static readonly string SetSpeed = LuaJobKernelScripts.Kernel + "\n" + SymbolProbe + """
+	internal static readonly string SetSpeed = LuaJobKernelScripts.Kernel + "\n" + SymbolProbe + DebuggerContextGuard + """
 		local pid = getOpenedProcessID()
 		if math.type(pid) ~= 'integer' or pid <= 0 then
 			return mcp.err('invalid_state', 'No process is attached.', 'not_started', 'Attach a local process with process_attach first.')
 		end
-		-- CE 7.7 can return an opaque value from debug_isBroken when no debugger is attached.
-		-- A stopped context is the authoritative check before executing code in the target.
-		local debugging = debug_isDebugging()
-		if type(debugging) ~= 'boolean' then
-			return mcp.err('host_refused', 'Cheat Engine did not return a boolean debugger state.', 'not_started')
-		end
-		local stopped = false
-		if debugging then stopped = debug_getContext(false) end
-		if type(stopped) ~= 'boolean' then
-			return mcp.err('host_refused', 'Cheat Engine did not return a boolean stopped-context state.', 'not_started')
-		end
+		local stopped, stoppedRefusal = debuggerStopped()
+		if stopped == nil then return mcp.err('host_refused', stoppedRefusal, 'not_started') end
 		if stopped then
 			return mcp.err('invalid_state', 'The debugger is stopped at a breakpoint.', 'not_started', 'Continue the debugger before changing speed.')
 		end

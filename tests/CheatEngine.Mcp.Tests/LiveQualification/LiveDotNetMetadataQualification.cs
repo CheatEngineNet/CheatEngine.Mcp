@@ -10,7 +10,6 @@ using CheatEngine.Mcp.Core.Contract;
 namespace CheatEngine.Mcp.Tests.LiveQualification;
 
 /// <summary>Optional live qualification of the read-only Cheat Engine .NET collector against owned metadata.</summary>
-[SupportedOSPlatform("windows")]
 internal static class LiveDotNetMetadataQualification
 {
 	private const int PageSize = 100;
@@ -20,6 +19,7 @@ internal static class LiveDotNetMetadataQualification
 	///     Qualifies collector metadata calls when the selected owned target exposes a compatible .NET collector. The
 	///     caller supplies the published managed assembly because the target image can be an application host.
 	/// </summary>
+	[SupportedOSPlatform("windows")]
 	internal static async Task<DotNetMetadataQualificationResult> VerifyAsync(LiveSandboxSession sandbox,
 		LiveMcpInstanceClient instance, string managedAssemblyPath)
 	{
@@ -163,7 +163,7 @@ internal static class LiveDotNetMetadataQualification
 		return new JsonObject();
 	}
 
-	private static AssemblyExpectation ReadExpectation(string path)
+	internal static AssemblyExpectation ReadExpectation(string path)
 	{
 		using FileStream stream = File.OpenRead(path);
 		using PEReader image = new(stream);
@@ -171,7 +171,7 @@ internal static class LiveDotNetMetadataQualification
 		TypeDefinitionHandle typeHandle = metadata.TypeDefinitions.Single(handle =>
 		{
 			TypeDefinition type = metadata.GetTypeDefinition(handle);
-			return metadata.GetString(type.Namespace) == string.Empty && metadata.GetString(type.Name) == "Program";
+			return metadata.GetString(type.Namespace) == "CheatEngine.Mcp.LiveTarget" && metadata.GetString(type.Name) == "Program";
 		});
 		TypeDefinition program = metadata.GetTypeDefinition(typeHandle);
 		FieldDefinitionHandle fieldHandle = program.GetFields().Single(handle =>
@@ -184,16 +184,17 @@ internal static class LiveDotNetMetadataQualification
 		Assert.True((method.Attributes & System.Reflection.MethodAttributes.Static) != 0);
 		string[] parameters = method.GetParameters().Select(metadata.GetParameter).Where(parameter =>
 			parameter.SequenceNumber != 0).Select(parameter => metadata.GetString(parameter.Name)).ToArray();
-		return new AssemblyExpectation(Path.GetFileName(path), "Program", Token(typeHandle), "PointerOffsets", "Main",
+		return new AssemblyExpectation(Path.GetFileName(path), "CheatEngine.Mcp.LiveTarget.Program", Token(typeHandle), "PointerOffsets", "Main",
 			Token(methodHandle), parameters);
 	}
 
 	private static string Token(EntityHandle handle) => MetadataTokens.GetToken(handle).ToString(CultureInfo.InvariantCulture);
+	[SupportedOSPlatform("windows")]
 	private static void Receipt(LiveSandboxSession sandbox, string tool, JsonNode result) => sandbox.Record("all_tools_" + tool, result.DeepClone());
 	private static string Text(JsonNode node, string property) => node[property]!.GetValue<string>();
 	private static async Task<JsonNode> CallAsync(LiveMcpInstanceClient instance, string tool, IReadOnlyDictionary<string, object?>? arguments = null) => await instance.CallToolAsync(tool, arguments) ?? throw new InvalidDataException($"Tool '{tool}' returned no payload.");
 
-	private sealed record AssemblyExpectation(string FileName, string TypeName, string TypeToken, string FieldName,
+	internal sealed record AssemblyExpectation(string FileName, string TypeName, string TypeToken, string FieldName,
 		string MethodName, string MethodToken, string[] ParameterNames);
 }
 

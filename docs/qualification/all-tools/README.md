@@ -12,7 +12,7 @@ Lua body do not establish successful native execution.
 - [x] Check gateway-local discovery with zero and two instances.
 - [x] Run the portable Release suite; final results are recorded below.
 - [x] Run the portable Debug suite with the same exclusions.
-- [x] Run standalone Lua 5.3 with CE API doubles (665 passed, zero failed or skipped).
+- [x] Run standalone Lua 5.3 with CE API doubles (698 passed, zero failed or skipped).
 - [x] Add and run result assertions for the Lua, table-save and code-view adapters (12 passed).
 - [x] Add seven record adapter cases and four code/process adapter cases; run both focused classes.
 - [x] Fix the `code_get_comments` array argument expansion found by those tests.
@@ -101,11 +101,25 @@ module exports and code dissection. It stopped at the function-range fixture: th
 an exact function entry and exclusive end, although CE documents an estimate. The API now describes its raw stop
 boundary and the fixture checks a bounded estimate against the owned instruction layout. The run restored user
 state, left the source installation unchanged and reported no cleanup failures. This failed session does not
-qualify the complete workflow; the corrected fixture still requires a fresh passing session.
+qualify the complete workflow.
 
-Review also identified a separate follow-up: the older speedhack guards and debugger status query use
-`debug_getContext(false)`, which can overwrite prepared register globals when a debugger is stopped. That behavior
-remains under investigation and is not covered by the new side-effect-free admission helper.
+The corrected function estimate passed in private x64 run `20261019T125424Z-afb6`, including dissection cleanup.
+The next failure was in the .NET metadata fixture before any collector call: its expected `Program` type omitted
+the owned target's namespace. The fixture now validates the fully qualified type and method metadata before host
+startup, with a portable reflection cross-check. User-state restoration and the installation fingerprint passed;
+cleanup reported no failures and no owned processes remained. This session remains failed, so its receipts are
+observations rather than full-workflow qualification.
+
+Review also found that the speedhack guards and debugger status query used `debug_getContext(false)` without
+preserving prepared register globals. A separate bounded context reader now requires a local x86/x64 debugger
+interface and restores the known register write set after every result, including malformed returns and exceptions.
+Regression cases preserve absent, false and object-valued globals while allowing unrelated callback changes to
+survive. Status retains the distinction between context availability and `debug_isBroken`. All **698** standalone
+Lua cases and **5,560** portable Release cases passed with no failures/skips; independent Astra review found no
+remaining issues in this patch. The clean Release rebuild had zero warnings/errors. Parsed reports are in
+`context-preservation-native-lua-1` and `context-preservation-portable-2` under the same artifact directory.
+These tests use CE API doubles. An attached-debugger native session is still required to qualify preservation
+in the live host.
 
 ## Roadmap verification from 2026-10-19
 

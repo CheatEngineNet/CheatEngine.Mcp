@@ -35,6 +35,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 	                                      debug_isBroken = function() return broken end
 	                                      debug_isDebugging = function() return broken end
 	                                      debug_getContext = function(_) return broken end
+	                                      debug_getCurrentDebuggerInterface = function() return 1 end
 	                                      targetIsX86 = function() return true end
 	                                      speedhack_getSpeed = function() return configuredSpeed end
 	                                      speedhack_setSpeed = function(speed)
@@ -345,6 +346,116 @@ public sealed partial class NativeLuaToolRuntimeTests
 
 		Assert.Equal((ToolErrorKind.HostRefused, ToolHostEffect.NotStarted),
 			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Equal((0L, 0L), (ReadGlobal("setCalls"), ReadGlobal("hookAttempts")));
+	}
+
+	[Theory]
+	[InlineData(2d, "true", ToolErrorKind.InvalidState)]
+	[InlineData(1d, "true", ToolErrorKind.InvalidState)]
+	[InlineData(2d, "{}", ToolErrorKind.HostRefused)]
+	[InlineData(1d, "{}", ToolErrorKind.HostRefused)]
+	[InlineData(2d, "error('partial context failure')", ToolErrorKind.HostRefused)]
+	[InlineData(1d, "error('partial context failure')", ToolErrorKind.HostRefused)]
+	public void SpeedhackV2_ContextGuard_RestoresRegistersAndRefusesBeforeChangingSpeed(double speed, string contextResult,
+		ToolErrorKind kind)
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(SpeedhackStubs + $$"""
+
+		                              speedhackSymbol = 0x7FF6A0000000
+		                              configuredSpeed = 2
+		                              wantedSpeed = 2
+		                              rawset(_G, 'THREADID', nil)
+		                              EFLAGS = false
+		                              RAX = {marker = 'original register'}
+		                              originalRax = RAX
+		                              unrelated = {marker = 'before context'}
+		                              originalUnrelated = unrelated
+		                              debug_isDebugging = function() return true end
+		                              debug_getCurrentDebuggerInterface = function() return 1 end
+		                              targetIsX86 = function() return true end
+		                              debug_getContext = function(extraregs)
+		                                assert(extraregs == false)
+		                                THREADID = 7
+		                                EFLAGS = 9
+		                                RAX = {marker = 'context register'}
+		                                unrelated.marker = 'written by context'
+		                                contextOnlyGlobal = {marker = 'written by context'}
+		                                return {{contextResult}}
+		                              end
+		                              """);
+		SpeedhackTools tools = new(CreateNativeDispatch(new McpFeatureOptions()), new TargetResources());
+
+		CheatEngineToolException exception =
+			Assert.Throws<CheatEngineToolException>(() => tools.SetSpeed(speed, Token));
+		InstallStubs("""
+		             contextGuardRestored = rawget(_G, 'THREADID') == nil and EFLAGS == false and RAX == originalRax
+		                and unrelated == originalUnrelated and unrelated.marker == 'written by context'
+		                and contextOnlyGlobal.marker == 'written by context'
+		             """);
+
+		Assert.Equal((kind, ToolHostEffect.NotStarted), (exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Equal((0L, 0L), (ReadGlobal("setCalls"), ReadGlobal("hookAttempts")));
+		Assert.True((bool) ReadGlobal("contextGuardRestored")!);
+	}
+
+	[Fact]
+	public void SpeedhackV2_SetNormal_ContextFalse_RestoresRegistersBeforeChangingSpeed()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(SpeedhackStubs + """
+
+		                              speedhackSymbol = 0x7FF6A0000000
+		                              configuredSpeed = 2
+		                              wantedSpeed = 2
+		                              rawset(_G, 'THREADID', nil)
+		                              EFLAGS = false
+		                              RAX = {marker = 'original register'}
+		                              originalRax = RAX
+		                              debug_isDebugging = function() return true end
+		                              debug_getCurrentDebuggerInterface = function() return 1 end
+		                              targetIsX86 = function() return true end
+		                              debug_getContext = function(extraregs)
+		                                assert(extraregs == false)
+		                                THREADID = 7
+		                                EFLAGS = 9
+		                                RAX = {marker = 'context register'}
+		                                return false
+		                              end
+		                              """);
+		SpeedhackTools tools = new(CreateNativeDispatch(new McpFeatureOptions()), new TargetResources());
+
+		SpeedhackSetResult result = tools.SetSpeed(1, Token);
+		InstallStubs("contextFalseRestored = rawget(_G, 'THREADID') == nil and EFLAGS == false and RAX == originalRax");
+
+		Assert.Equal((1d, true, false), (result.Speed, result.HooksInstalled, result.FirstActivation));
+		Assert.Equal((1L, 0L), (ReadGlobal("setCalls"), ReadGlobal("hookAttempts")));
+		Assert.True((bool) ReadGlobal("contextFalseRestored")!);
+	}
+
+	[Theory]
+	[InlineData("targetIsX86 = function() return false end")]
+	[InlineData("debug_getCurrentDebuggerInterface = function() return 4 end")]
+	public void SpeedhackV2_ContextGuard_UnsupportedPrerequisites_DoNotReadContextOrChangeSpeed(string prerequisite)
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(SpeedhackStubs + "\n" + """
+		                              speedhackSymbol = 0x7FF6A0000000
+		                              configuredSpeed = 2
+		                              wantedSpeed = 2
+		                              debug_isDebugging = function() return true end
+		                              targetIsX86 = function() return true end
+		                              debug_getCurrentDebuggerInterface = function() return 1 end
+		                              debug_getContext = function(_) contextReads = (contextReads or 0) + 1 return false end
+		                              """ + "\n" + prerequisite);
+		SpeedhackTools tools = new(CreateNativeDispatch(new McpFeatureOptions()), new TargetResources());
+
+		CheatEngineToolException exception =
+			Assert.Throws<CheatEngineToolException>(() => tools.SetSpeed(2, Token));
+
+		Assert.Equal((ToolErrorKind.HostRefused, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Null(ReadGlobal("contextReads"));
 		Assert.Equal((0L, 0L), (ReadGlobal("setCalls"), ReadGlobal("hookAttempts")));
 	}
 

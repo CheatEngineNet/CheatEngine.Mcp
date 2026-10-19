@@ -407,6 +407,11 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		{
 			throw new InvalidOperationException("The selected x64 fixture must use an x64 application host.");
 		}
+		if (_options.LifecycleQualification || _options.WorkflowQualification)
+		{
+			// Validate the metadata oracle before launching a host or changing any user settings.
+			_ = LiveDotNetMetadataQualification.ReadExpectation(TargetManagedAssemblyPath);
+		}
 		_source = inputs.CheatEngineDirectory;
 		if (LiveQualificationOptIn.IsSameOrBelow(_layout.RunRoot, _source)
 			|| LiveQualificationOptIn.IsSameOrBelow(_source, _layout.RunRoot))
