@@ -16,6 +16,12 @@ internal static class LiveQualificationOptIn
 	internal const string InjectionOptInVariable = "CHEATENGINE_MCP_LIVE_MANAGED_INJECTION_QUALIFICATION";
 	internal const string InjectionAcknowledgement =
 		"I_AUTHORIZE_FIXED_MANAGED_INJECTION_ON_OWNED_FRAMEWORK_TARGETS";
+	internal const string AssemblerOptInVariable = "CHEATENGINE_MCP_LIVE_ASSEMBLER_QUALIFICATION";
+	internal const string AssemblerAcknowledgement =
+		"I_AUTHORIZE_FIXED_LUA_AND_REVERSIBLE_PATCHES_ON_OWNED_ALLOCATIONS";
+	internal const string DebuggerOptInVariable = "CHEATENGINE_MCP_LIVE_DEBUGGER_QUALIFICATION";
+	internal const string DebuggerAcknowledgement =
+		"I_AUTHORIZE_WINDOWS_DEBUGGER_CHECKS_ON_OWNED_DISPOSABLE_TARGETS";
 
 	internal const string LocalCommand =
 		"dotnet test --project tests/CheatEngine.Mcp.Tests -c Release --filter-trait Category=LiveQualification --fail-skips on";
@@ -56,6 +62,8 @@ internal static class LiveQualificationOptIn
 			"compiler-injection" => LiveQualificationScenario.CompilerInjection,
 			"lifecycle" => LiveQualificationScenario.Lifecycle,
 			"workflows" => LiveQualificationScenario.Workflows,
+			"assembler" => LiveQualificationScenario.Assembler,
+			"debugger" => LiveQualificationScenario.Debugger,
 			"performance" => LiveQualificationScenario.Performance,
 			"soak" => LiveQualificationScenario.Soak,
 			"dispatch-diagnostic" => LiveQualificationScenario.DispatchDiagnostic,
@@ -63,7 +71,7 @@ internal static class LiveQualificationOptIn
 		};
 		if (selectedScenario is null)
 		{
-			return Refuse($"{ScenarioVariable} must be smoke, compiler, compiler-extended, compiler-injection, lifecycle, workflows, performance, soak, or dispatch-diagnostic.");
+			return Refuse($"{ScenarioVariable} must be smoke, compiler, compiler-extended, compiler-injection, lifecycle, workflows, assembler, debugger, performance, soak, or dispatch-diagnostic.");
 		}
 
 		LiveQualificationScenario scenario = selectedScenario.Value;
@@ -97,6 +105,16 @@ internal static class LiveQualificationOptIn
 			variables(InjectionOptInVariable) != InjectionAcknowledgement)
 		{
 			return Refuse($"{InjectionOptInVariable} must contain the exact acknowledgement {InjectionAcknowledgement}.");
+		}
+		if (scenario == LiveQualificationScenario.Assembler &&
+			variables(AssemblerOptInVariable) != AssemblerAcknowledgement)
+		{
+			return Refuse($"{AssemblerOptInVariable} must contain the exact acknowledgement {AssemblerAcknowledgement}.");
+		}
+		if (scenario == LiveQualificationScenario.Debugger &&
+			variables(DebuggerOptInVariable) != DebuggerAcknowledgement)
+		{
+			return Refuse($"{DebuggerOptInVariable} must contain the exact acknowledgement {DebuggerAcknowledgement}.");
 		}
 		if (compiler && compilerTempSettingsAreSafe is not null &&
 			!compilerTempSettingsAreSafe())

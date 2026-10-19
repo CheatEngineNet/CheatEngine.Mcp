@@ -15107,7 +15107,7 @@
           "type": "boolean"
         },
         "observedProcessId": {
-          "description": "The process-like target id after the operation.",
+          "description": "The file-target sentinel 4294967295 after Cheat Engine opens the file; it is not an operating-system process id.",
           "type": "integer"
         },
         "observedFileSize": {

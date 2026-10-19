@@ -12,7 +12,7 @@ Lua body do not establish successful native execution.
 - [x] Check gateway-local discovery with zero and two instances.
 - [x] Run the portable Release suite; final results are recorded below.
 - [x] Run the portable Debug suite with the same exclusions.
-- [x] Run standalone Lua 5.3 with CE API doubles (706 passed, zero failed or skipped).
+- [x] Run standalone Lua 5.3 with CE API doubles (714 passed, zero failed or skipped).
 - [x] Add and run result assertions for the Lua, table-save and code-view adapters (12 passed).
 - [x] Add seven record adapter cases and four code/process adapter cases; run both focused classes.
 - [x] Fix the `code_get_comments` array argument expansion found by those tests.
@@ -34,6 +34,13 @@ Lua body do not establish successful native execution.
 - [x] Add execution-argument, conversion/calculation and pointer-file boundary/failure tests.
 - [x] Measure handwritten product C# coverage using fresh portable and NativeLua reports.
 - [x] Rebuild and repeat the disabled-capability workflows on the updated dependency bundle.
+- [x] Qualify utility calculation/conversion, runtime overview, assembly bytes and reversible symbol preferences on the source-built x64 package.
+- [ ] Complete the x86 workflow after the pointer-width fix and physical system-module path correction.
+- [ ] Qualify owned resource release, scanner stop and structure guessing with independent readback and cleanup.
+- [ ] Qualify file-as-process open/save with exact bytes and restored target identity.
+- [ ] Qualify fixed Lua and reversible Auto Assembler operations in their dedicated private scenario.
+- [ ] Qualify Windows debugger attachment, stopped state and cleanup against an owned target.
+- [ ] Qualify the existing fixed compiler and managed-injection scenarios against the current source-built package.
 - [ ] Supply the remaining native managed object/instance, Mono, debugger event, compiler/ABI, PDB and patch fixtures.
 - [ ] Qualify successful gated operations and DBK/DBVM operations in their required environments.
 - [ ] Qualify all tools on the exact replacement product bundle after fixes, including restart and cleanup.
@@ -48,6 +55,39 @@ cases, not complete behavior partitions or native CE qualification. The gateway'
 bring the advertised catalog total to 207. A live mapping requires its own concrete oracle and cleanup receipts.
 
 ## Source-built native results from 2026-10-19
+
+The next parallel fixture batch passed its combined Release build with zero warnings or errors, all **5,594**
+portable cases and all **714** standalone Lua cases, with no failures or skips. Reports are
+`parallel-checklist-portable-1` and `parallel-checklist-native-lua-2` under
+`artifacts/test-results/ai-analysis-20261019`. The first Lua run caught an incorrect test expectation:
+Lua validation can prevent the native open while the dispatcher correctly reports that Lua execution started.
+The corrected case also proves the native open was never called.
+
+This batch fixes file-target handling: CE's unsigned sentinel is preserved, address expressions resolve before
+opening the file, and a failed open cannot reuse an earlier file target's sentinel as proof of success.
+Separate resource/scanner/structure, file, assembler and debugger fixtures have reviewed cleanup and evidence
+mappings. Their new live runs are pending; the mappings alone do not qualify these tools.
+
+The latest x64 workflow, `20261019T135210Z-8cfc`, passed on package
+`artifacts/dist/roadmap-source-20261019-9`, including the six utility/runtime/assembly/symbol cases and target,
+gateway and host restarts. Its report verifies **130** backend native success cases, all **207** routing cases
+and all **206** positive adapter mappings. The report is
+`artifacts/test-results/ai-analysis-20261019/source-workflow-x64-report-9/tool-results.json`.
+The summary also records the owned target executable and managed assembly hashes. User state was restored,
+the installed files were unchanged and cleanup reported no failures.
+
+| Package 9 file | SHA-256 |
+| --- | --- |
+| `CheatEngine.Mcp.dll` | `89082402AADA29AFE3D8BBD400102B3A46F9341724233552D93E8E474B0F6919` |
+| `CheatEngine.Mcp.Gateway.exe` | `2B5E37A2E66310EAD87651D927DE70FC4A06439F29D6CC8310BB4D9D40FB2E6E` |
+
+The x86 run `20261019T135014Z-b9af` passed pointer-map export and the six added cases, then failed the module-file
+oracle: Windows' cross-width process enumeration reported `System32` for the 32-bit module that CE resolved to
+`SysWOW64`. Cleanup and restoration passed. The fixture now resolves only direct System32 module paths to the
+physical x86 system directory, retaining strict base-address, path, PE-machine and export comparisons.
+Its corrected x86 run is pending. A failed run's partial receipts are not counted as qualification.
+
+The following package 8 results remain evidence for their own binary hashes:
 
 The x64 workflow `20261019T131741Z-b4d5` passed with the source-built Client and SDK, followed by smoke session
 `20261019T132216Z-47db`. Both restored user state, preserved the installed CE files and reported no cleanup failures.
@@ -88,7 +128,7 @@ The follow-up Release build and scoped formatting checks passed. All **5,566** p
 Lua tests passed with zero failures or skips, recorded in `pointer-width-portable-1` and `pointer-width-native-lua-1`
 under the same artifact directory. The public contract snapshot diff contains only the intended explicit-clear
 description and updated help-document sizes. Independent Astra review found no remaining actionable findings.
-The pointer fix and six added live cases still require a fresh published package and native sessions.
+The six added cases passed in the package 9 x64 session above; complete x86 qualification remains pending.
 
 ## Source dependency verification from 2026-10-19
 

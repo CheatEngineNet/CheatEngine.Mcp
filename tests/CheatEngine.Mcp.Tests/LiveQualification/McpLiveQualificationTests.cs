@@ -21,6 +21,11 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 	public async Task OneGateway_TwoOwnedInstances_RoutesStateAndSurvivesOneHostShutdown()
 	{
 		LiveQualificationInputs inputs = fixture.RequireAuthorization();
+		if (inputs.Scenario is LiveQualificationScenario.Assembler or LiveQualificationScenario.Debugger)
+		{
+			await LiveSpecializedQualification.RunAsync(inputs);
+			return;
+		}
 		if (inputs.Scenario is LiveQualificationScenario.Compiler or LiveQualificationScenario.CompilerExtended)
 		{
 			await LiveCompilerQualification.RunAsync(inputs);

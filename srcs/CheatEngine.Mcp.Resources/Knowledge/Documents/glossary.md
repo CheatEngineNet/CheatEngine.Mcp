@@ -58,9 +58,11 @@ for single-player or offline software the user may modify, with consent: see [sa
   setting; a named scanner checks every address unless `scan_first.alignment` is set. See
   [value scans](value-scans.md).
 - **File as process**: CE's mode that opens a file from disk as the target, through
-  `process_open_file(filename="...")`, which changes the target like `process_attach`. The memory tools then read and
-  write the file's bytes at `process_open_file.startAddress` plus the file offset, and `process_save_file` writes the
-  edited image to a new file inside `Mcp:Files:AllowedRoots`. See [configuration](configuration.md).
+  `process_open_file(filename="...")`, which changes the target like `process_attach`. Its observed target ID is
+  CE's file sentinel `4294967295`, not an operating-system PID. CE can edit the mapped image; `process_save_file`
+  writes it to a new file inside `Mcp:Files:AllowedRoots`. MCP's local-process snapshots and memory tools require
+  an operating-system process and refuse this file target. Reattach the intended process before using those tools.
+  See [configuration](configuration.md).
 - **Find out what writes or accesses**: CE's debugger commands that list the instructions that write to or access an
   address, and "find out what addresses this instruction accesses". Here they are capture jobs:
   `debugger_start_capture(address="...", trigger="write")` (or `"access"`), and

@@ -11,5 +11,7 @@ internal enum LiveQualificationScenario
 	Performance,
 	Soak,
 	DispatchDiagnostic,
-	Workflows
+	Workflows,
+	Assembler,
+	Debugger
 }

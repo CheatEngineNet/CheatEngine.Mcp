@@ -36,6 +36,7 @@ internal static class LiveLifecycleQualification
 			await LiveWorkflowQualification.VerifyAsync(sandbox, connection.Gateway);
 			await LiveDotNetMetadataQualification.VerifyAsync(sandbox,
 				connection.Gateway.Bind(sandbox.HostA.InstanceId), sandbox.TargetManagedAssemblyPath);
+			await LiveProcessFileQualification.VerifyAsync(sandbox, connection.Gateway.Bind(sandbox.HostA.InstanceId));
 			for (int cycle = 0; cycle < (reloadPlugins ? 3 : 0); cycle++)
 			{
 				await connection.CyclePluginAsync("A");

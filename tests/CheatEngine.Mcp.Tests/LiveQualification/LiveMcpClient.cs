@@ -28,9 +28,13 @@ internal sealed class LiveMcpClient : IAsyncDisposable, ILiveMcpToolClient
 		return client.DisposeAsync();
 	}
 
-	public async Task<JsonNode?> CallToolAsync(string name, IReadOnlyDictionary<string, object?>? arguments = null)
+	public Task<JsonNode?> CallToolAsync(string name, IReadOnlyDictionary<string, object?>? arguments = null) =>
+		CallToolWithCancellationAsync(name, arguments, cancellationToken);
+
+	internal async Task<JsonNode?> CallToolWithCancellationAsync(string name, IReadOnlyDictionary<string, object?>? arguments,
+		CancellationToken callCancellation)
 	{
-		LiveMcpToolResult result = await CallToolRawAsync(name, arguments);
+		LiveMcpToolResult result = await CallToolRawWithCancellationAsync(name, arguments, callCancellation);
 		if (result.IsError)
 		{
 			throw new InvalidOperationException($"Tool '{name}' returned an MCP error: {result.ErrorText}");
@@ -39,10 +43,13 @@ internal sealed class LiveMcpClient : IAsyncDisposable, ILiveMcpToolClient
 		return result.Payload;
 	}
 
-	public async Task<LiveMcpToolResult> CallToolRawAsync(string name,
-		IReadOnlyDictionary<string, object?>? arguments = null)
+	public Task<LiveMcpToolResult> CallToolRawAsync(string name,
+		IReadOnlyDictionary<string, object?>? arguments = null) => CallToolRawWithCancellationAsync(name, arguments, cancellationToken);
+
+	internal async Task<LiveMcpToolResult> CallToolRawWithCancellationAsync(string name,
+		IReadOnlyDictionary<string, object?>? arguments, CancellationToken callCancellation)
 	{
-		using CancellationTokenSource timeout = CreateTimeout(cancellationToken);
+		using CancellationTokenSource timeout = CreateTimeout(callCancellation);
 		CallToolResult result = await client.CallToolAsync(name, arguments ?? new Dictionary<string, object?>(),
 			cancellationToken: timeout.Token);
 		return new LiveMcpToolResult(result.IsError == true, ExtractToolPayload(result),

@@ -21,7 +21,9 @@ internal static class LiveModuleExportQualification
 		using Process target = Process.GetProcessById(sandbox.HostA.TargetProcessId);
 		ProcessModule expectedModule = Assert.Single(target.Modules.Cast<ProcessModule>(), module =>
 			string.Equals(module.ModuleName, "kernel32.dll", StringComparison.OrdinalIgnoreCase));
-		string path = expectedModule.FileName;
+		bool is64Bit = sandbox.TargetArchitecture == "x64";
+		string path = ResolveTargetModulePath(expectedModule.FileName, is64Bit, Environment.Is64BitOperatingSystem,
+			Environment.SystemDirectory, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "SysWOW64"));
 		ulong baseAddress = (ulong) expectedModule.BaseAddress;
 		JsonNode modules = await CallAsync(instance, CheatEngineToolNames.ModuleList,
 			new Dictionary<string, object?> { ["nameContains"] = "kernel32.dll", ["limit"] = 100, ["format"] = "detailed" });
@@ -30,7 +32,6 @@ internal static class LiveModuleExportQualification
 			.DistinctBy(node => (Address(Text(node!, "base")), Text(node!, "path").ToUpperInvariant())))!;
 		Assert.Equal(baseAddress, Address(Text(module, "base")));
 		Assert.Equal(path, Text(module, "path"), ignoreCase: true);
-		bool is64Bit = sandbox.TargetArchitecture == "x64";
 		Assert.Equal(is64Bit, module["is64Bit"]!.GetValue<bool>());
 		FileExport[] oracle = ReadNamedExports(path, is64Bit ? Machine.Amd64 : Machine.I386);
 		FileExport[] expected = [.. oracle.Where(export => export.Name.Contains("get", StringComparison.OrdinalIgnoreCase))];
@@ -63,6 +64,19 @@ internal static class LiveModuleExportQualification
 			replayMatches = true,
 			directAndForwardedExportsVerified = true
 		});
+	}
+
+	/// <summary>Resolves the physical system-module path used by a target of the selected width.</summary>
+	internal static string ResolveTargetModulePath(string path, bool targetIs64Bit, bool is64BitWindows,
+		string systemDirectory, string wow64Directory)
+	{
+		if (targetIs64Bit || !is64BitWindows ||
+			!string.Equals(Path.GetDirectoryName(path), systemDirectory, StringComparison.OrdinalIgnoreCase))
+		{
+			return path;
+		}
+
+		return Path.Combine(wow64Directory, Path.GetFileName(path));
 	}
 
 	private static async Task<JsonNode> VerifyPageAsync(LiveMcpInstanceClient instance, string module,

@@ -38,6 +38,14 @@ public sealed class LiveSandboxOptionsTests
 		{
 			DispatchDiagnostic = true
 		}).ValidateFor(LiveQualificationScenario.DispatchDiagnostic);
+		(LiveSandboxOptions.Smoke with
+		{
+			AssemblerQualification = true
+		}).ValidateFor(LiveQualificationScenario.Assembler);
+		(LiveSandboxOptions.Smoke with
+		{
+			DebuggerQualification = true
+		}).ValidateFor(LiveQualificationScenario.Debugger);
 	}
 
 	[Fact]
@@ -54,12 +62,34 @@ public sealed class LiveSandboxOptionsTests
 			LiveSandboxOptions.Smoke with { PerformanceQualification = true },
 			LiveSandboxOptions.Smoke with { SoakQualification = true },
 			LiveSandboxOptions.Smoke with { DispatchDiagnostic = true },
+			LiveSandboxOptions.Smoke with { AssemblerQualification = true },
+			LiveSandboxOptions.Smoke with { DebuggerQualification = true },
 			LiveSandboxOptions.Smoke with { UseSoakLifetime = true }
 		];
 		foreach (LiveSandboxOptions options in invalid)
 		{
 			Assert.Throws<InvalidOperationException>(() => options.ValidateFor(LiveQualificationScenario.Smoke));
 		}
+	}
+
+	[Theory]
+	[InlineData(true)]
+	[InlineData(false)]
+	public void ValidateFor_SpecializedScenariosRequireExactFlagsAndDisabledTargetExecution(bool assembler)
+	{
+		LiveQualificationScenario scenario = assembler ? LiveQualificationScenario.Assembler : LiveQualificationScenario.Debugger;
+		LiveSandboxOptions options = LiveSandboxOptions.Smoke with
+		{
+			AssemblerQualification = assembler,
+			DebuggerQualification = !assembler
+		};
+		Assert.True(options.RequiresCapabilityConfiguration);
+		options.ValidateFor(scenario);
+		Assert.Throws<InvalidOperationException>(() => (options with { EnableTargetCodeExecution = true }).ValidateFor(scenario));
+		Assert.Throws<InvalidOperationException>(() => (options with { CompilerQualification = true }).ValidateFor(scenario));
+		Assert.Throws<InvalidOperationException>(() => (options with { WorkflowQualification = true }).ValidateFor(scenario));
+		Assert.Throws<InvalidOperationException>(() => (options with { AssemblerQualification = true, DebuggerQualification = true }).ValidateFor(scenario));
+		Assert.Throws<InvalidOperationException>(() => options.ValidateFor(LiveQualificationScenario.Smoke));
 	}
 
 	[Fact]

@@ -564,8 +564,8 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 			{
 				Mcp = new
 				{
-					EnableUnsafeLua = false,
-					EnableAutoAssembler = false,
+					EnableUnsafeLua = _options.AssemblerQualification,
+					EnableAutoAssembler = _options.AssemblerQualification,
 					EnableTargetCodeExecution = _options.CompilerQualification && _options.EnableTargetCodeExecution,
 					EnableKernelAccess = false,
 					Files = new

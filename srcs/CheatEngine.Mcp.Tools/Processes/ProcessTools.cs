@@ -36,9 +36,16 @@ public sealed class ProcessTools
 	                                    """;
 
 	private const string OpenFileScript = """
-	                                      openFileAsProcess(a[1], a[2], a[3])
+	                                      local startAddress = nil
+	                                      if a[3] ~= nil then
+	                                        startAddress = getAddressSafe(a[3])
+	                                        assert(math.type(startAddress) == 'integer' and startAddress >= 0,
+	                                          'startAddress could not be resolved to a nonnegative integral address.')
+	                                      end
+	                                      local opened = openFileAsProcess(a[1], a[2], startAddress)
+	                                      assert(opened == true, 'openFileAsProcess did not report success.')
 	                                      local processId = getOpenedProcessID()
-	                                      assert(processId ~= nil and processId ~= 0, 'openFileAsProcess did not select a file target.')
+	                                      assert(processId == 0xFFFFFFFF, 'openFileAsProcess did not select the file-target sentinel.')
 	                                      return { inputFileName = a[1], requested64Bit = a[2], observedProcessId = processId,
 	                                        observedFileSize = getOpenedFileSize() }
 	                                      """;

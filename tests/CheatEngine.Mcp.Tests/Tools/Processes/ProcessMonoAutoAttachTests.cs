@@ -50,7 +50,7 @@ public sealed class ProcessMonoAutoAttachTests
 		ProcessOpenFileResult opened = target.Tools.OpenFile(input, cancellationToken: Token);
 
 		Assert.Equal(new ProcessCreateResult(88, expected), created);
-		Assert.Equal((99, Path.GetFileName(input), expected),
+		Assert.Equal((4294967295L, Path.GetFileName(input), expected),
 			(opened.ObservedProcessId, opened.InputFileName, opened.MonoAutoAttach));
 	}
 
@@ -96,7 +96,7 @@ public sealed class ProcessMonoAutoAttachTests
 	{
 		Assert.False(new ProcessAttachResult(1, null).MonoAutoAttach);
 		Assert.False(new ProcessCreateResult(1).MonoAutoAttach);
-		Assert.False(new ProcessOpenFileResult("a.bin", true, 1, 2).MonoAutoAttach);
+		Assert.False(new ProcessOpenFileResult("a.bin", true, 4294967295L, 2).MonoAutoAttach);
 	}
 
 	/// <summary>One activation over a Client double whose Lua facade answers the probe and the open scripts.</summary>
@@ -120,7 +120,7 @@ public sealed class ProcessMonoAutoAttachTests
 				}
 
 				Assert.Equal(typeof(LuaJsonResult<ProcessOpenFileResult>), result);
-				return new LuaJsonResult<ProcessOpenFileResult>(new ProcessOpenFileResult("ignored", true, 99, 4096),
+				return new LuaJsonResult<ProcessOpenFileResult>(new ProcessOpenFileResult("ignored", true, 4294967295L, 4096),
 					null, 0);
 			});
 			IProcessClient processes = ClientTestDouble.Create<IProcessClient>((method, _) =>

@@ -51,16 +51,16 @@ internal sealed class LiveLifecycleSession(LiveSandboxSession sandbox, LiveMcpCl
 		}
 	}
 
-	internal async Task VerifyBothAsync()
+	internal async Task VerifyBothAsync(bool expectAssembler = false)
 	{
 		foreach (LiveSandboxHost host in new[] { sandbox.HostA, sandbox.HostB })
 		{
 			LiveMcpInstanceClient instance = Gateway.Bind(host.InstanceId);
 			JsonNode runtime = (await instance.CallToolAsync(CheatEngineToolNames.RuntimeGetInfo))!;
-			foreach (string gate in new[] { "unsafeLua", "autoAssembler", "kernelAccess", "targetCodeExecution" })
-			{
-				Assert.False(runtime["gates"]![gate]!.GetValue<bool>());
-			}
+			Assert.Equal(expectAssembler, runtime["gates"]!["unsafeLua"]!.GetValue<bool>());
+			Assert.Equal(expectAssembler, runtime["gates"]!["autoAssembler"]!.GetValue<bool>());
+			Assert.False(runtime["gates"]!["kernelAccess"]!.GetValue<bool>());
+			Assert.False(runtime["gates"]!["targetCodeExecution"]!.GetValue<bool>());
 			Assert.Equal(Path.GetFileName(host.PluginPath), runtime["pluginFileName"]!.GetValue<string>());
 			Assert.Equal(Path.GetFileName(host.PluginPath), runtime["runtimeFileName"]!.GetValue<string>());
 			Assert.True(runtime["epoch"]!.GetValue<long>() > 0);

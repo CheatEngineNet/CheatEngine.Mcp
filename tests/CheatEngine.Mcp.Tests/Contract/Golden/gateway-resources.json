@@ -6,7 +6,7 @@
       "uri": "cheatengine://docs/address-expressions",
       "description": "Where Cheat Engine address expressions are accepted, their grammar and pointer notations, and the strict number formats some parameters and outputs use instead.",
       "mimeType": "text/markdown",
-      "size": 17094
+      "size": 17145
     },
     {
       "name": "doc_aob_signatures",
@@ -118,7 +118,7 @@
       "uri": "cheatengine://docs/glossary",
       "description": "Short definitions of Cheat Engine and MCP terms, such as AOB, code cave, pointer chain, host effect and job, each with the tool or workflow that uses it.",
       "mimeType": "text/markdown",
-      "size": 21752
+      "size": 21912
     },
     {
       "name": "doc_kernel",

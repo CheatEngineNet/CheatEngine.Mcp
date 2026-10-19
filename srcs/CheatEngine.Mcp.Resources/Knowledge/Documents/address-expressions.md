@@ -110,7 +110,7 @@ More: [pointers](pointers.md) and [manual pointer chain](../Workflows/manual-poi
 | Address parameters | A CE expression, hex by default. |
 | kernel_read_physical.physicalAddress, kernel_write_physical.physicalAddress, kernel_start_watch.physicalAddress | A plain hex literal, `0x` optional; no expression. |
 | pointer_find_paths.target, pointer_rescan_paths.target, pointer_find_references.target | A plain hex literal (`0x` optional) is taken as is. Anything else is resolved in the selected process, even for a map of an earlier one: pass hex for offline work. |
-| process_open_file.startAddress | A plain number that CE reads as a Lua integer (CE source): write hex as `"0x10000000"`. Bare digits are decimal, and a symbol gives 0. |
+| process_open_file.startAddress | A CE address expression resolved before opening the file, hex by default. The resolved base must be a nonnegative Lua integer; an unresolved expression refuses before selection changes. |
 | pointer_read_chain.offsets, record_create and record_update offsets, structure element offsets and child starts, structure_read.fromOffset and toOffset | Signed hex strings, `+` and `0x` optional: `"4C8"`, `"-8"`. `"1224"` means 0x1224. |
 | structure_autoguess.offset | A hex string, zero or greater (`"400"`); a negative one is refused. |
 | debugger_start_trace.stopCondition | `REG=HEX`, such as `RAX=1A`: compared as a hex number, leading zeros and `0x` ignored. |

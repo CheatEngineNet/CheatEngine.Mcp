@@ -59,8 +59,8 @@ public sealed record ProcessOpenFileResult(
 	string InputFileName,
 	[property: Description("Whether Cheat Engine was asked to interpret the input as 64-bit.")]
 	bool Requested64Bit,
-	[property: Description("The process-like target id after the operation.")]
-	int ObservedProcessId,
+	[property: Description("The file-target sentinel 4294967295 after Cheat Engine opens the file; it is not an operating-system process id.")]
+	long ObservedProcessId,
 	[property: Description("The file size Cheat Engine observed after opening it.")]
 	long ObservedFileSize,
 	[property: Description(

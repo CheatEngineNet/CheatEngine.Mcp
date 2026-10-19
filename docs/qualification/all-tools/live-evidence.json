@@ -1216,6 +1216,204 @@
       "receipt": "all_tools_symbol_set_module_preference",
       "cleanupReceipt": "live_utility_symbol_cleanup",
       "scope": "reversible_workflow"
+    },
+    {
+      "name": "pointer_get_access_info",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/McpLiveQualificationTests.cs",
+      "testMethod": "AssertPointerAccessFactsAsync",
+      "oracle": "Supplied x86 EAX=1000 with displacement -10 resolves FF0, and x64 RAX=1000 with displacement +10 resolves1010. This checks supplied-fact arithmetic through the live host, not a native register capture.",
+      "receipt": "pointer_get_access_info_supplied_facts",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "runtime_release_resources",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveAdditionalToolQualification.cs",
+      "testMethod": "VerifyOwnedResourceReleaseAsync",
+      "oracle": "Starting from empty resources, one named16-byte allocation has the exact ID/address/PID; release completes that resource, fresh listing is empty and memory_free returns not_found.",
+      "receipt": "all_tools_runtime_release_resources",
+      "cleanupReceipt": "all_tools_runtime_release_resources_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "scan_stop",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveAdditionalToolQualification.cs",
+      "testMethod": "VerifyNamedScannerStopAsync",
+      "oracle": "The independent64-byte scan finds the one seeded int32 value; stop reports removal and a fresh scanner list excludes the exact name.",
+      "receipt": "all_tools_scan_stop",
+      "cleanupReceipt": "all_tools_scan_stop_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "structure_autoguess",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveAdditionalToolQualification.cs",
+      "testMethod": "VerifyStructureAutoguessAsync",
+      "oracle": "Known16-byte input produces a complete structure page with contiguous fixed-width primitive fields covering exactly16 bytes; source bytes remain unchanged and cleanup verifies definition/allocation absence.",
+      "receipt": "all_tools_structure_autoguess",
+      "cleanupReceipt": "all_tools_structure_autoguess_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "process_open_file",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveProcessFileQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Opening observes the exact CE file-target sentinel; saved file length, complete bytes and SHA256 equal the independently generated input. Cleanup verifies original owned PID selection and deletion of both private files.",
+      "receipt": "all_tools_process_open_file",
+      "cleanupReceipt": "live_process_file_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "process_save_file",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveProcessFileQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Opening observes the exact CE file-target sentinel; saved file length, complete bytes and SHA256 equal the independently generated input. Cleanup verifies original owned PID selection and deletion of both private files.",
+      "receipt": "all_tools_process_save_file",
+      "cleanupReceipt": "live_process_file_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "lua_execute",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveAssemblerQualification.cs",
+      "testMethod": "VerifyLuaAsync",
+      "oracle": "Fixed Lua returns exactly42 and mcp-live, completed status and no dropped opaque values.",
+      "receipt": "all_tools_lua_execute",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "asm_check",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveAssemblerQualification.cs",
+      "testMethod": "VerifyCheckAndGeneratedScriptsAsync",
+      "oracle": "The fixed ENABLE/DISABLE define-only script is accepted with no failed section.",
+      "receipt": "all_tools_asm_check",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "asm_generate_injection",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveAssemblerQualification.cs",
+      "testMethod": "VerifyCheckAndGeneratedScriptsAsync",
+      "oracle": "Known module/signature/bytes/symbol inputs produce the complete independently expected allocation, original-byte copy, jump and disable/restore template.",
+      "receipt": "all_tools_asm_generate_injection",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "asm_apply",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveAssemblerQualification.cs",
+      "testMethod": "VerifyAppliedPatchAsync",
+      "oracle": "An owned32-byte image changes only its first5 bytes from90 toCC; the exact retained patch is listed, release restores the full original image and the patch is absent afterward.",
+      "receipt": "all_tools_asm_apply",
+      "cleanupReceipt": "live_assembler_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "asm_apply_code_patch",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveAssemblerQualification.cs",
+      "testMethod": "VerifyAppliedPatchAsync",
+      "oracle": "An owned32-byte image changes only its first5 bytes from90 toCC; the exact retained patch is listed, release restores the full original image and the patch is absent afterward.",
+      "receipt": "all_tools_asm_apply_code_patch",
+      "cleanupReceipt": "live_assembler_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "asm_list_patches",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveAssemblerQualification.cs",
+      "testMethod": "VerifyAppliedPatchAsync",
+      "oracle": "An owned32-byte image changes only its first5 bytes from90 toCC; the exact retained patch is listed, release restores the full original image and the patch is absent afterward.",
+      "receipt": "all_tools_asm_list_patches",
+      "cleanupReceipt": "live_assembler_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "asm_release_patch",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveAssemblerQualification.cs",
+      "testMethod": "VerifyAppliedPatchAsync",
+      "oracle": "An owned32-byte image changes only its first5 bytes from90 toCC; the exact retained patch is listed, release restores the full original image and the patch is absent afterward.",
+      "receipt": "all_tools_asm_release_patch",
+      "cleanupReceipt": "live_assembler_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "record_set_script",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveAssemblerQualification.cs",
+      "testMethod": "VerifyRecordScriptAsync",
+      "oracle": "A newly owned inactive AA record reads back the exact replacement script; cleanup restores its original text then verifies deletion.",
+      "receipt": "all_tools_record_set_script",
+      "cleanupReceipt": "live_assembler_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "debugger_attach",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Windows debugger attaches to the owned PID; a request for an externally observed owned thread is followed by global stopped context. IP belongs to an independently enumerated target module; stack pointer/width and8 scanned slots match context (empty heuristic frames are allowed). Continue and detach are independently observed. This does not prove thread-specific event capture or nonempty frame extraction.",
+      "receipt": "all_tools_debugger_attach",
+      "cleanupReceipt": "live_debugger_windows_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "debugger_break_thread",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Windows debugger attaches to the owned PID; a request for an externally observed owned thread is followed by global stopped context. IP belongs to an independently enumerated target module; stack pointer/width and8 scanned slots match context (empty heuristic frames are allowed). Continue and detach are independently observed. This does not prove thread-specific event capture or nonempty frame extraction.",
+      "receipt": "all_tools_debugger_break_thread",
+      "cleanupReceipt": "live_debugger_windows_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "debugger_get_context",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Windows debugger attaches to the owned PID; a request for an externally observed owned thread is followed by global stopped context. IP belongs to an independently enumerated target module; stack pointer/width and8 scanned slots match context (empty heuristic frames are allowed). Continue and detach are independently observed. This does not prove thread-specific event capture or nonempty frame extraction.",
+      "receipt": "all_tools_debugger_get_context",
+      "cleanupReceipt": "live_debugger_windows_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "debugger_get_stack_trace",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Windows debugger attaches to the owned PID; a request for an externally observed owned thread is followed by global stopped context. IP belongs to an independently enumerated target module; stack pointer/width and8 scanned slots match context (empty heuristic frames are allowed). Continue and detach are independently observed. This does not prove thread-specific event capture or nonempty frame extraction.",
+      "receipt": "all_tools_debugger_get_stack_trace",
+      "cleanupReceipt": "live_debugger_windows_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "debugger_continue",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Windows debugger attaches to the owned PID; a request for an externally observed owned thread is followed by global stopped context. IP belongs to an independently enumerated target module; stack pointer/width and8 scanned slots match context (empty heuristic frames are allowed). Continue and detach are independently observed. This does not prove thread-specific event capture or nonempty frame extraction.",
+      "receipt": "all_tools_debugger_continue",
+      "cleanupReceipt": "live_debugger_windows_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "debugger_detach",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Windows debugger attaches to the owned PID; a request for an externally observed owned thread is followed by global stopped context. IP belongs to an independently enumerated target module; stack pointer/width and8 scanned slots match context (empty heuristic frames are allowed). Continue and detach are independently observed. This does not prove thread-specific event capture or nonempty frame extraction.",
+      "receipt": "all_tools_debugger_detach",
+      "cleanupReceipt": "live_debugger_windows_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "exec_compile_csharp",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveCompilerQualification.cs",
+      "testMethod": "VerifyCompilerAsync",
+      "oracle": "Fixed source produces an owned PE export with independently matching output path, positive bounded length and SHA256; other instance files and target remain unchanged.",
+      "receipt": "compiler_export",
+      "cleanupReceipt": "ownedCompilerFilesRemoved",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "exec_inject_dotnet",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveManagedInjectionQualification.cs",
+      "testMethod": "VerifyOneFixedInjectionAsync",
+      "oracle": "The held hash-checked assembly invokes the exact fixed class/method/parameter in the separately owned Framework target and returns7319; session passes only after target disposal and compiler-file cleanup.",
+      "receipt": "managed_injection_fixed_result",
+      "cleanupReceipt": "ownedCompilerFilesRemoved",
+      "scope": "reversible_workflow"
     }
   ]
 }

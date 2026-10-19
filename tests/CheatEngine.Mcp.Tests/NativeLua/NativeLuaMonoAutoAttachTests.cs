@@ -17,7 +17,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 	                                        pid = 77; created = 0; opened = 0
 	                                        getSettingsOption = function(name) assert(name == 'IgnoreUsesMono') return false end
 	                                        createProcess = function() created = created + 1; pid = 88 end
-	                                        openFileAsProcess = function() opened = opened + 1; pid = 99 end
+	                                        openFileAsProcess = function() opened = opened + 1; pid = 0xFFFFFFFF; return true end
 	                                        getOpenedProcessID = function() return pid end
 	                                        getOpenedFileSize = function() return 4096 end
 	                                        """;
@@ -98,7 +98,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 		ProcessCreateResult created = tools.Create(input, cancellationToken: Token);
 		ProcessOpenFileResult opened = tools.OpenFile(input, cancellationToken: Token);
 
-		Assert.Equal((88, 99), (created.ProcessId, opened.ObservedProcessId));
+		Assert.Equal((88, 4294967295L), (created.ProcessId, opened.ObservedProcessId));
 		Assert.Equal((monoAutoAttach, monoAutoAttach), (created.MonoAutoAttach, opened.MonoAutoAttach));
 		Assert.Equal((1L, 1L), (ReadGlobal("created"), ReadGlobal("opened")));
 	}

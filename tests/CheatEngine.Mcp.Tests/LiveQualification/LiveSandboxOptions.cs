@@ -6,7 +6,8 @@ internal sealed record LiveSandboxOptions(bool CompilerQualification, bool Enabl
 	internal static LiveSandboxOptions Smoke { get; } = new(false, false);
 
 	internal bool RequiresCapabilityConfiguration => CompilerQualification || LifecycleQualification
-		|| PerformanceQualification || SoakQualification || DispatchDiagnostic || WorkflowQualification;
+		|| PerformanceQualification || SoakQualification || DispatchDiagnostic || WorkflowQualification || AssemblerQualification
+		|| DebuggerQualification;
 
 	internal LiveCompilerVariant Variant { get; init; } = LiveCompilerVariant.Normal;
 	internal CompilerTempTopology TempTopology { get; init; } = CompilerTempTopology.Isolated;
@@ -19,6 +20,14 @@ internal sealed record LiveSandboxOptions(bool CompilerQualification, bool Enabl
 		get; init;
 	}
 	internal bool WorkflowQualification
+	{
+		get; init;
+	}
+	internal bool AssemblerQualification
+	{
+		get; init;
+	}
+	internal bool DebuggerQualification
 	{
 		get; init;
 	}
@@ -56,6 +65,8 @@ internal sealed record LiveSandboxOptions(bool CompilerQualification, bool Enabl
 			&& (!injection || EnableTargetCodeExecution)
 			&& LifecycleQualification == (scenario == LiveQualificationScenario.Lifecycle)
 			&& WorkflowQualification == (scenario == LiveQualificationScenario.Workflows)
+			&& AssemblerQualification == (scenario == LiveQualificationScenario.Assembler)
+			&& DebuggerQualification == (scenario == LiveQualificationScenario.Debugger)
 			&& PerformanceQualification == (scenario == LiveQualificationScenario.Performance)
 			&& SoakQualification == (scenario == LiveQualificationScenario.Soak)
 			&& DispatchDiagnostic == (scenario == LiveQualificationScenario.DispatchDiagnostic)

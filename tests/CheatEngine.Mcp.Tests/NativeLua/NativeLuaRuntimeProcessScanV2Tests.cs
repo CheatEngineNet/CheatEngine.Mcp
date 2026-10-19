@@ -185,7 +185,8 @@ public sealed partial class NativeLuaToolRuntimeTests
 		InstallStubs("""
 		             pid=77; created=0; opened=0; saved=0; pointerSize=8
 		             createProcess=function(path, parameters, debug, breakAtEntry) created=created+1; createdPath=path; pid=88 end
-		             openFileAsProcess=function(filename, is64Bit, startAddress) opened=opened+1; openedFilename=filename; pid=99 end
+		             getAddressSafe=function(expression) if expression == '400000' then return 0x400000 end return nil end
+		             openFileAsProcess=function(filename, is64Bit, startAddress) opened=opened+1; openedFilename=filename; openedStartAddress=startAddress; pid=0xFFFFFFFF; return true end
 		             getOpenedProcessID=function() return pid end
 		             getOpenedFileSize=function() return 4096 end
 		             saveOpenedFile=function(filename) saved=saved+1; savedFilename=filename end
@@ -216,7 +217,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 			ProcessPointerSizeResult pointerSize = tools.SetPointerSize(4, Token);
 
 			Assert.Equal(88, created.ProcessId);
-			Assert.Equal((99, 4096L, Path.GetFileName(input), false),
+			Assert.Equal((4294967295L, 4096L, Path.GetFileName(input), false),
 				(opened.ObservedProcessId, opened.ObservedFileSize, opened.InputFileName, opened.Requested64Bit));
 			Assert.Equal((true, Path.GetFileName(output)), (saved.Saved, saved.FileName));
 			Assert.Equal(new long[] { 100, 200, 300 }, threads.Threads);
@@ -227,6 +228,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 			Assert.Equal((1L, 1L), (ReadGlobal("threadLists"), ReadGlobal("threadListsDestroyed")));
 			Assert.Equal(input, ReadGlobal("createdPath"));
 			Assert.Equal(input, ReadGlobal("openedFilename"));
+			Assert.Equal(0x400000L, ReadGlobal("openedStartAddress"));
 			string savedTemporary = Assert.IsType<string>(ReadGlobal("savedFilename"));
 			Assert.NotEqual(output, savedTemporary);
 			Assert.StartsWith(".", Path.GetFileName(savedTemporary));
@@ -236,6 +238,104 @@ public sealed partial class NativeLuaToolRuntimeTests
 		{
 			File.Delete(output);
 		}
+	}
+
+	[Theory]
+	[InlineData(4294967295L, false)]
+	[InlineData(0L, true)]
+	[InlineData(1L, true)]
+	[InlineData(-1L, true)]
+	[InlineData(4294967296L, true)]
+	public void ProcessV2_OpenFile_RequiresTheExactFileTargetSentinel(long reportedProcessId, bool refused)
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs("""
+		             pid = 0; opened = 0
+		             openFileAsProcess = function() opened = opened + 1; pid = reportedProcessId; return true end
+		             getOpenedProcessID = function() return pid end
+		             getOpenedFileSize = function() return 4096 end
+		             """.Replace("reportedProcessId", reportedProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+			StringComparison.Ordinal));
+		ProcessTools tools = new(CreateNativeProcessDispatch(77), new TargetResources(),
+			new TargetTransitionGuards([]), CreateProcessFiles());
+
+		if (refused)
+		{
+			CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+				tools.OpenFile(typeof(ProcessTools).Assembly.Location, cancellationToken: Token));
+			Assert.Equal((ToolErrorKind.HostRefused, ToolHostEffect.Started),
+				(exception.Error.Kind, exception.Error.HostEffect));
+		}
+		else
+		{
+			ProcessOpenFileResult opened = tools.OpenFile(typeof(ProcessTools).Assembly.Location, cancellationToken: Token);
+			Assert.Equal(4294967295L, opened.ObservedProcessId);
+		}
+
+		Assert.Equal(1L, ReadGlobal("opened"));
+	}
+
+	[Fact]
+	public void ProcessV2_OpenFile_RejectsAFailedOpenWhenThePriorFileTargetSentinelRemains()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs("""
+		             pid = 0xFFFFFFFF; opened = 0; sizeReads = 0
+		             openFileAsProcess = function() opened = opened + 1; return false end
+		             getOpenedProcessID = function() return pid end
+		             getOpenedFileSize = function() sizeReads = sizeReads + 1; return 4096 end
+		             """);
+		ProcessTools tools = new(CreateNativeProcessDispatch(77), new TargetResources(),
+			new TargetTransitionGuards([]), CreateProcessFiles());
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			tools.OpenFile(typeof(ProcessTools).Assembly.Location, cancellationToken: Token));
+
+		Assert.Equal((ToolErrorKind.HostRefused, ToolHostEffect.Started),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Equal(1L, ReadGlobal("opened"));
+		Assert.Equal(0L, ReadGlobal("sizeReads"));
+	}
+
+	[Fact]
+	public void ProcessV2_OpenFile_ResolvesStartExpressionBeforeTheNativeOpen()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs("""
+		             pid = 0; opened = 0
+		             getAddressSafe = function(expression) assert(expression == 'filebase') return 0x400000 end
+		             openFileAsProcess = function(_, _, startAddress) opened = opened + 1; observedStartAddress = startAddress; pid = 0xFFFFFFFF; return true end
+		             getOpenedProcessID = function() return pid end
+		             getOpenedFileSize = function() return 4096 end
+		             """);
+		ProcessTools tools = new(CreateNativeProcessDispatch(77), new TargetResources(),
+			new TargetTransitionGuards([]), CreateProcessFiles());
+
+		ProcessOpenFileResult opened = tools.OpenFile(typeof(ProcessTools).Assembly.Location, false, "filebase", Token);
+
+		Assert.Equal(4294967295L, opened.ObservedProcessId);
+		Assert.Equal((1L, 0x400000L), (ReadGlobal("opened"), ReadGlobal("observedStartAddress")));
+	}
+
+	[Fact]
+	public void ProcessV2_OpenFile_InvalidStartExpression_RefusesBeforeTheNativeOpen()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs("""
+		             opened = 0
+		             getAddressSafe = function() return nil end
+		             openFileAsProcess = function() opened = opened + 1 end
+		             """);
+		ProcessTools tools = new(CreateNativeProcessDispatch(77), new TargetResources(),
+			new TargetTransitionGuards([]), CreateProcessFiles());
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			tools.OpenFile(typeof(ProcessTools).Assembly.Location, false, "missing", Token));
+
+		// The dispatcher entered Lua, even though validation prevented the native open.
+		Assert.Equal((ToolErrorKind.HostRefused, ToolHostEffect.Started),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Equal(0L, ReadGlobal("opened"));
 	}
 
 	[Fact]

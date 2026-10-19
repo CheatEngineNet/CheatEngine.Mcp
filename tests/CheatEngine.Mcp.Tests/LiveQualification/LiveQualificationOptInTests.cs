@@ -305,6 +305,45 @@ public sealed class LiveQualificationOptInTests
 		};
 	}
 
+	[Theory]
+	[InlineData("assembler", null)]
+	[InlineData("assembler", "true")]
+	[InlineData("assembler", LiveQualificationOptIn.DebuggerAcknowledgement)]
+	[InlineData("debugger", null)]
+	[InlineData("debugger", "true")]
+	[InlineData("debugger", LiveQualificationOptIn.AssemblerAcknowledgement)]
+	public void Evaluate_SpecializedScenarioRequiresItsOwnAcknowledgementBeforeInspection(string scenario, string? acknowledgement)
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.ScenarioVariable] = scenario;
+		string key = scenario == "assembler" ? LiveQualificationOptIn.AssemblerOptInVariable : LiveQualificationOptIn.DebuggerOptInVariable;
+		variables[key] = acknowledgement;
+		LiveQualificationDecision decision = LiveQualificationOptIn.Evaluate(variables.GetValueOrDefault,
+			Repository, LocalData, Installation, static _ => throw new InvalidOperationException("Must refuse before inspection."));
+		Assert.False(decision.IsAuthorized);
+		Assert.Contains(key, decision.Refusal, StringComparison.Ordinal);
+	}
+
+	[Theory]
+	[InlineData("assembler", LiveQualificationScenario.Assembler)]
+	[InlineData("debugger", LiveQualificationScenario.Debugger)]
+	public void Evaluate_SpecializedScenarioAcknowledgement_AuthorizesOnlyThatScenario(string scenario, int expected)
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.ScenarioVariable] = scenario;
+		if (scenario == "assembler")
+		{
+			variables[LiveQualificationOptIn.AssemblerOptInVariable] = LiveQualificationOptIn.AssemblerAcknowledgement;
+		}
+		else
+		{
+			variables[LiveQualificationOptIn.DebuggerOptInVariable] = LiveQualificationOptIn.DebuggerAcknowledgement;
+		}
+		LiveQualificationDecision decision = Evaluate(variables);
+		Assert.True(decision.IsAuthorized, decision.Refusal);
+		Assert.Equal((LiveQualificationScenario) expected, decision.Inputs!.Scenario);
+	}
+
 	private static LiveQualificationDecision Evaluate(Dictionary<string, string?> variables)
 	{
 		return LiveQualificationOptIn.Evaluate(variables.GetValueOrDefault, Repository, LocalData, Installation,
