@@ -12,4 +12,9 @@ internal sealed record LiveSandboxHost(
 	string PluginPath,
 	string InstanceId,
 	string Endpoint,
-	int TargetIncarnation = 0);
+	int TargetIncarnation = 0,
+	string ManagedObjectAddress = "",
+	string ManagedObjectType = "",
+	int? ManagedObjectMarker = null,
+	int? ManagedObjectMirror = null,
+	int? ManagedObjectToggle = null);

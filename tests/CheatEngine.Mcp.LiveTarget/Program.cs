@@ -7,6 +7,9 @@ namespace CheatEngine.Mcp.LiveTarget;
 internal static class Program
 {
 	private const int InitialValue = 20260926;
+	private const int ManagedObjectMarker = 0x13479BDF;
+	private const int ManagedObjectMirror = -20261019;
+	private const int ManagedObjectToggle = 1;
 	private static readonly TimeSpan MaximumLifetime = TimeSpan.FromMinutes(10);
 	private static readonly TimeSpan SoakMaximumLifetime = TimeSpan.FromMinutes(135);
 	private static readonly string[] PointerOffsets = ["-10", "20"];
@@ -32,6 +35,8 @@ internal static class Program
 		IntPtr middle = IntPtr.Zero;
 		IntPtr final = IntPtr.Zero;
 		IntPtr zeroRoot = IntPtr.Zero;
+		ManagedObjectProbe? managedProbe = null;
+		GCHandle managedProbePin = default;
 		try
 		{
 			direct = Marshal.AllocHGlobal(64);
@@ -47,6 +52,8 @@ internal static class Program
 			Marshal.WriteIntPtr(root, IntPtr.Add(middle, 0x10));
 			Marshal.WriteIntPtr(middle, IntPtr.Subtract(final, 0x20));
 			Marshal.WriteIntPtr(zeroRoot, IntPtr.Zero);
+			managedProbe = new ManagedObjectProbe(ManagedObjectMarker, ManagedObjectMirror, ManagedObjectToggle);
+			managedProbePin = GCHandle.Alloc(managedProbe, GCHandleType.Pinned);
 			string address = Address(direct);
 			string manifest = JsonSerializer.Serialize(new
 			{
@@ -58,7 +65,12 @@ internal static class Program
 				pointerTargetAddress = Address(final),
 				zeroPointerRootAddress = Address(zeroRoot),
 				unreadableRootAddress = "0x1",
-				pointerOffsets = PointerOffsets
+				pointerOffsets = PointerOffsets,
+				managedObjectAddress = Address((IntPtr) ManagedObjectProbe.AddressOf(managedProbe)),
+				managedObjectType = typeof(ManagedObjectProbe).FullName,
+				managedObjectMarker = ManagedObjectMarker,
+				managedObjectMirror = ManagedObjectMirror,
+				managedObjectToggle = ManagedObjectToggle
 			});
 			File.WriteAllText(manifestPath + ".tmp", manifest);
 			File.Move(manifestPath + ".tmp", manifestPath);
@@ -74,6 +86,11 @@ internal static class Program
 		}
 		finally
 		{
+			if (managedProbePin.IsAllocated)
+			{
+				managedProbePin.Free();
+			}
+			GC.KeepAlive(managedProbe);
 			Free(zeroRoot);
 			Free(final);
 			Free(middle);

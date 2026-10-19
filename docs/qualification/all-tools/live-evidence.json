@@ -1441,6 +1441,42 @@
       "receipt": "all_tools_asm_generate_api_hook",
       "cleanupReceipt": "live_api_hook_cleanup",
       "scope": "reversible_workflow"
+    },
+    {
+      "name": "dotnet_get_object",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveManagedObjectQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The exact rooted and pinned object address/type come from the owned target manifest; its three known Int32 fields match collector values and separate memory reads at collector-reported offsets. The module path, filename and SHA-256 match the independently identified owned assembly.",
+      "receipt": "all_tools_dotnet_get_object",
+      "cleanupReceipt": "live_managed_object_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "dotnet_start_instance_search",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveManagedObjectQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "A bounded search of the independently identified owned module/type produces a retained job whose completed results include the exact target-published pinned object address, without drops; cleanup verifies job and structure absence.",
+      "receipt": "all_tools_dotnet_start_instance_search",
+      "cleanupReceipt": "live_managed_object_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "dotnet_poll_instance_search",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveManagedObjectQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The exact owned search job reaches completion under a wall-clock deadline, reports no dropped results, and contains the pinned object address independently published by the target; cleanup stops the job and verifies not_found.",
+      "receipt": "all_tools_dotnet_poll_instance_search",
+      "cleanupReceipt": "live_managed_object_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "structure_fill_from_dotnet",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveManagedObjectQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The unique new structure has exactly the pinned object's three known Int32 fields, each at its independently checked collector offset with byte size four. Name, complete element count and total size match; cleanup deletes the structure and verifies not_found.",
+      "receipt": "all_tools_structure_fill_from_dotnet",
+      "cleanupReceipt": "live_managed_object_cleanup",
+      "scope": "reversible_workflow"
     }
   ]
 }

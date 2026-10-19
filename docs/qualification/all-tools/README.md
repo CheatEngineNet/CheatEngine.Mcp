@@ -39,9 +39,10 @@ Lua body do not establish successful native execution.
 - [ ] Qualify owned resource release, scanner stop and structure guessing with independent readback and cleanup.
 - [ ] Qualify file-as-process open/save with exact bytes and restored target identity.
 - [ ] Qualify fixed Lua and reversible Auto Assembler operations in their dedicated private scenario.
-- [ ] Qualify Windows debugger attachment, stopped state and cleanup against an owned target.
+- [x] Qualify Windows debugger attachment, stopped state and cleanup against an owned target on package 11.
 - [x] Qualify the fixed compiler scenario against source-built package 10, including gate refusal, exported bytes and cleanup.
-- [ ] Qualify managed injection with the reviewed helper enabled in the private host.
+- [x] Qualify managed injection with the reviewed helper enabled in the private host on package 11.
+- [ ] Resolve the intermittent native SDK frame-restoration crash reproduced by the package 11 compiler session.
 - [ ] Qualify generated AOB signatures, generated API hooks and owned process creation.
 - [ ] Supply the remaining native managed object/instance, Mono, debugger event, compiler/ABI, PDB and patch fixtures.
 - [ ] Qualify successful gated operations and DBK/DBVM operations in their required environments.
@@ -69,6 +70,44 @@ Debugger status now retains its validated core state when CE cannot supply its a
 Clients caching the old required-field schema should refresh the tool catalog. `broken` still requires the
 independent context check, including register-global restoration, and execution guards retain their strict checks.
 Independent Astra review closed the debugger findings. Native qualification of the replacement bytes is pending.
+
+Package 11 (`2460bfa198cb05d5134846f759b8fdf06a982a55`) passed debugger session
+`20261019T154118Z-82ff` and managed-injection session `20261019T154346Z-c862`. Both restored user settings,
+preserved installed files and reported no cleanup failures. The debugger report verifies seven native tool cases;
+its status, context, stack, break, continue and detach assertions use the owned target. Injection returned the
+fixed payload's expected value and verified owned compiler-file cleanup. These results describe this package only.
+
+| Package 11 file | SHA-256 |
+| --- | --- |
+| `CheatEngine.Mcp.dll` | `432E41DEDC8C5C08BDEA0843009B9342FCB2A6C3F547AD0DE594EA7CA5456F67` |
+| `CheatEngine.Mcp.Gateway.exe` | `4F22475239BA9F39C1B17541DE9D5088711D7F53AA1B8AB4129ABFF153AA052E` |
+
+The package 11 workflow `20261019T154209Z-2a27` reached signature generation but its fixture dereferenced an
+omitted match count before checking whether generation succeeded. It now retains the raw response and fails
+explicitly when the chosen address has no unique signature. The assembler session `20261019T154458Z-2fee`
+found CE's additional terminal newline; the two fixed input scripts now include that newline without relaxing
+content comparisons. Both failed sessions restored settings and preserved installed files.
+
+The disabled-compiler session `20261019T154553Z-ab0b` passed. The enabled session `20261019T154610Z-703f`
+compiled and exported the expected DLL, then crashed in the SDK's outer `LuaFrame.Dispose`/`lua_settop` path.
+It returned `instance_unavailable` with unknown host effect. Both owned hosts and targets stopped, user settings
+were restored and installed files were unchanged, but the crashed host's disabled-menu evidence is missing, so
+the session has a cleanup-evidence failure and supplies no verified native success cases. Further native runs
+are suspended while the SDK cleanup path is investigated; a passing earlier package does not close this regression.
+
+The follow-up SDK candidate `c934aec483c6c5cfe7a24112d9c3218ba4a1629b`
+([PR #97](https://github.com/CheatEngineNet/CheatEngine.SDK/pull/97)) releases synchronized callbacks on the
+already admitted Lua state. It removes a second provider acquisition during cleanup. The three new regression
+cases fail against the previous implementation and pass with the fix; all six focused cases, 136 hosting tests,
+363 Lua tests and 746 engine NativeLua tests passed with zero failures or skips. Independent Astra review closed
+the bounded patch. These results establish the cleanup invariant, not the cause of the native access violation.
+
+MCP's corresponding Release build passed with zero warnings or errors, all **5,608** portable cases and **722**
+standalone Lua cases passed, and the managed-object fixture is integrated with four prepared evidence mappings.
+It publishes a pinned object's direct reference and known fields from the owned target, checks module identity,
+object values, search results and exact structure layout, then verifies job and structure cleanup. Its native run
+and the replacement compiler session remain pending. There are **164** prepared backend mappings; preparation
+does not establish native success.
 
 Package 10 (`4401986963a7a765b579f3003e06a454672ea707`) passed compiler sessions
 `20261019T143232Z-9eaa` and `20261019T143249Z-e5e9`, then smoke session `20261019T143707Z-7128`.

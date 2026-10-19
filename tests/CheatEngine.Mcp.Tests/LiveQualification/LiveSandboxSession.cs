@@ -344,7 +344,12 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 				PointerRootAddress = facts.PointerRootAddress,
 				PointerTargetAddress = facts.PointerTargetAddress,
 				ZeroPointerRootAddress = facts.ZeroPointerRootAddress,
-				UnreadableRootAddress = facts.UnreadableRootAddress
+				UnreadableRootAddress = facts.UnreadableRootAddress,
+				ManagedObjectAddress = facts.ManagedObjectAddress,
+				ManagedObjectType = facts.ManagedObjectType,
+				ManagedObjectMarker = facts.ManagedObjectMarker,
+				ManagedObjectMirror = facts.ManagedObjectMirror,
+				ManagedObjectToggle = facts.ManagedObjectToggle
 			};
 			Record($"target_{name}_restart", new
 			{
@@ -630,7 +635,12 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 				PointerRootAddress = targetFacts.PointerRootAddress,
 				PointerTargetAddress = targetFacts.PointerTargetAddress,
 				ZeroPointerRootAddress = targetFacts.ZeroPointerRootAddress,
-				UnreadableRootAddress = targetFacts.UnreadableRootAddress
+				UnreadableRootAddress = targetFacts.UnreadableRootAddress,
+				ManagedObjectAddress = targetFacts.ManagedObjectAddress,
+				ManagedObjectType = targetFacts.ManagedObjectType,
+				ManagedObjectMarker = targetFacts.ManagedObjectMarker,
+				ManagedObjectMirror = targetFacts.ManagedObjectMirror,
+				ManagedObjectToggle = targetFacts.ManagedObjectToggle
 			};
 			InstanceDescriptor descriptor = await WaitForInstanceAsync(owned, TimeSpan.FromSeconds(45));
 			owned.Public = owned.Public with
@@ -735,7 +745,11 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 			? throw new InvalidOperationException($"Target manifest {name} reported pointer width {width}, not the requested {TargetArchitecture} width.")
 			: new LiveTargetManifest(manifest["address"]!.GetValue<string>(),
 			manifest["pointerRootAddress"]!.GetValue<string>(), manifest["pointerTargetAddress"]!.GetValue<string>(),
-			manifest["zeroPointerRootAddress"]!.GetValue<string>(), manifest["unreadableRootAddress"]!.GetValue<string>());
+			manifest["zeroPointerRootAddress"]!.GetValue<string>(), manifest["unreadableRootAddress"]!.GetValue<string>(),
+			manifest["managedObjectAddress"]?.GetValue<string>() ?? string.Empty,
+			manifest["managedObjectType"]?.GetValue<string>() ?? string.Empty,
+			manifest["managedObjectMarker"]?.GetValue<int>(), manifest["managedObjectMirror"]?.GetValue<int>(),
+			manifest["managedObjectToggle"]?.GetValue<int>());
 	}
 
 	internal static string DistributionDirectory(string repository, string configuration)
@@ -1327,5 +1341,6 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 	}
 
 	private sealed record LiveTargetManifest(string Address, string PointerRootAddress, string PointerTargetAddress,
-		string ZeroPointerRootAddress, string UnreadableRootAddress);
+		string ZeroPointerRootAddress, string UnreadableRootAddress, string ManagedObjectAddress, string ManagedObjectType,
+		int? ManagedObjectMarker, int? ManagedObjectMirror, int? ManagedObjectToggle);
 }

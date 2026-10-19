@@ -36,6 +36,8 @@ internal static class LiveLifecycleQualification
 			await LiveWorkflowQualification.VerifyAsync(sandbox, connection.Gateway);
 			await LiveDotNetMetadataQualification.VerifyAsync(sandbox,
 				connection.Gateway.Bind(sandbox.HostA.InstanceId), sandbox.TargetManagedAssemblyPath);
+			await LiveManagedObjectQualification.VerifyAsync(sandbox,
+				connection.Gateway.Bind(sandbox.HostA.InstanceId), sandbox.TargetManagedAssemblyPath);
 			await LiveProcessFileQualification.VerifyAsync(sandbox, connection.Gateway.Bind(sandbox.HostA.InstanceId));
 			await LiveSignatureQualification.VerifyAsync(sandbox, connection.Gateway.Bind(sandbox.HostA.InstanceId));
 			await LiveProcessCreateQualification.VerifyAsync(sandbox, connection.Gateway.Bind(sandbox.HostA.InstanceId),

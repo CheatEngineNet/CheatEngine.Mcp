@@ -30,6 +30,11 @@ public sealed class LiveDotNetMetadataQualificationTests
 			Assert.Equal(method.MetadataToken.ToString(CultureInfo.InvariantCulture), expected.MethodToken);
 			Assert.Equal(["args"], expected.ParameterNames);
 			Assert.Equal(method.GetParameters().Select(parameter => parameter.Name), expected.ParameterNames);
+			Type probe = assembly.GetType("CheatEngine.Mcp.LiveTarget.ManagedObjectProbe", throwOnError: true)!;
+			FieldInfo[] probeFields = probe.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+			Assert.Equal(["Marker", "Mirror", "Toggle"], probeFields.Select(field => field.Name));
+			Assert.All(probeFields, field => Assert.Equal(typeof(int), field.FieldType));
+			Assert.Empty(probe.GetFields(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly));
 		}
 		finally
 		{

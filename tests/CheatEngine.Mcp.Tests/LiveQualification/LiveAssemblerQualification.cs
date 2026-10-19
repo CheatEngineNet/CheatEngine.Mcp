@@ -19,8 +19,8 @@ internal static class LiveAssemblerQualification
 	private const string OriginalAllocationBytes = "90 90 90 90 90 00 00 00 00 00 00 00 00 00 00 00 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90";
 	private const string AllocationSuffixBytes = "00 00 00 00 00 00 00 00 00 00 00 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90";
 	private const string AppliedBytes = "CC CC CC CC CC";
-	private const string OriginalRecordScript = "[ENABLE]\ndefine(mcp_live_record,0)\n\n[DISABLE]\ndefine(mcp_live_record,0)";
-	private const string ReplacementRecordScript = "[ENABLE]\ndefine(mcp_live_record,1)\n\n[DISABLE]\ndefine(mcp_live_record,1)";
+	private const string OriginalRecordScript = "[ENABLE]\ndefine(mcp_live_record,0)\n\n[DISABLE]\ndefine(mcp_live_record,0)\n";
+	private const string ReplacementRecordScript = "[ENABLE]\ndefine(mcp_live_record,1)\n\n[DISABLE]\ndefine(mcp_live_record,1)\n";
 	private const string CheckScript = "[ENABLE]\ndefine(mcp_live_check,0)\n\n[DISABLE]\ndefine(mcp_live_check,0)";
 
 	internal static async Task VerifyAsync(LiveSandboxSession sandbox, LiveMcpInstanceClient instance)

@@ -36,17 +36,31 @@ internal static class LiveSignatureQualification
 		Assert.InRange(imageSize, 1U, 64U * 1024 * 1024);
 
 		string address = Hex(expectedAddress);
+		JsonNode entryBytes = await CallAsync(instance, CheatEngineToolNames.MemoryRead,
+			new Dictionary<string, object?> { ["address"] = address, ["valueType"] = "bytes", ["size"] = 64 });
+		sandbox.Record("signature_entry_point_observed", new
+		{
+			processId = sandbox.HostA.TargetProcessId,
+			moduleName,
+			path,
+			address,
+			bytes = entryBytes.DeepClone()
+		});
 		JsonNode signature = await CallAsync(instance, CheatEngineToolNames.AobGenerateSignature, new Dictionary<string, object?>
 		{
 			["address"] = address,
 			["module"] = moduleName,
 			["verify"] = true
 		});
+		sandbox.Record("signature_generator_result_observed", signature.DeepClone());
 		Assert.Equal(address, Text(signature, "address"));
 		Assert.Equal(moduleName, Text(signature, "module"), ignoreCase: true);
 		Assert.Equal("cheat_engine", Text(signature, "generator"));
-		Assert.Equal((true, true, 1),
-			(signature["unique"]!.GetValue<bool>(), signature["verified"]!.GetValue<bool>(), signature["matchCount"]!.GetValue<int>()));
+		Assert.True(signature["unique"]?.GetValue<bool>() is true,
+			$"The selected entry point did not produce a unique signature: {signature.ToJsonString()}");
+		Assert.True(signature["verified"]?.GetValue<bool>() is true,
+			$"The generated signature was not verified: {signature.ToJsonString()}");
+		Assert.Equal(1, signature["matchCount"]!.GetValue<int>());
 		string pattern = Text(signature, "pattern");
 		string patternStart = Text(signature, "patternStart");
 		int offset = signature["offset"]!.GetValue<int>();

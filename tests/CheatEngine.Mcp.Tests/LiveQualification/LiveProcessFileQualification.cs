@@ -109,6 +109,9 @@ internal static class LiveProcessFileQualification
 					JsonNode restored = await CallAsync(cleanupInstance, CheatEngineToolNames.ProcessGetCurrent);
 					Assert.True(restored["isOpen"]!.GetValue<bool>());
 					Assert.Equal(targetProcessId, restored["processId"]!.GetValue<int>());
+					JsonNode sentinel = await CallAsync(cleanupInstance, CheatEngineToolNames.MemoryRead,
+						new Dictionary<string, object?> { ["address"] = sandbox.HostA.TargetAddress, ["valueType"] = "int32" });
+					Assert.Equal("20260926", sentinel["value"]!.GetValue<string>());
 					targetRestored = true;
 				});
 			}
