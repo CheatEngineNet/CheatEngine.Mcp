@@ -121,14 +121,14 @@ public sealed partial class NativeLuaToolRuntimeTests
 	}
 
 	[Theory]
-	[InlineData("true", true, true, 1)]
-	[InlineData("false", true, false, 1)]
-	[InlineData("{}", false, false, 1)]
-	[InlineData("error('partial context failure')", false, false, 1)]
-	[InlineData("false", true, false, 2)]
-	[InlineData("false", true, false, 3)]
+	[InlineData("true", true, true, false, 1)]
+	[InlineData("false", true, false, false, 1)]
+	[InlineData("{}", false, false, null, 1)]
+	[InlineData("error('partial context failure')", false, false, null, 1)]
+	[InlineData("false", true, false, false, 2)]
+	[InlineData("false", true, false, false, 3)]
 	public void DebuggerAdapter_Status_ContextRead_RestoresItsFixedRegisterGlobals(string contextResult, bool stateValid,
-		bool broken, int interfaceId)
+		bool broken, bool? reportedBroken, int interfaceId)
 	{
 		using RuntimeScope scope = CreateScope();
 		InstallStubs($$"""
@@ -175,7 +175,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 
 		Assert.Equal(stateValid, status.StateValid);
 		Assert.Equal(broken, status.Broken);
-		Assert.False(status.ReportedBroken);
+		Assert.Equal(reportedBroken, status.ReportedBroken);
 		Assert.Equal(stateValid ? (DebuggerInterface?) interfaceId : null, status.ActiveInterface);
 		Assert.True((bool) ReadGlobal("registersRestored")!);
 	}
@@ -201,6 +201,99 @@ public sealed partial class NativeLuaToolRuntimeTests
 
 		Assert.False(status.StateValid);
 		Assert.Null(ReadGlobal("contextReads"));
+	}
+
+	[Theory]
+	[InlineData("true", true)]
+	[InlineData("false", false)]
+	public void DebuggerAdapter_Status_BooleanReportedBroken_RemainsExact(string reportedResult, bool expected)
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs($$"""
+		             debug_isDebugging = function() return true end
+		             debug_canBreak = function() return false end
+		             debug_isBroken = function() return {{reportedResult}} end
+		             debug_isStepping = function() return false end
+		             targetIsX86 = function() return true end
+		             debug_getCurrentDebuggerInterface = function() return 1 end
+		             debug_getContext = function(extra) assert(extra == false); return false end
+		             """);
+		using DebuggerToolHarness harness = CreateDebuggerTools();
+
+		DebuggerStatus status = harness.Tools.GetStatus(Token);
+
+		Assert.True(status.StateValid);
+		Assert.False(status.Broken);
+		Assert.Equal((bool?) expected, status.ReportedBroken);
+	}
+
+	[Theory]
+	[InlineData("debug_isBroken = function() return nil end")]
+	[InlineData("debug_isBroken = function() return {} end")]
+	[InlineData("debug_isBroken = function() error('opaque') end")]
+	[InlineData("")]
+	public void DebuggerAdapter_Status_OpaqueReportedBroken_DoesNotInvalidateRunningContext(string reportedStub)
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs("""
+		             debug_isDebugging = function() return true end
+		             debug_canBreak = function() return false end
+		             debug_isStepping = function() return false end
+		             targetIsX86 = function() return true end
+		             debug_getCurrentDebuggerInterface = function() return 1 end
+		             debug_getContext = function(extra) assert(extra == false); return false end
+		             """ + "\n" + reportedStub);
+		using DebuggerToolHarness harness = CreateDebuggerTools();
+
+		DebuggerStatus status = harness.Tools.GetStatus(Token);
+
+		Assert.True(status.StateValid);
+		Assert.True(status.Attached);
+		Assert.False(status.Broken);
+		Assert.Null(status.ReportedBroken);
+	}
+
+	[Fact]
+	public void DebuggerAdapter_Status_OpaqueReportedBroken_DoesNotInvalidateStoppedContext()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs("""
+		             debug_isDebugging = function() return true end
+		             debug_canBreak = function() return false end
+		             debug_isBroken = function() return {} end
+		             debug_isStepping = function() return false end
+		             targetIsX86 = function() return true end
+		             debug_getCurrentDebuggerInterface = function() return 1 end
+		             debug_getContext = function(extra) assert(extra == false); return true end
+		             """);
+		using DebuggerToolHarness harness = CreateDebuggerTools();
+
+		DebuggerStatus status = harness.Tools.GetStatus(Token);
+
+		Assert.True(status.StateValid);
+		Assert.True(status.Broken);
+		Assert.Null(status.ReportedBroken);
+	}
+
+	[Fact]
+	public void DebuggerAdapter_Status_InvalidContext_RemainsInvalidWhenReportedBrokenIsTrue()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs("""
+		             debug_isDebugging = function() return true end
+		             debug_canBreak = function() return false end
+		             debug_isBroken = function() return true end
+		             debug_isStepping = function() return false end
+		             targetIsX86 = function() return true end
+		             debug_getCurrentDebuggerInterface = function() return 1 end
+		             debug_getContext = function(extra) assert(extra == false); return {} end
+		             """);
+		using DebuggerToolHarness harness = CreateDebuggerTools();
+
+		DebuggerStatus status = harness.Tools.GetStatus(Token);
+
+		Assert.False(status.StateValid);
+		Assert.Null(status.ReportedBroken);
 	}
 
 	[Fact]

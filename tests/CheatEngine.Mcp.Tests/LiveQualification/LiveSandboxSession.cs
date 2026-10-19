@@ -526,6 +526,11 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 			"F139E50B788C85A15ACFA92B892FCCBC3DECA6D8D609AD9E5428B4C336C90600");
 		CopyReviewedAutorun(disabledAutorun, autorun, "SpeedhackV3.lua",
 			"69DE7EE3F4563005B5BC34A27F720D9D6E714A14FE7D6E1C47D5CF0AECD93D9C");
+		if (_options.EnableManagedInjection)
+		{
+			CopyReviewedAutorun(disabledAutorun, autorun, "DotNetInject.lua",
+				"31ED4209776DBFAD74EC811326439D26C02B6AB653056D5E171D952C12D3F25B");
+		}
 		File.WriteAllText(Path.Combine(installation, "ce.runtimeconfig.json"), """
 		                                                                       {"runtimeOptions":{"tfm":"net10.0","rollForward":"LatestMinor","frameworks":[
 		                                                                       {"name":"Microsoft.NETCore.App","version":"10.0.0"},

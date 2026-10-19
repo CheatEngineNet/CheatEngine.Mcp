@@ -12,6 +12,12 @@ internal static class DebuggerLuaScripts
 	                                  assert(type(value) == 'boolean', name .. ' did not return a boolean debugger state')
 	                                  return value
 	                               end
+	                               local function readReportedBroken(attached)
+	                                  if not attached then return false end
+	                                  local read, value = pcall(function() return debug_isBroken() end)
+	                                  if read and type(value) == 'boolean' then return value end
+	                                  return nil
+	                               end
 	                               local function interfaceName(value)
 	                                  local names = {[1] = 'windows', [2] = 'veh', [3] = 'kernel'}
 	                                  local name = names[value]
@@ -32,11 +38,11 @@ internal static class DebuggerLuaScripts
 	                                     broken = contextBroken
 	                                  end
 	                                  return {stateValid = true, attached = attached, canBreak = read('debug_canBreak'),
-	                                     broken = broken, reportedBroken = attached and read('debug_isBroken') or false, stepping = read('debug_isStepping'),
+	                                     broken = broken, reportedBroken = readReportedBroken(attached), stepping = read('debug_isStepping'),
 	                                     activeInterface = active}
 	                               end)
 	                               if not ok then return {stateValid = false, attached = false, canBreak = false, broken = false,
-	                                  reportedBroken = false, stepping = false, error = tostring(result):sub(1, 512)} end
+	                                  reportedBroken = nil, stepping = false, error = tostring(result):sub(1, 512)} end
 	                               return result
 	                               """;
 

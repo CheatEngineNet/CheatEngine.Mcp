@@ -78,7 +78,7 @@
       "uri": "cheatengine://docs/debugger",
       "description": "Debugger interfaces and gates, the four breakpoint slots and methods, find-what-writes captures and data-hit heuristics, traces, registers and stepping, and how to leave the target running.",
       "mimeType": "text/markdown",
-      "size": 24415
+      "size": 24663
     },
     {
       "name": "doc_emulators",
@@ -182,7 +182,7 @@
       "uri": "cheatengine://docs/speedhack",
       "description": "How the speedhack hooks a game\u0027s clocks, its lasting host effects and how to restore normal speed.",
       "mimeType": "text/markdown",
-      "size": 22189
+      "size": 22163
     },
     {
       "name": "doc_structures",

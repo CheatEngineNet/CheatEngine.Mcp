@@ -35,7 +35,7 @@ user, then restore normal speed. Only for single-player or offline games that th
   and the target's speed are both 1. Its `invalid_state` naming another speed that CE reports means that speed
   belongs to another process: relay the error's hint to the user.
 - `invalid_state` with `not_started`: no process is attached (attach first), the target is paused, or the debugger is
-  stopped (`debugger_get_status()` shows `reportedBroken`). Resume with `process_set_paused(paused=false)` or
+  stopped (`debugger_get_status()` shows `broken`). Resume with `process_set_paused(paused=false)` or
   `debugger_continue()`, then retry. Zero is not a pause: `process_set_paused(paused=true)` pauses, as a resource MCP
   tracks, and step 7 resumes it.
 - `capability_disabled`: `Mcp:EnableTargetCodeExecution` is off. Tell the user and stop; never reach the speedhack

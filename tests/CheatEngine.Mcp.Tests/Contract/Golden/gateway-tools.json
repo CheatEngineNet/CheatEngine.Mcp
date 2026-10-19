@@ -3104,7 +3104,7 @@
   {
     "name": "debugger_get_status",
     "title": "Get debugger status",
-    "description": "Reads Cheat Engine\u0027s debugger state. broken is proven by obtaining the context and is more reliable than reportedBroken alone. Poll after debugger_break_thread because a break request is asynchronous.",
+    "description": "Reads Cheat Engine\u0027s debugger state. broken is proven by obtaining the context. reportedBroken is CE\u0027s optional advisory flag and is omitted when CE does not return a boolean. Poll after debugger_break_thread because a break request is asynchronous.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -3121,7 +3121,7 @@
       "type": "object",
       "properties": {
         "stateValid": {
-          "description": "Whether Cheat Engine returned a complete debugger-state snapshot.",
+          "description": "Whether MCP validated the authoritative debugger-state fields.",
           "type": "boolean"
         },
         "attached": {
@@ -3129,7 +3129,7 @@
           "type": "boolean"
         },
         "canBreak": {
-          "description": "Whether Cheat Engine currently permits a break request.",
+          "description": "Whether CE reports an existing breakpoint or an actively handled debugger thread.",
           "type": "boolean"
         },
         "broken": {
@@ -3137,7 +3137,7 @@
           "type": "boolean"
         },
         "reportedBroken": {
-          "description": "The separate state reported by debug_isBroken.",
+          "description": "CE\u0027s advisory debug_isBroken state; omitted when attached CE does not return a boolean.",
           "type": "boolean"
         },
         "stepping": {
@@ -3166,7 +3166,6 @@
         "attached",
         "canBreak",
         "broken",
-        "reportedBroken",
         "stepping"
       ]
     },

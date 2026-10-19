@@ -1414,6 +1414,33 @@
       "receipt": "managed_injection_fixed_result",
       "cleanupReceipt": "ownedCompilerFilesRemoved",
       "scope": "reversible_workflow"
+    },
+    {
+      "name": "aob_generate_signature",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveSignatureQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The OS-observed owned image and independently parsed PE entry point select the address. The CE generator returns a verified unique pattern; fixed bytes match a separate memory read and a bounded module rescan returns exactly its start address.",
+      "receipt": "all_tools_aob_generate_signature",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "process_create",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveProcessCreateQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "A hash-verified owned Framework executable writes a unique manifest matching its observed PID, image path, runtime and architecture. CE selection matches the child; cleanup proves child exit, restores original target selection and removes only the owned directory.",
+      "receipt": "all_tools_process_create",
+      "cleanupReceipt": "live_process_create_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "asm_generate_api_hook",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveApiHookQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The complete ordered x86/x64 generated template matches five independently decoded NOPs, exact owned source/destination, trampoline/return labels and exact rollback bytes. Syntax check accepts it without applying it; all owned bytes remain unchanged and the allocation is released.",
+      "receipt": "all_tools_asm_generate_api_hook",
+      "cleanupReceipt": "live_api_hook_cleanup",
+      "scope": "reversible_workflow"
     }
   ]
 }

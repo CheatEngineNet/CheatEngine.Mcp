@@ -236,7 +236,7 @@ For engine detection and the Mono collector, see [game engines](game-engines.md)
 - `invalid_argument`: `speed` is not finite, or it is outside 0.01 through 1000.
 - `invalid_state` (`not_started`); fix the cause, then retry:
   - no process is attached: attach one first;
-  - the debugger is stopped at a breakpoint, as CE reports it (`debugger_get_status` shows `reportedBroken`): continue
+  - the debugger is stopped at a breakpoint (`debugger_get_status` shows `broken`): continue
     with `debugger_continue()`;
   - the target is paused: resume it with `process_set_paused(paused=false)`;
   - speed 1 only: CE reports another speed, but the opened process has no `speedhack_wantedspeed` symbol, so setting 1

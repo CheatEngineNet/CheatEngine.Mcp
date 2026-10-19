@@ -162,8 +162,8 @@ let the game run briefly, poll as above, then `runtime_stop_job`.
   `breakpoint` resource (`resourceId`).
 - `debugger_delete_breakpoint(address="...")` removes only MCP-owned breakpoints (a user's returns `not_found`).
   `debugger_list_breakpoints()` marks them with `owned` and `resourceId`; leave the user's alone.
-- After a hit `debugger_get_status()` reports `broken` true, proven by reading the context (`reportedBroken` is CE's
-  own flag). `stateValid` false comes with an `error` text.
+- After a hit `debugger_get_status()` reports `broken` true, proven by reading the context. `reportedBroken` is CE's
+  advisory flag and is omitted when CE cannot return a Boolean. `stateValid` false comes with an `error` text.
 - `debugger_run_to(address="...")` needs a stopped thread: it arms a one-shot execute breakpoint for all threads and
   continues, and the first thread to reach the address stops. It is a `debugrunto` job without a poll tool:
   `runtime_list_jobs()` shows it `completed` once hit; `runtime_stop_job` releases it and a breakpoint never hit.
@@ -175,7 +175,9 @@ let the game run briefly, poll as above, then `runtime_stop_job`.
   window "Not Responding" and game watchdogs may fire; exclusive fullscreen hides CE, so ask for windowed mode. Until
   you continue, Mono collector tools (`mono_attach`, `mono_get_object` and the others), a `speedhack_set_speed`
   change and `process_set_paused` refuse with `invalid_state`, and `exec_call_remote`, `exec_call_method` and
-  `structure_fill_from_dotnet` with `busy`; they test CE's own flag (`reportedBroken`).
+  `structure_fill_from_dotnet` with `busy`. Speedhack uses the verified context check. Mono, process pause, Exec and
+  structure fill require CE's strict breakpoint-state query and may conservatively refuse while it is unavailable,
+  even when `debugger_get_status().broken` is false.
 
 ## Registers and context
 

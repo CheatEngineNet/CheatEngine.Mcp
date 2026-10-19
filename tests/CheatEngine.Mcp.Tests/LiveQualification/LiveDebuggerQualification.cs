@@ -36,7 +36,8 @@ internal static class LiveDebuggerQualification
 			long threadId = SelectOwnedThreadId(
 				listed["threads"]!.AsArray().Select(thread => thread!.GetValue<long>()), externalThreadIds);
 
-			JsonNode before = await CallAsync(instance, CheatEngineToolNames.DebuggerGetStatus);
+			JsonNode before = await WaitForStatusAsync(sandbox, instance, "initial", status =>
+				!status["attached"]!.GetValue<bool>() && !status["broken"]!.GetValue<bool>());
 			Assert.True(before["stateValid"]!.GetValue<bool>());
 			Assert.False(before["attached"]!.GetValue<bool>());
 			Assert.False(before["broken"]!.GetValue<bool>());
@@ -52,10 +53,10 @@ internal static class LiveDebuggerQualification
 			Assert.False(attached["usedFallback"]!.GetValue<bool>());
 			sandbox.Record("all_tools_debugger_attach", attached.DeepClone());
 
-			JsonNode ready = await CallAsync(instance, CheatEngineToolNames.DebuggerGetStatus);
+			JsonNode ready = await WaitForStatusAsync(sandbox, instance, "ready", status =>
+				status["attached"]!.GetValue<bool>() && !status["broken"]!.GetValue<bool>());
 			Assert.True(ready["stateValid"]!.GetValue<bool>());
 			Assert.True(ready["attached"]!.GetValue<bool>());
-			Assert.True(ready["canBreak"]!.GetValue<bool>());
 			Assert.False(ready["broken"]!.GetValue<bool>());
 			Assert.Equal("windows", Text(ready, "activeInterface"));
 
@@ -64,9 +65,8 @@ internal static class LiveDebuggerQualification
 			Assert.Equal(threadId, requested["threadId"]!.GetValue<long>());
 			Assert.True(requested["requested"]!.GetValue<bool>());
 
-			JsonNode stopped = await WaitForStatusAsync(instance, status =>
+			JsonNode stopped = await WaitForStatusAsync(sandbox, instance, "stopped", status =>
 				status["attached"]!.GetValue<bool>() && status["broken"]!.GetValue<bool>());
-			Assert.True(stopped["reportedBroken"]!.GetValue<bool>());
 			sandbox.Record("all_tools_debugger_break_thread", new
 			{
 				requested = requested.DeepClone(),
@@ -112,9 +112,8 @@ internal static class LiveDebuggerQualification
 			JsonNode continued = await CallAsync(instance, CheatEngineToolNames.DebuggerContinue);
 			Assert.Equal("run", Text(continued, "mode"));
 			Assert.True(continued["continued"]!.GetValue<bool>());
-			JsonNode resumed = await WaitForStatusAsync(instance, status =>
+			JsonNode resumed = await WaitForStatusAsync(sandbox, instance, "resumed", status =>
 				status["attached"]!.GetValue<bool>() && !status["broken"]!.GetValue<bool>());
-			Assert.False(resumed["reportedBroken"]!.GetValue<bool>());
 			sandbox.Record("all_tools_debugger_continue", new
 			{
 				continued = continued.DeepClone(),
@@ -125,7 +124,8 @@ internal static class LiveDebuggerQualification
 			Assert.Equal(sandbox.HostA.TargetProcessId, detached["processId"]!.GetValue<int>());
 			Assert.True(detached["wasAttached"]!.GetValue<bool>());
 			Assert.True(detached["detached"]!.GetValue<bool>());
-			JsonNode after = await CallAsync(instance, CheatEngineToolNames.DebuggerGetStatus);
+			JsonNode after = await WaitForStatusAsync(sandbox, instance, "detached", status =>
+				!status["attached"]!.GetValue<bool>() && !status["broken"]!.GetValue<bool>());
 			Assert.True(after["stateValid"]!.GetValue<bool>());
 			Assert.False(after["attached"]!.GetValue<bool>());
 			Assert.False(after["broken"]!.GetValue<bool>());
@@ -155,7 +155,7 @@ internal static class LiveDebuggerQualification
 		{
 			if (attachAttempted)
 			{
-				await RestoreDebuggerAsync(instance, cleanup);
+				await RestoreDebuggerAsync(sandbox, instance, cleanup);
 			}
 
 			if (attachAttempted && cleanup.Count == 0)
@@ -190,14 +190,15 @@ internal static class LiveDebuggerQualification
 
 	internal readonly record struct ModuleRange(ulong Start, ulong EndExclusive);
 
-	private static async Task RestoreDebuggerAsync(LiveMcpInstanceClient instance, List<Exception> cleanup)
+	private static async Task RestoreDebuggerAsync(LiveSandboxSession sandbox, LiveMcpInstanceClient instance,
+		List<Exception> cleanup)
 	{
 		bool attached = true;
 		try
 		{
 			using CancellationTokenSource statusDeadline = new(TimeSpan.FromSeconds(10));
-			JsonNode status = await CallAsync(instance.WithCancellation(statusDeadline.Token),
-				CheatEngineToolNames.DebuggerGetStatus);
+			JsonNode status = await WaitForStatusAsync(sandbox, instance.WithCancellation(statusDeadline.Token),
+				"cleanup-initial", _ => true, includeTestCancellation: false, cancellationToken: statusDeadline.Token);
 			attached = status["attached"]!.GetValue<bool>();
 			if (attached && status["broken"]!.GetValue<bool>())
 			{
@@ -230,8 +231,9 @@ internal static class LiveDebuggerQualification
 		try
 		{
 			using CancellationTokenSource readbackDeadline = new(TimeSpan.FromSeconds(10));
-			JsonNode afterDetach = await CallAsync(instance.WithCancellation(readbackDeadline.Token),
-				CheatEngineToolNames.DebuggerGetStatus);
+			JsonNode afterDetach = await WaitForStatusAsync(sandbox, instance.WithCancellation(readbackDeadline.Token),
+				"cleanup-detached", status => !status["attached"]!.GetValue<bool>() && !status["broken"]!.GetValue<bool>(),
+				includeTestCancellation: false, cancellationToken: readbackDeadline.Token);
 			Assert.True(afterDetach["stateValid"]!.GetValue<bool>());
 			Assert.False(afterDetach["attached"]!.GetValue<bool>());
 			Assert.False(afterDetach["broken"]!.GetValue<bool>());
@@ -242,24 +244,50 @@ internal static class LiveDebuggerQualification
 		}
 	}
 
-	private static async Task<JsonNode> WaitForStatusAsync(LiveMcpInstanceClient instance, Func<JsonNode, bool> predicate)
+	private static async Task<JsonNode> WaitForStatusAsync(LiveSandboxSession sandbox, LiveMcpInstanceClient instance,
+		string stage, Func<JsonNode, bool> predicate, bool includeTestCancellation = true,
+		CancellationToken cancellationToken = default)
 	{
-		Stopwatch stopwatch = Stopwatch.StartNew();
 		JsonNode? last = null;
-		while (stopwatch.Elapsed < BreakDeadline)
+		List<JsonNode> observations = [];
+		int observationCount = 0;
+		using CancellationTokenSource timeout = new(BreakDeadline);
+		using CancellationTokenSource deadline = includeTestCancellation
+			? CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken, cancellationToken, timeout.Token)
+			: CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
+		LiveMcpInstanceClient scoped = instance.WithCancellation(deadline.Token);
+		try
 		{
-			last = await CallAsync(instance, CheatEngineToolNames.DebuggerGetStatus);
-			Assert.True(last["stateValid"]!.GetValue<bool>(),
-				last["error"]?.GetValue<string>() ?? "The debugger returned an invalid state without an error message.");
-			if (predicate(last))
+			while (true)
 			{
-				return last;
+				last = await CallAsync(scoped, CheatEngineToolNames.DebuggerGetStatus);
+				observationCount++;
+				if (observations.Count < 8)
+				{
+					observations.Add(last.DeepClone());
+				}
+				if (last["stateValid"]?.GetValue<bool>() == true && predicate(last))
+				{
+					return last;
+				}
+
+				await Task.Delay(PollInterval, deadline.Token);
 			}
-
-			await Task.Delay(PollInterval, TestContext.Current.CancellationToken);
 		}
-
-		throw new TimeoutException($"The debugger did not reach the expected state within {BreakDeadline.TotalSeconds} seconds. Last status: {last}.");
+		catch (OperationCanceledException exception) when (timeout.IsCancellationRequested)
+		{
+			throw new TimeoutException(
+				$"The debugger did not reach '{stage}' within {BreakDeadline.TotalSeconds} seconds. Last status: {last}.", exception);
+		}
+		finally
+		{
+			sandbox.Record($"live_debugger_status_{stage}", new
+			{
+				observationCount,
+				observations,
+				last = last?.DeepClone()
+			});
+		}
 	}
 
 	private static ModuleRange[] ReadModuleRanges(Process process)

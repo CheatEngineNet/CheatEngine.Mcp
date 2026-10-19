@@ -126,8 +126,9 @@ public sealed class DebuggerTools
 		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Reads Cheat Engine's debugger state. broken is proven by obtaining the context and is more reliable than " +
-		"reportedBroken alone. Poll after debugger_break_thread because a break request is asynchronous.")]
+		"Reads Cheat Engine's debugger state. broken is proven by obtaining the context. reportedBroken is CE's optional " +
+		"advisory flag and is omitted when CE does not return a boolean. Poll after debugger_break_thread because a break " +
+		"request is asynchronous.")]
 	public DebuggerStatus GetStatus(CancellationToken cancellationToken = default)
 	{
 		return _dispatch.RunLua(CheatEngineToolNames.DebuggerGetStatus, DebuggerLuaScripts.Status,

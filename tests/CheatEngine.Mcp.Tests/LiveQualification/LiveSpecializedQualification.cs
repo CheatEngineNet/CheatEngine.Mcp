@@ -39,6 +39,7 @@ internal static class LiveSpecializedQualification
 			if (assembler)
 			{
 				await LiveAssemblerQualification.VerifyAsync(sandbox, instance);
+				await LiveApiHookQualification.VerifyAsync(sandbox, instance);
 			}
 			else
 			{

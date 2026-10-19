@@ -49,6 +49,9 @@ internal static class LiveAdditionalToolQualification
 			JsonNode before = await CallAsync(instance, CheatEngineToolNames.RuntimeListResources);
 			Assert.Empty(before["resources"]!.AsArray());
 			await AssertNoResourceNamedAsync(instance, RuntimeReleaseAllocation);
+			JsonNode current = await CallAsync(instance, CheatEngineToolNames.ProcessGetCurrent);
+			Assert.True(current["isOpen"]!.GetValue<bool>());
+			Assert.Equal(sandbox.HostA.TargetProcessId, current["processId"]!.GetValue<int>());
 			allocationAttempted = true;
 			JsonNode allocation = await CallAsync(instance, CheatEngineToolNames.MemoryAllocate,
 				new Dictionary<string, object?> { ["name"] = RuntimeReleaseAllocation, ["size"] = 16, ["executable"] = false });
@@ -58,9 +61,8 @@ internal static class LiveAdditionalToolQualification
 			string address = Text(allocation, "address");
 			JsonNode listed = await CallAsync(instance, CheatEngineToolNames.RuntimeListResources);
 			JsonNode resource = Assert.Single(listed["resources"]!.AsArray())!;
-			Assert.Equal((resourceId, "allocation", RuntimeReleaseAllocation, address, 16L, sandbox.HostA.TargetProcessId, false),
-				(Text(resource, "id"), Text(resource, "kind"), Text(resource, "name"), Text(resource, "address"),
-					resource["size"]!.GetValue<long>(), resource["processId"]!.GetValue<int>(), resource["orphaned"]!.GetValue<bool>()));
+			sandbox.Record("runtime_release_resources_allocation_resource_observed", resource.DeepClone());
+			AssertOwnedAllocationResource(resource, resourceId, RuntimeReleaseAllocation, address, 16L, sandbox.HostA.TargetProcessId);
 
 			JsonNode released = await CallAsync(instance, CheatEngineToolNames.RuntimeReleaseResources,
 				new Dictionary<string, object?> { ["includeOrphans"] = false });
@@ -309,6 +311,37 @@ internal static class LiveAdditionalToolQualification
 			Assert.InRange(nextOffset, 1, expectedSize);
 		}
 		Assert.Equal(expectedSize, nextOffset);
+	}
+
+	internal static void AssertOwnedAllocationResource(JsonNode resource, string id, string name, string address, long size, int processId)
+	{
+		Assert.Equal((id, "allocation", name, address, size),
+			(Text(resource, "id"), Text(resource, "kind"), Text(resource, "name"), Text(resource, "address"),
+				RequiredLong(resource, "size")));
+		if (resource.AsObject().TryGetPropertyValue("processId", out JsonNode? actualProcessId))
+		{
+			Assert.NotNull(actualProcessId);
+			Assert.Equal(processId, actualProcessId.GetValue<int>());
+		}
+		Assert.False(BooleanOrDefault(resource, "orphaned", false));
+		Assert.False(BooleanOrDefault(resource, "requiresManualRecovery", false));
+	}
+
+	private static long RequiredLong(JsonNode node, string property)
+	{
+		JsonNode? value = node[property];
+		Assert.True(value is not null, $"Resource is missing required '{property}': {node.ToJsonString()}");
+		return value!.GetValue<long>();
+	}
+
+	private static bool BooleanOrDefault(JsonNode node, string property, bool defaultValue)
+	{
+		if (!node.AsObject().TryGetPropertyValue(property, out JsonNode? value))
+		{
+			return defaultValue;
+		}
+		Assert.NotNull(value);
+		return value.GetValue<bool>();
 	}
 
 	private static async Task AssertAllocationAbsentAsync(LiveMcpInstanceClient instance, string name)

@@ -93,16 +93,16 @@ public sealed record DebuggerDetached(
 
 /// <summary>A copied debugger status snapshot.</summary>
 public sealed record DebuggerStatus(
-	[property: Description("Whether Cheat Engine returned a complete debugger-state snapshot.")]
+	[property: Description("Whether MCP validated the authoritative debugger-state fields.")]
 	bool StateValid,
 	[property: Description("Whether a debugger is attached.")]
 	bool Attached,
-	[property: Description("Whether Cheat Engine currently permits a break request.")]
+	[property: Description("Whether CE reports an existing breakpoint or an actively handled debugger thread.")]
 	bool CanBreak,
 	[property: Description("Whether debug_getContext proved that a broken context is available.")]
 	bool Broken,
-	[property: Description("The separate state reported by debug_isBroken.")]
-	bool ReportedBroken,
+	[property: Description("CE's advisory debug_isBroken state; omitted when attached CE does not return a boolean.")]
+	bool? ReportedBroken,
 	[property: Description("Whether Cheat Engine reports that it is single stepping.")]
 	bool Stepping,
 	[property: Description("The active debugger interface when attached.")]

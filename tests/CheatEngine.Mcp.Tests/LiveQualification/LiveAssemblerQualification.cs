@@ -220,16 +220,16 @@ internal static class LiveAssemblerQualification
 			JsonNode record = Assert.Single(created["records"]!.AsArray())!;
 			id = record["id"]!.GetValue<int>();
 			Assert.False(record["active"]!.GetValue<bool>());
-			Assert.Equal(OriginalRecordScript, Text(record, "script"));
+			AssertScriptEqual(OriginalRecordScript, Text(record, "script"));
 
 			mutationAttempted = true;
 			JsonNode changed = await CallAsync(instance, CheatEngineToolNames.RecordSetScript,
 				new Dictionary<string, object?> { ["id"] = id.Value, ["script"] = ReplacementRecordScript });
 			Assert.False(changed["record"]!["active"]!.GetValue<bool>());
-			Assert.Equal(ReplacementRecordScript, Text(changed["record"], "script"));
+			AssertScriptEqual(ReplacementRecordScript, Text(changed["record"], "script"));
 			JsonNode reread = await CallAsync(instance, CheatEngineToolNames.RecordGet,
 				new Dictionary<string, object?> { ["ids"] = new[] { id.Value } });
-			Assert.Equal(ReplacementRecordScript, Text(Assert.Single(reread["records"]!.AsArray()), "script"));
+			AssertScriptEqual(ReplacementRecordScript, Text(Assert.Single(reread["records"]!.AsArray()), "script"));
 			Receipt(sandbox, CheatEngineToolNames.RecordSetScript, changed);
 		}
 		catch (Exception exception)
@@ -246,10 +246,10 @@ internal static class LiveAssemblerQualification
 				{
 					JsonNode restored = await CallAsync(restoreInstance, CheatEngineToolNames.RecordSetScript,
 						new Dictionary<string, object?> { ["id"] = id.Value, ["script"] = OriginalRecordScript });
-					Assert.Equal(OriginalRecordScript, Text(restored["record"], "script"));
+					AssertScriptEqual(OriginalRecordScript, Text(restored["record"], "script"));
 					JsonNode reread = await CallAsync(restoreInstance, CheatEngineToolNames.RecordGet,
 						new Dictionary<string, object?> { ["ids"] = new[] { id.Value } });
-					Assert.Equal(OriginalRecordScript, Text(Assert.Single(reread["records"]!.AsArray()), "script"));
+					AssertScriptEqual(OriginalRecordScript, Text(Assert.Single(reread["records"]!.AsArray()), "script"));
 					sandbox.Record("live_assembler_record_script_cleanup", new
 					{
 						id,
@@ -279,6 +279,12 @@ internal static class LiveAssemblerQualification
 		}
 		ThrowQualification(failure, cleanup);
 	}
+
+	internal static void AssertScriptEqual(string expected, string actual) =>
+		Assert.Equal(NormalizeScriptLineEndings(expected), NormalizeScriptLineEndings(actual));
+
+	internal static string NormalizeScriptLineEndings(string script) =>
+		script.Replace("\r\n", "\n", StringComparison.Ordinal);
 
 	private static async Task WriteBytesAsync(LiveMcpInstanceClient instance, string address, string value)
 	{

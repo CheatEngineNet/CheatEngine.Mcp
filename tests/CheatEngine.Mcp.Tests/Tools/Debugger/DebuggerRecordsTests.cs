@@ -24,6 +24,31 @@ public sealed class DebuggerRecordsTests
 	}
 
 	[Fact]
+	public void Status_SourceGeneratedContext_OmitsUnknownReportedBrokenAndPreservesBooleanValues()
+	{
+		DebuggerStatus unknown = new(true, true, false, false, null, false, DebuggerInterface.Windows);
+		DebuggerStatus reportedFalse = unknown with
+		{
+			ReportedBroken = false
+		};
+		DebuggerStatus reportedTrue = unknown with
+		{
+			ReportedBroken = true
+		};
+
+		using JsonDocument unknownDocument = JsonDocument.Parse(JsonSerializer.Serialize(unknown,
+			DebuggerJsonContext.Default.DebuggerStatus));
+		using JsonDocument falseDocument = JsonDocument.Parse(JsonSerializer.Serialize(reportedFalse,
+			DebuggerJsonContext.Default.DebuggerStatus));
+		using JsonDocument trueDocument = JsonDocument.Parse(JsonSerializer.Serialize(reportedTrue,
+			DebuggerJsonContext.Default.DebuggerStatus));
+
+		Assert.False(unknownDocument.RootElement.TryGetProperty("reportedBroken", out _));
+		Assert.False(falseDocument.RootElement.GetProperty("reportedBroken").GetBoolean());
+		Assert.True(trueDocument.RootElement.GetProperty("reportedBroken").GetBoolean());
+	}
+
+	[Fact]
 	public void CaptureItem_SourceGeneratedContext_WritesEffectiveAddressGroupsAndOmitsThemForOtherItems()
 	{
 		DebuggerCaptureContext context = new("401010", 17, "401010", false, "mov eax,qword ptr [r12]",

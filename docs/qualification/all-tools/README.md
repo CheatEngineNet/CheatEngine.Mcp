@@ -12,7 +12,7 @@ Lua body do not establish successful native execution.
 - [x] Check gateway-local discovery with zero and two instances.
 - [x] Run the portable Release suite; final results are recorded below.
 - [x] Run the portable Debug suite with the same exclusions.
-- [x] Run standalone Lua 5.3 with CE API doubles (714 passed, zero failed or skipped).
+- [x] Run standalone Lua 5.3 with CE API doubles (722 passed, zero failed or skipped).
 - [x] Add and run result assertions for the Lua, table-save and code-view adapters (12 passed).
 - [x] Add seven record adapter cases and four code/process adapter cases; run both focused classes.
 - [x] Fix the `code_get_comments` array argument expansion found by those tests.
@@ -40,7 +40,9 @@ Lua body do not establish successful native execution.
 - [ ] Qualify file-as-process open/save with exact bytes and restored target identity.
 - [ ] Qualify fixed Lua and reversible Auto Assembler operations in their dedicated private scenario.
 - [ ] Qualify Windows debugger attachment, stopped state and cleanup against an owned target.
-- [ ] Qualify the existing fixed compiler and managed-injection scenarios against the current source-built package.
+- [x] Qualify the fixed compiler scenario against source-built package 10, including gate refusal, exported bytes and cleanup.
+- [ ] Qualify managed injection with the reviewed helper enabled in the private host.
+- [ ] Qualify generated AOB signatures, generated API hooks and owned process creation.
 - [ ] Supply the remaining native managed object/instance, Mono, debugger event, compiler/ABI, PDB and patch fixtures.
 - [ ] Qualify successful gated operations and DBK/DBVM operations in their required environments.
 - [ ] Qualify all tools on the exact replacement product bundle after fixes, including restart and cleanup.
@@ -56,6 +58,42 @@ bring the advertised catalog total to 207. A live mapping requires its own concr
 
 ## Source-built native results from 2026-10-19
 
+The next correction batch passed its Release build with zero warnings or errors, **5,608** portable cases,
+**722** standalone Lua cases and all five contract snapshots, with zero failures or skips. Parsed TRX result
+counts agree with each runner summary. Reports are `parallel-followup-portable-1`,
+`parallel-followup-native-lua-1` and `parallel-followup-goldens-1` under
+`artifacts/test-results/ai-analysis-20261019`.
+
+Debugger status now retains its validated core state when CE cannot supply its advisory breakpoint flag.
+`reportedBroken` is optional and is omitted when unavailable; explicit `true` and `false` are preserved.
+Clients caching the old required-field schema should refresh the tool catalog. `broken` still requires the
+independent context check, including register-global restoration, and execution guards retain their strict checks.
+Independent Astra review closed the debugger findings. Native qualification of the replacement bytes is pending.
+
+Package 10 (`4401986963a7a765b579f3003e06a454672ea707`) passed compiler sessions
+`20261019T143232Z-9eaa` and `20261019T143249Z-e5e9`, then smoke session `20261019T143707Z-7128`.
+All three restored user settings, preserved installed files and reported no sandbox cleanup failures.
+The compiler case verified the fixed exported PE and owned-file cleanup; the smoke case verified isolation
+and its existing bounded operations. Their evidence remains separate from package 9 below.
+
+| Package 10 file | SHA-256 |
+| --- | --- |
+| `CheatEngine.Mcp.dll` | `827D12EF42F72D0375A8A2C7AB2CFEBFE8177A06E73D1B408DA4A0DB2E9EDFDD` |
+| `CheatEngine.Mcp.Gateway.exe` | `1BBE58D33385CD96159C3DFD449EECC2CCD7402860588017D7749EF527475B19` |
+
+The new workflows (`20261019T143059Z-8e25` and `20261019T144940Z-f28d`) failed a resource fixture assertion.
+The allocation descriptor legitimately omits its optional process ID, and default-false flags may also be omitted.
+The fixture must establish target identity independently and validate required allocation fields without assuming
+optional fields are present. The assembler run (`20261019T143415Z-29fc`) reached record-script readback,
+then failed because CE normalized LF to CRLF. Its correction normalizes only those line endings.
+Managed injection (`20261019T143328Z-3b5f`) refused because the private host had disabled CE's required
+`DotNetInject.lua`; setup now needs that exact reviewed script for this scenario. The debugger run
+(`20261019T143539Z-9adb`) attached successfully but returned invalid status on immediate readback and cleanup
+readback. The diagnostic rerun (`20261019T144757Z-c2b2`) showed that the independent context query succeeded,
+but CE's advisory `debug_isBroken` query returned a non-Boolean value. A narrow correction is being verified:
+preserve strict core status validation and omit an unavailable advisory value. All these sessions stopped their
+private hosts and targets and restored settings. Failed sessions do not qualify their partial tool receipts.
+
 The next parallel fixture batch passed its combined Release build with zero warnings or errors, all **5,594**
 portable cases and all **714** standalone Lua cases, with no failures or skips. Reports are
 `parallel-checklist-portable-1` and `parallel-checklist-native-lua-2` under
@@ -66,7 +104,7 @@ The corrected case also proves the native open was never called.
 This batch fixes file-target handling: CE's unsigned sentinel is preserved, address expressions resolve before
 opening the file, and a failed open cannot reuse an earlier file target's sentinel as proof of success.
 Separate resource/scanner/structure, file, assembler and debugger fixtures have reviewed cleanup and evidence
-mappings. Their new live runs are pending; the mappings alone do not qualify these tools.
+mappings. Their corrected live runs are pending; the mappings alone do not qualify these tools.
 
 The latest x64 workflow, `20261019T135210Z-8cfc`, passed on package
 `artifacts/dist/roadmap-source-20261019-9`, including the six utility/runtime/assembly/symbol cases and target,
