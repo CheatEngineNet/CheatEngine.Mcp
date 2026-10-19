@@ -206,8 +206,9 @@ foreach ($entry in @(@{ Name = 'portable'; Path = $PortableTrx }, @{ Name = 'nat
 }
 $live = if ($LiveSummary) { Get-Content -LiteralPath $LiveSummary -Raw | ConvertFrom-Json -AsHashtable } else { @{} }
 $liveReceipts = if ($LiveSummary) { Read-LiveReceipts $LiveSummary } else { $null }
+$diagnosticOnly = $live['diagnosticOnly'] -eq $true
 $livePassed = $live['passed'] -eq $true -and $live['userStateRestored'] -eq $true -and
-	$live['diagnosticOnly'] -ne $true -and
+    -not $diagnosticOnly -and
     $live['sourceInstallationUnchanged'] -eq $true -and $live.ContainsKey('cleanupFailures') -and
     @($live['cleanupFailures']).Count -eq 0 -and $live['schema'] -eq 'cheatengine-mcp-live-multi-instance/v1' -and
     $live.ContainsKey('selected_distribution') -and $live['selected_distribution'].ContainsKey('productVersion') -and
@@ -251,7 +252,7 @@ $rows = foreach ($tool in $tools | Sort-Object { $_['name'] }) {
         behavior = if ($adapterEvidence.Count -gt 0 -and @($adapterEvidence | Where-Object { $_.outcome -ne 'Passed' }).Count -eq 0) { 'verified_with_doubles' } else { 'requires_reviewed_per_tool_evidence' }
         adapterEvidence = $adapterEvidence; fixedLuaBodyEvidence = $fixedEvidence
         remaining = if ($name -eq 'instance_list') { 'Local gateway discovery only; no backend behavior applies.' } else { $evidenceByTool[$name]['remaining'] }
-        live = if ($null -eq $liveCase) { 'not_verified' } elseif ($livePassed -and $liveReceiptPresent -and $cleanupReceiptPresent) { 'verified' } elseif (-not $livePassed -and $liveReceiptPresent) { 'observed_in_failed_session' } else { 'not_verified' }
+        live = if ($null -eq $liveCase) { 'not_verified' } elseif ($diagnosticOnly -and $liveReceiptPresent) { 'diagnostic_only' } elseif ($livePassed -and $liveReceiptPresent -and $cleanupReceiptPresent) { 'verified' } elseif (-not $livePassed -and $liveReceiptPresent) { 'observed_in_failed_session' } else { 'not_verified' }
         liveEvidence = if ($null -eq $liveCase) { $null } else { [ordered]@{ scope = $liveCase['scope']; sourceFile = $liveCase['sourceFile']; testMethod = $liveCase['testMethod']; oracle = $liveCase['oracle']; receipt = $liveCase['receipt']; cleanupReceipt = $liveCase['cleanupReceipt']; receiptPresent = $liveReceiptPresent; cleanupReceiptPresent = $cleanupReceiptPresent } }
     }
 }
@@ -260,7 +261,7 @@ $report = [ordered]@{
     catalogSha256 = (Get-FileHash -LiteralPath $catalogPath).Hash; evidenceSha256 = (Get-FileHash -LiteralPath $evidencePath).Hash; liveEvidenceSha256 = (Get-FileHash -LiteralPath $liveEvidencePath).Hash
     toolCount = $rows.Count; routingComplete = @($rows | Where-Object { $_.routing -ne 'passed' }).Count -eq 0
     nativeQualificationComplete = $false
-    boundaries = @('Routing uses loopback doubles; it does not execute backend tools.', 'Fixed Lua body evidence bypasses the adapter and never qualifies adapter behavior.', 'Suite totals never infer per-tool positive evidence.', 'Failed live sessions are not verified.', 'Missing tests are Missing; refusals do not qualify success.')
+    boundaries = @('Routing uses loopback doubles; it does not execute backend tools.', 'Fixed Lua body evidence bypasses the adapter and never qualifies adapter behavior.', 'Suite totals never infer per-tool positive evidence.', 'Failed or diagnostic-only live sessions are not verified.', 'Missing tests are Missing; refusals do not qualify success.')
     suites = $suiteReports; liveSession = if ($LiveSummary) { [ordered]@{ summaryPath = [IO.Path]::GetFullPath($LiveSummary); summarySha256 = (Get-FileHash -LiteralPath $LiveSummary).Hash; receiptsPath = $liveReceipts.path; receiptsSha256 = $liveReceipts.sha256; passed = $livePassed; runId = $live['runId']; candidateIdentity = $live['selected_distribution']; host = $live['host']; ownedTarget = if ($live.ContainsKey('owned_target')) { $live['owned_target'] } else { $null } } } else { $null }
     tools = @($rows)
 }

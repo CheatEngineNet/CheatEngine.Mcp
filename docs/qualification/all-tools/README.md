@@ -101,12 +101,21 @@ and installed files were unchanged. Missing disabled-menu evidence remains a cle
 session is failed and provides no verified debugger success cases.
 
 SDK fixes [#97](https://github.com/CheatEngineNet/CheatEngine.SDK/pull/97) and
-[#98](https://github.com/CheatEngineNet/CheatEngine.SDK/pull/98) are merged. The source dependency now pins
-SDK main `900f240975ad077d5b920c70442b96a99bcc2aa4`; Client remains at main
+[#98](https://github.com/CheatEngineNet/CheatEngine.SDK/pull/98) are merged. Package 13 used
+SDK main `900f240975ad077d5b920c70442b96a99bcc2aa4` and Client main
 `9b836e6ced8e97b4506dc8523998c7c2081cc2ad`. The process-selection fix requires an actual Boolean `true`
 from CE before checking the selected PID and pointer width. Its five rejection regressions fail against
 the previous code; all 77 affected tests and 751 Engine NativeLua tests passed after the fix.
 This establishes the selection contract, not the cause of the file-target transition failure.
+
+The subsequent SDK [#99](https://github.com/CheatEngineNet/CheatEngine.SDK/pull/99) and Client
+[#69](https://github.com/CheatEngineNet/CheatEngine.Client/pull/69) guards are merged after passing CI.
+The source dependencies now pin SDK main `7c5b681a4d8055129d7d51b28931e2f6c6d87361` and Client main
+`5c0d3057c040920665579ca3b0f464f3cd865317`. A known file target is refused before process selection;
+Client reports `unsupported` with `not_started` and invalidates stale target leases. SDK's 83 focused cases
+and all 1,223 Release Engine cases passed; Client's 65 focused cases and full 1,657-case Core suite passed.
+The old implementations fail the new refusal regressions. This contains the unsafe transition; it does
+not restore CE's native memory callbacks. Exact-bundle native verification remains pending.
 
 The next fixture batch adds separate x64 scenarios for four fixed C/ABI calls and a locally built native
 DLL/PDB, plus a dedicated advancing debugger thread with published instruction addresses. Review requires
