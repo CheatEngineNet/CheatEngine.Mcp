@@ -94,7 +94,14 @@ a boolean breakpoint result only when attached. They preserve prepared register 
 when resume cannot be verified. Independent Astra review found no remaining findings in this fix. The clean Release
 rebuild passed with zero warnings/errors; **5,559** portable cases and **683** standalone Lua cases passed with no
 failures/skips. Their parsed reports are in `debugger-state-portable-1` and `debugger-state-native-lua-1` under the
-same artifact directory. The complete private workflow must still be rerun on the fresh package.
+same artifact directory.
+
+Private x64 run `20261019T123934Z-d8c3` used the merged source dependencies and passed pause/resume, code analysis,
+module exports and code dissection. It stopped at the function-range fixture: that assertion incorrectly required
+an exact function entry and exclusive end, although CE documents an estimate. The API now describes its raw stop
+boundary and the fixture checks a bounded estimate against the owned instruction layout. The run restored user
+state, left the source installation unchanged and reported no cleanup failures. This failed session does not
+qualify the complete workflow; the corrected fixture still requires a fresh passing session.
 
 Review also identified a separate follow-up: the older speedhack guards and debugger status query use
 `debug_getContext(false)`, which can overwrite prepared register globals when a debugger is stopped. That behavior

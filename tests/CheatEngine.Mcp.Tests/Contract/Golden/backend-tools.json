@@ -1625,12 +1625,12 @@
           "default": null
         },
         "endAddress": {
-          "description": "The estimated exclusive function end, uppercase hexadecimal without 0x; omitted when found is false.",
+          "description": "The raw estimated stop boundary returned by Cheat Engine, uppercase hexadecimal without 0x; not guaranteed exclusive; omitted when found is false.",
           "type": "string",
           "default": null
         },
         "size": {
-          "description": "The estimated function size in bytes; omitted when found is false.",
+          "description": "The difference between endAddress and startAddress, not a verified byte extent; omitted when found is false.",
           "type": "integer",
           "default": null
         },

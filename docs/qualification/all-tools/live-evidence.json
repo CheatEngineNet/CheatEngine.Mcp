@@ -1077,7 +1077,7 @@
       "name": "code_get_function",
       "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDissectionQualification.cs",
       "testMethod": "VerifyAsync",
-      "oracle": "The owned instruction fixture has the expected CE function estimate and jump-destination result; this heuristic oracle must pass native validation before this row qualifies.",
+      "oracle": "The owned CALL-only fixture returns the requested address, a start at a NOP or MOV boundary after the caller RET, a stop at or immediately after the terminal RET, the exact reported boundary difference, and no jump destination. This qualifies a bounded heuristic estimate, not exact function discovery.",
       "receipt": "all_tools_code_get_function",
       "cleanupReceipt": "live_dissection_cleanup",
       "scope": "reversible_workflow"

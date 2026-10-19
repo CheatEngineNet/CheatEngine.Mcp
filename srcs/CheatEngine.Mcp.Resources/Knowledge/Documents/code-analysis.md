@@ -62,8 +62,10 @@ Every decoded instruction has `address`, `addressText` (CE's address column), `o
 ## Functions and control flow
 
 `code_get_function(address="...", jumpRange=4096)` returns CE's guess of the enclosing function: `found`,
-`startAddress`, `endAddress` (exclusive), `size`, and `addressIsJumpDestination` (whether CE sees a jump to the
-address within `jumpRange` bytes). The bounds are a heuristic, not symbols, and can be wrong: disassemble at
+`startAddress`, `endAddress`, `size`, and `addressIsJumpDestination` (whether CE sees a jump to the
+address within `jumpRange` bytes). `endAddress` preserves CE's raw stop boundary and is not guaranteed exclusive;
+`size` is `endAddress - startAddress`, not a verified byte extent. The bounds are a heuristic, not symbols, and can
+be wrong: disassemble at
 `startAddress` to confirm the entry. Check `addressIsJumpDestination` before patching near an address: a patch that
 swallows a jump target breaks the code ([x64 injection](x64-injection.md)).
 

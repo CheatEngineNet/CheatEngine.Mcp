@@ -54,7 +54,7 @@
       "uri": "cheatengine://docs/code-analysis",
       "description": "Reading disassembly, function graphs, dissector references and strings, imports and RIP-relative globals to learn what a value means, where its base comes from and where to patch.",
       "mimeType": "text/markdown",
-      "size": 24385
+      "size": 24519
     },
     {
       "name": "doc_configuration",

@@ -108,10 +108,18 @@ internal static class LiveDissectionQualification
 				["address"] = fixture.Function,
 				["jumpRange"] = 32
 			});
-			Assert.Equal((fixture.Function, true, fixture.Function, fixture.FunctionEnd, fixture.FunctionSize, true),
-				(Text(function, "address"), function["found"]!.GetValue<bool>(), Text(function, "startAddress"),
-					Text(function, "endAddress"), function["size"]!.GetValue<long>(),
-					function["addressIsJumpDestination"]!.GetValue<bool>()));
+			Assert.Equal(fixture.Function, Text(function, "address"));
+			Assert.True(function["found"]!.GetValue<bool>());
+			ulong fixtureStart = Convert.ToUInt64(address, 16);
+			ulong estimatedStart = Convert.ToUInt64(Text(function, "startAddress"), 16);
+			ulong estimatedEnd = Convert.ToUInt64(Text(function, "endAddress"), 16);
+			// The heuristic may include leading NOPs after the caller's RET. Every allowed start is an instruction boundary.
+			Assert.InRange(estimatedStart, fixtureStart + (pointerSize == 8 ? 13UL : 11UL), fixtureStart + FunctionOffset);
+			// Preserve CE's stop boundary: it may identify the terminal RET or the byte immediately after it.
+			Assert.Contains(estimatedEnd, new[] { fixtureStart + FunctionOffset + 5, fixtureStart + DissectSize });
+			Assert.Equal(checked((long) (estimatedEnd - estimatedStart)), function["size"]!.GetValue<long>());
+			// This fixture contains a CALL to the function, but no jump to it.
+			Assert.False(function["addressIsJumpDestination"]!.GetValue<bool>());
 			sandbox.Record("all_tools_code_get_function", function.DeepClone());
 
 			JsonNode clear = await ClearDissectAsync(instance);
@@ -287,7 +295,7 @@ internal static class LiveDissectionQualification
 
 	private static string Hex(byte[] bytes) => Convert.ToHexString(bytes);
 
-	private sealed record Fixture(string Function, string FunctionEnd, string Call, string Text, long FunctionSize, byte[] Bytes)
+	private sealed record Fixture(string Function, string Call, string Text, byte[] Bytes)
 	{
 		internal static Fixture Create(string address, int pointerSize)
 		{
@@ -320,8 +328,7 @@ internal static class LiveDissectionQualification
 			bytes[FunctionOffset + 5] = 0xC3;
 			Encoding.ASCII.GetBytes(ReferencedText).CopyTo(bytes, StringOffset);
 			bytes[StringOffset + ReferencedText.Length] = 0;
-			return new Fixture(Address(function), Address(function + 6), Address(start + (pointerSize == 8 ? 7UL : 5UL)),
-				Address(text), 6, bytes);
+			return new Fixture(Address(function), Address(start + (pointerSize == 8 ? 7UL : 5UL)), Address(text), bytes);
 		}
 
 		private static void WriteInt32(byte[] bytes, int offset, int value)

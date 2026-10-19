@@ -53,9 +53,9 @@ public sealed record CodeFunction(
 	string? StartAddress = null,
 	[property:
 		Description(
-			"The estimated exclusive function end, uppercase hexadecimal without 0x; omitted when found is false.")]
+			"The raw estimated stop boundary returned by Cheat Engine, uppercase hexadecimal without 0x; not guaranteed exclusive; omitted when found is false.")]
 	string? EndAddress = null,
-	[property: Description("The estimated function size in bytes; omitted when found is false.")]
+	[property: Description("The difference between endAddress and startAddress, not a verified byte extent; omitted when found is false.")]
 	long? Size = null,
 	[property: Description("Whether Cheat Engine considers address a jump destination in the requested range.")]
 	bool AddressIsJumpDestination = false);

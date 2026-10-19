@@ -17,6 +17,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 		InstallStubs("""
 		             getAddressSafe = function(value) receivedAddress = value; return 0x401020 end
 		             getFunctionRange = function(address) assert(address == 0x401020); return 0x401000, 0x401080 end
+		             getInstructionSize = function() error('Raw host boundaries must not be normalized') end
 		             isJumpDestination = function(address, range) receivedRange = range; return address == 0x401020 end
 		             """);
 		ToolDispatch dispatch = CreateNativeDispatch(new McpFeatureOptions());
