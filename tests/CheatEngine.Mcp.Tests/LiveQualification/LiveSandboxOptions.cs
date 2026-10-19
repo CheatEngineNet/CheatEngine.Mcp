@@ -31,6 +31,10 @@ internal sealed record LiveSandboxOptions(bool CompilerQualification, bool Enabl
 	{
 		get; init;
 	}
+	internal bool DebuggerTransitionDiagnostic
+	{
+		get; init;
+	}
 	internal bool PerformanceQualification
 	{
 		get; init;
@@ -83,6 +87,7 @@ internal sealed record LiveSandboxOptions(bool CompilerQualification, bool Enabl
 			&& WorkflowQualification == (scenario == LiveQualificationScenario.Workflows)
 			&& AssemblerQualification == (scenario == LiveQualificationScenario.Assembler)
 			&& DebuggerQualification == (scenario == LiveQualificationScenario.Debugger)
+			&& (!DebuggerTransitionDiagnostic || DebuggerQualification)
 			&& PerformanceQualification == (scenario == LiveQualificationScenario.Performance)
 			&& SoakQualification == (scenario == LiveQualificationScenario.Soak)
 			&& DispatchDiagnostic == (scenario == LiveQualificationScenario.DispatchDiagnostic)

@@ -25,6 +25,7 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 	private readonly Dictionary<string, object?> _report = new(StringComparer.Ordinal);
 	private readonly FileStream _runLock;
 	private readonly LiveSandboxOptions _options;
+	private long _debuggerTransitionProbeSequence;
 	private DebugOutputCapture? _debugOutput;
 	private bool _disposed;
 	private InstallationFingerprint? _fingerprint;
@@ -301,6 +302,10 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		if (hostStopped)
 		{
 			host.Process = null;
+			if (!_options.UsesTargetFirstExecutionShutdown)
+			{
+				TryCleanup(() => File.WriteAllText(host.TargetManifest + ".stop", "stop"), failures);
+			}
 			bool targetStopped = _options.UsesTargetFirstExecutionShutdown || await StopOwnedAsync(host.Target, failures);
 			if (targetStopped)
 			{
@@ -431,6 +436,66 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		File.Move(request + ".tmp", request);
 		await WaitUntilAsync(() => File.Exists(response), host.Process, TimeSpan.FromSeconds(10));
 		return await LiveCompilerProbeResponse.ReadAsync(response, command);
+	}
+
+	/// <summary>Runs one fixed private debugger diagnostic command, consuming the previous receipt before publication.</summary>
+	public async Task<LiveDebuggerTransitionReceipt> DebuggerTransitionProbeAsync(string hostName, string command,
+		int? threadId = null, ulong? rip = null)
+	{
+		if (!_options.DebuggerTransitionDiagnostic || command is not ("install" or "sample" or "restore"))
+		{
+			throw new ArgumentOutOfRangeException(nameof(command));
+		}
+		if (!_hosts.TryGetValue(hostName, out OwnedHost? host) || host.Process is null || host.Stopped)
+		{
+			throw new InvalidOperationException($"Owned host '{hostName}' is not running.");
+		}
+		LiveDebuggerExecutionQualification.Manifest manifest = host.Public.DebuggerExecution
+			?? throw new InvalidDataException("The private debugger target manifest is missing.");
+		if (command == "install" ? threadId != manifest.ThreadId || rip != manifest.Entry : threadId is not null || rip is not null)
+		{
+			throw new ArgumentException("The private debugger probe accepts only its owned manifest identity.");
+		}
+		string request = Path.Combine(_layout.RunDirectory, $"debugger-transition-request-{hostName}.txt");
+		string response = Path.Combine(_layout.RunDirectory, $"debugger-transition-response-{hostName}.txt");
+		RequireInsideRun(request);
+		RequireInsideRun(request + ".tmp");
+		RequireInsideRun(response);
+		if (File.Exists(request))
+		{
+			throw new InvalidOperationException("The prior private debugger command has not been consumed.");
+		}
+		string nonce = Interlocked.Increment(ref _debuggerTransitionProbeSequence).ToString(CultureInfo.InvariantCulture);
+		string body = command == "install"
+			? $"{nonce}\n{command}\n{threadId!.Value.ToString(CultureInfo.InvariantCulture)}\n{rip!.Value.ToString("X", CultureInfo.InvariantCulture)}\n"
+			: $"{nonce}\n{command}\n";
+		File.Delete(response);
+		await File.WriteAllTextAsync(request + ".tmp", body);
+		File.Move(request + ".tmp", request);
+		await WaitUntilAsync(() => File.Exists(response), host.Process, TimeSpan.FromSeconds(10));
+		await using FileStream stream = new(response, FileMode.Open, FileAccess.Read, FileShare.Read);
+		if (stream.Length > 2048)
+		{
+			throw new InvalidDataException("The debugger diagnostic receipt exceeded its bound.");
+		}
+		using StreamReader reader = new(stream, new UTF8Encoding(false, true), detectEncodingFromByteOrderMarks: false);
+		List<string> lines = [];
+		while (await reader.ReadLineAsync() is { } line)
+		{
+			if (lines.Count >= 18 || line.Length > 256)
+			{
+				throw new InvalidDataException("The debugger diagnostic receipt exceeded its line bounds.");
+			}
+			lines.Add(line);
+		}
+		Record("debugger_transition_diagnostic_receipt", new
+		{
+			hostName,
+			nonce,
+			command,
+			lines
+		});
+		return LiveDebuggerTransitionReceipt.Parse([.. lines], nonce, command);
 	}
 
 	/// <summary>Restarts only the disposable target for one still-running private CE host and publishes a fresh manifest.</summary>
@@ -1165,6 +1230,10 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 				Path.Combine(_layout.RunDirectory, $"compiler-response-{name}.txt"), CompilerHoldReadyPath(name),
 				CompilerHoldReleasePath(name), LiveCompilerPayload.ValidSource, LuaString)
 			: "local function compilerProbe() end";
+		string transitionProbe = _options.DebuggerTransitionDiagnostic
+			? LiveDebuggerTransitionBridge.Render(Path.Combine(_layout.RunDirectory, $"debugger-transition-request-{name}.txt"),
+				Path.Combine(_layout.RunDirectory, $"debugger-transition-response-{name}.txt"), LuaString)
+			: string.Empty;
 		return $$"""
 		         local output = {{LuaString(Path.Combine(_layout.RunDirectory, $"driver-{name}.log"))}}
 		         local function log(value)
@@ -1210,6 +1279,7 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		           os.rename(responsePath..'.tmp',responsePath)
 		         end
 		         {{compilerProbe}}
+		         {{transitionProbe}}
 		         local timer = createTimer(nil, false)
 		         timer.Interval = 100
 		         {{LiveExecutionDriverLua.RenderPreamble()}}

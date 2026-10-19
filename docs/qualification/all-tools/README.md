@@ -12,7 +12,7 @@ Lua body do not establish successful native execution.
 - [x] Check gateway-local discovery with zero and two instances.
 - [x] Run the portable Release suite; final results are recorded below.
 - [x] Run the portable Debug suite with the same exclusions.
-- [x] Run standalone Lua 5.3 with CE API doubles (732 passed, zero failed or skipped).
+- [x] Run standalone Lua 5.3 with CE API doubles (742 passed, zero failed or skipped).
 - [x] Add and run result assertions for the Lua, table-save and code-view adapters (12 passed).
 - [x] Add seven record adapter cases and four code/process adapter cases; run both focused classes.
 - [x] Fix the `code_get_comments` array argument expansion found by those tests.
@@ -37,7 +37,7 @@ Lua body do not establish successful native execution.
 - [x] Qualify utility calculation/conversion, runtime overview, assembly bytes and reversible symbol preferences on the source-built x64 package.
 - [ ] Complete the x86 workflow after the pointer-width fix and physical system-module path correction.
 - [ ] Qualify owned resource release, scanner stop and structure guessing with independent readback and cleanup.
-- [ ] Qualify file-as-process open/save with exact bytes and restored target identity.
+- [ ] Qualify file-as-process open/save with exact bytes, file preservation after refused attachment and verified host/target restart recovery.
 - [x] Qualify fixed Lua and reversible Auto Assembler operations in their dedicated private scenario on package 12.
 - [x] Qualify Windows debugger attachment, stopped state and cleanup against an owned target on package 11.
 - [x] Qualify the fixed compiler scenario against source-built package 10, including gate refusal, exported bytes and cleanup.
@@ -46,6 +46,8 @@ Lua body do not establish successful native execution.
 - [ ] Qualify generated AOB signatures, generated API hooks and owned process creation.
 - [ ] Supply the remaining native managed object/instance, Mono, debugger event, compiler/ABI, PDB and patch fixtures.
 - [x] Prepare and review separate fixed C/ABI, local DLL/PDB and advancing-thread debugger cases with independent cleanup receipts.
+- [x] Qualify the four fixed C/ABI execution tools on package 13, including independent return values, buffer effects and cleanup.
+- [x] Qualify local native DLL injection on package 13 using OS module identity, image hashes and independently parsed exports.
 - [ ] Qualify successful gated operations and DBK/DBVM operations in their required environments.
 - [ ] Qualify all tools on the exact replacement product bundle after fixes, including restart and cleanup.
 
@@ -59,6 +61,44 @@ cases, not complete behavior partitions or native CE qualification. The gateway'
 bring the advertised catalog total to 207. A live mapping requires its own concrete oracle and cleanup receipts.
 
 ## Source-built native results from 2026-10-19
+
+The file-target guard and recovery fixture, fresh-host PDB case and private debugger transition diagnostic
+passed the integrated Release build with zero warnings/errors. All **5,665** portable and **742** standalone Lua
+cases passed with zero failures or skips (`debugger-transition-portable-1` and `debugger-transition-native-lua-1`).
+The diagnostic bridge records only the exact owned breakpoint event before one context request;
+its callback preserves the previous callback's returns and errors. Its results cannot qualify native tool
+success: a report-generation check with a passing session marked `diagnosticOnly` retained all 207 routing
+rows and verified zero native tools. These changes still require their own native sessions.
+
+Package 13 (`dfe5179f83944206eb9fdee9e5895c67ec543be8`) passed smoke session
+`20261019T180318Z-59b1`, execution session `20261019T180412Z-c4a2` and native symbol fixture session
+`20261019T180445Z-90d7`. Each restored user state, preserved installed files and reported no cleanup failures.
+The reports `native-fixtures-{smoke,execution,symbol}-report-13` verify six smoke tools, four execution tools
+and native library injection respectively. Each retains all 207 routing rows. Automatic symbol discovery
+made the explicit reload/add-module checks inconclusive; their receipts are absent and they remain unqualified.
+
+| Package 13 file | SHA-256 |
+| --- | --- |
+| `CheatEngine.Mcp.dll` | `5ED25C614204F9C9E65F2A5292734593377CEB5BA0EE9856580FB7244F3EA6CC` |
+| `CheatEngine.Mcp.Gateway.exe` | `D3E854D45CB2A07C7615E1A1895F8ED156E72935CE606C24BFDF5740A6183B0A` |
+
+The initial package 13 sessions exposed two harness defects: an unsupported address-list `clear` call,
+and an omitted ordinary target stop signal. The supported record API now replaces the invalid clear call;
+its regression fails against the old code and all **733** standalone Lua cases pass after the correction.
+The ordinary target signal is restored, and the passing smoke session verifies normal shutdown of both
+hosts and targets. Ten focused lifecycle cases also pass. The obsolete source-string assertion was removed
+in favor of the behavioral Lua case. Initial failed sessions supply no native qualification.
+
+The fixed process-selection trace in `20261019T175101Z-500d` confirms that the file-transition read failure
+already occurs inside installed CE: `openProcess` returns Boolean `true` and a new nonzero handle, but CE's
+own `readInteger` returns `nil` at the previously readable owned address. This separates that failure from
+SDK result conversion. No callback-reset workaround or successful file-to-process transition is claimed.
+
+Debugger session `20261019T180635Z-84d3` observed the exact owned thread and the fixed native return address
+in a nonempty stack, then stalled after the first instruction breakpoint in the separate execution group.
+Cleanup calls timed out and host A required termination; all owned processes stopped, settings were restored
+and installed files were unchanged. Missing disabled-menu evidence remains a cleanup failure. The complete
+session is failed and provides no verified debugger success cases.
 
 SDK fixes [#97](https://github.com/CheatEngineNet/CheatEngine.SDK/pull/97) and
 [#98](https://github.com/CheatEngineNet/CheatEngine.SDK/pull/98) are merged. The source dependency now pins

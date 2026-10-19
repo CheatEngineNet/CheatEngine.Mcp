@@ -1257,7 +1257,7 @@
       "name": "process_open_file",
       "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveProcessFileQualification.cs",
       "testMethod": "VerifyAsync",
-      "oracle": "Opening observes the exact CE file-target sentinel; saved file length, complete bytes and SHA256 equal the independently generated input. Cleanup verifies original owned PID selection and deletion of both private files.",
+      "oracle": "Opening observes the exact CE file-target sentinel; saved file length, complete bytes and SHA256 equal the independently generated input. Process attachment is refused before mutation, and a second save proves file preservation. Cleanup restarts the private host and target, rejects the stale instance, independently verifies both replacement and unaffected targets, and deletes all three private files.",
       "receipt": "all_tools_process_open_file",
       "cleanupReceipt": "live_process_file_cleanup",
       "scope": "reversible_workflow"
@@ -1266,7 +1266,7 @@
       "name": "process_save_file",
       "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveProcessFileQualification.cs",
       "testMethod": "VerifyAsync",
-      "oracle": "Opening observes the exact CE file-target sentinel; saved file length, complete bytes and SHA256 equal the independently generated input. Cleanup verifies original owned PID selection and deletion of both private files.",
+      "oracle": "Opening observes the exact CE file-target sentinel; saved file length, complete bytes and SHA256 equal the independently generated input. Process attachment is refused before mutation, and a second save proves file preservation. Cleanup restarts the private host and target, rejects the stale instance, independently verifies both replacement and unaffected targets, and deletes all three private files.",
       "receipt": "all_tools_process_save_file",
       "cleanupReceipt": "live_process_file_cleanup",
       "scope": "reversible_workflow"
@@ -1458,7 +1458,7 @@
       "oracle": "Fixed C source compiles only into the owned executable allocation; both returned function symbols lie in its independently bounded range, and both functions later produce their fixed return values and separate owned-buffer effects.",
       "receipt": "all_tools_exec_compile_c",
       "cleanupReceipt": "live_execution_code_cleanup",
-      "scope": "target_execution"
+      "scope": "reversible_workflow"
     },
     {
       "name": "exec_call_remote",
@@ -1467,7 +1467,7 @@
       "oracle": "The fixed remote function receives the explicitly encoded owned buffer pointer and scalar 23, returns1024, and independently writes1023 to that buffer.",
       "receipt": "all_tools_exec_call_remote",
       "cleanupReceipt": "live_execution_code_cleanup",
-      "scope": "target_execution"
+      "scope": "reversible_workflow"
     },
     {
       "name": "exec_call_method",
@@ -1476,7 +1476,7 @@
       "oracle": "The fixed method call uses the owned buffer as the RCX class instance with scalar29, returns2031, and independently writes2029 to that buffer.",
       "receipt": "all_tools_exec_call_method",
       "cleanupReceipt": "live_execution_code_cleanup",
-      "scope": "target_execution"
+      "scope": "reversible_workflow"
     },
     {
       "name": "exec_call_local",
@@ -1485,7 +1485,7 @@
       "oracle": "The fixed local kernel32.GetProcessId call receives pseudo-handle -1 and returns the independently known private Cheat Engine host PID.",
       "receipt": "all_tools_exec_call_local",
       "cleanupReceipt": "live_execution_code_cleanup",
-      "scope": "target_execution"
+      "scope": "reversible_workflow"
     },
     {
       "name": "exec_inject_library",
@@ -1494,7 +1494,7 @@
       "oracle": "A fixed local-only x64 DLL with preflight-verified PE/PDB identity and export RVAs is injected only into the owned target; OS and MCP module identities agree, and exact non-forwarded export addresses equal base plus independent RVAs.",
       "receipt": "all_tools_exec_inject_library",
       "cleanupReceipt": "native_symbol_fixture_cleanup",
-      "scope": "target_execution"
+      "scope": "reversible_workflow"
     },
     {
       "name": "symbol_reload",
@@ -1503,25 +1503,25 @@
       "oracle": "When the injected fixture was not already auto-discovered, new_modules reload must make its exact owned Tick export appear at base plus its preflight RVA with symbolsLoaded=true; auto-discovery remains explicitly inconclusive.",
       "receipt": "all_tools_symbol_reload",
       "cleanupReceipt": "native_symbol_fixture_cleanup",
-      "scope": "target_execution"
+      "scope": "reversible_workflow"
     },
     {
       "name": "symbol_add_module",
       "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveNativeSymbolFixtureQualification.cs",
       "testMethod": "VerifyAsync",
-      "oracle": "Only when the fixed PDB layout is absent before add_module, the exact owned PDB at the observed module base produces the complete fixed layout; an already-present layout remains explicitly inconclusive.",
+      "oracle": "On a fresh second host without DLL injection, the fixed type is absent before add_module. Loading the exact owned PDB at a separately owned allocation sized from PE SizeOfImage produces all four fixed fields and echoes the requested base/path and enumStructures=true. Cleanup verifies allocation release and absence.",
       "receipt": "all_tools_symbol_add_module",
       "cleanupReceipt": "native_symbol_fixture_cleanup",
-      "scope": "target_execution"
+      "scope": "reversible_workflow"
     },
     {
       "name": "structure_get_pdb_layout",
       "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveNativeSymbolFixtureQualification.cs",
       "testMethod": "VerifyAsync",
-      "oracle": "After discriminating local PDB add_module, CemcpPdbFixtureLayout has exactly Magic:uint32@0, Delta:uint16@4, Flags:uint16@6 and Counter:uint64@8. The API does not expose the original signed word metadata.",
+      "oracle": "The independently known CemcpPdbFixtureLayout has exactly Magic:uint32@0, Delta:uint16@4, Flags:uint16@6 and Counter:uint64@8, whether discovered after injection or after the separate discriminating PDB load. The API does not expose the original signed word metadata.",
       "receipt": "all_tools_structure_get_pdb_layout",
       "cleanupReceipt": "native_symbol_fixture_cleanup",
-      "scope": "target_execution"
+      "scope": "reversible_workflow"
     },
     {
       "name": "exec_compile_csharp",

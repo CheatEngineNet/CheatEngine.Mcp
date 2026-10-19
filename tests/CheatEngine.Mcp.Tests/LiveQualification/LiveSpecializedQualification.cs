@@ -22,7 +22,8 @@ internal static class LiveSpecializedQualification
 			sandbox = await LiveSandboxSession.StartAsync(inputs, LiveSandboxOptions.Smoke with
 			{
 				AssemblerQualification = assembler,
-				DebuggerQualification = !assembler
+				DebuggerQualification = !assembler,
+				DebuggerTransitionDiagnostic = inputs.DebuggerTransitionDiagnostic
 			});
 			connection = await LiveLifecycleSession.ConnectAsync(sandbox);
 			await connection.AttachBothAsync();
@@ -44,8 +45,15 @@ internal static class LiveSpecializedQualification
 			else
 			{
 				await LiveDebuggerQualification.VerifyAsync(sandbox, instance);
-				await LiveDebuggerExecutionQualification.VerifyAsync(sandbox, instance,
-					sandbox.HostA.DebuggerExecution ?? throw new InvalidDataException("The owned debugger execution manifest is missing."));
+				if (inputs.DebuggerTransitionDiagnostic)
+				{
+					await LiveDebuggerTransitionDiagnostic.RunAsync(sandbox, instance);
+				}
+				else
+				{
+					await LiveDebuggerExecutionQualification.VerifyAsync(sandbox, instance,
+						sandbox.HostA.DebuggerExecution ?? throw new InvalidDataException("The owned debugger execution manifest is missing."));
+				}
 			}
 			await connection.VerifyBothAsync(expectAssembler: assembler);
 			await connection.RestartGatewayAsync();
@@ -53,6 +61,7 @@ internal static class LiveSpecializedQualification
 			sandbox.Record("specialized_qualification_completed", new
 			{
 				scenario = assembler ? "assembler" : "debugger",
+				diagnosticOnly = inputs.DebuggerTransitionDiagnostic,
 				gatewayRestarted = true,
 				bothOwnedTargetsHealthy = true
 			});

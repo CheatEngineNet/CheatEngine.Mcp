@@ -28,6 +28,7 @@ internal static class LiveQualificationOptIn
 	internal const string DebuggerOptInVariable = "CHEATENGINE_MCP_LIVE_DEBUGGER_QUALIFICATION";
 	internal const string DebuggerAcknowledgement =
 		"I_AUTHORIZE_WINDOWS_DEBUGGER_CHECKS_ON_OWNED_DISPOSABLE_TARGETS";
+	internal const string DebuggerTransitionDiagnosticVariable = "CHEATENGINE_MCP_LIVE_DEBUGGER_TRANSITION_DIAGNOSTIC";
 
 	internal const string LocalCommand =
 		"dotnet test --project tests/CheatEngine.Mcp.Tests -c Release --filter-trait Category=LiveQualification --fail-skips on";
@@ -83,6 +84,11 @@ internal static class LiveQualificationOptIn
 		}
 
 		LiveQualificationScenario scenario = selectedScenario.Value;
+		string? transitionDiagnostic = variables(DebuggerTransitionDiagnosticVariable);
+		if (transitionDiagnostic is not null && (transitionDiagnostic != "1" || scenario != LiveQualificationScenario.Debugger))
+		{
+			return Refuse($"{DebuggerTransitionDiagnosticVariable} accepts only 1 in the debugger scenario.");
+		}
 		string? dispatchCaseValue = variables(DispatchDiagnosticCaseVariable);
 		if (scenario != LiveQualificationScenario.DispatchDiagnostic && dispatchCaseValue is not null)
 		{
@@ -175,7 +181,8 @@ internal static class LiveQualificationOptIn
 			new LiveQualificationInputs(Path.GetFullPath(repositoryRoot), Path.GetFullPath(source),
 				Path.GetFullPath(runRoot), architecture, scenario)
 			{
-				DispatchDiagnosticCase = dispatchCase
+				DispatchDiagnosticCase = dispatchCase,
+				DebuggerTransitionDiagnostic = transitionDiagnostic == "1"
 			}, null);
 	}
 

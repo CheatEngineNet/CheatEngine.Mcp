@@ -25,10 +25,19 @@ internal static class LiveNativeSymbolFixtureScenario
 		try
 		{
 			gateway = await LiveMcpClient.ConnectGatewayAsync(sandbox.GatewayExecutablePath, sandbox.InstanceDirectory, TestContext.Current.CancellationToken);
-			LiveMcpInstanceClient instance = gateway.Bind(sandbox.HostA.InstanceId);
-			JsonNode? attached = await instance.CallToolAsync(CheatEngineToolNames.ProcessAttach, new Dictionary<string, object?> { ["process"] = sandbox.HostA.TargetProcessId.ToString(CultureInfo.InvariantCulture) });
-			Assert.Equal(sandbox.HostA.TargetProcessId, attached!["processId"]!.GetValue<int>());
-			await LiveNativeSymbolFixtureQualification.VerifyAsync(sandbox, instance, sandbox.NativeSymbolFixture);
+			LiveMcpInstanceClient instanceA = gateway.Bind(sandbox.HostA.InstanceId);
+			JsonNode? attachedA = await instanceA.CallToolAsync(CheatEngineToolNames.ProcessAttach,
+				new Dictionary<string, object?> { ["process"] = sandbox.HostA.TargetProcessId.ToString(CultureInfo.InvariantCulture) });
+			Assert.Equal(sandbox.HostA.TargetProcessId, attachedA!["processId"]!.GetValue<int>());
+			bool structureReceiptAlreadyEmitted = await LiveNativeSymbolFixtureQualification.VerifyAsync(sandbox, instanceA,
+				sandbox.NativeSymbolFixture);
+
+			LiveMcpInstanceClient instanceB = gateway.Bind(sandbox.HostB.InstanceId);
+			JsonNode? attachedB = await instanceB.CallToolAsync(CheatEngineToolNames.ProcessAttach,
+				new Dictionary<string, object?> { ["process"] = sandbox.HostB.TargetProcessId.ToString(CultureInfo.InvariantCulture) });
+			Assert.Equal(sandbox.HostB.TargetProcessId, attachedB!["processId"]!.GetValue<int>());
+			await LiveNativeSymbolFixtureQualification.VerifyAddModuleOnFreshHostAsync(sandbox, instanceB, sandbox.HostB,
+				sandbox.NativeSymbolFixture, structureReceiptAlreadyEmitted);
 		}
 		catch (Exception exception) { failure = exception; }
 		finally

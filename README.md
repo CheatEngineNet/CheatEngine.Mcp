@@ -261,6 +261,7 @@ The [session workflows](srcs/CheatEngine.Mcp.Resources/Knowledge/Documents/workf
 | One of several instances fails to start | Leave the port at `0`, or give each process a distinct fixed port. |
 | A previously working ID is unavailable | Refresh `instance_list`; restart and re-enable create new IDs. Do not redirect a failed call to another instance. |
 | A tool reports no target | Select the intended target in Cheat Engine or attach through the chosen instance's process tools. |
+| Attaching after opening a file is refused | Select the process in Cheat Engine or restart Cheat Engine before attaching again. The refusal preserves the open file. |
 | A setting prevents enable | Correct the named `Mcp` key or `MCP_*` variable, then re-enable the plugin. |
 | A routed call times out | Inspect the instance and the target before repeating a mutation; its host effect may be unknown. |
 

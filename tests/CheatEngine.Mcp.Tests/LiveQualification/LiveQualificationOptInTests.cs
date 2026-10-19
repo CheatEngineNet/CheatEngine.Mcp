@@ -344,6 +344,38 @@ public sealed class LiveQualificationOptInTests
 		Assert.Equal((LiveQualificationScenario) expected, decision.Inputs!.Scenario);
 	}
 
+	[Theory]
+	[InlineData("smoke", "1")]
+	[InlineData("assembler", "1")]
+	[InlineData("debugger", "")]
+	[InlineData("debugger", "true")]
+	public void Evaluate_TransitionDiagnosticOutsideItsExactDebuggerMode_Refuses(string scenario, string value)
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.ScenarioVariable] = scenario;
+		variables[LiveQualificationOptIn.DebuggerTransitionDiagnosticVariable] = value;
+		LiveQualificationDecision decision = LiveQualificationOptIn.Evaluate(variables.GetValueOrDefault,
+			Repository, LocalData, Installation, _ => throw new InvalidOperationException("No directory inspection expected."));
+		Assert.False(decision.IsAuthorized);
+		Assert.Contains(LiveQualificationOptIn.DebuggerTransitionDiagnosticVariable, decision.Refusal, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Evaluate_TransitionDiagnostic_PreservesDebuggerAdmissionAndSelectsOnlyItsPrivateProbe()
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.ScenarioVariable] = "debugger";
+		variables[LiveQualificationOptIn.DebuggerTransitionDiagnosticVariable] = "1";
+		Assert.False(Evaluate(variables).IsAuthorized);
+		variables[LiveQualificationOptIn.DebuggerOptInVariable] = LiveQualificationOptIn.DebuggerAcknowledgement;
+		LiveQualificationDecision decision = Evaluate(variables);
+		Assert.True(decision.IsAuthorized, decision.Refusal);
+		Assert.Equal(LiveQualificationScenario.Debugger, decision.Inputs!.Scenario);
+		Assert.True(decision.Inputs.DebuggerTransitionDiagnostic);
+		variables.Remove(LiveQualificationOptIn.DebuggerTransitionDiagnosticVariable);
+		Assert.False(Evaluate(variables).Inputs!.DebuggerTransitionDiagnostic);
+	}
+
 	private static LiveQualificationDecision Evaluate(Dictionary<string, string?> variables)
 	{
 		return LiveQualificationOptIn.Evaluate(variables.GetValueOrDefault, Repository, LocalData, Installation,

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
@@ -7,7 +8,7 @@ using CheatEngine.Mcp.Core.Contract;
 
 namespace CheatEngine.Mcp.Tests.LiveQualification;
 
-/// <summary>Reversible qualification for opening and saving a private file-as-process target.</summary>
+/// <summary>Qualifies owned file targets, pre-mutation refusal and recovery through a private host restart.</summary>
 [SupportedOSPlatform("windows")]
 internal static class LiveProcessFileQualification
 {
@@ -15,21 +16,31 @@ internal static class LiveProcessFileQualification
 	private const string FileBaseAddress = "0x400000";
 	private const long FileTargetSentinel = 4294967295L;
 
-	internal static async Task VerifyAsync(LiveSandboxSession sandbox, LiveMcpInstanceClient instance)
+	internal static async Task VerifyAsync(LiveSandboxSession sandbox, LiveLifecycleSession connection)
 	{
 		ArgumentNullException.ThrowIfNull(sandbox);
-		ArgumentNullException.ThrowIfNull(instance);
+		ArgumentNullException.ThrowIfNull(connection);
+		LiveSandboxHost beforeHost = sandbox.HostA;
+		LiveSandboxHost unaffected = sandbox.HostB;
+		LiveMcpInstanceClient instance = connection.Gateway.Bind(beforeHost.InstanceId);
+		using Process originalHost = Process.GetProcessById(beforeHost.ProcessId);
+		using Process originalTarget = Process.GetProcessById(beforeHost.TargetProcessId);
+		_ = originalHost.Handle;
+		_ = originalTarget.Handle;
 		string root = Path.Combine(sandbox.RunDirectory, "roadmap-qualification", "process-files");
 		string input = OwnedPath(root, "opened-file.bin");
 		string output = OwnedPath(root, "saved-file.bin");
+		string proofOutput = OwnedPath(root, "saved-after-refusal.bin");
 		Directory.CreateDirectory(root);
 		Assert.False(File.Exists(input));
 		Assert.False(File.Exists(output));
+		Assert.False(File.Exists(proofOutput));
 		int targetProcessId = sandbox.HostA.TargetProcessId;
 		bool targetChangeAttempted = false;
 		bool targetRestored = false;
 		bool ownsInput = false;
 		bool ownsOutput = false;
+		bool ownsProofOutput = false;
 		Exception? failure = null;
 		List<Exception> cleanup = [];
 		try
@@ -99,42 +110,65 @@ internal static class LiveProcessFileQualification
 				["output"] = actual.Fact.ToJson(),
 				["bytesMatch"] = true
 			});
+
+			LiveMcpToolResult refused = await instance.CallToolRawAsync(CheatEngineToolNames.ProcessAttach,
+				new Dictionary<string, object?> { ["process"] = targetProcessId.ToString(CultureInfo.InvariantCulture) });
+			sandbox.Record("process_file_transition_guard_observed", new
+			{
+				result = refused.Payload?.DeepClone()
+			});
+			Assert.True(refused.IsError);
+			Assert.Equal("unsupported", Text(refused.Payload!["error"]!, "kind"));
+			Assert.Equal("not_started", Text(refused.Payload["error"]!, "hostEffect"));
+			ownsProofOutput = true;
+			JsonNode savedAfterRefusal = await CallAsync(instance, CheatEngineToolNames.ProcessSaveFile,
+				new Dictionary<string, object?> { ["filename"] = proofOutput });
+			Assert.True(savedAfterRefusal["saved"]!.GetValue<bool>());
+			FileContent proof = await DescribeFileAsync(proofOutput);
+			Assert.Equal(expected.Bytes, proof.Bytes);
+			Assert.Equal(expected.Fact.Sha256, proof.Fact.Sha256);
+			sandbox.Record("process_file_refused_transition_preserved_file", new
+			{
+				refusal = refused.Payload.DeepClone(),
+				proof = proof.Fact.ToJson()
+			});
 		}
 		catch (Exception exception) { failure = exception; throw; }
 		finally
 		{
-			using CancellationTokenSource cleanupTimeout = new(TimeSpan.FromSeconds(10));
-			LiveMcpInstanceClient cleanupInstance = instance.WithCancellation(cleanupTimeout.Token);
 			if (targetChangeAttempted)
 			{
 				await CleanupAsync(cleanup, async () =>
 				{
-					JsonNode attached = await CallAsync(cleanupInstance, CheatEngineToolNames.ProcessAttach,
-						new Dictionary<string, object?>
-						{
-							["process"] = targetProcessId.ToString(CultureInfo.InvariantCulture)
-						});
-					Assert.Equal(targetProcessId, attached["processId"]!.GetValue<int>());
-					JsonNode restored = await CallAsync(cleanupInstance, CheatEngineToolNames.ProcessGetCurrent);
-					sandbox.Record("process_file_reattachment_observed", new
+					await sandbox.RestartHostAsync("A");
+					LiveLifecycleQualification.RequireHostRestart(beforeHost, sandbox.HostA, unaffected);
+					Assert.True(originalHost.HasExited);
+					Assert.True(originalTarget.HasExited);
+					Assert.NotEqual(beforeHost.InstanceId, sandbox.HostA.InstanceId);
+					Assert.Equal(unaffected, sandbox.HostB);
+					using CancellationTokenSource recoveryDeadline = new(TimeSpan.FromSeconds(30));
+					LiveMcpClient recoveryGateway = await LiveMcpClient.ConnectGatewayAsync(sandbox.GatewayExecutablePath,
+						sandbox.InstanceDirectory, recoveryDeadline.Token);
+					await using LiveLifecycleSession recovery = new(sandbox, recoveryGateway, recoveryDeadline.Token);
+					await recovery.RequireInstancesAsync(sandbox.HostA.InstanceId, sandbox.HostB.InstanceId);
+					await recovery.RejectStaleAsync(beforeHost.InstanceId);
+					await recovery.AttachBothAsync();
+					await recovery.VerifyBothAsync();
+					sandbox.Record("process_file_recovery_after_restart", new
 					{
-						attached = attached.DeepClone(),
-						current = restored.DeepClone()
+						before = beforeHost,
+						after = sandbox.HostA,
+						originalHostExited = true,
+						originalTargetExited = true,
+						replacementTargetKnownValueVerified = true,
+						unaffectedHostVerified = true
 					});
-					Assert.True(restored["isOpen"]!.GetValue<bool>());
-					Assert.Equal(targetProcessId, restored["processId"]!.GetValue<int>());
-					LiveMcpToolResult sentinel = await cleanupInstance.CallToolRawAsync(CheatEngineToolNames.MemoryRead,
-						new Dictionary<string, object?> { ["address"] = sandbox.HostA.TargetAddress, ["valueType"] = "int32" });
-					sandbox.Record("process_file_restored_memory_observed", new
-					{
-						address = sandbox.HostA.TargetAddress,
-						sentinel.IsError,
-						payload = sentinel.Payload?.DeepClone()
-					});
-					Assert.False(sentinel.IsError, $"The original target memory was not restored: {sentinel.Payload?.ToJsonString()}");
-					Assert.Equal("20260926", sentinel.Payload!["value"]!.GetValue<string>());
 					targetRestored = true;
 				});
+			}
+			if (ownsProofOutput)
+			{
+				await CleanupAsync(cleanup, () => DeleteOwnedFileAsync(proofOutput));
 			}
 			if (ownsOutput)
 			{
@@ -145,14 +179,16 @@ internal static class LiveProcessFileQualification
 				await CleanupAsync(cleanup, () => DeleteOwnedFileAsync(input));
 			}
 			if (cleanup.Count == 0 && (!targetChangeAttempted || targetRestored) && (!ownsInput || !File.Exists(input)) &&
-				(!ownsOutput || !File.Exists(output)))
+				(!ownsOutput || !File.Exists(output)) && (!ownsProofOutput || !File.Exists(proofOutput)))
 			{
 				sandbox.Record("live_process_file_cleanup", new
 				{
 					targetChangeAttempted,
 					targetRestored,
+					targetRecovery = "host_and_target_restart",
 					inputDeleted = ownsInput,
-					outputDeleted = ownsOutput
+					outputDeleted = ownsOutput,
+					proofOutputDeleted = ownsProofOutput
 				});
 			}
 			LiveLifecycleQualification.ThrowWithCleanup(failure, cleanup);

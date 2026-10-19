@@ -41,6 +41,21 @@ public sealed class LiveNativeSymbolFixtureTests
 		Assert.Contains("exact set", exception.Message, StringComparison.Ordinal);
 	}
 
+	[Theory]
+	[InlineData(0)]
+	[InlineData((16 * 1024 * 1024) + 1L)]
+	public void ImageSizeOracle_RejectsUnmappablePeSizes(long size)
+	{
+		InvalidDataException exception = Assert.Throws<InvalidDataException>(() => NativeSymbolFixture.ValidateImageSize(size));
+		Assert.Contains("target-allocation bound", exception.Message, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void ImageSizeOracle_AcceptsReviewedMappedImageSize()
+	{
+		Assert.Equal(4096L, NativeSymbolFixture.ValidateImageSize(4096));
+	}
+
 	private sealed class Scratch : IDisposable
 	{
 		internal string Root { get; } = Path.Combine(Path.GetTempPath(), "cemcp-native-symbol-tests-" + Guid.NewGuid().ToString("N"));

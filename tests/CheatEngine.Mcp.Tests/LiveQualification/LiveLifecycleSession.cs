@@ -9,7 +9,8 @@ namespace CheatEngine.Mcp.Tests.LiveQualification;
 
 /// <summary>Owns one gateway connection while the private hosts undergo fixed lifecycle transitions.</summary>
 [SupportedOSPlatform("windows")]
-internal sealed class LiveLifecycleSession(LiveSandboxSession sandbox, LiveMcpClient gateway) : IAsyncDisposable
+internal sealed class LiveLifecycleSession(LiveSandboxSession sandbox, LiveMcpClient gateway,
+	CancellationToken? pollingCancellation = null) : IAsyncDisposable
 {
 	internal LiveMcpClient Gateway { get; private set; } = gateway;
 	private bool _ownsGateway = true;
@@ -102,7 +103,7 @@ internal sealed class LiveLifecycleSession(LiveSandboxSession sandbox, LiveMcpCl
 				return;
 			}
 
-			await Task.Delay(100, TestContext.Current.CancellationToken);
+			await Task.Delay(100, pollingCancellation ?? TestContext.Current.CancellationToken);
 		} while (deadline.Elapsed < TimeSpan.FromSeconds(10));
 		Assert.Fail("Discovery did not converge to the exact owned activation identities.");
 	}

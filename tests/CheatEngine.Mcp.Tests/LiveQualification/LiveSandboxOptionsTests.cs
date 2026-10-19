@@ -89,6 +89,7 @@ public sealed class LiveSandboxOptionsTests
 			LiveSandboxOptions.Smoke with { DispatchDiagnostic = true },
 			LiveSandboxOptions.Smoke with { AssemblerQualification = true },
 			LiveSandboxOptions.Smoke with { DebuggerQualification = true },
+			LiveSandboxOptions.Smoke with { DebuggerTransitionDiagnostic = true },
 			LiveSandboxOptions.Smoke with { UseSoakLifetime = true }
 		];
 		foreach (LiveSandboxOptions options in invalid)
@@ -115,6 +116,27 @@ public sealed class LiveSandboxOptionsTests
 		Assert.Throws<InvalidOperationException>(() => (options with { WorkflowQualification = true }).ValidateFor(scenario));
 		Assert.Throws<InvalidOperationException>(() => (options with { AssemblerQualification = true, DebuggerQualification = true }).ValidateFor(scenario));
 		Assert.Throws<InvalidOperationException>(() => options.ValidateFor(LiveQualificationScenario.Smoke));
+	}
+
+	[Fact]
+	public void ValidateFor_TransitionDiagnostic_RequiresDebuggerWithDisabledProductGates()
+	{
+		LiveSandboxOptions diagnostic = LiveSandboxOptions.Smoke with
+		{
+			DebuggerQualification = true,
+			DebuggerTransitionDiagnostic = true
+		};
+		diagnostic.ValidateFor(LiveQualificationScenario.Debugger);
+		Assert.Throws<InvalidOperationException>(() => (diagnostic with
+		{
+			DebuggerQualification = false
+		})
+			.ValidateFor(LiveQualificationScenario.Smoke));
+		Assert.Throws<InvalidOperationException>(() => (diagnostic with
+		{
+			EnableTargetCodeExecution = true
+		})
+			.ValidateFor(LiveQualificationScenario.Debugger));
 	}
 
 	[Fact]

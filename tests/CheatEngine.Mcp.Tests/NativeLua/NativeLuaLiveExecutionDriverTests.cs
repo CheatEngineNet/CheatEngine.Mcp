@@ -9,7 +9,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 		stopExists = false; targetExited = false
 		timer = { Enabled = true }
 		getTickCount = function() return clock end
-		getAddressList = function() return { clear = function() clears = clears + 1 end } end
+		getAddressList = function() clears = clears + 1; return { Count = 0 } end
 		closeCE = function() closes = closes + 1 end
 		log = function() end
 		io = { open = function(path, mode)
@@ -46,6 +46,30 @@ public sealed partial class NativeLuaToolRuntimeTests
 
 		InstallStubs("targetExited = true; tick()");
 		Assert.Equal((1L, 1L), (ReadGlobal("closes"), ReadGlobal("clears")));
+	}
+
+	[Fact]
+	public void ExecutionDriver_StopClearsRecordsUsingTheSupportedAddressListApi()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallExecutionDriver(false);
+		InstallStubs("""
+			remainingRecords = 3; destroyedRecords = 0
+			local list = { Count = remainingRecords }
+			list.getMemoryRecord = function(index)
+			  assert(index == 0 and list.Count > 0)
+			  return { destroy = function()
+			    destroyedRecords = destroyedRecords + 1
+			    list.Count = list.Count - 1
+			    remainingRecords = list.Count
+			  end }
+			end
+			getAddressList = function() return list end
+			stopExists = true; tick()
+			""");
+		Assert.Equal(0L, ReadGlobal("remainingRecords"));
+		Assert.Equal(3L, ReadGlobal("destroyedRecords"));
+		Assert.Equal(1L, ReadGlobal("closes"));
 	}
 
 	[Fact]

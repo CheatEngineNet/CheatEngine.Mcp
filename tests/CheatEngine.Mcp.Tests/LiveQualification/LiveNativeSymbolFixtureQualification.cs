@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
+using System.Runtime.ExceptionServices;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
@@ -12,10 +13,7 @@ using CheatEngine.Mcp.Core.Contract;
 
 namespace CheatEngine.Mcp.Tests.LiveQualification;
 
-/// <summary>
-/// Draft-only live helper for one fixed x64 DLL/PDB pair. It intentionally makes no target-side call after injection.
-/// Integrate only with the dedicated SymbolFixture admission described beside this file.
-/// </summary>
+/// <summary>Bounded live qualification for one fixed x64 DLL/PDB pair.</summary>
 [SupportedOSPlatform("windows")]
 internal static class LiveNativeSymbolFixtureQualification
 {
@@ -28,14 +26,14 @@ internal static class LiveNativeSymbolFixtureQualification
 		new("Counter", "8", "uint64")
 	];
 
-	internal static async Task VerifyAsync(LiveSandboxSession sandbox, LiveMcpInstanceClient instance,
+	internal static async Task<bool> VerifyAsync(LiveSandboxSession sandbox, LiveMcpInstanceClient instance,
 		NativeSymbolFixture artifact)
 	{
 		ArgumentNullException.ThrowIfNull(sandbox);
 		ArgumentNullException.ThrowIfNull(instance);
 		ArgumentNullException.ThrowIfNull(artifact);
 		artifact.VerifyBeforeHostStart();
-		await AssertOwnedTargetAttachedAsync(sandbox, instance);
+		await AssertTargetAttachedAsync(instance, sandbox.HostA.TargetProcessId);
 		await AssertGatesAsync(instance);
 
 		// Admission is the irreversible boundary. The owning scenario must switch to target-first teardown before this call.
@@ -63,14 +61,114 @@ internal static class LiveNativeSymbolFixtureQualification
 			injected = injected.DeepClone()
 		});
 
-		await VerifyDiscriminatingReloadAsync(sandbox, instance, artifact, osModule, Text(mcpModule, "name"));
-		await VerifyPdbLayoutAsync(sandbox, instance, artifact, osModule);
+		await RecordReloadInconclusiveAsync(sandbox, instance, Text(mcpModule, "name"));
+		return await VerifyExistingPdbLayoutAsync(sandbox, instance);
 	}
 
-	private static async Task AssertOwnedTargetAttachedAsync(LiveSandboxSession sandbox, LiveMcpInstanceClient instance)
+	internal static async Task VerifyAddModuleOnFreshHostAsync(LiveSandboxSession sandbox, LiveMcpInstanceClient instance,
+		LiveSandboxHost host, NativeSymbolFixture artifact, bool structureReceiptAlreadyEmitted)
+	{
+		ArgumentNullException.ThrowIfNull(sandbox);
+		ArgumentNullException.ThrowIfNull(instance);
+		ArgumentNullException.ThrowIfNull(host);
+		ArgumentNullException.ThrowIfNull(artifact);
+		artifact.VerifyBeforeHostStart();
+		await AssertTargetAttachedAsync(instance, host.TargetProcessId);
+		await AssertGatesAsync(instance);
+
+		JsonNode before = await GetPdbLayoutAsync(instance);
+		if (before["found"]!.GetValue<bool>())
+		{
+			sandbox.Record("symbol_add_module_inconclusive_existing_layout", new
+			{
+				host = host.Name,
+				before = before.DeepClone()
+			});
+			return;
+		}
+		Assert.Empty(before["elements"]!.AsArray());
+		Assert.False(before["truncated"]!.GetValue<bool>());
+
+		const string allocationName = "live-native-symbol-pdb-base";
+		bool allocationAttempted = false;
+		List<Exception> cleanup = [];
+		Exception? failure = null;
+		try
+		{
+			await AssertNoNamedAllocationAsync(instance, allocationName);
+			allocationAttempted = true;
+			JsonNode allocation = await CallAsync(instance, CheatEngineToolNames.MemoryAllocate, new Dictionary<string, object?>
+			{
+				["name"] = allocationName,
+				["size"] = artifact.ImageSize,
+				["executable"] = false
+			});
+			Assert.Equal(allocationName, Text(allocation, "name"));
+			Assert.True(allocation["size"]!.GetValue<long>() >= artifact.ImageSize);
+			Assert.False(allocation["executable"]!.GetValue<bool>());
+			string address = Text(allocation, "address");
+
+			JsonNode added = await CallAsync(instance, CheatEngineToolNames.SymbolAddModule, new Dictionary<string, object?>
+			{
+				["path"] = artifact.PdbPath,
+				["baseAddress"] = "0x" + address,
+				["enumStructures"] = true
+			});
+			Assert.Equal(artifact.PdbPath, Text(added, "path"), ignoreCase: true);
+			Assert.Equal(address, Text(added, "base"));
+			Assert.True(added["enumStructures"]!.GetValue<bool>());
+
+			JsonNode layout = await GetPdbLayoutAsync(instance);
+			AssertExactPdbLayout(layout);
+			sandbox.Record("all_tools_symbol_add_module", new
+			{
+				host = host.Name,
+				allocation = allocation.DeepClone(),
+				added = added.DeepClone(),
+				artifact.PdbSha256,
+				artifact.CodeView
+			});
+			if (!structureReceiptAlreadyEmitted)
+			{
+				sandbox.Record("all_tools_structure_get_pdb_layout", new
+				{
+					origin = "manual_add_module",
+					host = host.Name,
+					layout = layout.DeepClone()
+				});
+			}
+		}
+		catch (Exception exception) { failure = exception; }
+		finally
+		{
+			if (allocationAttempted)
+			{
+				try
+				{
+					await ReleaseAndProveAllocationAbsentAsync(instance, allocationName);
+				}
+				catch (Exception exception) { cleanup.Add(exception); }
+			}
+		}
+
+		if (failure is not null && cleanup.Count == 0)
+		{
+			ExceptionDispatchInfo.Capture(failure).Throw();
+		}
+		if (failure is not null || cleanup.Count != 0)
+		{
+			if (failure is not null)
+			{
+				cleanup.Insert(0, failure);
+			}
+			throw new AggregateException(cleanup);
+		}
+	}
+
+	private static async Task AssertTargetAttachedAsync(LiveMcpInstanceClient instance, int processId)
 	{
 		JsonNode overview = await CallAsync(instance, CheatEngineToolNames.RuntimeGetOverview);
-		Assert.Equal(sandbox.HostA.TargetProcessId, overview["process"]!["processId"]!.GetValue<int>());
+		Assert.Equal(processId, overview["process"]!["processId"]!.GetValue<int>());
 	}
 
 	private static async Task AssertGatesAsync(LiveMcpInstanceClient instance)
@@ -122,46 +220,14 @@ internal static class LiveNativeSymbolFixtureQualification
 		}
 	}
 
-	private static async Task VerifyDiscriminatingReloadAsync(LiveSandboxSession sandbox, LiveMcpInstanceClient instance,
-		NativeSymbolFixture artifact, LoadedFixtureModule loaded, string moduleName)
+	private static async Task RecordReloadInconclusiveAsync(LiveSandboxSession sandbox, LiveMcpInstanceClient instance, string moduleName)
 	{
-		using CancellationTokenSource reloadDeadline = new(TimeSpan.FromSeconds(10));
-		LiveMcpInstanceClient bounded = instance.WithCancellation(reloadDeadline.Token);
-		JsonNode before = await FindTickAsync(bounded, moduleName);
-		if (!before["symbolsLoaded"]!.GetValue<bool>() || before["symbols"]!.AsArray().Count != 0)
+		JsonNode observed = await FindTickAsync(instance, moduleName);
+		sandbox.Record("symbol_reload_inconclusive_auto_discovery", new
 		{
-			sandbox.Record("symbol_reload_inconclusive_auto_discovery", new
-			{
-				before = before.DeepClone(),
-				moduleName
-			});
-			return; // Injection already made the export visible, or CE is still loading; reload is not discriminating.
-		}
-
-		JsonNode started = await CallAsync(bounded, CheatEngineToolNames.SymbolReload,
-			new Dictionary<string, object?> { ["scope"] = "new_modules" });
-		Assert.Equal("new_modules", Text(started, "scope"));
-		JsonNode? final = null;
-		while (!reloadDeadline.IsCancellationRequested)
-		{
-			JsonNode observed = await FindTickAsync(bounded, moduleName);
-			if (observed["symbolsLoaded"]!.GetValue<bool>() && observed["symbols"]!.AsArray().Count != 0)
-			{
-				final = observed;
-				break;
-			}
-			await Task.Delay(100, reloadDeadline.Token);
-		}
-		JsonNode found = final ?? throw new TimeoutException("symbol_reload did not produce a loaded owned export within ten seconds.");
-		Assert.True(found["symbolsLoaded"]!.GetValue<bool>());
-		JsonNode tick = Assert.Single(found["symbols"]!.AsArray(), item =>
-			string.Equals(Text(item!, "name"), "CemcpFixtureTick", StringComparison.OrdinalIgnoreCase))!;
-		Assert.Equal(loaded.BaseAddress + artifact.ExportRvas["CemcpFixtureTick"], Address(Text(tick, "address")));
-		sandbox.Record("all_tools_symbol_reload", new
-		{
-			started = started.DeepClone(),
-			before = before.DeepClone(),
-			after = found.DeepClone()
+			observed = observed.DeepClone(),
+			moduleName,
+			reason = "Cheat Engine may discover an injected module asynchronously, so no reload request can be attributed as the cause."
 		});
 	}
 
@@ -173,35 +239,37 @@ internal static class LiveNativeSymbolFixtureQualification
 			["limit"] = 20
 		});
 
-	private static async Task VerifyPdbLayoutAsync(LiveSandboxSession sandbox, LiveMcpInstanceClient instance,
-		NativeSymbolFixture artifact, LoadedFixtureModule loaded)
+	private static async Task<bool> VerifyExistingPdbLayoutAsync(LiveSandboxSession sandbox, LiveMcpInstanceClient instance)
 	{
-		JsonNode before = await CallAsync(instance, CheatEngineToolNames.StructureGetPdbLayout,
-			new Dictionary<string, object?> { ["typeName"] = "CemcpPdbFixtureLayout", ["limit"] = ExpectedLayout.Length });
+		JsonNode before = await GetPdbLayoutAsync(instance);
 		if (before["found"]!.GetValue<bool>())
 		{
+			AssertExactPdbLayout(before);
+			sandbox.Record("all_tools_structure_get_pdb_layout", new
+			{
+				origin = "already_loaded",
+				layout = before.DeepClone()
+			});
 			sandbox.Record("symbol_add_module_inconclusive_existing_layout", new
 			{
 				before = before.DeepClone()
 			});
-			return; // The explicit load has no observable effect in this CE session.
+			return true;
 		}
 		Assert.Empty(before["elements"]!.AsArray());
 		Assert.False(before["truncated"]!.GetValue<bool>());
+		return false;
+	}
 
-		string baseAddress = "0x" + Hex(loaded.BaseAddress);
-		JsonNode added = await CallAsync(instance, CheatEngineToolNames.SymbolAddModule, new Dictionary<string, object?>
+	private static Task<JsonNode> GetPdbLayoutAsync(LiveMcpInstanceClient instance) => CallAsync(instance,
+		CheatEngineToolNames.StructureGetPdbLayout, new Dictionary<string, object?>
 		{
-			["path"] = artifact.PdbPath,
-			["baseAddress"] = baseAddress,
-			["enumStructures"] = true
+			["typeName"] = "CemcpPdbFixtureLayout",
+			["limit"] = ExpectedLayout.Length
 		});
-		Assert.Equal(artifact.PdbPath, Text(added, "path"), ignoreCase: true);
-		Assert.Equal(Hex(loaded.BaseAddress), Text(added, "base"));
-		Assert.True(added["enumStructures"]!.GetValue<bool>());
 
-		JsonNode layout = await CallAsync(instance, CheatEngineToolNames.StructureGetPdbLayout,
-			new Dictionary<string, object?> { ["typeName"] = "CemcpPdbFixtureLayout", ["limit"] = ExpectedLayout.Length });
+	private static void AssertExactPdbLayout(JsonNode layout)
+	{
 		Assert.Equal("CemcpPdbFixtureLayout", Text(layout, "typeName"));
 		Assert.True(layout["found"]!.GetValue<bool>());
 		Assert.False(layout["truncated"]!.GetValue<bool>());
@@ -213,13 +281,30 @@ internal static class LiveNativeSymbolFixtureQualification
 			Assert.Equal((expected.Name, expected.Offset, expected.ValueType),
 				(Text(fields[index], "name"), Text(fields[index], "offset"), Text(fields[index], "valueType")));
 		}
-		sandbox.Record("all_tools_symbol_add_module", new
+	}
+
+	private static async Task AssertNoNamedAllocationAsync(LiveMcpInstanceClient instance, string name)
+	{
+		JsonNode resources = await CallAsync(instance, CheatEngineToolNames.RuntimeListResources);
+		Assert.DoesNotContain(resources["resources"]!.AsArray(), resource =>
+			resource is not null && string.Equals(Text(resource, "name"), name, StringComparison.Ordinal));
+	}
+
+	private static async Task ReleaseAndProveAllocationAbsentAsync(LiveMcpInstanceClient instance, string name)
+	{
+		using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(10));
+		LiveMcpInstanceClient bounded = instance.WithCancellation(deadline.Token);
+		LiveMcpToolResult released = await bounded.CallToolRawAsync(CheatEngineToolNames.MemoryFree,
+			new Dictionary<string, object?> { ["name"] = name });
+		if (!released.IsError)
 		{
-			added = added.DeepClone(),
-			artifact.PdbSha256,
-			artifact.CodeView
-		});
-		sandbox.Record("all_tools_structure_get_pdb_layout", layout.DeepClone());
+			Assert.True(released.Payload!["release"]!["isComplete"]!.GetValue<bool>());
+			released = await bounded.CallToolRawAsync(CheatEngineToolNames.MemoryFree,
+				new Dictionary<string, object?> { ["name"] = name });
+		}
+		Assert.True(released.IsError);
+		Assert.Equal("not_found", Text(released.Payload!["error"], "kind"));
+		await AssertNoNamedAllocationAsync(bounded, name);
 	}
 
 	private static async Task<JsonNode> CallAsync(LiveMcpInstanceClient instance, string tool,
@@ -252,7 +337,10 @@ internal sealed record NativeSymbolFixture(string SourcePath, string DllPath, st
 	private const long MaximumSourceBytes = 64 * 1024;
 	private const long MaximumDllBytes = 1024 * 1024;
 	private const long MaximumPdbBytes = 16 * 1024 * 1024;
+	private const long MaximumMappedImageBytes = 16 * 1024 * 1024;
 	private static readonly string[] RequiredExports = ["CemcpFixtureLayoutSize", "CemcpFixtureTick"];
+
+	internal long ImageSize => ReadImageSize(DllPath);
 
 	internal void VerifyBeforeHostStart()
 	{
@@ -280,6 +368,7 @@ internal sealed record NativeSymbolFixture(string SourcePath, string DllPath, st
 		{
 			throw new InvalidDataException("The native symbol fixture is not an AMD64 PE image.");
 		}
+		ValidateImageSize(pe.PEHeaders.PEHeader?.SizeOfImage ?? 0);
 		CodeViewDebugDirectoryData codeView = pe.ReadDebugDirectory().Select(entry => new { entry, entry.Type })
 			.Where(value => value.Type == DebugDirectoryEntryType.CodeView).Select(value => pe.ReadCodeViewDebugDirectoryData(value.entry)).Single();
 		NativeSymbolCodeView pdbIdentity = ReadPdbIdentity(PdbPath, PdbLength);
@@ -304,6 +393,25 @@ internal sealed record NativeSymbolFixture(string SourcePath, string DllPath, st
 		CodeViewDebugDirectoryData value = pe.ReadDebugDirectory().Where(entry => entry.Type == DebugDirectoryEntryType.CodeView)
 			.Select(pe.ReadCodeViewDebugDirectoryData).Single();
 		return new NativeSymbolCodeView(value.Guid, value.Age);
+	}
+	internal static long ReadImageSize(string path)
+	{
+		RequireBoundedFile(path, MaximumDllBytes);
+		using FileStream image = File.OpenRead(path);
+		using PEReader pe = new(image);
+		if (pe.PEHeaders.CoffHeader.Machine != Machine.Amd64)
+		{
+			throw new InvalidDataException("The native symbol fixture is not an AMD64 PE image.");
+		}
+		return ValidateImageSize(pe.PEHeaders.PEHeader?.SizeOfImage ?? 0);
+	}
+	internal static long ValidateImageSize(long size)
+	{
+		if (size is <= 0 or > MaximumMappedImageBytes)
+		{
+			throw new InvalidDataException("The fixture PE image size exceeds the reviewed target-allocation bound.");
+		}
+		return size;
 	}
 	internal static IReadOnlyDictionary<string, uint> ReadRequiredExportRvas(string path, IReadOnlyCollection<string> required)
 	{

@@ -328,7 +328,7 @@ internal static class LiveDebuggerExecutionQualification
 		catch (Exception exception) { cleanup.Add(uncertain is null ? exception : new AggregateException(uncertain, exception)); return; }
 	}
 
-	private static async Task DeleteAndProveAbsentDuringCleanupAsync(LiveMcpInstanceClient instance, string address,
+	internal static async Task DeleteAndProveAbsentDuringCleanupAsync(LiveMcpInstanceClient instance, string address,
 		List<Exception> cleanup)
 	{
 		Exception? uncertain = null;

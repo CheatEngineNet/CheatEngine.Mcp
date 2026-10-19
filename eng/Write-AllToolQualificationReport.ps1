@@ -207,6 +207,7 @@ foreach ($entry in @(@{ Name = 'portable'; Path = $PortableTrx }, @{ Name = 'nat
 $live = if ($LiveSummary) { Get-Content -LiteralPath $LiveSummary -Raw | ConvertFrom-Json -AsHashtable } else { @{} }
 $liveReceipts = if ($LiveSummary) { Read-LiveReceipts $LiveSummary } else { $null }
 $livePassed = $live['passed'] -eq $true -and $live['userStateRestored'] -eq $true -and
+	$live['diagnosticOnly'] -ne $true -and
     $live['sourceInstallationUnchanged'] -eq $true -and $live.ContainsKey('cleanupFailures') -and
     @($live['cleanupFailures']).Count -eq 0 -and $live['schema'] -eq 'cheatengine-mcp-live-multi-instance/v1' -and
     $live.ContainsKey('selected_distribution') -and $live['selected_distribution'].ContainsKey('productVersion') -and

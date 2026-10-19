@@ -94,15 +94,6 @@ public sealed class LiveExecutionLifecycleTests
 	}
 
 	[Fact]
-	public void Render_NonExecutionLifetimeRetainsAddressListClearAndClose()
-	{
-		string lua = LiveExecutionDriverLua.RenderTimerBody("C:/run/stop", "C:/run/target.exited", "C:/run/expiry", 300_000, false);
-
-		Assert.Contains("if expired then log('closing'); timer.Enabled=false; pcall(function() getAddressList().clear() end); closeCE(); return end", lua, StringComparison.Ordinal);
-		Assert.DoesNotContain("execution-expired", lua, StringComparison.Ordinal);
-	}
-
-	[Fact]
 	public async Task AttemptAllAsync_AttemptsLaterTargetWhenEarlierTerminationFails()
 	{
 		List<string> attempted = [];

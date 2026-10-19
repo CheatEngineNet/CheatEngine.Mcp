@@ -99,8 +99,8 @@ These feature checks do not complete the separate all-tool or same-process reloa
 | Structure interchange and width validation | `StructureInterchangeToolsTests.Import_ProductionAdapter_ValidFilePassesEncodedNestedReferencesToOneLuaMutation`; `Import_PointerWidthMismatch_IsRefusedBeforeLuaMutation` |
 | Compatible, stable process pages | `ProcessPagingTests.List_LegacyRequest_PreservesTheOriginalRequestAndJsonShape`; `List_PagedSnapshot_SortsOnceAndKeepsTheOriginalProcessesAcrossPages` |
 
-The current catalog contains 206 backend tools plus gateway discovery. The latest Release verification has 5,608
-passing portable cases and 722 passing standalone Lua cases. Detailed receipts and the remaining native gaps are recorded in the
+The current catalog contains 206 backend tools plus gateway discovery. The latest Release verification has 5,665
+passing portable cases and 742 passing standalone Lua cases. Detailed receipts and the remaining native gaps are recorded in the
 [full tool qualification report](qualification/all-tools/README.md). A subsequent x86 workflow found that pointer
 map capture retained out-of-width WOW64 module metadata; its correction passed regression tests and is awaiting
 fresh native verification.
