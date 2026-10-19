@@ -38,7 +38,7 @@ Lua body do not establish successful native execution.
 - [ ] Complete the x86 workflow after the pointer-width fix and physical system-module path correction.
 - [ ] Qualify owned resource release, scanner stop and structure guessing with independent readback and cleanup.
 - [ ] Qualify file-as-process open/save with exact bytes and restored target identity.
-- [ ] Qualify fixed Lua and reversible Auto Assembler operations in their dedicated private scenario.
+- [x] Qualify fixed Lua and reversible Auto Assembler operations in their dedicated private scenario on package 12.
 - [x] Qualify Windows debugger attachment, stopped state and cleanup against an owned target on package 11.
 - [x] Qualify the fixed compiler scenario against source-built package 10, including gate refusal, exported bytes and cleanup.
 - [x] Qualify managed injection with the reviewed helper enabled in the private host on package 11.
@@ -92,8 +92,8 @@ The disabled-compiler session `20261019T154553Z-ab0b` passed. The enabled sessio
 compiled and exported the expected DLL, then crashed in the SDK's outer `LuaFrame.Dispose`/`lua_settop` path.
 It returned `instance_unavailable` with unknown host effect. Both owned hosts and targets stopped, user settings
 were restored and installed files were unchanged, but the crashed host's disabled-menu evidence is missing, so
-the session has a cleanup-evidence failure and supplies no verified native success cases. Further native runs
-are suspended while the SDK cleanup path is investigated; a passing earlier package does not close this regression.
+the session has a cleanup-evidence failure and supplies no verified native success cases. Native runs were
+suspended until the SDK cleanup candidate below was prepared and reviewed; a passing earlier package does not close this regression.
 
 The follow-up SDK candidate `c934aec483c6c5cfe7a24112d9c3218ba4a1629b`
 ([PR #97](https://github.com/CheatEngineNet/CheatEngine.SDK/pull/97)) releases synchronized callbacks on the
@@ -105,9 +105,43 @@ the bounded patch. These results establish the cleanup invariant, not the cause 
 MCP's corresponding Release build passed with zero warnings or errors, all **5,608** portable cases and **722**
 standalone Lua cases passed, and the managed-object fixture is integrated with four prepared evidence mappings.
 It publishes a pinned object's direct reference and known fields from the owned target, checks module identity,
-object values, search results and exact structure layout, then verifies job and structure cleanup. Its native run
-and the replacement compiler session remain pending. There are **164** prepared backend mappings; preparation
-does not establish native success.
+object values, search results and exact structure layout, then verifies job and structure cleanup. There are
+**164** prepared backend mappings; preparation does not establish native success.
+
+Package 12 (`eaa89d411069ab6919b10aa3297105c1c4046262`) passed the compiler pair
+`20261019T161750Z-f007` / `20261019T161807Z-9d25`, smoke session `20261019T162310Z-674e`,
+managed injection `20261019T162347Z-73ed` and assembler session `20261019T162840Z-f817`.
+All restored user state, preserved installed files and reported no sandbox cleanup failures. The assembler
+session used corrected fixture assertions with unchanged product binaries. The corresponding reports are
+`managed-fixture-{compiler,smoke,injection}-report-12` and `managed-fixture-assembler-report-12b` under
+`artifacts/test-results/ai-analysis-20261019`. These bounded passing cases do not establish that the intermittent
+native access violation is resolved.
+
+| Package 12 file | SHA-256 |
+| --- | --- |
+| `CheatEngine.Mcp.dll` | `0A1B36991DC4AAD41E3B3A793E7E9D7AE3A291EA4671768650FAFD3E62E0FE4F` |
+| `CheatEngine.Mcp.Gateway.exe` | `0885F6064B8AE1606A0A15718E9B3F65211645177C9F3AFEEC418B0C5AA72497` |
+
+The initial managed-object run `20261019T161918Z-43f2` exposed an incorrect structure-count expectation:
+CE adds a `Vtable` pointer at offset zero before the three known instance fields. The corrected oracle requires
+exactly that header, the target pointer width and all three exact field offsets/types/sizes; 13 focused tests
+cover acceptance and malformed or incomplete layouts. The workflow `20261019T162751Z-e779` passed those
+managed-object assertions and verified job/structure cleanup, then failed the file-target restoration readback.
+Opening and saving the private 4,096-byte file preserved its exact contents, but reattaching reported the original
+PID while reading its known memory value failed. No file-tool or partial-workflow qualification is claimed.
+
+The initial hook run `20261019T162218Z-fc7e` incorrectly required a standalone syntax check to accept generated
+source. Generation is now qualified by the complete expected template, independently decoded instructions,
+exact owned addresses/rollback bytes, unchanged target memory and verified allocation cleanup. The separate
+DISABLE check returned `Access violation` at named `dealloc`, consistent with the cached CE implementation's access
+to absent ENABLE-time allocation information; the host remained running. This observation does not qualify hook application. The complete corrected assembler
+session above passed its independent apply/release and rollback cases.
+
+Debugger session `20261019T162423Z-8f1b` attached and detached cleanly but did not observe the requested thread
+stop within ten seconds. The fixture selected an arbitrary matching thread; CE documents that a sleeping thread
+may need to wake before the request takes effect. A dedicated advancing thread fixture is being prepared.
+This failed session supplies no native debugger qualification for package 12. All failed sessions above restored
+settings and preserved installed files; their sandbox cleanup lists were empty.
 
 Package 10 (`4401986963a7a765b579f3003e06a454672ea707`) passed compiler sessions
 `20261019T143232Z-9eaa` and `20261019T143249Z-e5e9`, then smoke session `20261019T143707Z-7128`.

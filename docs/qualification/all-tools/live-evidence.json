@@ -1437,7 +1437,7 @@
       "name": "asm_generate_api_hook",
       "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveApiHookQualification.cs",
       "testMethod": "VerifyAsync",
-      "oracle": "The complete ordered x86/x64 generated template matches five independently decoded NOPs, exact owned source/destination, trampoline/return labels and exact rollback bytes. Syntax check accepts it without applying it; all owned bytes remain unchanged and the allocation is released.",
+      "oracle": "The complete ordered x86/x64 generated template matches five independently decoded NOPs, exact owned source/destination, trampoline/return labels and exact rollback bytes. The standalone syntax-check result is a separate observation, since it lacks ENABLE-time allocation ownership. All owned bytes remain unchanged and the allocation is released; no hook application is claimed.",
       "receipt": "all_tools_asm_generate_api_hook",
       "cleanupReceipt": "live_api_hook_cleanup",
       "scope": "reversible_workflow"
@@ -1473,7 +1473,7 @@
       "name": "structure_fill_from_dotnet",
       "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveManagedObjectQualification.cs",
       "testMethod": "VerifyAsync",
-      "oracle": "The unique new structure has exactly the pinned object's three known Int32 fields, each at its independently checked collector offset with byte size four. Name, complete element count and total size match; cleanup deletes the structure and verifies not_found.",
+      "oracle": "The unique new structure has exactly four elements: the offset-zero Vtable pointer with the owned target's pointer width, plus the pinned object's three known Int32 fields at independently checked collector offsets with byte size four. Name, complete element count and total size match; cleanup deletes the structure and verifies not_found.",
       "receipt": "all_tools_structure_fill_from_dotnet",
       "cleanupReceipt": "live_managed_object_cleanup",
       "scope": "reversible_workflow"

@@ -82,7 +82,15 @@ internal static class LiveManagedObjectQualification
 			});
 			JsonNode definition = await CallAsync(instance, CheatEngineToolNames.StructureGet,
 				new Dictionary<string, object?> { ["name"] = structure, ["offset"] = 0, ["limit"] = 32, ["format"] = "detailed" });
-			AssertExactStructureLayout(definition, filled, layout, structure, fields);
+			int pointerBytes = sandbox.TargetArchitecture == "x64" ? 8 : 4;
+			sandbox.Record("managed_object_structure_observed", new
+			{
+				pointerBytes,
+				layout = layout.DeepClone(),
+				filled = filled.DeepClone(),
+				definition = definition.DeepClone()
+			});
+			AssertExactStructureLayout(definition, filled, layout, structure, fields, pointerBytes);
 			Receipt(sandbox, CheatEngineToolNames.StructureFillFromDotNet, filled);
 		}
 		catch (Exception exception) { failure = exception; throw; }
@@ -254,14 +262,22 @@ internal static class LiveManagedObjectQualification
 		}
 	}
 
-	private static void AssertExactStructureLayout(JsonNode definition, JsonNode filled, JsonNode layout, string structure, (string Name, int Value)[] fields)
+	internal static void AssertExactStructureLayout(JsonNode definition, JsonNode filled, JsonNode layout, string structure,
+		(string Name, int Value)[] fields, int pointerBytes)
 	{
+		Assert.True(pointerBytes is 4 or 8);
+		Assert.Equal(18, layout["objectType"]!.GetValue<int>());
+		Assert.Equal((long) pointerBytes, fields.Min(field => SingleField(layout, field.Name)["offset"]!.GetValue<long>()));
 		int expectedSize = fields.Max(field => checked((int) SingleField(layout, field.Name)["offset"]!.GetValue<long>() + 4));
-		Assert.Equal((structure, expectedSize, fields.Length, fields.Length), (Text(definition, "name"), definition["size"]!.GetValue<int>(), definition["elementCount"]!.GetValue<int>(), definition["total"]!.GetValue<int>()));
+		Assert.Equal((structure, expectedSize, fields.Length + 1, fields.Length + 1), (Text(definition, "name"), definition["size"]!.GetValue<int>(), definition["elementCount"]!.GetValue<int>(), definition["total"]!.GetValue<int>()));
 		Assert.Null(definition["nextOffset"]);
 		JsonArray elements = definition["elements"]!.AsArray();
-		Assert.Equal(fields.Length, elements.Count);
-		Assert.Equal(fields.Select(field => field.Name).Order(), elements.Select(element => Text(element!, "name")).Order());
+		Assert.Equal(fields.Length + 1, elements.Count);
+		// CE's fillFromDotNetAddressData adds this pointer before the named instance fields.
+		JsonNode header = Assert.Single(elements, element => Text(element!, "name") == "Vtable")!;
+		Assert.Equal((0L, "pointer", pointerBytes),
+			(ParseHexOffset(Text(header, "offset")), Text(header, "valueType"), header["byteSize"]!.GetValue<int>()));
+		Assert.Equal(fields.Select(field => field.Name).Append("Vtable").Order(), elements.Select(element => Text(element!, "name")).Order());
 		foreach ((string name, _) in fields)
 		{
 			JsonNode element = Assert.Single(elements, item => Text(item!, "name") == name)!;
@@ -269,7 +285,7 @@ internal static class LiveManagedObjectQualification
 			Assert.Equal(4, element["byteSize"]!.GetValue<int>());
 			Assert.Equal(SingleField(layout, name)["offset"]!.GetValue<long>(), ParseHexOffset(Text(element, "offset")));
 		}
-		Assert.Equal((structure, expectedSize, fields.Length), (Text(filled, "name"), filled["size"]!.GetValue<int>(), filled["elementCount"]!.GetValue<int>()));
+		Assert.Equal((structure, expectedSize, fields.Length + 1), (Text(filled, "name"), filled["size"]!.GetValue<int>(), filled["elementCount"]!.GetValue<int>()));
 	}
 
 	private static JsonNode SingleField(JsonNode layout, string name) => Assert.Single(layout["fields"]!.AsArray(), field => field is not null && !field["isStatic"]!.GetValue<bool>() && Text(field, "name") == name)!;

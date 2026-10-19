@@ -47,12 +47,14 @@ internal static class LiveApiHookQualification
 					["extension"] = "McpLiveApiHook",
 					["targetSelf"] = false
 				});
+			sandbox.Record("api_hook_generator_observed", generated.DeepClone());
 			string script = Text(generated, "script");
 			AssertHookContract(script, address, destination, sandbox.TargetArchitecture == "x64");
 			JsonNode checkedScript = await CallAsync(instance, CheatEngineToolNames.AsmCheck,
 				new Dictionary<string, object?> { ["script"] = script, ["name"] = "live-api-hook-generated" });
-			Assert.True(checkedScript["accepted"]!.GetValue<bool>());
-			Assert.Null(checkedScript["failedSection"]);
+			// A standalone DISABLE check lacks the allocations from ENABLE. Observe its result separately;
+			// exact generated source and independent bytes qualify generation without applying the hook.
+			sandbox.Record("api_hook_standalone_check_observed", checkedScript.DeepClone());
 			Assert.Equal(Bytes, await ReadBytesAsync(instance, address, 32));
 			sandbox.Record("all_tools_asm_generate_api_hook", new
 			{
@@ -60,7 +62,7 @@ internal static class LiveApiHookQualification
 				destination,
 				firstFiveInstructions = instructions.Select(item => item!.DeepClone()).ToArray(),
 				generated = generated.DeepClone(),
-				asmCheckAccepted = true,
+				standaloneCheck = checkedScript.DeepClone(),
 				bytesUnchanged = true
 			});
 		}
