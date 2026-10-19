@@ -69,7 +69,9 @@ and cleanup reported no failures. This failed session does not qualify the compl
 native evidence mappings.
 
 The parent-assignment correction uses Client `9b836e6ced8e97b4506dc8523998c7c2081cc2ad` (merged main)
-and SDK candidate `c4480e6c7fa24b58a6b495a378f11cdca042673c` (PR #96 awaiting its final CI gate).
+and SDK `09dad6c15782d9eee38f013d834d432d79e6623e` (PR #96 merged after all CI gates passed).
+Both submodules now use their merged `main` commits. The local results below were run on the SDK's equivalent
+pre-squash candidate `c4480e6c7fa24b58a6b495a378f11cdca042673c`.
 SDK now resolves the child again and verifies its parent ID after the setter returns. Nested root moves are refused
 before mutation because CE has no supported detach operation; an already-root record is a verified no-op.
 The protected getter tests cover errors and malformed parent IDs before and after assignment, without fabricated
@@ -80,6 +82,23 @@ Reports are under `artifacts/test-results/ai-analysis-20261019/roadmap-parent-po
 `roadmap-parent-native-lua-2`. Eight additional native evidence mappings bring the prepared total to **122**.
 Five are specific to the smoke scenario; the resource and job mappings use the expanded workflows. Each mutable
 case requires independent readback and cleanup evidence. These new mappings still require passing native sessions.
+
+Private x64 run `20261019T121114Z-6c36` verified the record-parent correction and completed the file/table operations,
+then stopped because `process_set_paused` treated CE's opaque unattached-debugger breakpoint value as a stopped
+target. The harness restored user state, left the source installation unchanged and reported no sandbox cleanup
+failures; the fixture's pause cleanup also encountered that false refusal. This failed run does not qualify the
+complete workflow.
+
+The corrected pause/resume, execution, Mono and .NET structure guards check debugger attachment first and require
+a boolean breakpoint result only when attached. They preserve prepared register globals and retain a tracked pause
+when resume cannot be verified. Independent Astra review found no remaining findings in this fix. The clean Release
+rebuild passed with zero warnings/errors; **5,559** portable cases and **683** standalone Lua cases passed with no
+failures/skips. Their parsed reports are in `debugger-state-portable-1` and `debugger-state-native-lua-1` under the
+same artifact directory. The complete private workflow must still be rerun on the fresh package.
+
+Review also identified a separate follow-up: the older speedhack guards and debugger status query use
+`debug_getContext(false)`, which can overwrite prepared register globals when a debugger is stopped. That behavior
+remains under investigation and is not covered by the new side-effect-free admission helper.
 
 ## Roadmap verification from 2026-10-19
 

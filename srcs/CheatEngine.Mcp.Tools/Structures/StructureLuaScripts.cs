@@ -1,3 +1,5 @@
+using CheatEngine.Mcp.Tools.Debugger;
+
 namespace CheatEngine.Mcp.Tools.Structures;
 
 /// <summary>
@@ -664,8 +666,12 @@ internal static class StructureLuaScripts
 	///     Fills a structure from the layout Cheat Engine's .NET data collector reports for an object, refusing while
 	///     the target is halted. <c>a</c>: name, object address as <c>0x</c> text, rename, create when missing.
 	/// </summary>
-	internal const string FillFromDotNet = Helpers + """
-	                                                 if type(debug_isBroken) == 'function' and debug_isBroken() then
+	internal const string FillFromDotNet = DebuggerStateScripts.ReadStopped + "\n" + Helpers + """
+	                                                 local debuggerStopped, debuggerRefusal = readDebuggerStopped()
+	                                                 if debuggerStopped == nil then
+	                                                   return mcp.err('host_refused', debuggerRefusal, 'not_started')
+	                                                 end
+	                                                 if debuggerStopped then
 	                                                   return mcp.err('busy', 'The target is stopped at a breakpoint, so its .NET runtime cannot answer.',
 	                                                     'not_started', 'Continue the target with debugger_continue, then repeat the call.')
 	                                                 end

@@ -1,4 +1,5 @@
 using CheatEngine.Mcp.Core.Jobs;
+using CheatEngine.Mcp.Tools.Debugger;
 
 namespace CheatEngine.Mcp.Tools.Processes;
 
@@ -22,13 +23,15 @@ internal static class ProcessPauseScripts
 	///     else, the user or an earlier activation, is left as it is. <c>a</c>: the activation namespace, the new
 	///     resource id, then the id of MCP's tracked pause or <c>nil</c>.
 	/// </summary>
-	internal const string Pause = LuaJobKernelScripts.Kernel + "\n" + """
+	internal const string Pause = LuaJobKernelScripts.Kernel + "\n" + DebuggerStateScripts.ReadStopped + "\n" + """
 		local pid = getOpenedProcessID()
 		if math.type(pid) ~= 'integer' or pid <= 0 then
 			return mcp.err('invalid_state', 'No process is attached.', 'not_started',
 				'Attach a local process with process_attach first.')
 		end
-		if type(debug_isBroken) == 'function' and debug_isBroken() then
+		local stopped, stateError = readDebuggerStopped()
+		if stopped == nil then return mcp.err('host_refused', stateError, 'not_started') end
+		if stopped then
 			return mcp.err('invalid_state', 'The debugger is stopped at a breakpoint, so the target is already halted.',
 				'not_started', 'Continue the target with debugger_continue, then repeat the call.')
 		end
@@ -50,7 +53,7 @@ internal static class ProcessPauseScripts
 			function()
 				assert(getOpenedProcessID() == pid, 'The paused process is no longer the opened process')
 				unpause()
-				assert(not isPaused() or (type(debug_isBroken) == 'function' and debug_isBroken()),
+				assert(not isPaused() or readDebuggerStopped() == true,
 					'Cheat Engine did not resume the paused process')
 			end)
 		if not recorded then
@@ -91,13 +94,15 @@ internal static class ProcessPauseScripts
 		""";
 
 	/// <summary>The refusals that both resume bodies share; it defines <c>pid</c>, the opened process.</summary>
-	private const string ResumePreconditions = """
+	private const string ResumePreconditions = DebuggerStateScripts.ReadStopped + "\n" + """
 		local pid = getOpenedProcessID()
 		if math.type(pid) ~= 'integer' or pid <= 0 then
 			return mcp.err('invalid_state', 'No process is attached.', 'not_started',
 				'Attach a local process with process_attach first.')
 		end
-		if type(debug_isBroken) == 'function' and debug_isBroken() then
+		local stopped, stateError = readDebuggerStopped()
+		if stopped == nil then return mcp.err('host_refused', stateError, 'not_started') end
+		if stopped then
 			return mcp.err('invalid_state', 'The debugger is stopped at a breakpoint, so resuming cannot be confirmed.',
 				'not_started', 'Continue the target with debugger_continue, then repeat the call.')
 		end

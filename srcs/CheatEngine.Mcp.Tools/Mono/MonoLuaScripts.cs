@@ -1,3 +1,4 @@
+using CheatEngine.Mcp.Tools.Debugger;
 using CheatEngine.Mcp.Tools.DotNet;
 
 namespace CheatEngine.Mcp.Tools.Mono;
@@ -25,7 +26,7 @@ internal static class MonoLuaScripts
 	/// <summary>The shared <c>keep</c> filter of <see cref="DotNetLuaScripts.NameFilter" />.</summary>
 	private const string NameFilter = DotNetLuaScripts.NameFilter;
 
-	private const string Attached = """
+	private const string Attached = DebuggerStateScripts.ReadStopped + "\n" + """
 	                                -- MCP can close only an attachment this activation made with mono_attach; a
 	                                -- detach that reports not_found or alreadyEnded leaves Cheat Engine's own.
 	                                local recovery = "Call mono_detach. If it reports not_found or alreadyEnded,"
@@ -47,7 +48,9 @@ internal static class MonoLuaScripts
 	                                  end
 	                                  -- Checked before any pipe is touched: a frozen target cannot answer a new
 	                                  -- connection either.
-	                                  if type(debug_isBroken) == 'function' and debug_isBroken() then return nil, mcp.err('invalid_state', 'The debugger is stopped; Mono collector calls can hang while the target is frozen.', 'not_started', 'Continue the debugger, then retry the Mono call.') end
+	                                  local debuggerStopped, debuggerRefusal = readDebuggerStopped()
+	                                  if debuggerStopped == nil then return nil, mcp.err('host_refused', debuggerRefusal, 'not_started') end
+	                                  if debuggerStopped then return nil, mcp.err('invalid_state', 'The debugger is stopped; Mono collector calls can hang while the target is frozen.', 'not_started', 'Continue the debugger, then retry the Mono call.') end
 	                                  if type(isPaused) == 'function' and isPaused() then return nil, mcp.err('invalid_state', 'The target is paused, so the collector cannot answer and Cheat Engine would show its Mono timeout dialog.', 'not_started', 'Resume the target with process_set_paused, then retry the Mono call.') end
 	                                  -- While that dialog is up, getMonoPipe gives the main thread no pipe, and the
 	                                  -- pipe the dialog waits on must stay open.
@@ -106,7 +109,7 @@ internal static class MonoLuaScripts
 	                               return {attached = attached, il2Cpp = il2cpp, collectorVersion = version, domains = domains}
 	                               """;
 
-	internal const string Attach = """
+	internal const string Attach = DebuggerStateScripts.ReadStopped + "\n" + """
 	                               local pid = type(getOpenedProcessID) == 'function' and getOpenedProcessID() or 0
 	                               if pid == nil or pid == 0 then
 	                                 return mcp.err('not_attached', 'Cheat Engine has no selected target process.', 'not_started', 'Attach a process after it has loaded Mono.')
@@ -114,7 +117,11 @@ internal static class MonoLuaScripts
 	                               if type(LaunchMonoDataCollector) ~= 'function' or type(libmono) ~= 'table' then
 	                                 return mcp.err('unsupported', 'Cheat Engine has not loaded its Mono extension (autorun monoscript.lua).', 'not_started')
 	                               end
-	                               if type(debug_isBroken) == 'function' and debug_isBroken() then
+	                               local debuggerStopped, debuggerRefusal = readDebuggerStopped()
+	                               if debuggerStopped == nil then
+	                                 return mcp.err('host_refused', debuggerRefusal, 'not_started')
+	                               end
+	                               if debuggerStopped then
 	                                 return mcp.err('invalid_state', 'The debugger is stopped; attaching the Mono collector can hang while the target is frozen.', 'not_started', 'Continue the debugger, then attach Mono.')
 	                               end
 	                               if type(isPaused) == 'function' and isPaused() then

@@ -17,6 +17,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 	private const string MonoAttachedStubs = """
 	                                         pid = 77
 	                                         getOpenedProcessID = function() return pid end
+	                                         debug_isDebugging = function() return false end
 	                                         libmono = {ProcessID = 77, monopipes = {}}
 	                                         """;
 
@@ -95,7 +96,8 @@ public sealed partial class NativeLuaToolRuntimeTests
 	[InlineData("libmono.abort = true", "not_attached", "not_started", "aborted")]
 	// No pipe of this thread to close: the one connection attempt failed and changed nothing.
 	[InlineData("libmono.fail = true", "invalid_state", "not_applied", "timeout or an error")]
-	[InlineData("debug_isBroken = function() return true end", "invalid_state", "not_started", "debugger is stopped")]
+	[InlineData("debug_isDebugging = function() return true end; debug_isBroken = function() return true end", "invalid_state", "not_started", "debugger is stopped")]
+	[InlineData("debug_isDebugging = function() return true end; debug_isBroken = function() return {} end", "host_refused", "not_started", "boolean breakpoint")]
 	[InlineData("isPaused = function() return true end", "invalid_state", "not_started", "target is paused")]
 	public void MonoV2_Guard_RefusesFromTheStateCheatEngine77Keeps(string stubs, string kind, string effect,
 		string message)
@@ -140,7 +142,9 @@ public sealed partial class NativeLuaToolRuntimeTests
 		InstallStubs("""
 		             libmono.ProcessID = '77'
 		             libmono.fail = false
-		             debug_isBroken = function() return false end
+		             debug_isDebugging = function() return false end
+		             debug_isBroken = function() brokenReads = (brokenReads or 0) + 1 return {} end
+		             debug_getContext = function() error('must not read context without an attached debugger') end
 		             isPaused = function() return false end
 		             mono_enumAssemblies = function() return {0x1000, 0x2000, 0x3000} end
 		             mono_getImageFromAssembly = function(assembly) return assembly + 1 end
@@ -154,6 +158,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 		Assert.False(result.IsError, result.Error?.Message);
 		Assert.Equal((3, 2), (result.Value!.Total, result.Value.NextOffset));
 		Assert.Equal([new MonoAssembly("8192", "8193", "image8193")], result.Value.Assemblies);
+		Assert.Null(ReadGlobal("brokenReads"));
 	}
 
 	[Fact]
@@ -239,7 +244,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 
 	[Theory]
 	[InlineData("isPaused = function() return true end", "target is paused")]
-	[InlineData("debug_isBroken = function() return true end", "debugger is stopped")]
+	[InlineData("debug_isDebugging = function() return true end; debug_isBroken = function() return true end", "debugger is stopped")]
 	[InlineData("libmono.displayingTimeoutDialog = true", "timeout dialog")]
 	public void MonoV2_Guard_FailedPipe_IsLeftAloneWhileTheTargetCannotAnswer(string stubs, string message)
 	{
@@ -319,6 +324,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 		InstallStubs("""
 		             pid = 77
 		             getOpenedProcessID = function() return pid end
+		             debug_isDebugging = function() return false end
 		             libmono = {monopipes = {}}
 		             LaunchMonoDataCollector = function()
 		               launches = (launches or 0) + 1
@@ -363,6 +369,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 		InstallStubs("""
 		             pid = 77
 		             getOpenedProcessID = function() return pid end
+		             debug_isDebugging = function() return false end
 		             libmono = {monopipes = {}}
 		             LaunchMonoDataCollector = function() libmono.ProcessID = pid libmono.IL2CPP = false return true end
 		             """);
@@ -391,6 +398,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 		InstallStubs("""
 		             pid = 77
 		             getOpenedProcessID = function() return pid end
+		             debug_isDebugging = function() return false end
 		             libmono = {monopipes = {}}
 		             LaunchMonoDataCollector = function() launches = 1 libmono.ProcessID = pid return true end
 		             """);
@@ -405,6 +413,35 @@ public sealed partial class NativeLuaToolRuntimeTests
 		Assert.True(result.IsError);
 		Assert.Equal((kind, effect), (result.Error!.Kind, result.Error.HostEffect));
 		Assert.Equal(launchExpected ? 1L : null, ReadGlobal("launches"));
+		Assert.Equal(false, ReadGlobal("recorded"));
+	}
+
+	[Theory]
+	[InlineData("true", "true", "invalid_state")]
+	[InlineData("true", "{}", "host_refused")]
+	public void MonoV2_Attach_AttachedStoppedOrUnknownDebuggerState_RefusesBeforeLaunching(string attached,
+		string broken, string kind)
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs($$$"""
+		             pid = 77
+		             getOpenedProcessID = function() return pid end
+		             debug_isDebugging = function() return {{{attached}}} end
+		             debug_isBroken = function() return {{{broken}}} end
+		             debug_getContext = function() error('must not read context') end
+		             libmono = {monopipes = {}}
+		             LaunchMonoDataCollector = function() launches = (launches or 0) + 1 libmono.ProcessID = pid return true end
+		             """);
+
+		LuaJsonResult<MonoAttachResult> result = ReadJson(
+			LuaToolRuntime.BuildSource(MonoLuaScripts.Attach, 100, new object?[] { MonoAttachmentId }),
+			MonoJsonContext.Default.MonoAttachResult);
+		InstallStubs("recorded = __cheatengine_mcp_mono ~= nil");
+
+		Assert.True(result.IsError);
+		Assert.Equal((kind, "not_started"),
+			(result.Error!.Kind, result.Error.HostEffect));
+		Assert.Null(ReadGlobal("launches"));
 		Assert.Equal(false, ReadGlobal("recorded"));
 	}
 

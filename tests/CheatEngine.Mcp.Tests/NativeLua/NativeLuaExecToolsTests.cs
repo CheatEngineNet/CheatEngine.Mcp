@@ -44,6 +44,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 	                                 methodCalls = 0
 	                                 remoteCalls = 0
 	                                 wideTarget = false
+	                                 debug_isDebugging = function() return false end
 	                                 targetIs64Bit = function() return wideTarget end
 	                                 local registers = {[0] = 'ax', 'cx', 'dx', 'bx', 'sp', 'bp', 'si', 'di'}
 	                                 local arguments = {[0] = 'rcx', 'rdx', 'r8', 'r9'}
@@ -371,6 +372,46 @@ public sealed partial class NativeLuaToolRuntimeTests
 		Assert.Equal(new ExecCallResult("1000", "5"), result);
 		Assert.Equal((1L, 0L, expected),
 			(ReadGlobal("remoteCalls"), ReadGlobal("methodCalls"), ReadGlobal("lastCall")));
+	}
+
+	[Fact]
+	public void ExecV2_CallRemote_UnattachedOpaqueBreakpointState_DoesNotBlockOrReadIt()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(CallStubs + "\n" + """
+		             debug_isBroken = function() brokenReads = (brokenReads or 0) + 1 return {} end
+		             debug_getContext = function() error('must not read context without an attached debugger') end
+		             """);
+		ToolDispatch dispatch = CreateNativeDispatch(new McpFeatureOptions());
+
+		ExecCallResult result = dispatch.RunLua(CheatEngineToolNames.ExecCallRemote, ExecScripts.CallRemote,
+			ExecJsonContext.Default.ExecCallResult, Token, 0x1000UL, 0, 1_000, Array.Empty<int>(), Array.Empty<object?>());
+
+		Assert.Equal(new ExecCallResult("1000", "5"), result);
+		Assert.Equal(1L, ReadGlobal("remoteCalls"));
+		Assert.Null(ReadGlobal("brokenReads"));
+	}
+
+	[Theory]
+	[InlineData("true", "true", ToolErrorKind.Busy)]
+	[InlineData("true", "{}", ToolErrorKind.HostRefused)]
+	public void ExecV2_CallRemote_AttachedStoppedOrUnknownDebuggerState_RefusesBeforeCalling(string attached,
+		string broken, ToolErrorKind kind)
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(CallStubs + "\n" + $"""
+		             debug_isDebugging = function() return {attached} end
+		             debug_isBroken = function() return {broken} end
+		             debug_getContext = function() error('must not read context') end
+		             """);
+		ToolDispatch dispatch = CreateNativeDispatch(new McpFeatureOptions());
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() => dispatch.RunLua(
+			CheatEngineToolNames.ExecCallRemote, ExecScripts.CallRemote, ExecJsonContext.Default.ExecCallResult,
+			Token, 0x1000UL, 0, 1_000, Array.Empty<int>(), Array.Empty<object?>()));
+
+		Assert.Equal((kind, ToolHostEffect.NotStarted), (exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Equal((0L, 0L), (ReadGlobal("remoteCalls"), ReadGlobal("methodCalls")));
 	}
 
 	private static ExecCallResult CallMethod(ToolDispatch dispatch, int register)

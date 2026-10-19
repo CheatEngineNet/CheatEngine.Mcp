@@ -17,6 +17,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 	private const string PauseHostStubs = """
 	                                      pid = 77
 	                                      paused = false
+	                                      debugging = false
 	                                      broken = false
 	                                      pauseCalls = 0
 	                                      unpauseCalls = 0
@@ -25,6 +26,8 @@ public sealed partial class NativeLuaToolRuntimeTests
 	                                      unpause = function() unpauseCalls = unpauseCalls + 1; paused = false end
 	                                      isPaused = function() return paused or broken end
 	                                      debug_isBroken = function() return broken end
+	                                      debug_isDebugging = function() return debugging end
+	                                      debug_getContext = function(_) return broken end
 	                                      """;
 
 	[Fact]
@@ -67,6 +70,138 @@ public sealed partial class NativeLuaToolRuntimeTests
 
 		Assert.Equal(new ProcessPausedResult(true), paused);
 		Assert.Equal(0L, ReadGlobal("pauseCalls"));
+		Assert.Empty(resources.ListAll(Token));
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public void ProcessV2_SetPaused_RunningTarget_PreservesRegistersAndSkipsUnattachedBreakpointQuery(bool attached)
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(JobHostStubs + "\n" + PauseHostStubs + "\n" + """
+			brokenReads = 0
+			contextReads = 0
+			RAX = 12345
+			THREADID = 567
+			debug_isBroken = function()
+				brokenReads = brokenReads + 1
+				if debugging then return broken end
+				return debug_isBroken
+			end
+			debug_getContext = function(_)
+				contextReads = contextReads + 1
+				RAX = 0
+				THREADID = 0
+				error('Context reads overwrite prepared registers')
+			end
+			""");
+		InstallStubs(attached ? "debugging = true" : "debugging = false");
+		(ProcessTools tools, TargetResources resources) = PauseHarness();
+
+		string first = tools.SetPaused(true, Token).ResourceId!;
+		Assert.Equal(first, Assert.Single(resources.ListAll(Token)).Id);
+		Assert.Equal(new ProcessPausedResult(false), tools.SetPaused(false, Token));
+		Assert.Empty(resources.ListAll(Token));
+		string second = tools.SetPaused(true, Token).ResourceId!;
+		ReleaseAllResult released = resources.ReleaseAll(Token);
+
+		Assert.True(released.IsComplete);
+		Assert.Equal(second, Assert.Single(released.Released).Resource.Id);
+		Assert.Equal((2L, 3L, false, 0L),
+			(ReadGlobal("pauseCalls"), ReadGlobal("unpauseCalls"), ReadGlobal("paused"), ReadGlobal("contextReads")));
+		Assert.Equal((12345L, 567L), (ReadGlobal("RAX"), ReadGlobal("THREADID")));
+		Assert.Equal(attached, Assert.IsType<long>(ReadGlobal("brokenReads")) > 0);
+		Assert.Empty(resources.ListAll(Token));
+	}
+
+	[Theory]
+	[InlineData("debug_isDebugging = nil")]
+	[InlineData("debug_isDebugging = function() error('state read failed') end")]
+	[InlineData("debug_isDebugging = function() return debug_isDebugging end")]
+	[InlineData("debugging = true; debug_isBroken = nil")]
+	[InlineData("debugging = true; debug_isBroken = function() error('breakpoint read failed') end")]
+	[InlineData("debugging = true; debug_isBroken = function() return debug_isBroken end")]
+	public void ProcessV2_SetPaused_UnknownDebuggerState_RefusesBothDirectionsBeforeAnyEffect(string stubs)
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(JobHostStubs + "\n" + PauseHostStubs + "\n" + stubs);
+		(ProcessTools tools, TargetResources resources) = PauseHarness();
+
+		foreach (bool pause in new[] { true, false })
+		{
+			CheatEngineToolException refused = Assert.Throws<CheatEngineToolException>(() => tools.SetPaused(pause, Token));
+			Assert.Equal((ToolErrorKind.HostRefused, ToolHostEffect.NotStarted),
+				(refused.Error.Kind, refused.Error.HostEffect));
+		}
+
+		Assert.Equal((0L, 0L, false), (ReadGlobal("pauseCalls"), ReadGlobal("unpauseCalls"), ReadGlobal("paused")));
+		Assert.Empty(resources.ListAll(Token));
+	}
+
+	[Theory]
+	[InlineData("debug_isBroken = function() return debug_isBroken end")]
+	[InlineData("debugging = true; debug_isBroken = function() return debug_isBroken end")]
+	public void ProcessV2_Release_IgnoredResumeWithUnprovenBreakpoint_RetainsTheFailedPause(string stubs)
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(JobHostStubs + "\n" + PauseHostStubs);
+		(ProcessTools tools, TargetResources resources) = PauseHarness();
+		string id = tools.SetPaused(true, Token).ResourceId!;
+		InstallStubs(stubs + "\nunpause = function() unpauseCalls = unpauseCalls + 1 end");
+
+		ReleaseAllResult released = resources.ReleaseAll(Token);
+
+		Assert.False(released.IsComplete);
+		Assert.Empty(released.Released);
+		Assert.Equal((id, ResourceReleaseKind.CleanupFailed),
+			(released.Failed?.Resource.Id, released.Failed?.Release.Kind));
+		TargetResourceDescriptor retained = Assert.Single(resources.ListAll(Token));
+		Assert.Equal((id, TargetResourceState.CleanupFailed, true),
+			(retained.Id, retained.State, retained.RequiresManualRecovery));
+		Assert.Equal((1L, true), (ReadGlobal("unpauseCalls"), ReadGlobal("paused")));
+	}
+
+	[Fact]
+	public void ProcessV2_Release_ConfirmedBreakpointRemains_RemovesOnlyMcpSuspension()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(JobHostStubs + "\n" + PauseHostStubs);
+		(ProcessTools tools, TargetResources resources) = PauseHarness();
+		string id = tools.SetPaused(true, Token).ResourceId!;
+		InstallStubs("debugging = true; broken = true");
+
+		ReleaseAllResult released = resources.ReleaseAll(Token);
+
+		Assert.True(released.IsComplete);
+		Assert.Equal(id, Assert.Single(released.Released).Resource.Id);
+		Assert.Equal((1L, false, true, true),
+			(ReadGlobal("unpauseCalls"), ReadGlobal("paused"), ReadGlobal("broken"), ReadGlobal("debugging")));
+		Assert.Empty(resources.ListAll(Token));
+	}
+
+	[Fact]
+	public void ProcessV2_SetPaused_StoppedDebugger_PreservesPreparedRegistersOnRefusal()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(JobHostStubs + "\n" + PauseHostStubs + "\n" + """
+			debugging = true
+			broken = true
+			RAX = 12345
+			THREADID = 567
+			debug_getContext = function(_) RAX = 0; THREADID = 0; return true end
+			""");
+		(ProcessTools tools, TargetResources resources) = PauseHarness();
+
+		foreach (bool pause in new[] { true, false })
+		{
+			CheatEngineToolException refused = Assert.Throws<CheatEngineToolException>(() => tools.SetPaused(pause, Token));
+			Assert.Equal((ToolErrorKind.InvalidState, ToolHostEffect.NotStarted),
+				(refused.Error.Kind, refused.Error.HostEffect));
+		}
+
+		Assert.Equal((12345L, 567L, 0L, 0L),
+			(ReadGlobal("RAX"), ReadGlobal("THREADID"), ReadGlobal("pauseCalls"), ReadGlobal("unpauseCalls")));
 		Assert.Empty(resources.ListAll(Token));
 	}
 
@@ -144,7 +279,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 	}
 
 	[Theory]
-	[InlineData("broken = true")]
+	[InlineData("debugging = true; broken = true")]
 	[InlineData("pid = 0")]
 	public void ProcessV2_Resume_RefusedWithMcpPauseTracked_LeavesThePauseInPlace(string stubs)
 	{
@@ -173,9 +308,9 @@ public sealed partial class NativeLuaToolRuntimeTests
 
 	[Theory]
 	[InlineData(true, "pid = 0")]
-	[InlineData(true, "broken = true")]
+	[InlineData(true, "debugging = true; broken = true")]
 	[InlineData(false, "pid = 0")]
-	[InlineData(false, "broken = true")]
+	[InlineData(false, "debugging = true; broken = true")]
 	public void ProcessV2_SetPaused_NoProcessOrStoppedDebugger_IsInvalidStateBeforeAnyCall(bool pause, string stubs)
 	{
 		using RuntimeScope scope = CreateScope();

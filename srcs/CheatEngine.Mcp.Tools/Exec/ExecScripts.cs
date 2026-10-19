@@ -1,3 +1,5 @@
+using CheatEngine.Mcp.Tools.Debugger;
+
 namespace CheatEngine.Mcp.Tools.Exec;
 
 /// <summary>Implementation-owned, bounded Lua bodies for execution capabilities absent from Client.</summary>
@@ -44,12 +46,11 @@ internal static class ExecScripts
 	// The helpers both call bodies share. Cheat Engine 7.7's executeMethod, which executeCodeEx also runs, writes the
 	// low half of a double twice on a 32-bit target, so parameterList passes a double there as its two 32-bit halves,
 	// low half first, which is the same stack layout.
-	private const string CallPrelude = """
+	private const string CallPrelude = DebuggerStateScripts.ReadStopped + "\n" + """
 	                                   local function stopped()
-	                                       if type(debug_isBroken) == 'function' then
-	                                           local ok, broken = pcall(debug_isBroken)
-	                                           if ok and broken then return true, 'The target is stopped at a breakpoint.' end
-	                                       end
+	                                       local debuggerStopped, debuggerRefusal = readDebuggerStopped()
+	                                       if debuggerStopped == nil then return nil, mcp.err('host_refused', debuggerRefusal, 'not_started') end
+	                                       if debuggerStopped then return true, 'The target is stopped at a breakpoint.' end
 	                                       if type(isPaused) == 'function' then
 	                                           local ok, paused = pcall(isPaused)
 	                                           if ok and paused then return true, 'The target is paused.' end
@@ -73,6 +74,7 @@ internal static class ExecScripts
 
 	internal const string CallRemote = CallPrelude + """
 	                                   local isStopped, message = stopped()
+	                                   if isStopped == nil then return message end
 	                                   if isStopped then return mcp.err('busy', message, 'not_started', 'Resume the target before calling code.') end
 	                                   local parameters = parameterList(a[4], a[5], targetIs64Bit())
 	                                   local called, result = pcall(function()
@@ -112,6 +114,7 @@ internal static class ExecScripts
 	                                       end
 	                                   end
 	                                   local isStopped, message = stopped()
+	                                   if isStopped == nil then return message end
 	                                   if isStopped then return mcp.err('busy', message, 'not_started', 'Resume the target before calling code.') end
 	                                   local parameters = parameterList(a[6], a[7], wide)
 	                                   local called, result

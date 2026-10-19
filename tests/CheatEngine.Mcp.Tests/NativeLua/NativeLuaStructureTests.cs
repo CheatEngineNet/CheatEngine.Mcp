@@ -23,6 +23,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 	                                          structures = {}
 	                                          pdb = {}
 	                                          created = 0
+	                                          debug_isDebugging = function() return false end
 	                                          function makeElement(owner)
 	                                            local e = {Offset = 0, Name = '', Vartype = 2, DisplayMethod = 'dtUnsignedInteger', bytesize = 4, childStart = 0}
 	                                            e.getBytesize = function() return e.bytesize end
@@ -692,10 +693,14 @@ public sealed partial class NativeLuaToolRuntimeTests
 		InstallStubs(StructureHostStubs);
 		StructureTools tools = NativeStructureHarness().Structures;
 
-		InstallStubs("debug_isBroken = function() return true end");
+		InstallStubs("debug_isDebugging = function() return true end; debug_isBroken = function() return true end");
 		AssertDeclared(() => tools.FillFromDotNet("Managed", "1000", cancellationToken: StructureToken),
 			ToolErrorKind.Busy, ToolHostEffect.NotStarted);
-		InstallStubs("debug_isBroken = function() return false end; isPaused = function() return true end");
+		InstallStubs("debug_isBroken = function() return {} end");
+		AssertDeclared(() => tools.FillFromDotNet("Managed", "1000", cancellationToken: StructureToken),
+			ToolErrorKind.HostRefused, ToolHostEffect.NotStarted);
+		Assert.Equal(3L, LuaValue("#structures"));
+		InstallStubs("debug_isDebugging = function() return false end; isPaused = function() return true end");
 		AssertDeclared(() => tools.FillFromDotNet("Managed", "1000", cancellationToken: StructureToken),
 			ToolErrorKind.Busy, ToolHostEffect.NotStarted);
 		InstallStubs("isPaused = function() return false end");
@@ -703,12 +708,17 @@ public sealed partial class NativeLuaToolRuntimeTests
 			ToolErrorKind.NotFound, ToolHostEffect.NotApplied);
 		Assert.Equal(3L, LuaValue("#structures"));
 
-		InstallStubs("dotnetClass = 'Game.Player'");
+		InstallStubs("""
+		             debug_isBroken = function() brokenReads = (brokenReads or 0) + 1 return {} end
+		             debug_getContext = function() error('must not read context without an attached debugger') end
+		             dotnetClass = 'Game.Player'
+		             """);
 		StructureSummary filled = tools.FillFromDotNet("Managed", "1000", true, cancellationToken: StructureToken);
 
 		Assert.Equal(new StructureSummary("Game.Player", 8, 1), filled);
 		Assert.Equal(("0x1000", true), (LuaValue("filled.address"), LuaValue("filled.rename")));
 		Assert.Equal(4L, LuaValue("#structures"));
+		Assert.Null(LuaValue("brokenReads"));
 	}
 
 	[Fact]
