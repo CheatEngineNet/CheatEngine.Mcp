@@ -200,15 +200,16 @@ public sealed class SymbolTools
 	[Description(
 		"Change Cheat Engine's module precedence for symbol lookup. By default the given modules move to the front in the given order and the rest of the current list follows; replace=true makes them the whole list, dropping the others. Names are extensionless (game, not game.exe). Returns the list read back. It affects every later lookup in this Cheat Engine, tables included.")]
 	public ModulePreference SetModulePreference(
-		[Description("1 to 64 extensionless module names, first first, such as [\"game\", \"engine\"].")]
+		[Description("0 to 64 extensionless module names, first first, such as [\"game\", \"engine\"]. An empty list is allowed only with replace=true, to clear the preference.")]
 		string[] modules,
 		[Description("Replace the whole list instead of moving these modules to the front.")]
 		bool replace = false,
 		CancellationToken cancellationToken = default)
 	{
-		if (modules is not { Length: > 0 })
+		if (modules is null || (modules.Length == 0 && !replace))
 		{
-			throw CheatEngineToolException.InvalidArgument("modules", "must list at least one module.");
+			throw CheatEngineToolException.InvalidArgument("modules",
+				"must list at least one module unless replace=true clears the module preference.");
 		}
 
 		if (modules.Length > MaximumPreferenceModules)

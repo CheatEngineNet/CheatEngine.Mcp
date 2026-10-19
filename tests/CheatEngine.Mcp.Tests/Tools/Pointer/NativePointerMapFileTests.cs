@@ -174,6 +174,18 @@ public sealed class NativePointerMapFileTests
 	}
 
 	[Fact]
+	public void Save_X86MapWithModuleAboveTheAddressWidth_Rejects()
+	{
+		PointerMap map = new(null, 4, [new PointerEntry(0x1000, 0x2000)],
+			[new PointerModule("game.exe", 0x1000, 0x100), new PointerModule("wow64.dll", 0x1_0000_0000, 0x100)],
+			false, 0, 0);
+		using MemoryStream output = new();
+
+		Assert.Throws<InvalidDataException>(() => NativePointerMapFile.Save(output, map, CancellationToken.None));
+		Assert.Empty(output.ToArray());
+	}
+
+	[Fact]
 	public void Load_WithCancelledToken_Throws()
 	{
 		using CancellationTokenSource stopping = new();

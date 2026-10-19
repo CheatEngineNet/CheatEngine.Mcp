@@ -12,7 +12,7 @@ Lua body do not establish successful native execution.
 - [x] Check gateway-local discovery with zero and two instances.
 - [x] Run the portable Release suite; final results are recorded below.
 - [x] Run the portable Debug suite with the same exclusions.
-- [x] Run standalone Lua 5.3 with CE API doubles (705 passed, zero failed or skipped).
+- [x] Run standalone Lua 5.3 with CE API doubles (706 passed, zero failed or skipped).
 - [x] Add and run result assertions for the Lua, table-save and code-view adapters (12 passed).
 - [x] Add seven record adapter cases and four code/process adapter cases; run both focused classes.
 - [x] Fix the `code_get_comments` array argument expansion found by those tests.
@@ -34,7 +34,7 @@ Lua body do not establish successful native execution.
 - [x] Add execution-argument, conversion/calculation and pointer-file boundary/failure tests.
 - [x] Measure handwritten product C# coverage using fresh portable and NativeLua reports.
 - [x] Rebuild and repeat the disabled-capability workflows on the updated dependency bundle.
-- [ ] Supply native managed collector, Mono, debugger event, compiler/ABI, PDB/export, table and patch fixtures.
+- [ ] Supply the remaining native managed object/instance, Mono, debugger event, compiler/ABI, PDB and patch fixtures.
 - [ ] Qualify successful gated operations and DBK/DBVM operations in their required environments.
 - [ ] Qualify all tools on the exact replacement product bundle after fixes, including restart and cleanup.
 
@@ -46,6 +46,49 @@ Passing only one branch of a parameterized test cannot qualify another branch's 
 These cases use Client or CE API doubles, including real standalone Lua where applicable. They are partial
 cases, not complete behavior partitions or native CE qualification. The gateway's local discovery checks
 bring the advertised catalog total to 207. A live mapping requires its own concrete oracle and cleanup receipts.
+
+## Source-built native results from 2026-10-19
+
+The x64 workflow `20261019T131741Z-b4d5` passed with the source-built Client and SDK, followed by smoke session
+`20261019T132216Z-47db`. Both restored user state, preserved the installed CE files and reported no cleanup failures.
+The workflow verified target, gateway and host restarts, including the persisted notebook after restart. Its seven
+.NET collector receipts match independently parsed metadata from the owned managed assembly. The smoke session
+verified debugger status without an attached debugger, speed state and scanner lifecycle; it does not qualify
+register preservation while a debugger is stopped.
+
+Fresh reports verify routing for all **207** advertised names and positive adapter evidence for all **206** backend
+tools. The workflow supplies **124** native mappings and smoke supplies **5** different mappings on the same package,
+for **129** backend tools with reviewed native success cases. The remaining **77** backend tools have no verified
+native success case on this package. These are individual cases, not all behavior partitions. All four optional gates stayed disabled
+and no same-process plugin reload was requested. `nativeQualificationComplete` remains false.
+
+Reports are in `artifacts/test-results/ai-analysis-20261019/source-workflow-x64-report-8` and
+`source-smoke-x64-report-8`, using the 5,560-case portable and 705-case standalone Lua reports below. Package
+`artifacts/dist/roadmap-source-20261019-8` passed its isolated plugin-load and Native AOT gateway checks:
+
+| File | SHA-256 |
+| --- | --- |
+| `CheatEngine.Mcp.dll` | `4C840290E380F1F138F30FDAB88E8B48F647EAD482542C633D0E4C8AC6C20BA7` |
+| `CheatEngine.Mcp.Gateway.exe` | `325D761C275FE3F79F59A9D79675CA11A6291BAFEE330D8568A3B56B74F92A28` |
+
+The corresponding x86 workflow `20261019T132136Z-5c93` failed at pointer-map export: CE reported 64-bit WOW64
+support modules alongside the 32-bit target modules, and capture retained those out-of-width ranges. The export
+validator correctly refused that map. This failed session restored user state, preserved the installation and
+reported no cleanup failures; its earlier receipts do not qualify the complete x86 workflow. The capture projection
+now retains only complete module ranges representable by the selected pointer width, while preserving validation
+of genuinely invalid persisted maps. The new regressions cover actual x86/x64 capture, the inclusive address
+boundary and invalid export metadata before any output bytes are written.
+
+The same follow-up adds explicit symbol-preference clearing with `modules=[], replace=true`, so a previously empty
+list can be restored. Null lists and empty prepend requests still refuse before dispatch. Six further live cases
+are prepared for utilities, overview, assembly and symbol preferences; restoration is admitted before mutation and
+checks the exact original list. Assembly cleanup verifies completed release and subsequent `not_found`.
+
+The follow-up Release build and scoped formatting checks passed. All **5,566** portable tests and **706** standalone
+Lua tests passed with zero failures or skips, recorded in `pointer-width-portable-1` and `pointer-width-native-lua-1`
+under the same artifact directory. The public contract snapshot diff contains only the intended explicit-clear
+description and updated help-document sizes. Independent Astra review found no remaining actionable findings.
+The pointer fix and six added live cases still require a fresh published package and native sessions.
 
 ## Source dependency verification from 2026-10-19
 

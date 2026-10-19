@@ -20985,7 +20985,7 @@
       "type": "object",
       "properties": {
         "modules": {
-          "description": "1 to 64 extensionless module names, first first, such as [\u0022game\u0022, \u0022engine\u0022].",
+          "description": "0 to 64 extensionless module names, first first, such as [\u0022game\u0022, \u0022engine\u0022]. An empty list is allowed only with replace=true, to clear the preference.",
           "type": "array",
           "items": {
             "type": "string"

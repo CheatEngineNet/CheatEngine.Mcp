@@ -432,6 +432,14 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		_fingerprint = CheatEngineInstallation.Fingerprint(_source, _profile);
 		_runtimeHash = HashIfExists(Path.Combine(_source, "ce.runtimeconfig.json"));
 		Record("host", _profile);
+		Record("owned_target", new
+		{
+			architecture = TargetArchitecture,
+			imageFileName = Path.GetFileName(TargetImagePath),
+			imageSha256 = CheatEngineInstallation.Sha256(TargetImagePath),
+			managedAssemblyFileName = Path.GetFileName(TargetManagedAssemblyPath),
+			managedAssemblySha256 = CheatEngineInstallation.Sha256(TargetManagedAssemblyPath)
+		});
 		if (_options.CompilerQualification)
 		{
 			CreateCompilerRoots("A");

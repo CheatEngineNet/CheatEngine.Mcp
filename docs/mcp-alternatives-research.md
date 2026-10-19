@@ -67,16 +67,16 @@ where a live host is involved.
 - [ ] **Exact-bundle native coverage:** provide an owned fixture and independent expected result for every tool;
   record target identity, mutation restoration, resource cleanup and restart behavior. Keep unsupported environment
   cases explicit. Extend the existing acceptance matrix to include these new tools.
-- [ ] **Persistent investigation notes:** create, search, update and export named findings; preserve module identity,
+- [x] **Persistent investigation notes:** create, search, update and export named findings; preserve module identity,
   relative address, supporting observations and confidence. Prove restart persistence and reject stale target
   bindings. Define file ownership, version migration and conflict behavior before implementation.
-- [ ] **Offline IL2CPP metadata:** import an explicitly supported dump format, page type/method/field searches,
+- [x] **Offline IL2CPP metadata:** import an explicitly supported dump format, page type/method/field searches,
   retain the source's identity, and resolve an RVA only against a matching loaded module. Test representative formats,
   malformed/oversized files and mismatched modules; do not assume a metadata address is currently executable.
-- [ ] **Structure interchange:** export/import selected layouts with field types, offsets, nested layouts and
+- [x] **Structure interchange:** export/import selected layouts with field types, offsets, nested layouts and
   target pointer width. Define duplicate-name handling, recursive references and validation before changing any
   existing structure; demonstrate a lossless round trip with independent fixture expectations.
-- [ ] **Process pagination:** keep the current default response compatible, add stable ordering and a continuation
+- [x] **Process pagination:** keep the current default response compatible, add stable ordering and a continuation
   contract, and explicitly handle processes exiting or appearing between pages.
 - [ ] **Same-process reload:** qualify disable/re-enable in the actual host, including plugin-list discovery,
   outstanding callbacks, leases, port cleanup and fresh instance identity. Repeated successful load calls alone
@@ -85,6 +85,27 @@ where a live host is involved.
   clients and companion analysis tools; document which process/module each observation refers to.
 
 ## Latest verified baseline
+
+The four feature criteria above passed their portable and standalone Lua checks and the private x64 workflow
+`20261019T131741Z-b4d5` on the source-built bundle. That workflow checked the notebook after target, gateway and
+host restarts; exercised offline metadata import/search/resolution; round-tripped nested structure definitions;
+and replayed process pages. It restored user state, preserved the installed CE files and reported no cleanup failures.
+These feature checks do not complete the separate all-tool or same-process reload criteria.
+
+| Completed feature | Representative passing regression |
+|---|---|
+| Durable notes and stale binding refusal | `InvestigationToolsTests.CreateThenRestartSearch_RecoversTheImmutableRevision`; `Update_RetainedStaleBinding_IsRejectedBeforePublishingSuccessor` |
+| Offline metadata identity and bounded imports | `Il2CppDumpStoreTests.Tools_ResolveMethod_RejectsChangedTargetBuildAndUnboundImports`; `Tools_ImportRejectsMalformedUtf8AndOversizeFiles` |
+| Structure interchange and width validation | `StructureInterchangeToolsTests.Import_ProductionAdapter_ValidFilePassesEncodedNestedReferencesToOneLuaMutation`; `Import_PointerWidthMismatch_IsRefusedBeforeLuaMutation` |
+| Compatible, stable process pages | `ProcessPagingTests.List_LegacyRequest_PreservesTheOriginalRequestAndJsonShape`; `List_PagedSnapshot_SortsOnceAndKeepsTheOriginalProcessesAcrossPages` |
+
+The current catalog contains 206 backend tools plus gateway discovery. Release has 5,566 passing portable cases
+and 706 passing standalone Lua cases. Detailed receipts and the remaining native gaps are recorded in the
+[full tool qualification report](qualification/all-tools/README.md). A subsequent x86 workflow found that pointer
+map capture retained out-of-width WOW64 module metadata; its correction passed regression tests and is awaiting
+fresh native verification.
+
+## Earlier inspection baseline
 
 Before the remaining roadmap implementation began, the catalog contained 195 backend tools plus gateway
 discovery. The .NET 10.0.402 Debug and Release builds completed with zero warnings/errors. Each portable suite
@@ -105,6 +126,6 @@ verify routing for 196 advertised tools, positive adapter evidence for 195 backe
 for 62 tools. The other 133 backend tools still require native success fixtures. Both sessions used disabled optional
 capability gates and zero plugin reload cycles; they do not establish gated operations or same-process reload.
 
-The remaining feature contracts are being implemented and reviewed before another full qualification pass. The
+The completed feature contracts now have the verification described above. The
 [external connection design](external-connections.md) defines transport, identity, authentication and recovery;
 its environment acceptance matrix is explicitly separate from local test results.

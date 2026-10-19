@@ -26,10 +26,14 @@ public sealed partial class NativeLuaToolRuntimeTests
 	private const string ModulePreferenceStubs = """
 	                                             preference = {'game', 'engine', 'kernel32'}
 	                                             setCalls = 0
+	                                             receivedEmptyTable = false
+	                                             preferenceIsEmpty = false
 	                                             getModulePreference = function() return preference end
 	                                             setModulePreference = function(value)
 	                                                 setCalls = setCalls + 1
+	                                                 receivedEmptyTable = type(value) == 'table' and next(value) == nil
 	                                                 if type(value) == 'table' then preference = value else table.insert(preference, 1, value) end
+	                                                 preferenceIsEmpty = type(preference) == 'table' and next(preference) == nil
 	                                             end
 	                                             """;
 
@@ -159,6 +163,21 @@ public sealed partial class NativeLuaToolRuntimeTests
 		Assert.Equal(["game", "ENGINE", "fresh", "kernel32"], single.Modules);
 		Assert.Equal(["solo"], replaced.Modules);
 		Assert.Equal(3L, ReadGlobal("setCalls"));
+	}
+
+	[Fact]
+	public void ModuleSymbolSetModulePreference_ReplaceEmptyList_ClearsTheNonemptyHostPreference()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(ModulePreferenceStubs);
+		SymbolTools tools = ModuleSymbolTools(CreateNativeDispatch(new McpFeatureOptions()));
+
+		ModulePreference cleared = tools.SetModulePreference([], true, Token);
+
+		Assert.Empty(cleared.Modules);
+		Assert.True((bool) ReadGlobal("receivedEmptyTable")!);
+		Assert.True((bool) ReadGlobal("preferenceIsEmpty")!);
+		Assert.Equal(1L, ReadGlobal("setCalls"));
 	}
 
 	[Fact]

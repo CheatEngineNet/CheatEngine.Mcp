@@ -117,7 +117,8 @@ internal static class PointerCaptureJob
 			}
 		}
 
-		PointerModule[] modules = PointerSupport.Modules(client, regions, cancellationToken, out bool modulesTruncated);
+		PointerModule[] modules = PointerSupport.Modules(client, regions, cancellationToken, out bool modulesTruncated)
+			.Where(module => PointerSupport.FitsAddressRange(module, limit)).ToArray();
 		return new PointerCapturePlan(process, width, alignment, maximumBytes, maximumPointers, [.. ranges], modules,
 			new PointerValueFilter(readable), CalculatePlannedBytes(ranges, width, maximumBytes),
 			regions.Length >= PointerSupport.RegionLimit, modulesTruncated);

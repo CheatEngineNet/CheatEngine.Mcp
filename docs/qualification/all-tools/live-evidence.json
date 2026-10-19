@@ -1099,6 +1099,123 @@
       "receipt": "all_tools_module_list_exports",
       "cleanupReceipt": "none",
       "scope": "read_only_workflow"
+    },
+    {
+      "name": "dotnet_get_status",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDotNetMetadataQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The collector reports available and attached before independently known owned assembly metadata is resolved. An unavailable collector does not emit this receipt.",
+      "receipt": "all_tools_dotnet_get_status",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "dotnet_list_domains",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDotNetMetadataQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Bounded domain pagination yields a domain whose modules contain the independently supplied owned assembly file name.",
+      "receipt": "all_tools_dotnet_list_domains",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "dotnet_list_modules",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDotNetMetadataQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The selected domain's bounded module pages contain exactly one matching owned managed assembly file name; its handle resolves independently parsed type and method tokens.",
+      "receipt": "all_tools_dotnet_list_modules",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "dotnet_list_types",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDotNetMetadataQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Filtered types contain the fully qualified owned Program type and its exact token independently parsed from the managed assembly metadata.",
+      "receipt": "all_tools_dotnet_list_types",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "dotnet_get_type",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDotNetMetadataQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Type details preserve the selected module handle, independently parsed token and full name, and expose the known PointerOffsets field as static.",
+      "receipt": "all_tools_dotnet_get_type",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "dotnet_list_methods",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDotNetMetadataQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Filtered methods contain the owned Main method with its independently parsed metadata token and static attribute.",
+      "receipt": "all_tools_dotnet_list_methods",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "dotnet_get_method_parameters",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDotNetMetadataQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The method-parameter result preserves the selected module handle and independently parsed Main token, and includes each parameter name from the assembly metadata. Collector constant codes are not treated as declared parameter types.",
+      "receipt": "all_tools_dotnet_get_method_parameters",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "util_calculate",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveUtilitySymbolQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Expression 0x10 + 5 * 3 returns unsigned and signed decimal 31 and hexadecimal 1F through the packaged gateway. This pure managed operation does not access target memory.",
+      "receipt": "all_tools_util_calculate",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "util_convert_value",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveUtilitySymbolQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Int32 value 16909060 returns exact little-endian bytes 04 03 02 01, the original value, selected types and width through the packaged gateway. This pure managed operation does not access target memory.",
+      "receipt": "all_tools_util_convert_value",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "runtime_get_overview",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveUtilitySymbolQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Before workflow resources are created, overview reports the owned open process ID and requested pointer width, expected plugin file, all four disabled gates and zero retained resources/jobs.",
+      "receipt": "all_tools_runtime_get_overview",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "asm_assemble",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveUtilitySymbolQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "NOP and RET assemble to exactly two one-byte instructions 90 and C3 at the owned allocation and allocation+1, with aggregate 90C3 and size2. All16 allocation bytes remain unchanged; release is complete and another free returns not_found.",
+      "receipt": "all_tools_asm_assemble",
+      "cleanupReceipt": "live_utility_symbol_assembly_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "symbol_get_module_preference",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveUtilitySymbolQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "After replacing precedence with the independently selected ordered kernel32/ntdll list, a separate getter returns exactly that nontruncated list. The original fully validated list is restored and independently read back.",
+      "receipt": "all_tools_symbol_get_module_preference",
+      "cleanupReceipt": "live_utility_symbol_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "symbol_set_module_preference",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveUtilitySymbolQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Replacement returns exactly the known ordered kernel32/ntdll list, selected to differ from the initial list, and a separate getter confirms it. Cleanup restores the complete original precedence and checks an exact nontruncated readback.",
+      "receipt": "all_tools_symbol_set_module_preference",
+      "cleanupReceipt": "live_utility_symbol_cleanup",
+      "scope": "reversible_workflow"
     }
   ]
 }

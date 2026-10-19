@@ -190,7 +190,8 @@ More on encodings: [value types](value-types.md).
   `kernel32.CreateFileW` to choose. `symbol_set_module_preference(modules=["game"])` moves the named modules
   (extensionless: `game`, not `game.exe`) to the front, but it changes every later lookup in CE, tables included, and
   nothing restores it: ask first, keep the list you read, and set it back with
-  `symbol_set_module_preference(modules=[...], replace=true)`.
+  `symbol_set_module_preference(modules=[...], replace=true)`. An empty replacement list clears the preference,
+  so `modules=[], replace=true` can restore a previously empty list. An empty request without `replace=true` is refused.
 
 See also [errors and recovery](errors-and-recovery.md) and the [memory model](memory-model.md).
 

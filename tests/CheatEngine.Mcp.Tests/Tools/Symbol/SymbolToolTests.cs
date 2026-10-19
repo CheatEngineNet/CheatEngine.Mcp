@@ -36,7 +36,6 @@ public sealed class SymbolToolTests : IDisposable
 
 	public static TheoryData<string[], ToolErrorKind> RefusedPreferences => new()
 	{
-		{ [], ToolErrorKind.InvalidArgument },
 		{ [.. Enumerable.Range(0, 65).Select(static index => $"m{index}")], ToolErrorKind.LimitExceeded },
 		{ ["game.exe"], ToolErrorKind.InvalidArgument },
 		{ ["game", "GAME"], ToolErrorKind.InvalidArgument },
@@ -150,6 +149,37 @@ public sealed class SymbolToolTests : IDisposable
 		Assert.Contains("local a = { n = 2, [1] = {\"engine\",\"game\",}, [2] = true }", source,
 			StringComparison.Ordinal);
 		Assert.EndsWith(SymbolScripts.SetModulePreference, source, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void SetModulePreference_ReplaceEmptyList_ReachesTheFixedScriptAndReturnsTheClearedPreference()
+	{
+		ModuleSymbolTarget target = new();
+		target.LuaResults[typeof(ModulePreference)] = new ModulePreference([], false);
+
+		ModulePreference preference = Tools(target).SetModulePreference([], true, Token);
+
+		Assert.Empty(preference.Modules);
+		string source = Assert.Single(target.LuaSources);
+		Assert.Contains("local a = { n = 2, [1] = {}, [2] = true }", source, StringComparison.Ordinal);
+		Assert.EndsWith(SymbolScripts.SetModulePreference, source, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void SetModulePreference_EmptyDefaultOrNull_RefusesBeforeDispatch()
+	{
+		ModuleSymbolTarget target = new();
+		SymbolTools tools = Tools(target);
+
+		CheatEngineToolException empty = Assert.Throws<CheatEngineToolException>(() =>
+			tools.SetModulePreference([], cancellationToken: Token));
+		CheatEngineToolException nullModules = Assert.Throws<CheatEngineToolException>(() =>
+			tools.SetModulePreference(null!, true, Token));
+
+		Assert.Equal(ToolErrorKind.InvalidArgument, empty.Error.Kind);
+		Assert.Equal(ToolErrorKind.InvalidArgument, nullModules.Error.Kind);
+		Assert.Equal(0, target.Dispatcher.Calls);
+		Assert.Empty(target.LuaSources);
 	}
 
 	[Theory]

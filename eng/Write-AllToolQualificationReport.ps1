@@ -260,7 +260,7 @@ $report = [ordered]@{
     toolCount = $rows.Count; routingComplete = @($rows | Where-Object { $_.routing -ne 'passed' }).Count -eq 0
     nativeQualificationComplete = $false
     boundaries = @('Routing uses loopback doubles; it does not execute backend tools.', 'Fixed Lua body evidence bypasses the adapter and never qualifies adapter behavior.', 'Suite totals never infer per-tool positive evidence.', 'Failed live sessions are not verified.', 'Missing tests are Missing; refusals do not qualify success.')
-    suites = $suiteReports; liveSession = if ($LiveSummary) { [ordered]@{ summaryPath = [IO.Path]::GetFullPath($LiveSummary); summarySha256 = (Get-FileHash -LiteralPath $LiveSummary).Hash; receiptsPath = $liveReceipts.path; receiptsSha256 = $liveReceipts.sha256; passed = $livePassed; runId = $live['runId']; candidateIdentity = $live['selected_distribution']; host = $live['host'] } } else { $null }
+    suites = $suiteReports; liveSession = if ($LiveSummary) { [ordered]@{ summaryPath = [IO.Path]::GetFullPath($LiveSummary); summarySha256 = (Get-FileHash -LiteralPath $LiveSummary).Hash; receiptsPath = $liveReceipts.path; receiptsSha256 = $liveReceipts.sha256; passed = $livePassed; runId = $live['runId']; candidateIdentity = $live['selected_distribution']; host = $live['host']; ownedTarget = if ($live.ContainsKey('owned_target')) { $live['owned_target'] } else { $null } } } else { $null }
     tools = @($rows)
 }
 [IO.Directory]::CreateDirectory([IO.Path]::GetFullPath($OutputDirectory)) | Out-Null

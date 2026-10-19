@@ -25,6 +25,7 @@ internal static class LiveWorkflowQualification
 		ArgumentNullException.ThrowIfNull(gateway);
 		LiveMcpInstanceClient instance = gateway.Bind(sandbox.HostA.InstanceId);
 		await VerifyGatesAsync(sandbox, instance);
+		await LiveUtilitySymbolQualification.VerifyAsync(sandbox, instance);
 		await VerifyMemoryAsync(sandbox, instance);
 		await VerifyScannerAsync(sandbox, instance);
 		await VerifyAobAsync(sandbox, instance);

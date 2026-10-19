@@ -145,7 +145,7 @@ with the activation. Nothing else is tracked, and a release does not undo everyt
 | Records, freezes, `table_load`, `record_clear` | Delete what you created, or reload the user's saved table. |
 | `record_set_dropdown` | Set back the items and options that `record_get(ids=[...], includeDropdown=true)` returned. |
 | Structures, comments, dissect data | `structure_delete`; `code_set_comment` with the earlier text; `code_clear_dissect` clears all dissect data, the user's too. |
-| `symbol_set_module_preference` | `symbol_set_module_preference(modules=[...], replace=true)` with the list you read; only a list of 1 to 64 names can be put back. |
+| `symbol_set_module_preference` | `symbol_set_module_preference(modules=[...], replace=true)` with the list you read; up to 64 valid names can be put back, including an empty list. Confirm names pass the setter's validation before changing the preference. |
 | `symbol_enable_sources`, `symbol_add_module` | None; the symbols stay for this CE session. |
 | `scan_first.includeMapped`, `aob_find.includeMapped`, `aob_find_value.includeMapped` | None: the call ends every CE scan-region override, one that a table or `lua_execute` set included. |
 | `process_set_pointer_size` | Set the size `process_get_current` reported before. |

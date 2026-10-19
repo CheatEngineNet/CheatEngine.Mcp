@@ -6,7 +6,7 @@
       "uri": "cheatengine://docs/address-expressions",
       "description": "Where Cheat Engine address expressions are accepted, their grammar and pointer notations, and the strict number formats some parameters and outputs use instead.",
       "mimeType": "text/markdown",
-      "size": 16924
+      "size": 17094
     },
     {
       "name": "doc_aob_signatures",
@@ -174,7 +174,7 @@
       "uri": "cheatengine://docs/safety",
       "description": "Read before the first change: allowed targets, consent, backups, what the four gates do and do not stop, what MCP tracks and how to undo the rest, and the DBK/DBVM and Windows-protection rules.",
       "mimeType": "text/markdown",
-      "size": 22469
+      "size": 22561
     },
     {
       "name": "doc_speedhack",

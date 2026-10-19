@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 
 using CheatEngine.Mcp.Tools.Pointer;
+using CheatEngine.SDK.Engine.Runtime;
 
 namespace CheatEngine.Mcp.Tests.Tools.Pointer;
 
@@ -10,6 +11,45 @@ public sealed class PointerMapTests
 	private static readonly long[] TwoHops = [0x10, 0x20];
 	private static readonly long[] ZeroThenOne = [0, 1];
 	private static readonly long[] NegativeThenPositive = [-0x30, 0x20];
+	private static CancellationToken Token => TestContext.Current.CancellationToken;
+
+	[Theory]
+	[InlineData(4, 1)]
+	[InlineData(8, 2)]
+	public async Task CaptureMap_TargetWidth_KeepsOnlyRepresentableModuleMetadata(int width, int moduleCount)
+	{
+		await using PointerFixture fixture = new(pointerSize: new PointerSize(width))
+		{
+			ModuleCount = 2
+		};
+		fixture.Maps.CreateMap("map", cancellationToken: Token);
+		fixture.WaitForMap("map");
+
+		PointerMap map = fixture.Store.GetMap("map").GetUsableMap();
+
+		Assert.Equal(width, map.Width);
+		Assert.Equal(moduleCount, map.Modules.Length);
+		Assert.Equal(new PointerModule("game.exe", PointerFixture.ModuleBase, 0x1000), map.Modules[0]);
+		if (width == 4)
+		{
+			Assert.DoesNotContain(map.Modules, module => module.BaseAddress > uint.MaxValue);
+			Assert.Same(map.Modules[0], map.FindModule(PointerFixture.ModuleBase + 0x100));
+		}
+		else
+		{
+			Assert.Equal(new PointerModule("module1.dll", 0x1_0000_1000, 0x1000), map.Modules[1]);
+		}
+	}
+
+	[Theory]
+	[InlineData(0xFFFF_FFFFUL, 1UL, true)]
+	[InlineData(0xFFFF_FFFFUL, 2UL, false)]
+	public void CaptureMetadata_AddressWidthBoundary_UsesAnInclusiveModuleRange(ulong baseAddress, ulong size,
+		bool expected)
+	{
+		Assert.Equal(expected, PointerSupport.FitsAddressRange(new PointerModule("boundary.dll", baseAddress, size),
+			uint.MaxValue));
+	}
 
 	[Fact]
 	public void Search_MultilevelGraph_ReturnsDereferenceOrderAndModuleRoot()

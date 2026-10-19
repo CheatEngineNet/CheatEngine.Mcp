@@ -141,6 +141,15 @@ internal static class PointerSupport
 		return [.. sized];
 	}
 
+	/// <summary>Whether a nonempty module image fits entirely in an inclusive target address range.</summary>
+	/// <param name="module">The module metadata.</param>
+	/// <param name="limit">The greatest representable target address.</param>
+	/// <returns><see langword="true" /> when every byte of the module image is representable.</returns>
+	internal static bool FitsAddressRange(PointerModule module, ulong limit)
+	{
+		return module.Size != 0 && module.BaseAddress <= limit && module.Size - 1 <= limit - module.BaseAddress;
+	}
+
 	/// <summary>A module-relative name, such as <c>game.exe+1A2B30</c>, or <see langword="null" /> outside modules.</summary>
 	/// <param name="modules">The modules.</param>
 	/// <param name="address">The address.</param>
