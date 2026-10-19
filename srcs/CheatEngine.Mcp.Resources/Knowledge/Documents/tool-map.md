@@ -241,7 +241,7 @@ Offsets are written as for pointers, and reads return them.
 | `record_update` | | Update 1 to 256 records: description, address, type, length, Unicode, offsets, value. |
 | `record_set_active` | →AA | Activate (freeze) or deactivate 1 to 256 records; a refused one reports CE's reason. `may_prompt` |
 | `record_delete` | →AA | Delete 1 to 256 records. `may_prompt` |
-| `record_move` | | Move one record under a parent or to the root. |
+| `record_move` | | Move one record under a parent; a root request succeeds only for an existing root record. |
 | `record_group` | | Group 1 to 256 records under a new type-14 record, not CE's group header. |
 | `record_set_script` | AA | Replace an inactive script record's text without activating it. |
 | `record_set_dropdown` | | Replace or clear one record's dropdown list and its three dropdown options. |

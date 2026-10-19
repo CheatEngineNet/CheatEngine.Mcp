@@ -12,6 +12,78 @@
       "scope": "safe_gate"
     },
     {
+      "name": "runtime_list_resources",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveFileRecordQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The exact pause resource ID is present while the owned target is paused and absent after a successful resume.",
+      "receipt": "all_tools_process_set_paused",
+      "cleanupReceipt": "live_file_record_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "runtime_list_jobs",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveCodeAnalysisQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The independently completed two-NOP search is listed once by its returned job ID, with kind code, completed state, buffered and total 2, no drops, errors or manual recovery.",
+      "receipt": "all_tools_runtime_list_jobs",
+      "cleanupReceipt": "live_code_analysis_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "runtime_stop_job",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveCodeAnalysisQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Stopping the retained search returns its exact job ID and released=true; an independent code_poll_job for that ID then fails with not_found.",
+      "receipt": "all_tools_runtime_stop_job",
+      "cleanupReceipt": "live_code_analysis_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "debugger_get_status",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/McpLiveQualificationTests.cs",
+      "testMethod": "OneGateway_TwoOwnedInstances_RoutesStateAndSurvivesOneHostShutdown",
+      "oracle": "Smoke scenario status reports stateValid=true with attached=false and broken=false before the owned speedhack workflow.",
+      "receipt": "all_tools_debugger_get_status",
+      "cleanupReceipt": "none",
+      "scope": "read_only_workflow"
+    },
+    {
+      "name": "speedhack_set_speed",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/McpLiveQualificationTests.cs",
+      "testMethod": "OneGateway_TwoOwnedInstances_RoutesStateAndSurvivesOneHostShutdown",
+      "oracle": "Smoke scenario sets owned instance A to 0.5 and independently reads speed 0.5; cleanup sets and independently observes speed 1.0.",
+      "receipt": "all_tools_speedhack_set_speed",
+      "cleanupReceipt": "all_tools_speedhack_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "speedhack_get_state",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/McpLiveQualificationTests.cs",
+      "testMethod": "OneGateway_TwoOwnedInstances_RoutesStateAndSurvivesOneHostShutdown",
+      "oracle": "Smoke scenario independently observes speed 0.5 after the owned set operation, then observes restored speed 1.0 during cleanup.",
+      "receipt": "all_tools_speedhack_get_state",
+      "cleanupReceipt": "all_tools_speedhack_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "scan_list_scanners",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/McpLiveQualificationTests.cs",
+      "testMethod": "OneGateway_TwoOwnedInstances_RoutesStateAndSurvivesOneHostShutdown",
+      "oracle": "Smoke scenario lists main, independent-one and independent-two with matching ready states/counts; separate status reads agree and instance B has only main. Final cleanup listing contains only main.",
+      "receipt": "all_tools_scan_list_scanners",
+      "cleanupReceipt": "all_tools_scan_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "scan_delete",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/McpLiveQualificationTests.cs",
+      "testMethod": "OneGateway_TwoOwnedInstances_RoutesStateAndSurvivesOneHostShutdown",
+      "oracle": "Smoke scenario deletes independent-one with removed=true; a fresh listing excludes it while independent-two remains listed and independently reports resultsReady=true. Final cleanup listing contains only main.",
+      "receipt": "all_tools_scan_delete",
+      "cleanupReceipt": "all_tools_scan_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
       "name": "memory_allocate",
       "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
       "testMethod": "VerifyMemoryAsync",
@@ -870,7 +942,7 @@
       "name": "record_group",
       "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveFileRecordQualification.cs",
       "testMethod": "VerifyRecordsAndTableAsync",
-      "oracle": "New group has two children and returns both independently retained owned record IDs.",
+      "oracle": "New group has one child and returns the independently retained owned record ID.",
       "receipt": "all_tools_record_group",
       "cleanupReceipt": "live_file_record_cleanup",
       "scope": "reversible_workflow"
@@ -879,7 +951,7 @@
       "name": "record_move",
       "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveFileRecordQualification.cs",
       "testMethod": "VerifyRecordsAndTableAsync",
-      "oracle": "Moving the second child to root returns its exact ID; a subsequent group read reports one remaining child.",
+      "oracle": "Moving the second record under the group returns its exact ID; separate reads verify both children. Root detach is refused as unsupported/not_started with membership unchanged, and an existing root is a successful no-op.",
       "receipt": "all_tools_record_move",
       "cleanupReceipt": "live_file_record_cleanup",
       "scope": "reversible_workflow"

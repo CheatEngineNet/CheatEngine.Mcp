@@ -207,17 +207,18 @@ not target memory, and needs no switch.
 
 - `record_group(description="Player", ids=[<id>, <id>])` creates a type 14 group record (`parentId` nests it) and
   moves the records under it one by one; if a later move fails, the group and earlier moves stay.
-- `record_move(id=<id>, parentId=<groupId>)` moves one record with its children; `record_move(id=<id>)` moves it to
-  the root. Any record can be a parent; Cheat Engine refuses a cycle. A moved `+offset` record resolves against its
-  new ancestors.
+- `record_move(id=<id>, parentId=<groupId>)` moves one record with its children and verifies the requested parent.
+  Omitting `parentId` succeeds only for a record already at the root. Cheat Engine 7.7 exposes no supported
+  operation to detach a child; that request returns `unsupported` without changing the record. Any record can be
+  a parent; Cheat Engine refuses a cycle. A moved `+offset` record resolves against its new ancestors.
 - `record_delete(ids=[<id>])` deletes records with their children (`deleted` counts the listed ids). By Cheat
   Engine's source a delete does not run `[DISABLE]`: an active script's patch stays with no record left to undo it,
   so deactivate scripts, children included, first. An active listed script record needs Mcp:EnableAutoAssembler. A
   failure keeps the earlier deletions. Delete only what this session created or the user named.
-- `record_clear()` deletes the whole list, children included (above 100000 records it refuses), and needs
-  Mcp:EnableAutoAssembler when any record is an active script. `celua.txt` documents no `clear` method on the address
-  list, which this tool calls: if it fails with `host_refused`, delete the top-level records with `record_delete`.
-  There is no undo: save first, and clear only when the user asks.
+- `record_clear()` preflights the whole list, then deletes records through their current IDs (above 100000 records
+  it refuses). It needs Mcp:EnableAutoAssembler when any record is an active script. If callbacks leave new records
+  behind, the result reports `partial_effect`; inspect the list before deciding what to do next. There is no undo:
+  save first, and clear only when the user asks.
 
 ## Load a table
 

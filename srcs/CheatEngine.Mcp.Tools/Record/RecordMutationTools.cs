@@ -262,16 +262,16 @@ public sealed class RecordMutationTools(ToolDispatch dispatch)
 		}, cancellationToken);
 	}
 
-	/// <summary>Moves a record below a parent group or back to the root.</summary>
+	/// <summary>Moves a record below a parent or verifies that it is already at the root.</summary>
 	[McpServerTool(Name = CheatEngineToolNames.RecordMove, Title = "Move address-list record", ReadOnly = false,
 		Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Move one record under parentId, or omit parentId to restore it to the address-list root. Cheat Engine refuses a record as its own parent and any parent that would create a hierarchy cycle. The result is a copied record after the move.")]
+		"Move one record under parentId. Omitting parentId succeeds only when the record is already at the root; Cheat Engine 7.7 exposes no supported operation to detach a child, so that request returns unsupported without changing the record. A record cannot be its own parent or form a hierarchy cycle. The result is a copied record after the requested parent is verified.")]
 	public RecordMoveResult Move(
 		[Description("The current record id to move.")]
 		int id,
-		[Description("The existing parent record id; omit to move to the root.")]
+		[Description("The existing parent record id; omit only for a record already at the root.")]
 		int? parentId = null,
 		CancellationToken cancellationToken = default)
 	{

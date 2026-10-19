@@ -76,6 +76,16 @@ internal static class LiveCodeAnalysisQualification
 				range = 4
 			});
 			sandbox.Record("all_tools_code_poll_job", page.DeepClone());
+
+			JsonNode jobs = await CallAsync(instance, CheatEngineToolNames.RuntimeListJobs);
+			JsonNode retainedJob = Assert.Single(jobs["jobs"]!.AsArray(), item => Text(item, "jobId") == jobId)!;
+			Assert.Equal(("code", "completed", 2L, 2L, 0L),
+				(Text(retainedJob, "kind"), Text(retainedJob, "state"), retainedJob["buffered"]!.GetValue<long>(),
+					retainedJob["total"]!.GetValue<long>(), retainedJob["dropped"]!.GetValue<long>()));
+			Assert.Null(retainedJob["error"]);
+			Assert.Null(retainedJob["cleanupError"]);
+			Assert.False(retainedJob["requiresManualRecovery"]!.GetValue<bool>());
+			sandbox.Record("all_tools_runtime_list_jobs", jobs.DeepClone());
 		}
 		catch (Exception exception) { failure = exception; throw; }
 		finally
@@ -84,8 +94,9 @@ internal static class LiveCodeAnalysisQualification
 			{
 				await CleanupAsync(cleanup, async () =>
 				{
-					await StopSearchAsync(instance, jobId);
+					JsonNode stopped = await StopSearchAsync(instance, jobId);
 					jobMayBeRunning = false;
+					sandbox.Record("all_tools_runtime_stop_job", stopped.DeepClone());
 				});
 			}
 			else if (jobMayBeRunning)
@@ -128,7 +139,7 @@ internal static class LiveCodeAnalysisQualification
 		}
 	}
 
-	private static async Task StopSearchAsync(LiveMcpInstanceClient instance, string jobId)
+	private static async Task<JsonNode> StopSearchAsync(LiveMcpInstanceClient instance, string jobId)
 	{
 		for (int attempt = 0; attempt < 5; attempt++)
 		{
@@ -148,7 +159,7 @@ internal static class LiveCodeAnalysisQualification
 				new Dictionary<string, object?> { ["jobId"] = jobId, ["afterSequence"] = 0L, ["limit"] = 1 });
 			Assert.True(absent.IsError);
 			Assert.Equal("not_found", Text(absent.Payload?["error"], "kind"));
-			return;
+			return result.Payload!;
 		}
 		throw new TimeoutException("Search stop remains pending after five bounded attempts; the owned allocation is retained for host teardown.");
 	}

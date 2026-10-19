@@ -187,14 +187,15 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			Assert.True(debuggerState["stateValid"]!.GetValue<bool>());
 			Assert.False(debuggerState["attached"]!.GetValue<bool>());
 			Assert.False(debuggerState["broken"]!.GetValue<bool>());
+			sandbox.Record("all_tools_debugger_get_status", debuggerState.DeepClone());
 			speedhackAttempted = true;
-			await AssertSpeedAsync(instanceA, 0.5);
+			await AssertSpeedAsync(sandbox, instanceA, 0.5, recordEvidence: true);
 			Assert.Equal(1.0,
 				(await SuccessfulCallAsync(instanceB, CheatEngineToolNames.SpeedhackGetState))["speed"]!
 				.GetValue<double>(),
 				4);
-			await AssertSpeedAsync(instanceA, 2.0);
-			await AssertSpeedAsync(instanceA, 1.0);
+			await AssertSpeedAsync(sandbox, instanceA, 2.0);
+			await AssertSpeedAsync(sandbox, instanceA, 1.0);
 			Assert.Equal(1.0,
 				(await SuccessfulCallAsync(instanceB, CheatEngineToolNames.SpeedhackGetState))["speed"]!
 				.GetValue<double>(),
@@ -274,7 +275,8 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			{
 				try
 				{
-					await RestoreSpeedAsync(instanceA);
+					JsonNode restoredSpeed = await RestoreSpeedAsync(instanceA);
+					sandbox.Record("all_tools_speedhack_cleanup", restoredSpeed.DeepClone());
 				}
 				catch (Exception exception)
 				{
@@ -488,8 +490,11 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 				$"Scanner '{name}' state differs between scan_list_scanners and scan_get_status.");
 		}
 
-		Assert.Single(
-			(await SuccessfulCallAsync(instanceB, CheatEngineToolNames.ScanListScanners))["scanners"]!.AsArray());
+		JsonNode scannerB = Assert.Single(
+			(await SuccessfulCallAsync(instanceB, CheatEngineToolNames.ScanListScanners))["scanners"]!.AsArray())!;
+		Assert.Equal(("main", "ui"),
+			(scannerB["scannerName"]!.GetValue<string>(), scannerB["mode"]!.GetValue<string>()));
+		sandbox.Record("all_tools_scan_list_scanners", listed.DeepClone());
 
 		await WriteMemoryAsync(instanceA, sandbox.HostA.TargetAddress, 20260932);
 		await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanNext,
@@ -505,15 +510,30 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 		AssertScanContains(await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanListResults),
 			sandbox.HostA.TargetAddress,
 			"20260932");
-		await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanDelete,
+		JsonNode deleted = await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanDelete,
 			new Dictionary<string, object?> { ["scannerName"] = "independent-one" });
+		Assert.Equal("independent-one", deleted["scannerName"]!.GetValue<string>());
+		Assert.True(deleted["removed"]!.GetValue<bool>());
+		JsonNode afterDelete = await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanListScanners);
+		Assert.DoesNotContain(afterDelete["scanners"]!.AsArray(),
+			scanner => scanner!["scannerName"]!.GetValue<string>() == "independent-one");
+		Assert.Single(afterDelete["scanners"]!.AsArray(),
+			scanner => scanner!["scannerName"]!.GetValue<string>() == "independent-two");
 		Assert.Equal(1L,
 			(await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanListResults))["count"]!.GetValue<long>());
-		Assert.True((await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanGetStatus,
-				new Dictionary<string, object?> { ["scannerName"] = "independent-two" }))["resultsReady"]!
-			.GetValue<bool>());
-		await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanDelete,
+		JsonNode survivingScanner = await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanGetStatus,
 			new Dictionary<string, object?> { ["scannerName"] = "independent-two" });
+		Assert.True(survivingScanner["resultsReady"]!.GetValue<bool>());
+		sandbox.Record("all_tools_scan_delete", new
+		{
+			deleted = deleted.DeepClone(),
+			afterDelete = afterDelete.DeepClone(),
+			survivingScanner = survivingScanner.DeepClone()
+		});
+		JsonNode deletedTwo = await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanDelete,
+			new Dictionary<string, object?> { ["scannerName"] = "independent-two" });
+		Assert.Equal("independent-two", deletedTwo["scannerName"]!.GetValue<string>());
+		Assert.True(deletedTwo["removed"]!.GetValue<bool>());
 
 		Assert.Equal("false", (await sandbox.ScanUiAsync("A", "hide"))[7]);
 		await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanReset);
@@ -526,7 +546,20 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 		AssertScanContains(await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanListResults),
 			sandbox.HostA.TargetAddress,
 			"20260927");
-		await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanReset);
+		JsonNode finalReset = await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanReset);
+		Assert.Equal("main", finalReset["scannerName"]!.GetValue<string>());
+		Assert.False(finalReset["removed"]!.GetValue<bool>());
+		JsonNode scannersAfterCleanup = await SuccessfulCallAsync(instanceA, CheatEngineToolNames.ScanListScanners);
+		JsonNode remainingScanner = Assert.Single(scannersAfterCleanup["scanners"]!.AsArray())!;
+		Assert.Equal("main", remainingScanner["scannerName"]!.GetValue<string>());
+		sandbox.Record("all_tools_scan_cleanup", new
+		{
+			firstDeletion = deleted.DeepClone(),
+			afterFirstDeletion = afterDelete.DeepClone(),
+			secondDeletion = deletedTwo.DeepClone(),
+			finalReset = finalReset.DeepClone(),
+			scannersAfterCleanup = scannersAfterCleanup.DeepClone()
+		});
 		sandbox.Record("main_and_independent_scanners",
 			new
 			{
@@ -606,13 +639,19 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 		Assert.Equal(host.TargetProcessId, opened["processId"]!.GetValue<int>());
 	}
 
-	private static async Task AssertSpeedAsync(ILiveMcpToolClient client, double expected)
+	private static async Task AssertSpeedAsync(LiveSandboxSession sandbox, ILiveMcpToolClient client, double expected,
+		bool recordEvidence = false)
 	{
 		JsonNode configured = await SuccessfulCallAsync(client, CheatEngineToolNames.SpeedhackSetSpeed,
 			new Dictionary<string, object?> { ["speed"] = expected });
 		Assert.Equal(expected, configured["speed"]!.GetValue<double>(), 4);
 		JsonNode observed = await SuccessfulCallAsync(client, CheatEngineToolNames.SpeedhackGetState);
 		Assert.Equal(expected, observed["speed"]!.GetValue<double>(), 4);
+		if (recordEvidence)
+		{
+			sandbox.Record("all_tools_speedhack_set_speed", configured.DeepClone());
+			sandbox.Record("all_tools_speedhack_get_state", observed.DeepClone());
+		}
 	}
 
 	private static async Task<JsonNode> SuccessfulCallAsync(ILiveMcpToolClient client, string name,
@@ -688,9 +727,13 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			new Dictionary<string, object?> { ["ids"] = new[] { recordId } });
 	}
 
-	private static async Task RestoreSpeedAsync(ILiveMcpToolClient client)
+	private static async Task<JsonNode> RestoreSpeedAsync(ILiveMcpToolClient client)
 	{
-		await SuccessfulCallAsync(client, CheatEngineToolNames.SpeedhackSetSpeed,
+		JsonNode configured = await SuccessfulCallAsync(client, CheatEngineToolNames.SpeedhackSetSpeed,
 			new Dictionary<string, object?> { ["speed"] = 1.0 });
+		Assert.Equal(1.0, configured["speed"]!.GetValue<double>(), 4);
+		JsonNode observed = await SuccessfulCallAsync(client, CheatEngineToolNames.SpeedhackGetState);
+		Assert.Equal(1.0, observed["speed"]!.GetValue<double>(), 4);
+		return observed;
 	}
 }

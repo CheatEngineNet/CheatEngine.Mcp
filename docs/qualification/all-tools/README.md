@@ -12,7 +12,7 @@ Lua body do not establish successful native execution.
 - [x] Check gateway-local discovery with zero and two instances.
 - [x] Run the portable Release suite; final results are recorded below.
 - [x] Run the portable Debug suite with the same exclusions.
-- [x] Run standalone Lua 5.3 with CE API doubles (651 passed, zero failed or skipped).
+- [x] Run standalone Lua 5.3 with CE API doubles (665 passed, zero failed or skipped).
 - [x] Add and run result assertions for the Lua, table-save and code-view adapters (12 passed).
 - [x] Add seven record adapter cases and four code/process adapter cases; run both focused classes.
 - [x] Fix the `code_get_comments` array argument expansion found by those tests.
@@ -29,6 +29,7 @@ Lua body do not establish successful native execution.
 - [x] Prepare, review and run a bounded provider trace replay; retain non-reproduction as diagnostic evidence only.
 - [x] Add direct adapter checks for managed collectors, debugger callbacks, execution, kernel calls, patches and table loading using doubles.
 - [x] Update to published Client 1.1.0 and SDK 2.0.1; regenerate portable and AOT lockfiles.
+- [x] Replace the Client and SDK NuGet dependencies with pinned main-branch Git submodules and verify the source build graph.
 - [x] Require reviewed positive adapter mappings for every name in the production tool catalog.
 - [x] Add execution-argument, conversion/calculation and pointer-file boundary/failure tests.
 - [x] Measure handwritten product C# coverage using fresh portable and NativeLua reports.
@@ -45,6 +46,40 @@ Passing only one branch of a parameterized test cannot qualify another branch's 
 These cases use Client or CE API doubles, including real standalone Lua where applicable. They are partial
 cases, not complete behavior partitions or native CE qualification. The gateway's local discovery checks
 bring the advertised catalog total to 207. A live mapping requires its own concrete oracle and cleanup receipts.
+
+## Source dependency verification from 2026-10-19
+
+The initial source verification pinned Client `feaf14a0fad0bbbb869bbe4badb547304aa81d8f` and SDK
+`06c529f84e47295e3ca7a4e81ca808b9c4686b3a`. Client's source-reference support was merged through its PR #67,
+with its portable, package-consumption and CI checks passing. MCP's normal and AOT lockfiles resolve these
+dependencies as projects. Tests verify the dependency identity, Release compilation and the direct SDK reference
+boundary; CI initializes both submodules recursively.
+
+The portable Release suite passed **5,559** cases and standalone Lua passed **665**, with no failures or skips.
+The reports are in `artifacts/test-results/ai-analysis-20261019/roadmap-record-delete-portable` and
+`roadmap-record-delete-native-lua`. Commit `ef37e32` also passed the isolated single-DLL load probe and Native AOT
+gateway smoke check in `artifacts/dist/roadmap-source-20261019-4`.
+
+The expanded private x64 workflow found that this CE host has no `AddressList.clear()` method. The fix preflights
+all records, then destroys them through their current IDs; regression tests cover nested records, callback-driven
+deletion, callback-created survivors, empty lists, refusal and bounded error details. The subsequent live run
+`20261019T111119Z-887f` verified its cleanup, but stopped at a separate SDK defect: assigning a null parent reports
+success without moving a record out of its group. User state was restored, the source installation was unchanged
+and cleanup reported no failures. This failed session does not qualify the complete workflow or its prepared
+native evidence mappings.
+
+The parent-assignment correction uses Client `9b836e6ced8e97b4506dc8523998c7c2081cc2ad` (merged main)
+and SDK candidate `c4480e6c7fa24b58a6b495a378f11cdca042673c` (PR #96 awaiting its final CI gate).
+SDK now resolves the child again and verifies its parent ID after the setter returns. Nested root moves are refused
+before mutation because CE has no supported detach operation; an already-root record is a verified no-op.
+The protected getter tests cover errors and malformed parent IDs before and after assignment, without fabricated
+runtime resets. All **746** Engine NativeLua cases passed; independent Astra review found no remaining defects.
+
+MCP's corresponding Release suite passed **5,559** cases and standalone Lua passed **665**, with zero failures or skips.
+Reports are under `artifacts/test-results/ai-analysis-20261019/roadmap-parent-portable-3` and
+`roadmap-parent-native-lua-2`. Eight additional native evidence mappings bring the prepared total to **122**.
+Five are specific to the smoke scenario; the resource and job mappings use the expanded workflows. Each mutable
+case requires independent readback and cleanup evidence. These new mappings still require passing native sessions.
 
 ## Roadmap verification from 2026-10-19
 

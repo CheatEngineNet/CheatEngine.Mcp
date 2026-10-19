@@ -192,20 +192,30 @@ internal static class LiveFileRecordQualification
 				persistedDropdown["disallowManualInput"]!.GetValue<bool>(), persistedDropdown["descriptionOnly"]!.GetValue<bool>(), persistedDropdown["displayAsListItem"]!.GetValue<bool>()));
 		Receipt(sandbox, CheatEngineToolNames.RecordSetDropdown, dropdown);
 		JsonNode grouped = await CallAsync(instance, CheatEngineToolNames.RecordGroup,
-			new Dictionary<string, object?> { ["description"] = "McpLiveGroup_" + suffix, ["ids"] = new[] { firstId, secondId } });
+			new Dictionary<string, object?> { ["description"] = "McpLiveGroup_" + suffix, ["ids"] = new[] { firstId } });
 		int groupId = grouped["group"]!["id"]!.GetValue<int>();
-		Assert.Equal(2, grouped["group"]!["childCount"]!.GetValue<int>());
-		Assert.Equal([firstId, secondId], grouped["records"]!.AsArray().Select(record => record!["id"]!.GetValue<int>()));
+		Assert.Equal(1, grouped["group"]!["childCount"]!.GetValue<int>());
+		Assert.Equal([firstId], grouped["records"]!.AsArray().Select(record => record!["id"]!.GetValue<int>()));
 		Receipt(sandbox, CheatEngineToolNames.RecordGroup, grouped);
 		JsonNode moved = await CallAsync(instance, CheatEngineToolNames.RecordMove,
-			new Dictionary<string, object?> { ["id"] = secondId });
+			new Dictionary<string, object?> { ["id"] = secondId, ["parentId"] = groupId });
 		Assert.Equal(secondId, moved["record"]!["id"]!.GetValue<int>());
+		LiveMcpToolResult rootRefused = await instance.CallToolRawAsync(CheatEngineToolNames.RecordMove,
+			new Dictionary<string, object?> { ["id"] = secondId });
+		Assert.True(rootRefused.IsError);
+		Assert.Equal("unsupported", Text(rootRefused.Payload!["error"]!, "kind"));
+		Assert.Equal("not_started", Text(rootRefused.Payload!["error"]!, "hostEffect"));
+		sandbox.Record("record_root_move_refused", rootRefused.Payload.DeepClone());
 		JsonNode groupAfterMove = await CallAsync(instance, CheatEngineToolNames.RecordGet,
 			new Dictionary<string, object?> { ["ids"] = new[] { groupId } });
-		Assert.Equal(1, groupAfterMove["records"]![0]!["childCount"]!.GetValue<int>());
+		Assert.Equal(2, groupAfterMove["records"]![0]!["childCount"]!.GetValue<int>());
 		JsonNode children = await CallAsync(instance, CheatEngineToolNames.RecordList,
 			new Dictionary<string, object?> { ["parentId"] = groupId, ["offset"] = 0, ["limit"] = 16 });
-		Assert.Equal([firstId], children["records"]!.AsArray().Select(record => record!["id"]!.GetValue<int>()));
+		Assert.Equal([firstId, secondId], children["records"]!.AsArray().Select(record => record!["id"]!.GetValue<int>()));
+		JsonNode rootNoOp = await CallAsync(instance, CheatEngineToolNames.RecordMove,
+			new Dictionary<string, object?> { ["id"] = groupId });
+		Assert.Equal((groupId, 2), (rootNoOp["record"]!["id"]!.GetValue<int>(), rootNoOp["record"]!["childCount"]!.GetValue<int>()));
+		sandbox.Record("record_root_move_noop", rootNoOp.DeepClone());
 		Receipt(sandbox, CheatEngineToolNames.RecordMove, moved);
 		JsonNode saved = await CallAsync(instance, CheatEngineToolNames.TableSave, new Dictionary<string, object?> { ["path"] = table });
 		Assert.False(saved["replacedExisting"]!.GetValue<bool>());
@@ -238,7 +248,7 @@ internal static class LiveFileRecordQualification
 		Assert.Equal(address + "+4", second.Element("Address")!.Value);
 		Assert.Equal("4 Bytes", first.Element("VariableType")!.Value);
 		Assert.Contains(first, group.Descendants("CheatEntry"));
-		Assert.DoesNotContain(second, group.Descendants("CheatEntry"));
+		Assert.Contains(second, group.Descendants("CheatEntry"));
 		Assert.Contains(first.Descendants(), element => element.Value.Contains("33", StringComparison.Ordinal));
 		Assert.Contains(first.Descendants(), element => element.Value.Contains("thirty-three", StringComparison.Ordinal));
 	}
@@ -255,10 +265,11 @@ internal static class LiveFileRecordQualification
 		Assert.Equal((address, "33"), (Text(first, "address"), Text(first, "value")));
 		Assert.Equal((address + "+4", "44"), (Text(second, "address"), Text(second, "value")));
 		int firstId = first["id"]!.GetValue<int>();
+		int secondId = second["id"]!.GetValue<int>();
 		int groupId = group["id"]!.GetValue<int>();
 		JsonNode children = await CallAsync(instance, CheatEngineToolNames.RecordList,
 			new Dictionary<string, object?> { ["parentId"] = groupId, ["offset"] = 0, ["limit"] = 16 });
-		Assert.Equal([firstId], children["records"]!.AsArray().Select(entry => entry!["id"]!.GetValue<int>()));
+		Assert.Equal([firstId, secondId], children["records"]!.AsArray().Select(entry => entry!["id"]!.GetValue<int>()));
 		JsonNode firstWithDropdown = await CallAsync(instance, CheatEngineToolNames.RecordGet,
 			new Dictionary<string, object?> { ["ids"] = new[] { firstId }, ["includeDropdown"] = true });
 		JsonNode dropdown = Assert.Single(firstWithDropdown["records"]!.AsArray())!["dropdown"]!;

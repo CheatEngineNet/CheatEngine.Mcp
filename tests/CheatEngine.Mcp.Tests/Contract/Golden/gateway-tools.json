@@ -16629,7 +16629,7 @@
   {
     "name": "record_move",
     "title": "Move address-list record",
-    "description": "Move one record under parentId, or omit parentId to restore it to the address-list root. Cheat Engine refuses a record as its own parent and any parent that would create a hierarchy cycle. The result is a copied record after the move.",
+    "description": "Move one record under parentId. Omitting parentId succeeds only when the record is already at the root; Cheat Engine 7.7 exposes no supported operation to detach a child, so that request returns unsupported without changing the record. A record cannot be its own parent or form a hierarchy cycle. The result is a copied record after the requested parent is verified.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -16642,7 +16642,7 @@
           "type": "integer"
         },
         "parentId": {
-          "description": "The existing parent record id; omit to move to the root.",
+          "description": "The existing parent record id; omit only for a record already at the root.",
           "type": "integer",
           "default": null
         }

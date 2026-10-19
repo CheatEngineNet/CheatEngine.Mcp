@@ -11,8 +11,8 @@ Client and SDK are built from Git submodules, not restored as NuGet packages. Th
 
 | Component | Source commit | License | Copyright | Shipped in |
 |---|---|---|---|---|
-| CheatEngine.Client | feaf14a0fad0bbbb869bbe4badb547304aa81d8f | MIT | Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.Client contributors | Embedded plugin dependencies and gateway |
-| CheatEngine.SDK | 06c529f84e47295e3ca7a4e81ca808b9c4686b3a | MIT | Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.SDK contributors | Six SDK runtime assemblies in the plugin and gateway; native `cheatengine-sdk-lua-bridge.dll` in the plugin |
+| CheatEngine.Client | 9b836e6ced8e97b4506dc8523998c7c2081cc2ad | MIT | Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.Client contributors | Embedded plugin dependencies and gateway |
+| CheatEngine.SDK | c4480e6c7fa24b58a6b495a378f11cdca042673c | MIT | Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.SDK contributors | Six SDK runtime assemblies in the plugin and gateway; native `cheatengine-sdk-lua-bridge.dll` in the plugin |
 
 ## NuGet packages
 
@@ -64,11 +64,11 @@ SDK changes the runtime version, update this table.
 
 | Component | Upstream license file |
 |---|---|
-| CheatEngine.Client | <https://github.com/CheatEngineNet/CheatEngine.Client/blob/2b73ac208eaef7cca91339329946d4f8ddfc6ee5/LICENSE> (the recorded submodule commit) |
-| CheatEngine.SDK | <https://github.com/CheatEngineNet/CheatEngine.SDK/blob/06c529f84e47295e3ca7a4e81ca808b9c4686b3a/LICENSE> (the recorded submodule commit) |
+| CheatEngine.Client | <https://github.com/CheatEngineNet/CheatEngine.Client/blob/9b836e6ced8e97b4506dc8523998c7c2081cc2ad/LICENSE> (the recorded submodule commit) |
+| CheatEngine.SDK | <https://github.com/CheatEngineNet/CheatEngine.SDK/blob/c4480e6c7fa24b58a6b495a378f11cdca042673c/LICENSE> (the recorded submodule commit) |
 | Microsoft.Extensions.AI.Abstractions 10.10.1 | <https://github.com/dotnet/extensions/blob/59e1741f6fb45cf7ae08e2df088aef71537a7bc4/LICENSE> (the source commit of the package) |
 | ModelContextProtocol 2.2.0 | <https://github.com/modelcontextprotocol/csharp-sdk/blob/6fa3825973949a9c4f0cd8af344e15a8db09dc35/LICENSE> and <https://github.com/modelcontextprotocol/csharp-sdk/blob/6fa3825973949a9c4f0cd8af344e15a8db09dc35/THIRD-PARTY-NOTICES.txt> (the source commit of the packages) |
-| .NET runtime packs 10.0.12 | `LICENSE.TXT` and `THIRD-PARTY-NOTICES.TXT` of the runtime packs |
+| .NET runtime packs 10.0.13 | `LICENSE.TXT` and `THIRD-PARTY-NOTICES.TXT` of the runtime packs |
 
 ## MIT License
 

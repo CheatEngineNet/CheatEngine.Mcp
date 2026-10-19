@@ -46,7 +46,7 @@
       "uri": "cheatengine://docs/cheat-tables",
       "description": "Address-list records: types, writing-safe creation, pointer chains and \u002Boffset fields, freezing, script records, groups and deletes, loading and saving cheat tables with their switch checks, and robust tables.",
       "mimeType": "text/markdown",
-      "size": 24350
+      "size": 24529
     },
     {
       "name": "doc_code_analysis",
@@ -198,7 +198,7 @@
       "uri": "cheatengine://docs/tool-map",
       "description": "Every tool by domain with its purpose, the setting (gate) it needs and its dispatch class; the running schema stays the authority for parameters and results.",
       "mimeType": "text/markdown",
-      "size": 26964
+      "size": 27007
     },
     {
       "name": "doc_troubleshooting_scans",
