@@ -44,6 +44,8 @@ internal static class LiveSpecializedQualification
 			else
 			{
 				await LiveDebuggerQualification.VerifyAsync(sandbox, instance);
+				await LiveDebuggerExecutionQualification.VerifyAsync(sandbox, instance,
+					sandbox.HostA.DebuggerExecution ?? throw new InvalidDataException("The owned debugger execution manifest is missing."));
 			}
 			await connection.VerifyBothAsync(expectAssembler: assembler);
 			await connection.RestartGatewayAsync();

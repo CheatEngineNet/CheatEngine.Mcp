@@ -17,4 +17,5 @@ internal sealed record LiveSandboxHost(
 	string ManagedObjectType = "",
 	int? ManagedObjectMarker = null,
 	int? ManagedObjectMirror = null,
-	int? ManagedObjectToggle = null);
+	int? ManagedObjectToggle = null,
+	LiveDebuggerExecutionQualification.Manifest? DebuggerExecution = null);

@@ -38,6 +38,15 @@ internal static class LiveProcessFileQualification
 			JsonNode original = await CallAsync(instance, CheatEngineToolNames.ProcessGetCurrent);
 			Assert.True(original["isOpen"]!.GetValue<bool>());
 			Assert.Equal(targetProcessId, original["processId"]!.GetValue<int>());
+			JsonNode originalValue = await CallAsync(instance, CheatEngineToolNames.MemoryRead,
+				new Dictionary<string, object?> { ["address"] = sandbox.HostA.TargetAddress, ["valueType"] = "int32" });
+			Assert.Equal("20260926", originalValue["value"]!.GetValue<string>());
+			sandbox.Record("process_file_original_target_observed", new
+			{
+				current = original.DeepClone(),
+				address = sandbox.HostA.TargetAddress,
+				memory = originalValue.DeepClone()
+			});
 
 			byte[] expectedBytes = CreateInputBytes();
 			await using (FileStream inputFile = new(input, FileMode.CreateNew, FileAccess.Write, FileShare.None))
@@ -107,11 +116,23 @@ internal static class LiveProcessFileQualification
 						});
 					Assert.Equal(targetProcessId, attached["processId"]!.GetValue<int>());
 					JsonNode restored = await CallAsync(cleanupInstance, CheatEngineToolNames.ProcessGetCurrent);
+					sandbox.Record("process_file_reattachment_observed", new
+					{
+						attached = attached.DeepClone(),
+						current = restored.DeepClone()
+					});
 					Assert.True(restored["isOpen"]!.GetValue<bool>());
 					Assert.Equal(targetProcessId, restored["processId"]!.GetValue<int>());
-					JsonNode sentinel = await CallAsync(cleanupInstance, CheatEngineToolNames.MemoryRead,
+					LiveMcpToolResult sentinel = await cleanupInstance.CallToolRawAsync(CheatEngineToolNames.MemoryRead,
 						new Dictionary<string, object?> { ["address"] = sandbox.HostA.TargetAddress, ["valueType"] = "int32" });
-					Assert.Equal("20260926", sentinel["value"]!.GetValue<string>());
+					sandbox.Record("process_file_restored_memory_observed", new
+					{
+						address = sandbox.HostA.TargetAddress,
+						sentinel.IsError,
+						payload = sentinel.Payload?.DeepClone()
+					});
+					Assert.False(sentinel.IsError, $"The original target memory was not restored: {sentinel.Payload?.ToJsonString()}");
+					Assert.Equal("20260926", sentinel.Payload!["value"]!.GetValue<string>());
 					targetRestored = true;
 				});
 			}

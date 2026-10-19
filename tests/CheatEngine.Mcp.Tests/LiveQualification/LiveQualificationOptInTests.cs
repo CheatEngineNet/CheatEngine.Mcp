@@ -349,4 +349,40 @@ public sealed class LiveQualificationOptInTests
 		return LiveQualificationOptIn.Evaluate(variables.GetValueOrDefault, Repository, LocalData, Installation,
 			path => string.Equals(path, Installation, StringComparison.OrdinalIgnoreCase));
 	}
+
+	[Fact]
+	public void Evaluate_DebuggerX86_RefusesBeforeDirectoryInspection()
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.ScenarioVariable] = "debugger";
+		variables[LiveQualificationOptIn.DebuggerOptInVariable] = LiveQualificationOptIn.DebuggerAcknowledgement;
+		variables[LiveQualificationOptIn.TargetArchitectureVariable] = "x86";
+		LiveQualificationDecision decision = LiveQualificationOptIn.Evaluate(variables.GetValueOrDefault,
+			Repository, LocalData, Installation, static _ => throw new InvalidOperationException("Must refuse before inspection."));
+		Assert.False(decision.IsAuthorized);
+		Assert.Contains("x64", decision.Refusal, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Evaluate_SymbolFixtureRequiresDedicatedAcknowledgementBeforeInspection()
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.ScenarioVariable] = "symbol-fixture";
+		variables[LiveQualificationOptIn.CodeExecutionOptInVariable] = LiveQualificationOptIn.CodeExecutionAcknowledgement;
+		LiveQualificationDecision decision = LiveQualificationOptIn.Evaluate(variables.GetValueOrDefault, Repository, LocalData, Installation,
+			static _ => throw new InvalidOperationException("Must refuse before inspection."));
+		Assert.False(decision.IsAuthorized);
+		Assert.Contains(LiveQualificationOptIn.SymbolFixtureOptInVariable, decision.Refusal, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Evaluate_SymbolFixtureWithDedicatedAcknowledgement_AuthorizesX64Only()
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.ScenarioVariable] = "symbol-fixture";
+		variables[LiveQualificationOptIn.SymbolFixtureOptInVariable] = LiveQualificationOptIn.SymbolFixtureAcknowledgement;
+		Assert.Equal(LiveQualificationScenario.SymbolFixture, Evaluate(variables).Inputs!.Scenario);
+		variables[LiveQualificationOptIn.TargetArchitectureVariable] = "x86";
+		Assert.False(Evaluate(variables).IsAuthorized);
+	}
 }

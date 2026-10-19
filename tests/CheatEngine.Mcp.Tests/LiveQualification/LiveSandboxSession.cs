@@ -86,6 +86,8 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 
 	public LiveSandboxHost HostA => GetHost("A");
 	public LiveSandboxHost HostB => GetHost("B");
+	internal NativeSymbolFixture NativeSymbolFixture => _nativeSymbolFixture ?? throw new InvalidOperationException("The native symbol fixture was not prepared.");
+	private NativeSymbolFixture? _nativeSymbolFixture;
 
 	public async ValueTask DisposeAsync()
 	{
@@ -98,6 +100,11 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		List<Exception> failures = [];
 		try
 		{
+			if (_options.UsesTargetFirstExecutionShutdown)
+			{
+				await TerminateExecutionTargetsBeforeHostCleanupAsync("sandbox disposal", failures);
+			}
+
 			foreach (string name in _hosts.Keys.ToArray())
 			{
 				try
@@ -168,6 +175,32 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 			{
 				TryCleanup(CleanupCompilerRoots, failures);
 			}
+			if (_options.SymbolFixtureQualification && _hosts.Values.All(host => host.Stopped))
+			{
+				TryCleanup(() =>
+				{
+					string root = Path.Combine(_layout.RunDirectory, "native-symbol-fixture");
+					RequireInsideRun(root);
+					if (!Directory.Exists(root))
+					{
+						return;
+					}
+
+					RequireNoReparseAncestors(root);
+					CleanupCompilerDirectory(root);
+					Directory.Delete(root, false);
+					if (Directory.Exists(root))
+					{
+						throw new InvalidOperationException("Native fixture root remained after cleanup.");
+					}
+
+					Record("native_symbol_fixture_cleanup", new
+					{
+						root,
+						absent = true
+					});
+				}, failures);
+			}
 		}
 		finally
 		{
@@ -195,6 +228,10 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 	{
 		LiveSandboxOptions selected = options ?? LiveSandboxOptions.Smoke;
 		selected.ValidateFor(inputs.Scenario);
+		if (selected.UsesTargetFirstExecutionShutdown && inputs.TargetArchitecture != "x64")
+		{
+			throw new InvalidOperationException("The fixed execution qualification supports only the owned x64 target.");
+		}
 		if (selected.CompilerQualification)
 		{
 			LiveCompilerPayload.RequireReviewedHashes();
@@ -253,6 +290,10 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		{
 			return;
 		}
+		if (_options.UsesTargetFirstExecutionShutdown && (!host.TargetExitConfirmed || host.HostCleanupBlocked))
+		{
+			throw new InvalidOperationException("Refusing CE/plugin cleanup before owned target exit is confirmed.");
+		}
 
 		List<Exception> failures = [];
 		TryCleanup(() => File.WriteAllText(host.StopPath, "stop"), failures);
@@ -260,8 +301,7 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		if (hostStopped)
 		{
 			host.Process = null;
-			TryCleanup(() => File.WriteAllText(host.TargetManifest + ".stop", "stop"), failures);
-			bool targetStopped = await StopOwnedAsync(host.Target, failures);
+			bool targetStopped = _options.UsesTargetFirstExecutionShutdown || await StopOwnedAsync(host.Target, failures);
 			if (targetStopped)
 			{
 				host.Target = null;
@@ -278,6 +318,94 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		if (failures.Count != 0)
 		{
 			throw new AggregateException($"Live host {name} did not stop cleanly.", failures);
+		}
+	}
+
+	internal async Task TerminateExecutionTargetsBeforeHostCleanupAsync(string reason, List<Exception> failures)
+	{
+		if (!_options.UsesTargetFirstExecutionShutdown)
+		{
+			return;
+		}
+
+		await LiveExecutionCleanup.AttemptAllAsync(_hosts.Keys.Order(StringComparer.Ordinal).ToArray(),
+			name => TerminateOwnedTargetBeforeHostCleanupAsync(name, reason), failures);
+	}
+
+	internal async Task TerminateOwnedTargetBeforeHostCleanupAsync(string name, string reason)
+	{
+		if (!_options.UsesTargetFirstExecutionShutdown || !_hosts.TryGetValue(name, out OwnedHost? host))
+		{
+			throw new InvalidOperationException("Target-first termination is available only to the admitted execution scenario.");
+		}
+
+		if (host.TargetExitConfirmed)
+		{
+			try
+			{
+				PublishTargetExitConfirmation(name, host, reason);
+				return;
+			}
+			catch
+			{
+				host.HostCleanupBlocked = true;
+				throw;
+			}
+		}
+
+		bool exitPublished = false;
+		try
+		{
+			bool forced = false;
+			List<Exception> markerFailures = [];
+			Process target = host.Target ?? throw new InvalidOperationException("The owned target is unavailable before exit confirmation.");
+			await LiveExecutionCleanup.ConfirmTargetExitAsync(
+				() => File.WriteAllText(host.TargetManifest + ".stop", "stop"),
+				() => target.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5)),
+				() => { forced = true; target.Kill(true); },
+				() => { target.Refresh(); return target.HasExited; }, markerFailures);
+
+			target.Dispose();
+			host.Target = null;
+			host.TargetExitConfirmed = true;
+			host.TargetTerminationForced = forced;
+			PublishTargetExitConfirmation(name, host, reason);
+			exitPublished = true;
+			if (markerFailures.Count != 0)
+			{
+				throw new AggregateException("The owned target exited, but writing its stop marker failed.", markerFailures);
+			}
+		}
+		catch when (exitPublished)
+		{
+			throw;
+		}
+		catch
+		{
+			host.HostCleanupBlocked = true;
+			Record($"target_{name}_termination_failed_before_host_cleanup", new
+			{
+				reason,
+				host.Public.TargetProcessId
+			});
+			throw;
+		}
+	}
+
+	private void PublishTargetExitConfirmation(string name, OwnedHost host, string reason)
+	{
+		File.WriteAllText(host.TargetExitPath, "exited");
+		host.HostCleanupBlocked = false;
+		if (!host.TargetTerminationReceiptEmitted)
+		{
+			Record($"target_{name}_terminated_before_host_cleanup",
+				new
+				{
+					reason,
+					host.Public.TargetProcessId,
+					forced = host.TargetTerminationForced
+				});
+			host.TargetTerminationReceiptEmitted = true;
 		}
 	}
 
@@ -349,7 +477,8 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 				ManagedObjectType = facts.ManagedObjectType,
 				ManagedObjectMarker = facts.ManagedObjectMarker,
 				ManagedObjectMirror = facts.ManagedObjectMirror,
-				ManagedObjectToggle = facts.ManagedObjectToggle
+				ManagedObjectToggle = facts.ManagedObjectToggle,
+				DebuggerExecution = facts.DebuggerExecution
 			};
 			Record($"target_{name}_restart", new
 			{
@@ -455,6 +584,17 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 				unsafeLua = false,
 				autoAssembler = false,
 				kernelAccess = false
+			});
+		}
+		if (_options.SymbolFixtureQualification)
+		{
+			string fixtureRoot = Path.Combine(_layout.RunDirectory, "native-symbol-fixture");
+			_nativeSymbolFixture = await LiveNativeSymbolFixture.BuildAsync(repository, fixtureRoot, CancellationToken.None);
+			Record("native_symbol_fixture", new
+			{
+				_nativeSymbolFixture.DllSha256,
+				_nativeSymbolFixture.PdbSha256,
+				_nativeSymbolFixture.CodeView
 			});
 		}
 		Directory.CreateDirectory(InstanceDirectory);
@@ -567,6 +707,7 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		if (_options.RequiresCapabilityConfiguration)
 		{
 			string[] allowedRoots = _options.CompilerQualification ? [CompilerRoots(name).Output]
+				: _options.SymbolFixtureQualification ? [Path.GetDirectoryName(NativeSymbolFixture.DllPath)!]
 				: _options.WorkflowQualification || _options.LifecycleQualification
 					? [Path.Combine(_layout.RunDirectory, "roadmap-qualification"), Path.Combine(_layout.RunDirectory, "pointer-qualification")]
 					: [];
@@ -576,7 +717,7 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 				{
 					EnableUnsafeLua = _options.AssemblerQualification,
 					EnableAutoAssembler = _options.AssemblerQualification,
-					EnableTargetCodeExecution = _options.CompilerQualification && _options.EnableTargetCodeExecution,
+					EnableTargetCodeExecution = _options.EnableTargetCodeExecution,
 					EnableKernelAccess = false,
 					Files = new
 					{
@@ -596,21 +737,39 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		Record($"plugin_{name}_sha256", CheatEngineInstallation.Sha256(pluginPath));
 		string stopPath = Path.Combine(_layout.RunDirectory, $"stop-{name}");
 		string targetManifest = Path.Combine(_layout.RunDirectory, $"target-{name}.json");
+		string targetExitPath = Path.Combine(_layout.RunDirectory, $"target-{name}.exited");
 		string driverPath = Path.Combine(HostInstallationDirectory(name), "autorun", "zz_cheatengine_mcp_live.lua");
-		File.WriteAllText(driverPath, BuildDriver(stopPath, pluginPath, name));
 		Process? target = null;
 		Process? host = null;
 		OwnedHost? owned = null;
 		try
 		{
 			target = StartTarget(targetManifest, name, _options.UseSoakLifetime);
-			owned = new OwnedHost(null, target, stopPath, targetManifest,
+			owned = new OwnedHost(null, target, stopPath, targetManifest, targetExitPath,
 				new LiveSandboxHost(name, 0, target.Id, string.Empty, string.Empty, string.Empty, string.Empty,
 					string.Empty, pluginPath, string.Empty, string.Empty));
 			_hosts.Add(name, owned);
 			await WaitUntilAsync(() => File.Exists(targetManifest), target, TimeSpan.FromSeconds(10));
 			JsonNode manifest = JsonNode.Parse(await File.ReadAllTextAsync(targetManifest))!;
 			LiveTargetManifest targetFacts = ReadTargetManifest(manifest, target.Id, name);
+			string selectionDiagnostic = string.Empty;
+			if (Environment.GetEnvironmentVariable("CHEATENGINE_MCP_LIVE_SELECTION_DIAGNOSTIC") ==
+				"I_AUTHORIZE_ONE_FIXED_PROCESS_SELECTION_TRACE_ON_OWNED_TARGETS")
+			{
+				if (!_options.WorkflowQualification)
+				{
+					throw new InvalidOperationException("The fixed process-selection trace requires the workflows scenario.");
+				}
+				RenderedProcessSelectionBridge bridge = await LiveProcessSelectionBridge.RenderAsync(targetManifest);
+				selectionDiagnostic = bridge.Source;
+				Record($"process_selection_diagnostic_{name}", new
+				{
+					bridge.ProcessId,
+					bridge.Address,
+					bridge.ReceiptPath
+				});
+			}
+			File.WriteAllText(driverPath, selectionDiagnostic + "\n" + BuildDriver(stopPath, targetExitPath, pluginPath, name));
 			ProcessStartInfo hostStart =
 				CreateStartInfo(Path.Combine(HostInstallationDirectory(name), _profile!.HostExecutable));
 			hostStart.Environment["MCP_HOST"] = "127.0.0.1";
@@ -640,7 +799,8 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 				ManagedObjectType = targetFacts.ManagedObjectType,
 				ManagedObjectMarker = targetFacts.ManagedObjectMarker,
 				ManagedObjectMirror = targetFacts.ManagedObjectMirror,
-				ManagedObjectToggle = targetFacts.ManagedObjectToggle
+				ManagedObjectToggle = targetFacts.ManagedObjectToggle,
+				DebuggerExecution = targetFacts.DebuggerExecution
 			};
 			InstanceDescriptor descriptor = await WaitForInstanceAsync(owned, TimeSpan.FromSeconds(45));
 			owned.Public = owned.Public with
@@ -663,6 +823,11 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 			{
 				try
 				{
+					if (_options.UsesTargetFirstExecutionShutdown)
+					{
+						await TerminateExecutionTargetsBeforeHostCleanupAsync("host startup failure", cleanupFailures);
+					}
+
 					await StopHostAsync(name);
 				}
 				catch (Exception cleanupException)
@@ -729,6 +894,10 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		{
 			start.ArgumentList.Add("--soak");
 		}
+		else if (_options.DebuggerQualification)
+		{
+			start.ArgumentList.Add("--debugger-loop");
+		}
 		start.ArgumentList.Add(manifest);
 		return Process.Start(start) ?? throw new InvalidOperationException($"Disposable target {name} did not start.");
 	}
@@ -741,6 +910,12 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		}
 
 		int width = manifest["pointerWidth"]!.GetValue<int>();
+		LiveDebuggerExecutionQualification.Manifest? debuggerExecution = manifest["debuggerExecution"] is { } loop
+			? LiveDebuggerExecutionQualification.ReadManifest(loop, processId) : null;
+		if (_options.DebuggerQualification && debuggerExecution is null)
+		{
+			throw new InvalidDataException("The debugger target omitted its owned advancing thread manifest.");
+		}
 		return width != (TargetArchitecture == "x86" ? 32 : 64)
 			? throw new InvalidOperationException($"Target manifest {name} reported pointer width {width}, not the requested {TargetArchitecture} width.")
 			: new LiveTargetManifest(manifest["address"]!.GetValue<string>(),
@@ -749,7 +924,7 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 			manifest["managedObjectAddress"]?.GetValue<string>() ?? string.Empty,
 			manifest["managedObjectType"]?.GetValue<string>() ?? string.Empty,
 			manifest["managedObjectMarker"]?.GetValue<int>(), manifest["managedObjectMirror"]?.GetValue<int>(),
-			manifest["managedObjectToggle"]?.GetValue<int>());
+			manifest["managedObjectToggle"]?.GetValue<int>(), debuggerExecution);
 	}
 
 	internal static string DistributionDirectory(string repository, string configuration)
@@ -980,7 +1155,7 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 			: lines;
 	}
 
-	private string BuildDriver(string stopPath, string pluginPath, string name)
+	private string BuildDriver(string stopPath, string targetExitPath, string pluginPath, string name)
 	{
 		int maximumLifetimeMilliseconds = _options.UseSoakLifetime ? 8_100_000 : 300_000;
 		string pluginBridge = LivePluginBridge.Render(Path.Combine(_layout.RunDirectory, $"plugin-request-{name}.txt"),
@@ -1037,15 +1212,12 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		         {{compilerProbe}}
 		         local timer = createTimer(nil, false)
 		         timer.Interval = 100
+		         {{LiveExecutionDriverLua.RenderPreamble()}}
 		         timer.OnTimer = function()
 		          local tickOk, tickError = pcall(function()
-		           local stop = io.open({{LuaString(stopPath)}}, 'r')
-		           if stop or (getTickCount()-started) % 4294967296 > {{maximumLifetimeMilliseconds}} then
-		             if stop then stop:close() end
-		             log('closing'); timer.Enabled=false
-		             pcall(function() getAddressList().clear() end)
-		             closeCE(); return
-		           end
+		           {{LiveExecutionDriverLua.RenderTimerBody(stopPath, targetExitPath,
+				Path.Combine(_layout.RunDirectory, $"expiry-{name}.signal"), maximumLifetimeMilliseconds,
+				_options.UsesTargetFirstExecutionShutdown)}}
 		           if loaded then pluginControl(); scanProbe(); compilerProbe(); return end
 		           if not getMainForm() then return end
 		           loaded = true
@@ -1296,6 +1468,7 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		Process? target,
 		string stopPath,
 		string targetManifest,
+		string targetExitPath,
 		LiveSandboxHost @public)
 	{
 		public string StopPath
@@ -1308,6 +1481,11 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 			get;
 			set;
 		} = targetManifest;
+
+		public string TargetExitPath
+		{
+			get;
+		} = targetExitPath;
 
 		public int TargetIncarnation
 		{
@@ -1338,9 +1516,34 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 			get;
 			set;
 		}
+
+		public bool TargetExitConfirmed
+		{
+			get;
+			set;
+		}
+
+		public bool HostCleanupBlocked
+		{
+			get;
+			set;
+		}
+
+		public bool TargetTerminationForced
+		{
+			get;
+			set;
+		}
+
+		public bool TargetTerminationReceiptEmitted
+		{
+			get;
+			set;
+		}
 	}
 
 	private sealed record LiveTargetManifest(string Address, string PointerRootAddress, string PointerTargetAddress,
 		string ZeroPointerRootAddress, string UnreadableRootAddress, string ManagedObjectAddress, string ManagedObjectType,
-		int? ManagedObjectMarker, int? ManagedObjectMirror, int? ManagedObjectToggle);
+		int? ManagedObjectMarker, int? ManagedObjectMirror, int? ManagedObjectToggle,
+		LiveDebuggerExecutionQualification.Manifest? DebuggerExecution);
 }

@@ -13,5 +13,7 @@ internal enum LiveQualificationScenario
 	DispatchDiagnostic,
 	Workflows,
 	Assembler,
-	Debugger
+	Debugger,
+	Execution,
+	SymbolFixture
 }

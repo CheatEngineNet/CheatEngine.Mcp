@@ -22,13 +22,14 @@ internal static class Program
 		}
 
 		bool soak = args.Length == 2 && string.Equals(args[0], "--soak", StringComparison.Ordinal);
-		if ((!soak && args.Length != 1) || (soak && string.IsNullOrWhiteSpace(args[1]))
-			|| (!soak && string.IsNullOrWhiteSpace(args[0])))
+		bool debuggerLoop = args.Length == 2 && string.Equals(args[0], "--debugger-loop", StringComparison.Ordinal);
+		if ((!soak && !debuggerLoop && args.Length != 1) || ((soak || debuggerLoop) && string.IsNullOrWhiteSpace(args[1]))
+			|| (!soak && !debuggerLoop && string.IsNullOrWhiteSpace(args[0])))
 		{
 			return 64;
 		}
 
-		string manifestPath = Path.GetFullPath(soak ? args[1] : args[0]);
+		string manifestPath = Path.GetFullPath((soak || debuggerLoop) ? args[1] : args[0]);
 		string stopMarkerPath = $"{manifestPath}.stop";
 		IntPtr direct = IntPtr.Zero;
 		IntPtr root = IntPtr.Zero;
@@ -37,8 +38,14 @@ internal static class Program
 		IntPtr zeroRoot = IntPtr.Zero;
 		ManagedObjectProbe? managedProbe = null;
 		GCHandle managedProbePin = default;
+		DebuggerExecutionLoop? debuggerExecution = null;
 		try
 		{
+			if (debuggerLoop)
+			{
+				debuggerExecution = DebuggerExecutionLoop.Start();
+			}
+
 			direct = Marshal.AllocHGlobal(64);
 			root = Marshal.AllocHGlobal(64);
 			middle = Marshal.AllocHGlobal(64);
@@ -70,7 +77,18 @@ internal static class Program
 				managedObjectType = typeof(ManagedObjectProbe).FullName,
 				managedObjectMarker = ManagedObjectMarker,
 				managedObjectMirror = ManagedObjectMirror,
-				managedObjectToggle = ManagedObjectToggle
+				managedObjectToggle = ManagedObjectToggle,
+				debuggerExecution = debuggerExecution is null ? null : new
+				{
+					threadId = debuggerExecution.ThreadId,
+					codeStart = Address(debuggerExecution.CodeStart),
+					entryAddress = Address(debuggerExecution.EntryAddress),
+					captureAddress = Address(debuggerExecution.CaptureAddress),
+					runToAddress = Address(debuggerExecution.RunToAddress),
+					codeEnd = Address(debuggerExecution.CodeEnd),
+					progressAddress = Address(debuggerExecution.ProgressAddress),
+					hitCounterAddress = Address(debuggerExecution.HitCounterAddress)
+				}
 			});
 			File.WriteAllText(manifestPath + ".tmp", manifest);
 			File.Move(manifestPath + ".tmp", manifestPath);
@@ -86,6 +104,11 @@ internal static class Program
 		}
 		finally
 		{
+			if (debuggerExecution is not null && !debuggerExecution.TryStop(TimeSpan.FromSeconds(5)))
+			{
+				Environment.FailFast("Debugger execution fixture thread did not stop.");
+			}
+
 			if (managedProbePin.IsAllocated)
 			{
 				managedProbePin.Free();

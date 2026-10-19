@@ -12,7 +12,7 @@ Lua body do not establish successful native execution.
 - [x] Check gateway-local discovery with zero and two instances.
 - [x] Run the portable Release suite; final results are recorded below.
 - [x] Run the portable Debug suite with the same exclusions.
-- [x] Run standalone Lua 5.3 with CE API doubles (722 passed, zero failed or skipped).
+- [x] Run standalone Lua 5.3 with CE API doubles (732 passed, zero failed or skipped).
 - [x] Add and run result assertions for the Lua, table-save and code-view adapters (12 passed).
 - [x] Add seven record adapter cases and four code/process adapter cases; run both focused classes.
 - [x] Fix the `code_get_comments` array argument expansion found by those tests.
@@ -45,6 +45,7 @@ Lua body do not establish successful native execution.
 - [ ] Resolve the intermittent native SDK frame-restoration crash reproduced by the package 11 compiler session.
 - [ ] Qualify generated AOB signatures, generated API hooks and owned process creation.
 - [ ] Supply the remaining native managed object/instance, Mono, debugger event, compiler/ABI, PDB and patch fixtures.
+- [x] Prepare and review separate fixed C/ABI, local DLL/PDB and advancing-thread debugger cases with independent cleanup receipts.
 - [ ] Qualify successful gated operations and DBK/DBVM operations in their required environments.
 - [ ] Qualify all tools on the exact replacement product bundle after fixes, including restart and cleanup.
 
@@ -58,6 +59,24 @@ cases, not complete behavior partitions or native CE qualification. The gateway'
 bring the advertised catalog total to 207. A live mapping requires its own concrete oracle and cleanup receipts.
 
 ## Source-built native results from 2026-10-19
+
+SDK fixes [#97](https://github.com/CheatEngineNet/CheatEngine.SDK/pull/97) and
+[#98](https://github.com/CheatEngineNet/CheatEngine.SDK/pull/98) are merged. The source dependency now pins
+SDK main `900f240975ad077d5b920c70442b96a99bcc2aa4`; Client remains at main
+`9b836e6ced8e97b4506dc8523998c7c2081cc2ad`. The process-selection fix requires an actual Boolean `true`
+from CE before checking the selected PID and pointer width. Its five rejection regressions fail against
+the previous code; all 77 affected tests and 751 Engine NativeLua tests passed after the fix.
+This establishes the selection contract, not the cause of the file-target transition failure.
+
+The next fixture batch adds separate x64 scenarios for four fixed C/ABI calls and a locally built native
+DLL/PDB, plus a dedicated advancing debugger thread with published instruction addresses. Review requires
+an exact one-byte step boundary and a nonempty stack containing the fixed native call's known return address.
+The combined Release build, **5,647** portable tests and **732** standalone Lua tests pass with no failures or skips.
+Reports are `native-fixtures-portable-3` and `native-fixtures-native-lua-2` under
+`artifacts/test-results/ai-analysis-20261019`. These are prepared
+cases; native success requires a complete passing session and its independent cleanup receipts.
+There are now **178** prepared backend mappings. The DLL/PDB builder passed a real local MSVC preflight;
+its source lives under the existing live-target project so the repository project-layout rule remains intact.
 
 The next correction batch passed its Release build with zero warnings or errors, **5,608** portable cases,
 **722** standalone Lua cases and all five contract snapshots, with zero failures or skips. Parsed TRX result

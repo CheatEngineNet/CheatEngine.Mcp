@@ -13,6 +13,12 @@ internal static class LiveQualificationOptIn
 	internal const string CodeExecutionOptInVariable = "CHEATENGINE_MCP_LIVE_CODE_EXECUTION_QUALIFICATION";
 	internal const string CodeExecutionAcknowledgement =
 		"I_AUTHORIZE_FIXED_COMPILECS_PROBES_ON_PRIVATE_CE_AND_OWNED_TARGETS";
+	internal const string ExecutionOptInVariable = "CHEATENGINE_MCP_LIVE_EXECUTION_QUALIFICATION";
+	internal const string ExecutionAcknowledgement =
+		"I_AUTHORIZE_FIXED_C_AND_CALL_PROBES_ON_PRIVATE_CE_AND_OWNED_TARGETS";
+	internal const string SymbolFixtureOptInVariable = "CHEATENGINE_MCP_LIVE_SYMBOL_FIXTURE_QUALIFICATION";
+	internal const string SymbolFixtureAcknowledgement =
+		"I_AUTHORIZE_FIXED_NATIVE_DLL_AND_LOCAL_PDB_ON_PRIVATE_CE_AND_OWNED_TARGETS";
 	internal const string InjectionOptInVariable = "CHEATENGINE_MCP_LIVE_MANAGED_INJECTION_QUALIFICATION";
 	internal const string InjectionAcknowledgement =
 		"I_AUTHORIZE_FIXED_MANAGED_INJECTION_ON_OWNED_FRAMEWORK_TARGETS";
@@ -64,6 +70,8 @@ internal static class LiveQualificationOptIn
 			"workflows" => LiveQualificationScenario.Workflows,
 			"assembler" => LiveQualificationScenario.Assembler,
 			"debugger" => LiveQualificationScenario.Debugger,
+			"execution" => LiveQualificationScenario.Execution,
+			"symbol-fixture" => LiveQualificationScenario.SymbolFixture,
 			"performance" => LiveQualificationScenario.Performance,
 			"soak" => LiveQualificationScenario.Soak,
 			"dispatch-diagnostic" => LiveQualificationScenario.DispatchDiagnostic,
@@ -71,7 +79,7 @@ internal static class LiveQualificationOptIn
 		};
 		if (selectedScenario is null)
 		{
-			return Refuse($"{ScenarioVariable} must be smoke, compiler, compiler-extended, compiler-injection, lifecycle, workflows, assembler, debugger, performance, soak, or dispatch-diagnostic.");
+			return Refuse($"{ScenarioVariable} must be smoke, compiler, compiler-extended, compiler-injection, lifecycle, workflows, assembler, debugger, execution, symbol-fixture, performance, soak, or dispatch-diagnostic.");
 		}
 
 		LiveQualificationScenario scenario = selectedScenario.Value;
@@ -116,10 +124,30 @@ internal static class LiveQualificationOptIn
 		{
 			return Refuse($"{DebuggerOptInVariable} must contain the exact acknowledgement {DebuggerAcknowledgement}.");
 		}
+		if (scenario == LiveQualificationScenario.Execution &&
+			variables(ExecutionOptInVariable) != ExecutionAcknowledgement)
+		{
+			return Refuse($"{ExecutionOptInVariable} must contain the exact acknowledgement {ExecutionAcknowledgement}.");
+		}
+		if (scenario == LiveQualificationScenario.SymbolFixture &&
+			variables(SymbolFixtureOptInVariable) != SymbolFixtureAcknowledgement)
+		{
+			return Refuse($"{SymbolFixtureOptInVariable} must contain the exact acknowledgement {SymbolFixtureAcknowledgement}.");
+		}
 		if (compiler && compilerTempSettingsAreSafe is not null &&
 			!compilerTempSettingsAreSafe())
 		{
 			return Refuse("Cheat Engine's Don't use tempdir setting is enabled; compiler qualification requires the owned TEMP directory.");
+		}
+
+		string architecture = variables(TargetArchitectureVariable) ?? "x64";
+		if (architecture is not ("x64" or "x86"))
+		{
+			return Refuse($"{TargetArchitectureVariable} must be x64 or x86.");
+		}
+		if ((scenario is LiveQualificationScenario.Execution or LiveQualificationScenario.SymbolFixture or LiveQualificationScenario.Debugger) && architecture != "x64")
+		{
+			return Refuse("The fixed execution qualification supports only the owned x64 target.");
 		}
 
 		string source = variables(CheatEngineDirectoryVariable) is { Length: > 0 } configuredSource
@@ -143,12 +171,6 @@ internal static class LiveQualificationOptIn
 			return Refuse(
 				"The run root must lie outside the repository and apart from the installed Cheat Engine directory.");
 		}
-		string architecture = variables(TargetArchitectureVariable) ?? "x64";
-		if (architecture is not ("x64" or "x86"))
-		{
-			return Refuse($"{TargetArchitectureVariable} must be x64 or x86.");
-		}
-
 		return new LiveQualificationDecision(
 			new LiveQualificationInputs(Path.GetFullPath(repositoryRoot), Path.GetFullPath(source),
 				Path.GetFullPath(runRoot), architecture, scenario)

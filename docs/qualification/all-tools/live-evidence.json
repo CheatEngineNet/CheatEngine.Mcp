@@ -1347,7 +1347,7 @@
       "name": "debugger_attach",
       "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerQualification.cs",
       "testMethod": "VerifyAsync",
-      "oracle": "Windows debugger attaches to the owned PID; a request for an externally observed owned thread is followed by global stopped context. IP belongs to an independently enumerated target module; stack pointer/width and8 scanned slots match context (empty heuristic frames are allowed). Continue and detach are independently observed. This does not prove thread-specific event capture or nonempty frame extraction.",
+      "oracle": "Windows debugger attaches to the owned PID and stops the exact published native TID. Context IP belongs to owned code or an independently enumerated OS module; stack pointer and width match context, 128 slots are scanned, and nonempty heuristic frames include the fixed native call return at CodeStart+45. Continue and detach are independently observed. This does not prove debugger event capture.",
       "receipt": "all_tools_debugger_attach",
       "cleanupReceipt": "live_debugger_windows_cleanup",
       "scope": "reversible_workflow"
@@ -1356,7 +1356,7 @@
       "name": "debugger_break_thread",
       "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerQualification.cs",
       "testMethod": "VerifyAsync",
-      "oracle": "Windows debugger attaches to the owned PID; a request for an externally observed owned thread is followed by global stopped context. IP belongs to an independently enumerated target module; stack pointer/width and8 scanned slots match context (empty heuristic frames are allowed). Continue and detach are independently observed. This does not prove thread-specific event capture or nonempty frame extraction.",
+      "oracle": "Windows debugger attaches to the owned PID and stops the exact published native TID. Context IP belongs to owned code or an independently enumerated OS module; stack pointer and width match context, 128 slots are scanned, and nonempty heuristic frames include the fixed native call return at CodeStart+45. Continue and detach are independently observed. This does not prove debugger event capture.",
       "receipt": "all_tools_debugger_break_thread",
       "cleanupReceipt": "live_debugger_windows_cleanup",
       "scope": "reversible_workflow"
@@ -1365,7 +1365,7 @@
       "name": "debugger_get_context",
       "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerQualification.cs",
       "testMethod": "VerifyAsync",
-      "oracle": "Windows debugger attaches to the owned PID; a request for an externally observed owned thread is followed by global stopped context. IP belongs to an independently enumerated target module; stack pointer/width and8 scanned slots match context (empty heuristic frames are allowed). Continue and detach are independently observed. This does not prove thread-specific event capture or nonempty frame extraction.",
+      "oracle": "Windows debugger attaches to the owned PID and stops the exact published native TID. Context IP belongs to owned code or an independently enumerated OS module; stack pointer and width match context, 128 slots are scanned, and nonempty heuristic frames include the fixed native call return at CodeStart+45. Continue and detach are independently observed. This does not prove debugger event capture.",
       "receipt": "all_tools_debugger_get_context",
       "cleanupReceipt": "live_debugger_windows_cleanup",
       "scope": "reversible_workflow"
@@ -1374,7 +1374,7 @@
       "name": "debugger_get_stack_trace",
       "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerQualification.cs",
       "testMethod": "VerifyAsync",
-      "oracle": "Windows debugger attaches to the owned PID; a request for an externally observed owned thread is followed by global stopped context. IP belongs to an independently enumerated target module; stack pointer/width and8 scanned slots match context (empty heuristic frames are allowed). Continue and detach are independently observed. This does not prove thread-specific event capture or nonempty frame extraction.",
+      "oracle": "Windows debugger attaches to the owned PID and stops the exact published native TID. Context IP is in owned code or an independently observed OS module; 128 scanned stack slots are aligned and each lies in [RSP,RSP+1024), heuristic frames are nonempty, and the fixed loop's Sleep-call return is CodeStart+45 (FF D0 at offsets 43..44). Continue and detach are independently observed.",
       "receipt": "all_tools_debugger_get_stack_trace",
       "cleanupReceipt": "live_debugger_windows_cleanup",
       "scope": "reversible_workflow"
@@ -1383,7 +1383,7 @@
       "name": "debugger_continue",
       "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerQualification.cs",
       "testMethod": "VerifyAsync",
-      "oracle": "Windows debugger attaches to the owned PID; a request for an externally observed owned thread is followed by global stopped context. IP belongs to an independently enumerated target module; stack pointer/width and8 scanned slots match context (empty heuristic frames are allowed). Continue and detach are independently observed. This does not prove thread-specific event capture or nonempty frame extraction.",
+      "oracle": "Windows debugger attaches to the owned PID and stops the exact published native TID. Context IP belongs to owned code or an independently enumerated OS module; stack pointer and width match context, 128 slots are scanned, and nonempty heuristic frames include the fixed native call return at CodeStart+45. Continue and detach are independently observed. This does not prove debugger event capture.",
       "receipt": "all_tools_debugger_continue",
       "cleanupReceipt": "live_debugger_windows_cleanup",
       "scope": "reversible_workflow"
@@ -1392,10 +1392,136 @@
       "name": "debugger_detach",
       "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerQualification.cs",
       "testMethod": "VerifyAsync",
-      "oracle": "Windows debugger attaches to the owned PID; a request for an externally observed owned thread is followed by global stopped context. IP belongs to an independently enumerated target module; stack pointer/width and8 scanned slots match context (empty heuristic frames are allowed). Continue and detach are independently observed. This does not prove thread-specific event capture or nonempty frame extraction.",
+      "oracle": "Windows debugger attaches to the owned PID and stops the exact published native TID. Context IP belongs to owned code or an independently enumerated OS module; stack pointer and width match context, 128 slots are scanned, and nonempty heuristic frames include the fixed native call return at CodeStart+45. Continue and detach are independently observed. This does not prove debugger event capture.",
       "receipt": "all_tools_debugger_detach",
       "cleanupReceipt": "live_debugger_windows_cleanup",
       "scope": "reversible_workflow"
+    },
+    {
+      "name": "debugger_set_breakpoint",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerExecutionQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Exact owned entry and run-to execute breakpoints report their requested address and native thread ID, are listed as owned resources, and stop at the independently published instruction addresses.",
+      "receipt": "all_tools_debugger_execution_first_group",
+      "cleanupReceipt": "live_debugger_execution_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "debugger_list_breakpoints",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerExecutionQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Each exact owned breakpoint address has one listed owned resource with the returned resource ID before execution continues.",
+      "receipt": "all_tools_debugger_execution_first_group",
+      "cleanupReceipt": "live_debugger_execution_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "debugger_delete_breakpoint",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerExecutionQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Each deletion reports released=true and a separate nontruncated listing proves no owned breakpoint remains at the exact address.",
+      "receipt": "all_tools_debugger_execution_first_group",
+      "cleanupReceipt": "live_debugger_execution_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "debugger_set_register",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerExecutionQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "At the owned entry stop, RAX accepts the fixed marker with verified=true, a separate context reads it back, and a second verified write restores the exact original RAX value.",
+      "receipt": "all_tools_debugger_execution_first_group",
+      "cleanupReceipt": "live_debugger_execution_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "debugger_step",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerExecutionQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Stepping into from the fixed one-byte NOP at RunTo stops at the exact next owned instruction, RunTo+1, confirmed by both stopped context and a separate context read.",
+      "receipt": "all_tools_debugger_execution_first_group",
+      "cleanupReceipt": "live_debugger_execution_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "debugger_run_to",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerExecutionQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The retained run-to job reports the owned PID and exact RunTo address, is listed as kind debugrunto, and stops at the independently published owned instruction.",
+      "receipt": "all_tools_debugger_execution_first_group",
+      "cleanupReceipt": "live_debugger_execution_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "exec_compile_c",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveExecutionQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Fixed C source compiles only into the owned executable allocation; both returned function symbols lie in its independently bounded range, and both functions later produce their fixed return values and separate owned-buffer effects.",
+      "receipt": "all_tools_exec_compile_c",
+      "cleanupReceipt": "live_execution_code_cleanup",
+      "scope": "target_execution"
+    },
+    {
+      "name": "exec_call_remote",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveExecutionQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The fixed remote function receives the explicitly encoded owned buffer pointer and scalar 23, returns1024, and independently writes1023 to that buffer.",
+      "receipt": "all_tools_exec_call_remote",
+      "cleanupReceipt": "live_execution_code_cleanup",
+      "scope": "target_execution"
+    },
+    {
+      "name": "exec_call_method",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveExecutionQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The fixed method call uses the owned buffer as the RCX class instance with scalar29, returns2031, and independently writes2029 to that buffer.",
+      "receipt": "all_tools_exec_call_method",
+      "cleanupReceipt": "live_execution_code_cleanup",
+      "scope": "target_execution"
+    },
+    {
+      "name": "exec_call_local",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveExecutionQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The fixed local kernel32.GetProcessId call receives pseudo-handle -1 and returns the independently known private Cheat Engine host PID.",
+      "receipt": "all_tools_exec_call_local",
+      "cleanupReceipt": "live_execution_code_cleanup",
+      "scope": "target_execution"
+    },
+    {
+      "name": "exec_inject_library",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveNativeSymbolFixtureQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "A fixed local-only x64 DLL with preflight-verified PE/PDB identity and export RVAs is injected only into the owned target; OS and MCP module identities agree, and exact non-forwarded export addresses equal base plus independent RVAs.",
+      "receipt": "all_tools_exec_inject_library",
+      "cleanupReceipt": "native_symbol_fixture_cleanup",
+      "scope": "target_execution"
+    },
+    {
+      "name": "symbol_reload",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveNativeSymbolFixtureQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "When the injected fixture was not already auto-discovered, new_modules reload must make its exact owned Tick export appear at base plus its preflight RVA with symbolsLoaded=true; auto-discovery remains explicitly inconclusive.",
+      "receipt": "all_tools_symbol_reload",
+      "cleanupReceipt": "native_symbol_fixture_cleanup",
+      "scope": "target_execution"
+    },
+    {
+      "name": "symbol_add_module",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveNativeSymbolFixtureQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Only when the fixed PDB layout is absent before add_module, the exact owned PDB at the observed module base produces the complete fixed layout; an already-present layout remains explicitly inconclusive.",
+      "receipt": "all_tools_symbol_add_module",
+      "cleanupReceipt": "native_symbol_fixture_cleanup",
+      "scope": "target_execution"
+    },
+    {
+      "name": "structure_get_pdb_layout",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveNativeSymbolFixtureQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "After discriminating local PDB add_module, CemcpPdbFixtureLayout has exactly Magic:uint32@0, Delta:uint16@4, Flags:uint16@6 and Counter:uint64@8. The API does not expose the original signed word metadata.",
+      "receipt": "all_tools_structure_get_pdb_layout",
+      "cleanupReceipt": "native_symbol_fixture_cleanup",
+      "scope": "target_execution"
     },
     {
       "name": "exec_compile_csharp",

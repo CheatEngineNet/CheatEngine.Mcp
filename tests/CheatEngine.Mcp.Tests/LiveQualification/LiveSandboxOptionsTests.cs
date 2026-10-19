@@ -3,6 +3,25 @@ namespace CheatEngine.Mcp.Tests.LiveQualification;
 public sealed class LiveSandboxOptionsTests
 {
 	[Fact]
+	public void ValidateFor_SymbolFixtureRequiresOnlyItsIsolatedExecutionConfiguration()
+	{
+		LiveSandboxOptions symbols = LiveSandboxOptions.Smoke with
+		{
+			SymbolFixtureQualification = true,
+			EnableTargetCodeExecution = true
+		};
+		symbols.ValidateFor(LiveQualificationScenario.SymbolFixture);
+		Assert.True(symbols.RequiresCapabilityConfiguration);
+		Assert.True(symbols.UsesTargetFirstExecutionShutdown);
+		Assert.Throws<InvalidOperationException>(() => (symbols with { EnableTargetCodeExecution = false }).ValidateFor(LiveQualificationScenario.SymbolFixture));
+		Assert.Throws<InvalidOperationException>(() => (symbols with { CompilerQualification = true }).ValidateFor(LiveQualificationScenario.SymbolFixture));
+		Assert.Throws<InvalidOperationException>(() => (symbols with { EnableManagedInjection = true }).ValidateFor(LiveQualificationScenario.SymbolFixture));
+		Assert.Throws<InvalidOperationException>(() => (symbols with { AssemblerQualification = true }).ValidateFor(LiveQualificationScenario.SymbolFixture));
+		Assert.Throws<InvalidOperationException>(() => (symbols with { DebuggerQualification = true }).ValidateFor(LiveQualificationScenario.SymbolFixture));
+		Assert.Throws<InvalidOperationException>(() => (symbols with { TempTopology = CompilerTempTopology.Shared }).ValidateFor(LiveQualificationScenario.SymbolFixture));
+	}
+
+	[Fact]
 	public void ValidateFor_ExactScenarioOptions_Accept()
 	{
 		LiveSandboxOptions.Smoke.ValidateFor(LiveQualificationScenario.Smoke);
@@ -46,6 +65,12 @@ public sealed class LiveSandboxOptionsTests
 		{
 			DebuggerQualification = true
 		}).ValidateFor(LiveQualificationScenario.Debugger);
+		(LiveSandboxOptions.Smoke with
+		{
+			SymbolFixtureQualification = true,
+			EnableTargetCodeExecution = true
+		})
+			.ValidateFor(LiveQualificationScenario.SymbolFixture);
 	}
 
 	[Fact]

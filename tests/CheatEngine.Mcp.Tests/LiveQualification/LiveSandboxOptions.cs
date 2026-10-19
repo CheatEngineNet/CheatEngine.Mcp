@@ -7,7 +7,7 @@ internal sealed record LiveSandboxOptions(bool CompilerQualification, bool Enabl
 
 	internal bool RequiresCapabilityConfiguration => CompilerQualification || LifecycleQualification
 		|| PerformanceQualification || SoakQualification || DispatchDiagnostic || WorkflowQualification || AssemblerQualification
-		|| DebuggerQualification;
+		|| DebuggerQualification || ExecutionQualification || SymbolFixtureQualification;
 
 	internal LiveCompilerVariant Variant { get; init; } = LiveCompilerVariant.Normal;
 	internal CompilerTempTopology TempTopology { get; init; } = CompilerTempTopology.Isolated;
@@ -47,6 +47,15 @@ internal sealed record LiveSandboxOptions(bool CompilerQualification, bool Enabl
 	{
 		get; init;
 	}
+	internal bool ExecutionQualification
+	{
+		get; init;
+	}
+	internal bool SymbolFixtureQualification
+	{
+		get; init;
+	}
+	internal bool UsesTargetFirstExecutionShutdown => ExecutionQualification || SymbolFixtureQualification;
 	internal string? DistributionDirectoryOverride
 	{
 		get; init;
@@ -58,10 +67,17 @@ internal sealed record LiveSandboxOptions(bool CompilerQualification, bool Enabl
 			or LiveQualificationScenario.CompilerInjection;
 		bool injection = scenario == LiveQualificationScenario.CompilerInjection;
 		bool extended = scenario == LiveQualificationScenario.CompilerExtended;
+		bool execution = scenario == LiveQualificationScenario.Execution;
+		bool symbolFixture = scenario == LiveQualificationScenario.SymbolFixture;
 		bool valid = Enum.IsDefined(scenario) && Enum.IsDefined(Variant) && Enum.IsDefined(TempTopology)
 			&& CompilerQualification == compiler
 			&& EnableManagedInjection == injection
-			&& (!EnableTargetCodeExecution || compiler)
+			&& (!EnableTargetCodeExecution || compiler || execution || symbolFixture)
+			&& ExecutionQualification == execution
+			&& SymbolFixtureQualification == symbolFixture
+			&& (!execution || EnableTargetCodeExecution)
+			&& (!execution || (!CompilerQualification && !EnableManagedInjection))
+			&& (!symbolFixture || (EnableTargetCodeExecution && !CompilerQualification && !EnableManagedInjection))
 			&& (!injection || EnableTargetCodeExecution)
 			&& LifecycleQualification == (scenario == LiveQualificationScenario.Lifecycle)
 			&& WorkflowQualification == (scenario == LiveQualificationScenario.Workflows)

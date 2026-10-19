@@ -8,8 +8,7 @@ using CheatEngine.Mcp.Core.Contract;
 namespace CheatEngine.Mcp.Tests.LiveQualification;
 
 /// <summary>
-/// Bounded Windows-debugger evidence against the disposable target. It deliberately avoids breakpoints, stepping,
-/// capture and tracing because the ordinary live fixture has no stable instruction-level workload for those cases.
+/// Bounded Windows-debugger evidence against the disposable target's published native execution loop.
 /// </summary>
 [SupportedOSPlatform("windows")]
 internal static class LiveDebuggerQualification
@@ -27,6 +26,9 @@ internal static class LiveDebuggerQualification
 		List<Exception> cleanup = [];
 		try
 		{
+			LiveDebuggerExecutionQualification.Manifest loop = sandbox.HostA.DebuggerExecution
+				?? throw new InvalidOperationException("The debugger scenario requires the owned advancing thread manifest.");
+			loop.Validate(sandbox.HostA.TargetProcessId);
 			using Process target = Process.GetProcessById(sandbox.HostA.TargetProcessId);
 			HashSet<int> externalThreadIds = target.Threads.Cast<ProcessThread>().Select(thread => thread.Id).ToHashSet();
 			Assert.NotEmpty(externalThreadIds);
@@ -34,7 +36,16 @@ internal static class LiveDebuggerQualification
 			JsonNode listed = await CallAsync(instance, CheatEngineToolNames.ProcessListThreads);
 			Assert.False(listed["truncated"]!.GetValue<bool>());
 			long threadId = SelectOwnedThreadId(
-				listed["threads"]!.AsArray().Select(thread => thread!.GetValue<long>()), externalThreadIds);
+				listed["threads"]!.AsArray().Select(thread => thread!.GetValue<long>()), externalThreadIds, loop.ThreadId);
+			sandbox.Record("debugger_thread_admission", new
+			{
+				threadId,
+				externalThreadIds = externalThreadIds.Order().ToArray(),
+				reportedThreads = listed.DeepClone(),
+				loop
+			});
+			await LiveDebuggerExecutionQualification.RequireHeartbeatAsync(sandbox, instance,
+				loop.ProgressAddress, loop.HitCounterAddress, "basic_before_attach");
 
 			JsonNode before = await WaitForStatusAsync(sandbox, instance, "initial", status =>
 				!status["attached"]!.GetValue<bool>() && !status["broken"]!.GetValue<bool>());
@@ -64,6 +75,7 @@ internal static class LiveDebuggerQualification
 				new Dictionary<string, object?> { ["threadId"] = threadId });
 			Assert.Equal(threadId, requested["threadId"]!.GetValue<long>());
 			Assert.True(requested["requested"]!.GetValue<bool>());
+			sandbox.Record("debugger_break_request_observed", requested.DeepClone());
 
 			JsonNode stopped = await WaitForStatusAsync(sandbox, instance, "stopped", status =>
 				status["attached"]!.GetValue<bool>() && status["broken"]!.GetValue<bool>());
@@ -79,6 +91,7 @@ internal static class LiveDebuggerQualification
 			bool expected64Bit = sandbox.TargetArchitecture == "x64";
 			Assert.Equal(expected64Bit, context["is64Bit"]!.GetValue<bool>());
 			JsonObject registers = context["registers"]!.AsObject();
+			Assert.Equal((ulong) loop.ThreadId, ParseHex(Text(registers, "THREADID")));
 			string instructionPointer = expected64Bit ? "RIP" : "EIP";
 			string stackPointer = expected64Bit ? "RSP" : "ESP";
 			ulong instructionPointerAddress = ParseHex(Text(registers, instructionPointer));
@@ -88,18 +101,23 @@ internal static class LiveDebuggerQualification
 			sandbox.Record("all_tools_debugger_get_context", context.DeepClone());
 
 			JsonNode stack = await CallAsync(instance, CheatEngineToolNames.DebuggerGetStackTrace,
-				new Dictionary<string, object?> { ["depth"] = 8 });
+				new Dictionary<string, object?> { ["depth"] = 128 });
 			Assert.Equal(expectedStackPointer, Text(stack, "stackPointer"), ignoreCase: true);
 			Assert.Equal(expected64Bit ? 8 : 4, stack["pointerSize"]!.GetValue<int>());
-			Assert.Equal(8, stack["scannedSlots"]!.GetValue<int>());
+			Assert.Equal(128, stack["scannedSlots"]!.GetValue<int>());
 			ModuleRange[] moduleRanges = ReadModuleRanges(target);
 			Assert.NotEmpty(moduleRanges);
-			Assert.True(IsAddressInModules(instructionPointerAddress, moduleRanges),
-				"The broken context did not stop in a module independently enumerated from the owned target.");
-			foreach (JsonNode frame in stack["frames"]!.AsArray().OfType<JsonNode>())
+			Assert.True(IsAddressInModules(instructionPointerAddress, moduleRanges)
+				|| (instructionPointerAddress >= loop.CodeStart && instructionPointerAddress < loop.CodeEnd),
+				"The owned thread did not stop in its exact executable range or an independently enumerated module.");
+			JsonArray frames = stack["frames"]!.AsArray();
+			Assert.NotEmpty(frames);
+			ulong stackStart = ParseHex(expectedStackPointer);
+			foreach (JsonNode frame in frames.OfType<JsonNode>())
 			{
 				Assert.True(frame["isHeuristic"]!.GetValue<bool>());
-				Assert.True(ParseHex(Text(frame, "stackAddress")) > 0);
+				ulong slot = ParseHex(Text(frame, "stackAddress"));
+				Assert.True(slot >= stackStart && slot < checked(stackStart + (128 * 8)) && (slot - stackStart) % 8 == 0);
 				ulong returnAddress = ParseHex(Text(frame, "returnAddress"));
 				Assert.True(returnAddress > 0);
 				Assert.Contains("call", Text(frame, "callInstruction"), StringComparison.OrdinalIgnoreCase);
@@ -107,6 +125,9 @@ internal static class LiveDebuggerQualification
 				// observed but never treated as an invariant of the production tool.
 				_ = IsAddressInModules(returnAddress, moduleRanges);
 			}
+			// The fixed loop's FF D0 call at offsets 43..44 returns exactly to offset 45.
+			Assert.Contains(frames, frame => frame is not null &&
+				ParseHex(Text(frame, "returnAddress")) == checked(loop.CodeStart + 45));
 			sandbox.Record("all_tools_debugger_get_stack_trace", stack.DeepClone());
 
 			JsonNode continued = await CallAsync(instance, CheatEngineToolNames.DebuggerContinue);
@@ -141,7 +162,7 @@ internal static class LiveDebuggerQualification
 				stack = stack.DeepClone(),
 				continued = continued.DeepClone(),
 				detached = detached.DeepClone(),
-				instructionPointerInOwnedModule = true,
+				instructionPointerInOwnedCodeOrModule = true,
 				stackFramesInKnownModules = stack["frames"]!.AsArray().Count(frame =>
 					frame is not null && IsAddressInModules(ParseHex(Text(frame, "returnAddress")), moduleRanges))
 			});
@@ -170,16 +191,14 @@ internal static class LiveDebuggerQualification
 		}
 	}
 
-	internal static long SelectOwnedThreadId(IEnumerable<long> reportedThreadIds, IEnumerable<int> externalThreadIds)
+	internal static long SelectOwnedThreadId(IEnumerable<long> reportedThreadIds, IEnumerable<int> externalThreadIds, int expectedThreadId)
 	{
 		ArgumentNullException.ThrowIfNull(reportedThreadIds);
 		ArgumentNullException.ThrowIfNull(externalThreadIds);
-		HashSet<long> external = externalThreadIds.Where(id => id > 0).Select(static id => (long) id).ToHashSet();
-		long selected = reportedThreadIds.Where(id => id > 0 && external.Contains(id)).OrderBy(id => id).FirstOrDefault();
-		return selected > 0
-			? selected
+		return expectedThreadId > 0 && externalThreadIds.Contains(expectedThreadId) && reportedThreadIds.Contains(expectedThreadId)
+			? expectedThreadId
 			: throw new InvalidOperationException(
-				"Cheat Engine did not report a thread belonging to the independently observed owned target.");
+				"Cheat Engine did not report the published thread in the independently observed owned target.");
 	}
 
 	internal static bool IsAddressInModules(ulong address, IEnumerable<ModuleRange> modules)

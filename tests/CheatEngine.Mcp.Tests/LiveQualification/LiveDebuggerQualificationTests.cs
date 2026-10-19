@@ -8,7 +8,7 @@ public sealed class LiveDebuggerQualificationTests
 	[Fact]
 	public void SelectOwnedThreadId_UsesTheSharedPositiveThreadId()
 	{
-		long selected = LiveDebuggerQualification.SelectOwnedThreadId([53, 17, 53], [17, 91]);
+		long selected = LiveDebuggerQualification.SelectOwnedThreadId([53, 17, 53], [17, 91], 17);
 
 		Assert.Equal(17, selected);
 	}
@@ -17,9 +17,16 @@ public sealed class LiveDebuggerQualificationTests
 	public void SelectOwnedThreadId_WithoutAnExternalMatch_Refuses()
 	{
 		InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
-			LiveDebuggerQualification.SelectOwnedThreadId([53, 17], [91, 92]));
+			LiveDebuggerQualification.SelectOwnedThreadId([53, 17], [91, 92], 17));
 
 		Assert.Contains("independently observed", exception.Message, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void SelectOwnedThreadId_RejectsAnotherSharedThreadWhenPublishedThreadIsMissing()
+	{
+		Assert.Throws<InvalidOperationException>(() =>
+			LiveDebuggerQualification.SelectOwnedThreadId([17, 53], [17, 53, 91], 91));
 	}
 
 	[Theory]
