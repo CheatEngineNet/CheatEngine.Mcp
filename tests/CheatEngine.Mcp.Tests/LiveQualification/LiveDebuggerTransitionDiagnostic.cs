@@ -23,9 +23,11 @@ internal static class LiveDebuggerTransitionDiagnostic
 		bool installAttempted = false;
 		bool attachAttempted = false;
 		bool breakpointAttempted = false;
-		string address = "0x" + manifest.Entry.ToString("X", CultureInfo.InvariantCulture);
+		bool exactEventSeen = false;
+		string address = manifest.Entry.ToString("X", CultureInfo.InvariantCulture);
 		try
 		{
+			sandbox.Record("debugger_transition_memory_before_attach", sandbox.ReadDebuggerTransitionMemory("A"));
 			await LiveDebuggerExecutionQualification.RequireHeartbeatAsync(sandbox, instance,
 				manifest.ProgressAddress, manifest.HitCounterAddress, "transition_diagnostic_before_attach");
 			installAttempted = true;
@@ -46,14 +48,23 @@ internal static class LiveDebuggerTransitionDiagnostic
 					["oneShot"] = false
 				});
 			sandbox.Record("debugger_transition_diagnostic_breakpoint", breakpoint.DeepClone());
+			sandbox.Record("debugger_transition_memory_after_set_breakpoint", sandbox.ReadDebuggerTransitionMemory("A"));
 			Stopwatch elapsed = Stopwatch.StartNew();
 			while (true)
 			{
 				LiveDebuggerTransitionReceipt receipt = await sandbox.DebuggerTransitionProbeAsync("A", "sample");
+				sandbox.Record("debugger_transition_memory_sample", new
+				{
+					elapsedMilliseconds = elapsed.ElapsedMilliseconds,
+					receipt.CallbackCount,
+					receipt.EventCount,
+					memory = sandbox.ReadDebuggerTransitionMemory("A")
+				});
 				if (receipt.EventCount == 1)
 				{
 					Assert.Equal(manifest.ThreadId, receipt.ThreadId);
 					Assert.Equal(manifest.Entry, receipt.Rip);
+					exactEventSeen = true;
 					break;
 				}
 				if (elapsed.Elapsed > TimeSpan.FromSeconds(10))
@@ -82,13 +93,16 @@ internal static class LiveDebuggerTransitionDiagnostic
 			{
 				await TryCleanupAsync(async () => { await sandbox.DebuggerTransitionProbeAsync("A", "restore"); });
 			}
-			if (attachAttempted)
+			if (attachAttempted && exactEventSeen)
 			{
 				await TryCleanupAsync(async () =>
 				{
 					using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(10));
 					await CallAsync(instance.WithCancellation(deadline.Token), CheatEngineToolNames.DebuggerContinue);
 				});
+			}
+			if (attachAttempted)
+			{
 				await TryCleanupAsync(async () =>
 				{
 					using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(10));

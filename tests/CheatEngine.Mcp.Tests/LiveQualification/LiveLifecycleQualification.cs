@@ -41,8 +41,6 @@ internal static class LiveLifecycleQualification
 			await LiveProcessFileQualification.VerifyAsync(sandbox, connection);
 			await connection.RequireInstancesAsync(sandbox.HostA.InstanceId, sandbox.HostB.InstanceId);
 			await LiveSignatureQualification.VerifyAsync(sandbox, connection.Gateway.Bind(sandbox.HostA.InstanceId));
-			await LiveProcessCreateQualification.VerifyAsync(sandbox, connection.Gateway.Bind(sandbox.HostA.InstanceId),
-				inputs.RepositoryRoot);
 			for (int cycle = 0; cycle < (reloadPlugins ? 3 : 0); cycle++)
 			{
 				await connection.CyclePluginAsync("A");

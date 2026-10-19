@@ -1603,6 +1603,141 @@
       "receipt": "all_tools_structure_fill_from_dotnet",
       "cleanupReceipt": "live_managed_object_cleanup",
       "scope": "reversible_workflow"
+    },
+    {
+      "name": "mono_attach",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveMonoQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The owned x64 Mono target reports an attached non-IL2CPP collector with a positive version and the expected injection, patch, hook and table-option effects.",
+      "receipt": "all_tools_mono_attach",
+      "cleanupReceipt": "live_mono_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "mono_detach",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveMonoQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "An activation-owned detach succeeds; a separate status reports attached=false and retained resources contain no Mono attachment before the owned target exits.",
+      "receipt": "all_tools_mono_detach",
+      "cleanupReceipt": "live_mono_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "mono_get_status",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveMonoQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Attached/non-IL2CPP state and collector version agree with attach; a bounded nonempty list contains only nonzero decimal domain handles.",
+      "receipt": "all_tools_mono_get_status",
+      "cleanupReceipt": "live_mono_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "mono_list_assemblies",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveMonoQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "One complete bounded assembly page contains exactly one image named for the hash-checked owned fixture.",
+      "receipt": "all_tools_mono_list_assemblies",
+      "cleanupReceipt": "live_mono_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "mono_list_classes",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveMonoQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "One complete filtered page echoes that image and contains exactly the independently named owned class and namespace.",
+      "receipt": "all_tools_mono_list_classes",
+      "cleanupReceipt": "live_mono_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "mono_find_class",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveMonoQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Exact namespace/class lookup agrees with the unique independently listed class handle.",
+      "receipt": "all_tools_mono_find_class",
+      "cleanupReceipt": "live_mono_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "mono_list_fields",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveMonoQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The five-field owned class has the expected primitive types and exact x64 instance offsets 16/24/32; independent raw reads verify 314159, 7000 and 1.25.",
+      "receipt": "all_tools_mono_list_fields",
+      "cleanupReceipt": "live_mono_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "mono_list_methods",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveMonoQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The complete bounded method page has the fixed static/instance identities, parameter names and Int32 input with Int32/Int64 return types.",
+      "receipt": "all_tools_mono_list_methods",
+      "cleanupReceipt": "live_mono_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "mono_find_method",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveMonoQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Both exact-name method lookups agree with the separately listed handles, signatures, parameter names and static flags; one combined receipt records both.",
+      "receipt": "all_tools_mono_find_method",
+      "cleanupReceipt": "live_mono_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "mono_get_static_field_address",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveMonoQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The echoed class/domain and nonzero static base locate StaticMagic; an independent raw read observes the fixed value 424242.",
+      "receipt": "all_tools_mono_get_static_field_address",
+      "cleanupReceipt": "live_mono_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "mono_compile_method",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveMonoQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "Compiling only StaticAdd42 echoes its independently discovered method handle and returns a nonzero native address.",
+      "receipt": "all_tools_mono_compile_method",
+      "cleanupReceipt": "live_mono_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "mono_invoke_method",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveMonoQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "StaticAdd42(0) and InstanceBumpCounter(7) each run once without retries, return 42 and 7007 without exceptions, and an independent raw Counter read observes 7007.",
+      "receipt": "all_tools_mono_invoke_method",
+      "cleanupReceipt": "live_mono_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "mono_get_object",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveMonoQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The object header equals the independently published pinned MonoObject pointer and identifies the exact class/image with five fields and known Magic, Counter, Speed and static values.",
+      "receipt": "all_tools_mono_get_object",
+      "cleanupReceipt": "live_mono_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "mono_start_instance_search",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveMonoQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The bounded search echoes the independently discovered class and retention limit 64; its owned job completes and contains the independently pinned object pointer.",
+      "receipt": "all_tools_mono_start_instance_search",
+      "cleanupReceipt": "live_mono_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "mono_poll_instance_search",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveMonoQualification.cs",
+      "testMethod": "VerifyAsync",
+      "oracle": "The exact owned job completes within a deadline, with no drops and bounded unique candidates including the pinned object; cleanup stops it and independently proves absence.",
+      "receipt": "all_tools_mono_poll_instance_search",
+      "cleanupReceipt": "live_mono_cleanup",
+      "scope": "reversible_workflow"
     }
   ]
 }

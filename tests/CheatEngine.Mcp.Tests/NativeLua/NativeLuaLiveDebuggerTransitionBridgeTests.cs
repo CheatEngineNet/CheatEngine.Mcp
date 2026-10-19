@@ -5,6 +5,7 @@ namespace CheatEngine.Mcp.Tests.NativeLua;
 /// <summary>Real-Lua coverage for the private owned-INT3 transition diagnostic bridge.</summary>
 public sealed partial class NativeLuaToolRuntimeTests
 {
+	private static readonly string[] TransitionAdvisoryFields = ["ok", "1", "sample", "true", "boolean", "true", "true", "boolean", "true", "true", "nil", "nil", "false", "string", "string"];
 	[Fact]
 	public void DebuggerTransitionBridge_ExactEvent_ForwardsMultipleReturnsAndPublishesReceipt()
 	{
@@ -25,7 +26,8 @@ public sealed partial class NativeLuaToolRuntimeTests
 		Assert.Equal((3L, "first", "third"), ((long) EvaluateLua("returns.n")!, EvaluateLua("returns[1]"), EvaluateLua("returns[3]")));
 		Assert.Null(EvaluateLua("returns[2]"));
 		Assert.Contains("ok\n2\nsample", (string) ReadGlobal("response")!, StringComparison.Ordinal);
-		Assert.EndsWith("1\n42\n1000\n", (string) ReadGlobal("response")!, StringComparison.Ordinal);
+		Assert.EndsWith("1\n42\n1000\n1\nnumber\ninteger\n42\nnumber\ninteger\n4096\nnil\nnot_number\nnil\n",
+			(string) ReadGlobal("response")!, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -47,7 +49,8 @@ public sealed partial class NativeLuaToolRuntimeTests
 
 		Assert.False((bool) ReadGlobal("callbackOk")!);
 		Assert.Equal("sentinel", ReadGlobal("callbackError"));
-		Assert.EndsWith("0\n\n\n", (string) ReadGlobal("response")!, StringComparison.Ordinal);
+		Assert.EndsWith("0\n\n\n1\nnumber\ninteger\n43\nnumber\ninteger\n4096\nnil\nnot_number\nnil\n",
+			(string) ReadGlobal("response")!, StringComparison.Ordinal);
 		Assert.Equal(0L, ReadGlobal("contextCalls"));
 		Assert.Equal(0L, ReadGlobal("continueCalls"));
 	}
@@ -149,7 +152,29 @@ public sealed partial class NativeLuaToolRuntimeTests
 			""");
 
 		Assert.StartsWith("error\n2\nsample\n", (string) ReadGlobal("extra")!, StringComparison.Ordinal);
-		Assert.EndsWith("1\n42\n1000\n", (string) ReadGlobal("response")!, StringComparison.Ordinal);
+		Assert.EndsWith("1\n42\n1000\n2\nnumber\ninteger\n42\nnumber\ninteger\n4096\nnil\nnot_number\nnil\n",
+			(string) ReadGlobal("response")!, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void DebuggerTransitionBridge_CallbackCountCapsAndRetainsFirstOpaqueRawValues()
+	{
+		using RuntimeScope scope = CreateScope();
+		RunDebuggerTransitionBridge("""
+			request = [[1
+			install
+			42
+			1000
+			]]; createdTimer.OnTimer(); clearReceipt()
+			THREADID={opaque=true}; RIP='not-an-address'; EIP=false
+			for i=1,65536 do debugger_onBreakpoint() end
+			request = [[2
+			sample
+			]]; createdTimer.OnTimer()
+			""");
+
+		Assert.EndsWith("0\n\n\n65535\ntable\nnot_number\ntable\nstring\nnot_number\nnot-an-address\nboolean\nnot_number\nfalse\n",
+			(string) ReadGlobal("response")!, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -189,7 +214,13 @@ public sealed partial class NativeLuaToolRuntimeTests
 			]]; createdTimer.OnTimer()
 			""");
 
-		Assert.StartsWith("ok\n1\nsample\ntrue\nboolean\ntrue\ntrue\nboolean\ntrue\ntrue\nnil\nnil\nfalse\nstring\nstring\n0", (string) ReadGlobal("response")!, StringComparison.Ordinal);
+		string[] lines = ((string) ReadGlobal("response")!).Split('\n');
+		Assert.Equal(string.Empty, lines[^1]);
+		LiveDebuggerTransitionReceipt receipt = LiveDebuggerTransitionReceipt.Parse(lines[..^1], "1", "sample");
+		Assert.Equal(TransitionAdvisoryFields, receipt.Lines[..15]);
+		Assert.Equal(0, receipt.EventCount);
+		Assert.Equal(0, receipt.CallbackCount);
+		Assert.Null(receipt.FirstCallback);
 	}
 
 	private static void RunDebuggerTransitionBridge(string tail)

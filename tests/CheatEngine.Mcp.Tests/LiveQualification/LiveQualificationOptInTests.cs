@@ -6,6 +6,36 @@ public sealed class LiveQualificationOptInTests
 	private const string Installation = "C:/Program Files/Cheat Engine";
 	private const string LocalData = "C:/Users/test/AppData/Local";
 
+	[Theory]
+	[InlineData(null)]
+	[InlineData("")]
+	[InlineData("true")]
+	[InlineData(LiveQualificationOptIn.ExecutionAcknowledgement)]
+	public void Evaluate_MonoRequiresItsExactAcknowledgementBeforeInspection(string? acknowledgement)
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.ScenarioVariable] = "mono";
+		variables[LiveQualificationOptIn.MonoOptInVariable] = acknowledgement;
+		LiveQualificationDecision decision = LiveQualificationOptIn.Evaluate(variables.GetValueOrDefault,
+			Repository, LocalData, Installation, static _ => throw new InvalidOperationException("Must refuse before inspection."));
+		Assert.False(decision.IsAuthorized);
+		Assert.Contains(LiveQualificationOptIn.MonoOptInVariable, decision.Refusal, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Evaluate_MonoWithExactAcknowledgement_AuthorizesX64AndRefusesX86BeforeInspection()
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.ScenarioVariable] = "mono";
+		variables[LiveQualificationOptIn.MonoOptInVariable] = LiveQualificationOptIn.MonoAcknowledgement;
+		Assert.Equal(LiveQualificationScenario.Mono, Evaluate(variables).Inputs!.Scenario);
+		variables[LiveQualificationOptIn.TargetArchitectureVariable] = "x86";
+		LiveQualificationDecision decision = LiveQualificationOptIn.Evaluate(variables.GetValueOrDefault,
+			Repository, LocalData, Installation, static _ => throw new InvalidOperationException("Must refuse before inspection."));
+		Assert.False(decision.IsAuthorized);
+		Assert.Contains("x64", decision.Refusal, StringComparison.Ordinal);
+	}
+
 	[Fact]
 	public void CompilerPayload_ReviewedUtf8LfSource_MatchesExpectedHash()
 	{
@@ -171,6 +201,7 @@ public sealed class LiveQualificationOptInTests
 	[Theory]
 	[InlineData("lifecycle", LiveQualificationScenario.Lifecycle)]
 	[InlineData("workflows", LiveQualificationScenario.Workflows)]
+	[InlineData("process-create", LiveQualificationScenario.ProcessCreate)]
 	[InlineData("performance", LiveQualificationScenario.Performance)]
 	[InlineData("soak", LiveQualificationScenario.Soak)]
 	[InlineData("dispatch-diagnostic", LiveQualificationScenario.DispatchDiagnostic)]

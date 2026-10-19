@@ -14,6 +14,8 @@ Implementation of a runner does not constitute a passing qualification result.
 | `compiler` | Reviewed compiler-only phases 1 through 4. | Requires the separate compiler acknowledgement and [approved policy](compiler-probe-policy.md). |
 | `compiler-extended` | Private missing compiler component, shared temporary directory, bounded delayed export after B shutdown, and actual plugin reload lifetime observation. | Prepared only; the [extended policy](compiler-extended-policy.md) still requires its own reviewed admission. |
 | `compiler-injection` | The fixed compiled entry point in an owned .NET Framework target after B shutdown and verified export. | Prepared only; requires the additional managed-injection acknowledgement and explicit approval. |
+| `process-create` | One hash-pinned owned .NET Framework fixture launched through `process_create`, which publishes an owned manifest and waits for its stop marker. | Requires the standard live acknowledgement, all four optional gates disabled, and the installed .NET Framework compiler prerequisite. Its operation and cleanup receipts belong to this isolated session. |
+| `mono` | The 15 Mono tools against one pinned primitive object in a private x64 Mono runtime, with fixed method calls and collector/job/target cleanup. | Requires the separate fixed-Mono acknowledgement and `eng/Build-LiveMonoTarget.ps1`. Only target-code execution is enabled. The runtime is privately extracted; no global installation is required. |
 
 The lifecycle workflow uses data allocations that it frees, private named scanner state that it deletes, and a temporary global structure that it removes.
 Synthetic instruction bytes remain ordinary writable data and are never invoked.
@@ -29,6 +31,17 @@ The separately prepared Framework fixture lives under `eng/LiveFrameworkTarget` 
 It uses the installed Framework compiler and adds no package dependency or solution project.
 Fixture identity records the source, compiler, executable, and architecture; injection preparation checks the source and executable before starting it.
 The fixture must remain alive until its explicit stop marker, exit with code zero, and be disposed before the scenario can pass.
+
+The Mono scenario additionally requires `CHEATENGINE_MCP_LIVE_MONO_QUALIFICATION` to contain
+`I_AUTHORIZE_FIXED_MONO_COLLECTOR_AND_METHODS_ON_A_PRIVATE_OWNED_TARGET`.
+It invokes `StaticAdd42(0)` and `InstanceBumpCounter(7)` once each, verifies their results and the instance
+effect, and never retries an uncertain invocation. The private runtime executable, native library,
+configuration and core assembly must match the reviewed hashes before launch.
+
+`eng/Write-AllToolQualificationReport.ps1` accepts a PowerShell array through `-LiveSummaries` for
+cumulative evidence from separate scenarios. All supplied sessions must select the same product version
+and identical plugin/gateway hashes. A tool's operation and cleanup receipts must each occur exactly once
+in the same passing session. Failed and diagnostic-only sessions supply observations, never verified results.
 
 Use an unused distribution directory to preserve any gateway currently used by an MCP client.
 Raw reports stay in the private run directory; committed evidence must redact personal paths and exclude discovery tokens.

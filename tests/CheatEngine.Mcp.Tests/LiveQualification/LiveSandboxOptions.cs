@@ -7,7 +7,7 @@ internal sealed record LiveSandboxOptions(bool CompilerQualification, bool Enabl
 
 	internal bool RequiresCapabilityConfiguration => CompilerQualification || LifecycleQualification
 		|| PerformanceQualification || SoakQualification || DispatchDiagnostic || WorkflowQualification || AssemblerQualification
-		|| DebuggerQualification || ExecutionQualification || SymbolFixtureQualification;
+		|| DebuggerQualification || ExecutionQualification || SymbolFixtureQualification || ProcessCreateQualification || MonoQualification;
 
 	internal LiveCompilerVariant Variant { get; init; } = LiveCompilerVariant.Normal;
 	internal CompilerTempTopology TempTopology { get; init; } = CompilerTempTopology.Isolated;
@@ -59,7 +59,15 @@ internal sealed record LiveSandboxOptions(bool CompilerQualification, bool Enabl
 	{
 		get; init;
 	}
-	internal bool UsesTargetFirstExecutionShutdown => ExecutionQualification || SymbolFixtureQualification;
+	internal bool ProcessCreateQualification
+	{
+		get; init;
+	}
+	internal bool MonoQualification
+	{
+		get; init;
+	}
+	internal bool UsesTargetFirstExecutionShutdown => ExecutionQualification || SymbolFixtureQualification || MonoQualification;
 	internal string? DistributionDirectoryOverride
 	{
 		get; init;
@@ -73,12 +81,17 @@ internal sealed record LiveSandboxOptions(bool CompilerQualification, bool Enabl
 		bool extended = scenario == LiveQualificationScenario.CompilerExtended;
 		bool execution = scenario == LiveQualificationScenario.Execution;
 		bool symbolFixture = scenario == LiveQualificationScenario.SymbolFixture;
+		bool processCreate = scenario == LiveQualificationScenario.ProcessCreate;
+		bool mono = scenario == LiveQualificationScenario.Mono;
 		bool valid = Enum.IsDefined(scenario) && Enum.IsDefined(Variant) && Enum.IsDefined(TempTopology)
 			&& CompilerQualification == compiler
 			&& EnableManagedInjection == injection
-			&& (!EnableTargetCodeExecution || compiler || execution || symbolFixture)
+			&& (!EnableTargetCodeExecution || compiler || execution || symbolFixture || mono)
 			&& ExecutionQualification == execution
 			&& SymbolFixtureQualification == symbolFixture
+			&& ProcessCreateQualification == processCreate
+			&& MonoQualification == mono
+			&& (!mono || (EnableTargetCodeExecution && !CompilerQualification && !EnableManagedInjection))
 			&& (!execution || EnableTargetCodeExecution)
 			&& (!execution || (!CompilerQualification && !EnableManagedInjection))
 			&& (!symbolFixture || (EnableTargetCodeExecution && !CompilerQualification && !EnableManagedInjection))

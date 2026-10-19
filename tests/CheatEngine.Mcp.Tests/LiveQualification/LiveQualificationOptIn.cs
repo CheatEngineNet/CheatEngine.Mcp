@@ -29,6 +29,8 @@ internal static class LiveQualificationOptIn
 	internal const string DebuggerAcknowledgement =
 		"I_AUTHORIZE_WINDOWS_DEBUGGER_CHECKS_ON_OWNED_DISPOSABLE_TARGETS";
 	internal const string DebuggerTransitionDiagnosticVariable = "CHEATENGINE_MCP_LIVE_DEBUGGER_TRANSITION_DIAGNOSTIC";
+	internal const string MonoOptInVariable = "CHEATENGINE_MCP_LIVE_MONO_QUALIFICATION";
+	internal const string MonoAcknowledgement = "I_AUTHORIZE_FIXED_MONO_COLLECTOR_AND_METHODS_ON_A_PRIVATE_OWNED_TARGET";
 
 	internal const string LocalCommand =
 		"dotnet test --project tests/CheatEngine.Mcp.Tests -c Release --filter-trait Category=LiveQualification --fail-skips on";
@@ -73,6 +75,8 @@ internal static class LiveQualificationOptIn
 			"debugger" => LiveQualificationScenario.Debugger,
 			"execution" => LiveQualificationScenario.Execution,
 			"symbol-fixture" => LiveQualificationScenario.SymbolFixture,
+			"process-create" => LiveQualificationScenario.ProcessCreate,
+			"mono" => LiveQualificationScenario.Mono,
 			"performance" => LiveQualificationScenario.Performance,
 			"soak" => LiveQualificationScenario.Soak,
 			"dispatch-diagnostic" => LiveQualificationScenario.DispatchDiagnostic,
@@ -80,7 +84,7 @@ internal static class LiveQualificationOptIn
 		};
 		if (selectedScenario is null)
 		{
-			return Refuse($"{ScenarioVariable} must be smoke, compiler, compiler-extended, compiler-injection, lifecycle, workflows, assembler, debugger, execution, symbol-fixture, performance, soak, or dispatch-diagnostic.");
+			return Refuse($"{ScenarioVariable} must be smoke, compiler, compiler-extended, compiler-injection, lifecycle, workflows, assembler, debugger, execution, symbol-fixture, process-create, mono, performance, soak, or dispatch-diagnostic.");
 		}
 
 		LiveQualificationScenario scenario = selectedScenario.Value;
@@ -145,13 +149,17 @@ internal static class LiveQualificationOptIn
 		{
 			return Refuse("Cheat Engine's Don't use tempdir setting is enabled; compiler qualification requires the owned TEMP directory.");
 		}
+		if (scenario == LiveQualificationScenario.Mono && variables(MonoOptInVariable) != MonoAcknowledgement)
+		{
+			return Refuse($"{MonoOptInVariable} must contain the exact acknowledgement {MonoAcknowledgement}.");
+		}
 
 		string architecture = variables(TargetArchitectureVariable) ?? "x64";
 		if (architecture is not ("x64" or "x86"))
 		{
 			return Refuse($"{TargetArchitectureVariable} must be x64 or x86.");
 		}
-		if ((scenario is LiveQualificationScenario.Execution or LiveQualificationScenario.SymbolFixture or LiveQualificationScenario.Debugger) && architecture != "x64")
+		if ((scenario is LiveQualificationScenario.Execution or LiveQualificationScenario.SymbolFixture or LiveQualificationScenario.Debugger or LiveQualificationScenario.Mono) && architecture != "x64")
 		{
 			return Refuse("The fixed execution qualification supports only the owned x64 target.");
 		}

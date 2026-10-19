@@ -482,7 +482,7 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		List<string> lines = [];
 		while (await reader.ReadLineAsync() is { } line)
 		{
-			if (lines.Count >= 18 || line.Length > 256)
+			if (lines.Count >= 28 || line.Length > 256)
 			{
 				throw new InvalidDataException("The debugger diagnostic receipt exceeded its line bounds.");
 			}
@@ -496,6 +496,29 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 			lines
 		});
 		return LiveDebuggerTransitionReceipt.Parse([.. lines], nonce, command);
+	}
+
+	/// <summary>Reads the fixed diagnostic bytes from a still-owned debugger transition target.</summary>
+	internal LiveDebuggerTransitionMemory.Snapshot ReadDebuggerTransitionMemory(string hostName)
+	{
+		if (!_options.DebuggerTransitionDiagnostic)
+		{
+			throw new InvalidOperationException("The debugger transition memory diagnostic is not admitted.");
+		}
+		if (!_hosts.TryGetValue(hostName, out OwnedHost? host) || host.Target is null || host.Stopped)
+		{
+			throw new InvalidOperationException($"Owned target '{hostName}' is not running.");
+		}
+
+		LiveDebuggerExecutionQualification.Manifest manifest = host.Public.DebuggerExecution
+			?? throw new InvalidDataException("The private debugger target manifest is missing.");
+		host.Target.Refresh();
+		if (host.Target.HasExited || host.Target.Id != host.Public.TargetProcessId || manifest.ProcessId != host.Target.Id)
+		{
+			throw new InvalidOperationException("The debugger transition diagnostic target identity no longer matches the owned manifest.");
+		}
+
+		return LiveDebuggerTransitionMemory.Read(host.Target, manifest);
 	}
 
 	/// <summary>Restarts only the disposable target for one still-running private CE host and publishes a fresh manifest.</summary>
@@ -525,8 +548,7 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		host.Target = target;
 		try
 		{
-			await WaitUntilAsync(() => File.Exists(manifest), target, TimeSpan.FromSeconds(10));
-			LiveTargetManifest facts = ReadTargetManifest(JsonNode.Parse(await File.ReadAllTextAsync(manifest))!, target.Id, name);
+			LiveTargetManifest facts = ReadTargetManifest(await ReadPublishedTargetManifestAsync(manifest, target, name), target.Id, name);
 			host.TargetManifest = manifest;
 			host.TargetIncarnation = incarnation;
 			host.Public = host.Public with
@@ -773,6 +795,7 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		{
 			string[] allowedRoots = _options.CompilerQualification ? [CompilerRoots(name).Output]
 				: _options.SymbolFixtureQualification ? [Path.GetDirectoryName(NativeSymbolFixture.DllPath)!]
+				: _options.ProcessCreateQualification ? [Path.Combine(_layout.RunDirectory, "roadmap-qualification")]
 				: _options.WorkflowQualification || _options.LifecycleQualification
 					? [Path.Combine(_layout.RunDirectory, "roadmap-qualification"), Path.Combine(_layout.RunDirectory, "pointer-qualification")]
 					: [];
@@ -814,8 +837,7 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 				new LiveSandboxHost(name, 0, target.Id, string.Empty, string.Empty, string.Empty, string.Empty,
 					string.Empty, pluginPath, string.Empty, string.Empty));
 			_hosts.Add(name, owned);
-			await WaitUntilAsync(() => File.Exists(targetManifest), target, TimeSpan.FromSeconds(10));
-			JsonNode manifest = JsonNode.Parse(await File.ReadAllTextAsync(targetManifest))!;
+			JsonNode manifest = await ReadPublishedTargetManifestAsync(targetManifest, target, name);
 			LiveTargetManifest targetFacts = ReadTargetManifest(manifest, target.Id, name);
 			string selectionDiagnostic = string.Empty;
 			if (Environment.GetEnvironmentVariable("CHEATENGINE_MCP_LIVE_SELECTION_DIAGNOSTIC") ==
@@ -1399,6 +1421,21 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 
 		File.Copy(path, Path.Combine(destination, name));
 		Record(name, hash);
+	}
+
+	private async Task<JsonNode> ReadPublishedTargetManifestAsync(string path, Process target, string name)
+	{
+		RequireInsideRun(path);
+		LiveTargetManifestReader.Result read = await LiveTargetManifestReader.ReadAsync(path, target,
+			TimeSpan.FromSeconds(10), CancellationToken.None);
+		Record($"target_{name}_manifest_ready", new
+		{
+			processId = target.Id,
+			read.Attempts,
+			read.SharingRetries,
+			read.ElapsedMs
+		});
+		return read.Node;
 	}
 
 	private static async Task WaitUntilAsync(Func<bool> ready, Process process, TimeSpan timeout)

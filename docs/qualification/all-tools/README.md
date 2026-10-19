@@ -12,7 +12,7 @@ Lua body do not establish successful native execution.
 - [x] Check gateway-local discovery with zero and two instances.
 - [x] Run the portable Release suite; final results are recorded below.
 - [x] Run the portable Debug suite with the same exclusions.
-- [x] Run standalone Lua 5.3 with CE API doubles (742 passed, zero failed or skipped).
+- [x] Run standalone Lua 5.3 with CE API doubles (743 passed, zero failed or skipped).
 - [x] Add and run result assertions for the Lua, table-save and code-view adapters (12 passed).
 - [x] Add seven record adapter cases and four code/process adapter cases; run both focused classes.
 - [x] Fix the `code_get_comments` array argument expansion found by those tests.
@@ -48,6 +48,9 @@ Lua body do not establish successful native execution.
 - [x] Prepare and review separate fixed C/ABI, local DLL/PDB and advancing-thread debugger cases with independent cleanup receipts.
 - [x] Qualify the four fixed C/ABI execution tools on package 13, including independent return values, buffer effects and cleanup.
 - [x] Qualify local native DLL injection on package 13 using OS module identity, image hashes and independently parsed exports.
+- [x] Qualify explicit local PDB loading on a fresh second host and the independently known four-field layout on package 14.
+- [x] Prepare the private x64 Mono fixture and verify standalone startup, pinned-object publication and graceful exit.
+- [ ] Qualify all 15 Mono tools against that owned fixture, including method effects, collector detach and target cleanup.
 - [ ] Qualify successful gated operations and DBK/DBVM operations in their required environments.
 - [ ] Qualify all tools on the exact replacement product bundle after fixes, including restart and cleanup.
 
@@ -62,13 +65,57 @@ bring the advertised catalog total to 207. A live mapping requires its own concr
 
 ## Source-built native results from 2026-10-19
 
+The paused source checkpoint passes the Release build with zero warnings/errors, **5,728** portable cases,
+**743** standalone Lua cases and changed-source whitespace verification (`pause-checkpoint-*` final reports).
+The new Mono, process-create and debugger diagnostic work remains prepared for live verification. No new
+CE session was started after the pause request. See the repository's [continuation checklist](../../../TODO.md).
+
 The file-target guard and recovery fixture, fresh-host PDB case and private debugger transition diagnostic
 passed the integrated Release build with zero warnings/errors. All **5,665** portable and **742** standalone Lua
 cases passed with zero failures or skips (`debugger-transition-portable-1` and `debugger-transition-native-lua-1`).
 The diagnostic bridge records only the exact owned breakpoint event before one context request;
 its callback preserves the previous callback's returns and errors. Its results cannot qualify native tool
 success: a report-generation check with a passing session marked `diagnosticOnly` retained all 207 routing
-rows and verified zero native tools. These changes still require their own native sessions.
+rows and verified zero native tools. File-target recovery and debugger transition checks remain incomplete.
+
+Package 14 (`cfb2421426f32edcc8986caa1be1896872f7a4e7`) passed the native symbol fixture session
+`20261019T184727Z-76aa`. Its `native-fixtures-symbol-report-14` report retains all 207 routing rows and verifies
+`exec_inject_library`, `symbol_add_module` and `structure_get_pdb_layout`. The explicit PDB case uses a fresh
+second host without DLL injection, requires the type to be absent beforehand, verifies all four exact fields,
+and proves owned allocation cleanup. `symbol_reload` remains inconclusive. Settings were restored, installed
+files were unchanged and cleanup reported no failures.
+
+| Package 14 file | SHA-256 |
+| --- | --- |
+| `CheatEngine.Mcp.dll` | `E0BCF6FFF28C5FCFFD00E93ED700D25CEC35EFA2242EAB4BD37213C13E3F0FC2` |
+| `CheatEngine.Mcp.Gateway.exe` | `80ECA93C2E12CC30D2EE7A29042398D13DD62C3488DD69F411E440AE305F0E91` |
+
+Workflow `20261019T184630Z-7b0d` reached the exact 4,096-byte file preservation proof after an
+`unsupported`/`not_started` attach refusal. Recovery then encountered a sharing violation while reading
+the replacement target manifest. The target had already published a complete manifest atomically; the
+other handle owner is unknown. The failed session provides no native qualification. All five recorded owned
+processes exited, settings were restored, installed files were unchanged and sandbox cleanup had no failures.
+
+Debugger diagnostic `20261019T184844Z-bfa7` stayed responsive but did not record the exact owned breakpoint
+event within its deadline. It never requested context for that transition. Callback identity restoration and
+detach completed; continue was refused because no stopped context was available. All four owned processes
+exited and the sandbox restored settings without cleanup failures. This diagnostic failed and provides no
+native qualification or explanation of the earlier status-call stall.
+
+Workflow `20261019T190337Z-d002` completed file-target restart recovery and the independently checked
+generated signature, then failed when its Framework process-create fixture did not publish a manifest.
+The complete session remains failed and supplies no verified native tool results. All six recorded
+sandbox processes exited, settings were restored and installed files were unchanged. Direct controls
+subsequently reproduced startup failure at a 253-character executable path while the unchanged executable
+succeeded from a shorter path. The isolated process-create fixture now uses a shorter filename and rejects
+paths at or above its conservative 240-character limit before launch.
+
+The official Mono 6.12.0.206 x64 installer was verified with a valid Microsoft signature and extracted into
+a private folder without a system installation. Its shipped metadata and header establish the legacy
+32-bit GC handle representation and the native object-pointer signature. Standalone preflight
+`mono-preflight-1` published the independently checked PID, assembly hash, nonzero pinned-object pointer,
+initial primitive values and fixed method warmup result, then exited with code zero after its stop marker.
+This confirms the fixture prerequisite; it does not qualify any MCP Mono tool.
 
 Package 13 (`dfe5179f83944206eb9fdee9e5895c67ec543be8`) passed smoke session
 `20261019T180318Z-59b1`, execution session `20261019T180412Z-c4a2` and native symbol fixture session

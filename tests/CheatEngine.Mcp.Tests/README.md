@@ -57,6 +57,13 @@ live opt-in. Their fixed cases and cleanup requirements are described in
 [the additional native cases](../../docs/qualification/all-tools/additional-native-cases.md). They use the same
 private hosts and disposable targets. Ordinary workflows retain all four optional gates disabled.
 
+The `process-create` scenario uses the ordinary live acknowledgement with all four optional gates disabled. It also
+requires the installed .NET Framework compiler to build its fixed owned fixture. It produces its own session receipts.
+The `mono` scenario uses the privately extracted x64 Mono runtime and a dedicated fixed-Mono acknowledgement;
+only target-code execution is enabled. See the [runner contracts](../../docs/qualification/v2.0.0/runners.md).
+The report's `-LiveSummaries` parameter combines separate sessions only when their product binaries match;
+each tool's operation and cleanup receipts must belong to the same passing session.
+
 ## Test layout
 
 | Path | Scope |

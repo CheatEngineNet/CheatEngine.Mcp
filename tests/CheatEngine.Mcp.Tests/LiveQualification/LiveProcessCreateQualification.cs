@@ -17,6 +17,7 @@ internal static class LiveProcessCreateQualification
 	private static readonly TimeSpan ManifestTimeout = TimeSpan.FromSeconds(10);
 	private const int MaximumManifestBytes = 4096;
 	private const int MaximumFixtureBytes = 1024 * 1024;
+	private const int MaximumFixtureExecutablePathLength = 240;
 
 	internal static async Task VerifyAsync(LiveSandboxSession sandbox, LiveMcpInstanceClient instance,
 		string repositoryRoot)
@@ -27,7 +28,7 @@ internal static class LiveProcessCreateQualification
 		LiveFrameworkFixture fixture = RequireFixture(repositoryRoot, sandbox.TargetArchitecture);
 		string directory = Path.Combine(sandbox.RunDirectory, "roadmap-qualification", "process-create",
 			Guid.NewGuid().ToString("N"));
-		string executable = OwnedPath(directory, "CheatEngine.Mcp.LiveFrameworkTarget.exe");
+		string executable = OwnedExecutablePath(directory);
 		string manifest = OwnedPath(directory, "child.json");
 		string stop = manifest + ".stop";
 		int originalProcessId = sandbox.HostA.TargetProcessId;
@@ -45,14 +46,27 @@ internal static class LiveProcessCreateQualification
 			CopyFixture(fixture, executable);
 
 			creationAttempted = true;
+			string parameters = QuoteWindowsArgument(manifest);
 			JsonNode created = await CallAsync(instance, CheatEngineToolNames.ProcessCreate,
 				new Dictionary<string, object?>
 				{
 					["path"] = executable,
-					["parameters"] = QuoteWindowsArgument(manifest),
+					["parameters"] = parameters,
 					["debug"] = false,
 					["breakOnEntryPoint"] = false
 				});
+			sandbox.Record("process_create_response_observed", new
+			{
+				result = created.DeepClone(),
+				executablePath = executable,
+				executableSha256 = fixture.Sha256,
+				request = new
+				{
+					parameters,
+					debug = false,
+					breakOnEntryPoint = false
+				}
+			});
 			int childProcessId = created["processId"]!.GetValue<int>();
 			Assert.True(childProcessId > 0);
 			Assert.False(created["monoAutoAttach"]!.GetValue<bool>());
@@ -312,6 +326,18 @@ internal static class LiveProcessCreateQualification
 		if (!LiveQualificationOptIn.IsSameOrBelow(path, root))
 		{
 			throw new InvalidOperationException("The Framework process-create path escaped its owned root.");
+		}
+
+		return path;
+	}
+
+	internal static string OwnedExecutablePath(string directory)
+	{
+		string path = OwnedPath(directory, "target.exe");
+		if (path.Length >= MaximumFixtureExecutablePathLength)
+		{
+			throw new InvalidOperationException(
+				$"The owned Framework fixture path must be shorter than {MaximumFixtureExecutablePathLength} characters.");
 		}
 
 		return path;

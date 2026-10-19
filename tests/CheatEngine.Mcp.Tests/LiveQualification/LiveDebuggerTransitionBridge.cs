@@ -6,11 +6,13 @@ namespace CheatEngine.Mcp.Tests.LiveQualification;
 internal static class LiveDebuggerTransitionBridge
 {
 	private const int MaximumRequestBytes = 128;
+	private const int MaximumCallbacks = 65535;
 
 	internal static readonly string Template = """
 		local mcp_transition_request = __REQUEST__
 		local mcp_transition_response = __RESPONSE__
 		local mcp_transition_probe = nil
+		local mcp_transition_max_callbacks = __MAXIMUM_CALLBACKS__
 
 		local function mcp_transition_text(value)
 		  local text = tostring(value or ''):gsub('[\r\n]+', ' '):gsub('[^ -~]', '?')
@@ -28,25 +30,49 @@ internal static class LiveDebuggerTransitionBridge
 		  local primitive = type(value)
 		  return tostring(called), primitive, primitive == 'boolean' and tostring(value) or primitive
 		end
+		local function mcp_transition_value(value)
+		  local primitive = type(value)
+		  local numeric = primitive == 'number' and math.type(value) or 'not_number'
+		  if primitive == 'nil' then return primitive, numeric, 'nil' end
+		  if primitive == 'boolean' then return primitive, numeric, value and 'true' or 'false' end
+		  if primitive == 'number' then return primitive, numeric, tostring(value):sub(1, 64) end
+		  if primitive == 'string' then return primitive, numeric, mcp_transition_text(value):sub(1, 64) end
+		  return primitive, numeric, primitive
+		end
 		local function mcp_transition_sample(nonce)
 		  local event = mcp_transition_probe and mcp_transition_probe.event or nil
+		  local raw = mcp_transition_probe and mcp_transition_probe.first or nil
 		  local debuggingCalled, debuggingType, debugging = mcp_transition_raw('debug_isDebugging')
 		  local canBreakCalled, canBreakType, canBreak = mcp_transition_raw('debug_canBreak')
 		  local brokenCalled, brokenType, broken = mcp_transition_raw('debug_isBroken')
 		  local steppingCalled, steppingType, stepping = mcp_transition_raw('debug_isStepping')
 		  mcp_transition_publish({'ok', nonce, 'sample', debuggingCalled, debuggingType, debugging,
 		    canBreakCalled, canBreakType, canBreak, brokenCalled, brokenType, broken, steppingCalled, steppingType, stepping,
-		    event and '1' or '0', event and tostring(event.threadId) or '', event and string.format('%X', event.rip) or ''})
+		    event and '1' or '0', event and tostring(event.threadId) or '', event and string.format('%X', event.rip) or '',
+		    tostring(mcp_transition_probe and mcp_transition_probe.callbackCount or 0),
+		    raw and raw.threadType or 'none', raw and raw.threadMathType or 'not_number', raw and raw.threadValue or '',
+		    raw and raw.ripType or 'none', raw and raw.ripMathType or 'not_number', raw and raw.ripValue or '',
+		    raw and raw.eipType or 'none', raw and raw.eipMathType or 'not_number', raw and raw.eipValue or ''})
 		end
 		local function mcp_transition_install(nonce, threadId, rip)
 		  assert(mcp_transition_probe == nil, 'transition probe is already installed')
 		  local original = rawget(_G, 'debugger_onBreakpoint')
 		  local originalType = type(original)
-		  local probe = {expectedThread = threadId, expectedRip = rip, original = original}
+		  local probe = {expectedThread = threadId, expectedRip = rip, original = original, callbackCount = 0}
 		  local function wrapper()
 		    -- CE has set register globals. This callback does no CE, UI, or file operation.
 		    local thread = rawget(_G, 'THREADID')
 		    local instruction = rawget(_G, 'RIP')
+		    local eip = rawget(_G, 'EIP')
+		    if probe.callbackCount < mcp_transition_max_callbacks then probe.callbackCount = probe.callbackCount + 1 end
+		    if probe.first == nil then
+		      local threadType, threadMathType, threadValue = mcp_transition_value(thread)
+		      local ripType, ripMathType, ripValue = mcp_transition_value(instruction)
+		      local eipType, eipMathType, eipValue = mcp_transition_value(eip)
+		      probe.first = {threadType = threadType, threadMathType = threadMathType, threadValue = threadValue,
+		        ripType = ripType, ripMathType = ripMathType, ripValue = ripValue,
+		        eipType = eipType, eipMathType = eipMathType, eipValue = eipValue}
+		    end
 		    if probe.event == nil and math.type(thread) == 'integer' and math.type(instruction) == 'integer'
 		       and thread == probe.expectedThread and instruction == probe.expectedRip then
 		      probe.event = {threadId = thread, rip = instruction}
@@ -116,6 +142,7 @@ internal static class LiveDebuggerTransitionBridge
 
 		return Template.Replace("__REQUEST__", quote(requestPath), StringComparison.Ordinal)
 			.Replace("__RESPONSE__", quote(responsePath), StringComparison.Ordinal)
-			.Replace("__MAXIMUM_REQUEST_BYTES__", MaximumRequestBytes.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+			.Replace("__MAXIMUM_REQUEST_BYTES__", MaximumRequestBytes.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal)
+			.Replace("__MAXIMUM_CALLBACKS__", MaximumCallbacks.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
 	}
 }

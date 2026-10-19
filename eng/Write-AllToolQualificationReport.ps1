@@ -2,6 +2,10 @@
 <#
 .SYNOPSIS
 Writes one evidence row per advertised tool without treating routing or refusals as native qualification.
+
+.EXAMPLE
+$liveSummaries = @('C:\qualification\workflow\summary.json', 'C:\qualification\smoke\summary.json')
+.\eng\Write-AllToolQualificationReport.ps1 -GatewayTrx .\gateway.trx -LiveSummaries $liveSummaries
 #>
 [CmdletBinding()]
 param(
@@ -9,6 +13,7 @@ param(
     [string] $PortableTrx,
     [string] $NativeLuaTrx,
     [string] $LiveSummary,
+    [string[]] $LiveSummaries,
     [string] $LiveEvidencePath = (Join-Path $PSScriptRoot '../docs/qualification/all-tools/live-evidence.json'),
     [string] $OutputDirectory = (Join-Path $PSScriptRoot '../artifacts/all-tools/report')
 )
@@ -192,6 +197,39 @@ function Read-LiveReceipts([string] $SummaryPath) {
     return @{ path = $path; sha256 = (Get-FileHash -LiteralPath $path).Hash; counts = $counts }
 }
 
+function Read-LiveSession([string] $SummaryPath) {
+    $summaryPath = [IO.Path]::GetFullPath($SummaryPath)
+    $live = Get-Content -LiteralPath $summaryPath -Raw | ConvertFrom-Json -AsHashtable
+    foreach ($key in @('schema', 'runId', 'passed', 'userStateRestored', 'sourceInstallationUnchanged', 'cleanupFailures', 'selected_distribution')) {
+        if (-not $live.ContainsKey($key)) { throw "Live summary '$summaryPath' has no $key." }
+    }
+    if ($live['schema'] -ne 'cheatengine-mcp-live-multi-instance/v1') {
+        throw "Live summary '$summaryPath' has unsupported schema '$($live['schema'])'."
+    }
+    if ([string]::IsNullOrWhiteSpace([string] $live['runId'])) { throw "Live summary '$summaryPath' has no runId." }
+    if ($live['cleanupFailures'] -isnot [System.Collections.IEnumerable] -or $live['cleanupFailures'] -is [string]) {
+        throw "Live summary '$summaryPath' has invalid cleanupFailures."
+    }
+    $identity = $live['selected_distribution']
+    foreach ($key in @('productVersion', 'pluginSha256', 'gatewaySha256')) {
+        if (-not $identity.ContainsKey($key) -or [string]::IsNullOrWhiteSpace([string] $identity[$key])) {
+            throw "Live summary '$summaryPath' has no selected_distribution.$key."
+        }
+    }
+    foreach ($key in @('pluginSha256', 'gatewaySha256')) {
+        if ([string] $identity[$key] -notmatch '^[0-9a-fA-F]{64}$') {
+            throw "Live summary '$summaryPath' has invalid selected_distribution.$key."
+        }
+    }
+    $diagnosticOnly = $live['diagnosticOnly'] -eq $true
+    $passed = $live['passed'] -eq $true -and $live['userStateRestored'] -eq $true -and
+        $live['sourceInstallationUnchanged'] -eq $true -and @($live['cleanupFailures']).Count -eq 0 -and -not $diagnosticOnly
+    return @{ summaryPath = $summaryPath; summarySha256 = (Get-FileHash -LiteralPath $summaryPath).Hash;
+        receipts = Read-LiveReceipts $summaryPath; passed = $passed; diagnosticOnly = $diagnosticOnly;
+        runId = [string] $live['runId']; candidateIdentity = $identity; host = $live['host'];
+        ownedTarget = if ($live.ContainsKey('owned_target')) { $live['owned_target'] } else { $null } }
+}
+
 Assert-BehaviorEvidence $evidence $catalog $repository
 Assert-LiveEvidence -LiveMap $liveEvidence -Catalog $catalog -Repository $repository
 $gateway = Read-TestReport $GatewayTrx
@@ -204,15 +242,37 @@ foreach ($entry in @(@{ Name = 'portable'; Path = $PortableTrx }, @{ Name = 'nat
         $behaviorReports[$entry.Name] = $parsed
     }
 }
-$live = if ($LiveSummary) { Get-Content -LiteralPath $LiveSummary -Raw | ConvertFrom-Json -AsHashtable } else { @{} }
-$liveReceipts = if ($LiveSummary) { Read-LiveReceipts $LiveSummary } else { $null }
-$diagnosticOnly = $live['diagnosticOnly'] -eq $true
-$livePassed = $live['passed'] -eq $true -and $live['userStateRestored'] -eq $true -and
-    -not $diagnosticOnly -and
-    $live['sourceInstallationUnchanged'] -eq $true -and $live.ContainsKey('cleanupFailures') -and
-    @($live['cleanupFailures']).Count -eq 0 -and $live['schema'] -eq 'cheatengine-mcp-live-multi-instance/v1' -and
-    $live.ContainsKey('selected_distribution') -and $live['selected_distribution'].ContainsKey('productVersion') -and
-    $live['selected_distribution'].ContainsKey('pluginSha256') -and $live['selected_distribution'].ContainsKey('gatewaySha256')
+if ($PSBoundParameters.ContainsKey('LiveSummary') -and $PSBoundParameters.ContainsKey('LiveSummaries')) {
+    throw 'Specify either LiveSummary or LiveSummaries, not both.'
+}
+$requestedLiveSummaries = if ($PSBoundParameters.ContainsKey('LiveSummary')) {
+    if ($null -eq $LiveSummary) { @() } else { @($LiveSummary) }
+}
+elseif ($PSBoundParameters.ContainsKey('LiveSummaries')) {
+    if ($null -eq $LiveSummaries) { @() } else { @($LiveSummaries | Where-Object { $null -ne $_ }) }
+}
+else { @() }
+$canonicalSummaryPaths = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+$runIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+$liveSessions = @()
+foreach ($summary in $requestedLiveSummaries) {
+    if ([string]::IsNullOrWhiteSpace($summary)) { throw 'Live summary paths must be non-empty.' }
+    $session = Read-LiveSession $summary
+    if (-not $canonicalSummaryPaths.Add($session.summaryPath)) { throw "Duplicate live summary path '$($session.summaryPath)'." }
+    if (-not $runIds.Add($session.runId)) { throw "Duplicate live runId '$($session.runId)'." }
+    $liveSessions += $session
+}
+if ($liveSessions.Count -gt 1) {
+    $candidate = $liveSessions[0].candidateIdentity
+    foreach ($session in @($liveSessions | Select-Object -Skip 1)) {
+        foreach ($key in @('productVersion', 'pluginSha256', 'gatewaySha256')) {
+            $comparison = if ($key -eq 'productVersion') { [StringComparison]::Ordinal } else { [StringComparison]::OrdinalIgnoreCase }
+            if (-not [string]::Equals([string] $candidate[$key], [string] $session.candidateIdentity[$key], $comparison)) {
+                throw "Live summaries select different candidate bundles ($key differs)."
+            }
+        }
+    }
+}
 $methods = @('CallTool_MissingInstanceId_RejectsEveryBackendToolBeforeAnyBackendContact',
     'CallTool_UnknownInstanceId_RejectsEveryBackendToolWithoutFallback',
     'CallTool_StaleIdentity_RejectsEveryBackendToolBeforeMutation',
@@ -242,9 +302,15 @@ $rows = foreach ($tool in $tools | Sort-Object { $_['name'] }) {
     $adapterEvidence = @($asEvidence | Where-Object { $_['scope'] -eq 'adapter' })
     $fixedEvidence = @($asEvidence | Where-Object { $_['scope'] -eq 'fixed_lua_body' })
     $liveCase = $liveEvidenceByTool[$name]
-    $liveReceiptPresent = $null -ne $liveCase -and $liveReceipts -and $liveReceipts.counts[$liveCase['receipt']] -eq 1
-    $cleanupReceiptPresent = $null -ne $liveCase -and ($liveCase['cleanupReceipt'] -eq 'none' -or
-        ($liveReceipts -and $liveReceipts.counts[$liveCase['cleanupReceipt']] -eq 1))
+    $liveSessionEvidence = if ($null -eq $liveCase) { @() } else { @($liveSessions | ForEach-Object {
+        $receiptPresent = $_.receipts.counts[$liveCase['receipt']] -eq 1
+        $cleanupReceiptPresent = $liveCase['cleanupReceipt'] -eq 'none' -or $_.receipts.counts[$liveCase['cleanupReceipt']] -eq 1
+        [ordered]@{ runId = $_.runId; summarySha256 = $_.summarySha256; receiptPresent = $receiptPresent;
+            cleanupReceiptPresent = $cleanupReceiptPresent; passed = $_.passed; diagnosticOnly = $_.diagnosticOnly }
+    }) }
+    $verifiedLiveSession = @($liveSessionEvidence | Where-Object { $_.passed -and $_.receiptPresent -and $_.cleanupReceiptPresent })
+    $diagnosticLiveSession = @($liveSessionEvidence | Where-Object { $_.diagnosticOnly -and $_.receiptPresent })
+    $failedLiveSession = @($liveSessionEvidence | Where-Object { -not $_.passed -and -not $_.diagnosticOnly -and $_.receiptPresent })
     [ordered]@{
         name = $name; title = $tool['title']; requiredFeatures = @($tool['_meta']['cheatengine/requires'] | Where-Object { $_ })
         routing = if (@($routingCases | Where-Object { $_.outcome -ne 'Passed' }).Count -eq 0) { 'passed' } else { 'incomplete' }
@@ -252,8 +318,8 @@ $rows = foreach ($tool in $tools | Sort-Object { $_['name'] }) {
         behavior = if ($adapterEvidence.Count -gt 0 -and @($adapterEvidence | Where-Object { $_.outcome -ne 'Passed' }).Count -eq 0) { 'verified_with_doubles' } else { 'requires_reviewed_per_tool_evidence' }
         adapterEvidence = $adapterEvidence; fixedLuaBodyEvidence = $fixedEvidence
         remaining = if ($name -eq 'instance_list') { 'Local gateway discovery only; no backend behavior applies.' } else { $evidenceByTool[$name]['remaining'] }
-        live = if ($null -eq $liveCase) { 'not_verified' } elseif ($diagnosticOnly -and $liveReceiptPresent) { 'diagnostic_only' } elseif ($livePassed -and $liveReceiptPresent -and $cleanupReceiptPresent) { 'verified' } elseif (-not $livePassed -and $liveReceiptPresent) { 'observed_in_failed_session' } else { 'not_verified' }
-        liveEvidence = if ($null -eq $liveCase) { $null } else { [ordered]@{ scope = $liveCase['scope']; sourceFile = $liveCase['sourceFile']; testMethod = $liveCase['testMethod']; oracle = $liveCase['oracle']; receipt = $liveCase['receipt']; cleanupReceipt = $liveCase['cleanupReceipt']; receiptPresent = $liveReceiptPresent; cleanupReceiptPresent = $cleanupReceiptPresent } }
+        live = if ($null -eq $liveCase) { 'not_verified' } elseif ($verifiedLiveSession.Count -gt 0) { 'verified' } elseif ($diagnosticLiveSession.Count -gt 0) { 'diagnostic_only' } elseif ($failedLiveSession.Count -gt 0) { 'observed_in_failed_session' } else { 'not_verified' }
+        liveEvidence = if ($null -eq $liveCase) { $null } else { [ordered]@{ scope = $liveCase['scope']; sourceFile = $liveCase['sourceFile']; testMethod = $liveCase['testMethod']; oracle = $liveCase['oracle']; receipt = $liveCase['receipt']; cleanupReceipt = $liveCase['cleanupReceipt']; sessions = $liveSessionEvidence } }
     }
 }
 $report = [ordered]@{
@@ -261,8 +327,10 @@ $report = [ordered]@{
     catalogSha256 = (Get-FileHash -LiteralPath $catalogPath).Hash; evidenceSha256 = (Get-FileHash -LiteralPath $evidencePath).Hash; liveEvidenceSha256 = (Get-FileHash -LiteralPath $liveEvidencePath).Hash
     toolCount = $rows.Count; routingComplete = @($rows | Where-Object { $_.routing -ne 'passed' }).Count -eq 0
     nativeQualificationComplete = $false
-    boundaries = @('Routing uses loopback doubles; it does not execute backend tools.', 'Fixed Lua body evidence bypasses the adapter and never qualifies adapter behavior.', 'Suite totals never infer per-tool positive evidence.', 'Failed or diagnostic-only live sessions are not verified.', 'Missing tests are Missing; refusals do not qualify success.')
-    suites = $suiteReports; liveSession = if ($LiveSummary) { [ordered]@{ summaryPath = [IO.Path]::GetFullPath($LiveSummary); summarySha256 = (Get-FileHash -LiteralPath $LiveSummary).Hash; receiptsPath = $liveReceipts.path; receiptsSha256 = $liveReceipts.sha256; passed = $livePassed; runId = $live['runId']; candidateIdentity = $live['selected_distribution']; host = $live['host']; ownedTarget = if ($live.ContainsKey('owned_target')) { $live['owned_target'] } else { $null } } } else { $null }
+    boundaries = @('Routing uses loopback doubles; it does not execute backend tools.', 'Fixed Lua body evidence bypasses the adapter and never qualifies adapter behavior.', 'Suite totals never infer per-tool positive evidence.', 'A live receipt and its cleanup receipt qualify only when each appears exactly once in the same passing session.', 'Failed or diagnostic-only live sessions are not verified.', 'Missing tests are Missing; refusals do not qualify success.')
+    suites = $suiteReports
+    liveSessions = @($liveSessions | ForEach-Object { [ordered]@{ summaryPath = $_.summaryPath; summarySha256 = $_.summarySha256; receiptsPath = $_.receipts.path; receiptsSha256 = $_.receipts.sha256; passed = $_.passed; runId = $_.runId; candidateIdentity = $_.candidateIdentity; host = $_.host; ownedTarget = $_.ownedTarget } })
+    liveSession = if ($liveSessions.Count -eq 1) { [ordered]@{ summaryPath = $liveSessions[0].summaryPath; summarySha256 = $liveSessions[0].summarySha256; receiptsPath = $liveSessions[0].receipts.path; receiptsSha256 = $liveSessions[0].receipts.sha256; passed = $liveSessions[0].passed; runId = $liveSessions[0].runId; candidateIdentity = $liveSessions[0].candidateIdentity; host = $liveSessions[0].host; ownedTarget = $liveSessions[0].ownedTarget } } else { $null }
     tools = @($rows)
 }
 [IO.Directory]::CreateDirectory([IO.Path]::GetFullPath($OutputDirectory)) | Out-Null

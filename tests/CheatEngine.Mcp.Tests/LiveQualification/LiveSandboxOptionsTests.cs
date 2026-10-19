@@ -3,6 +3,26 @@ namespace CheatEngine.Mcp.Tests.LiveQualification;
 public sealed class LiveSandboxOptionsTests
 {
 	[Fact]
+	public void ValidateFor_MonoRequiresOnlyItsOwnedTargetExecutionConfiguration()
+	{
+		LiveSandboxOptions mono = LiveSandboxOptions.Smoke with
+		{
+			MonoQualification = true,
+			EnableTargetCodeExecution = true
+		};
+		mono.ValidateFor(LiveQualificationScenario.Mono);
+		Assert.True(mono.RequiresCapabilityConfiguration);
+		Assert.True(mono.UsesTargetFirstExecutionShutdown);
+		Assert.Throws<InvalidOperationException>(() => (mono with { EnableTargetCodeExecution = false }).ValidateFor(LiveQualificationScenario.Mono));
+		Assert.Throws<InvalidOperationException>(() => (mono with { CompilerQualification = true }).ValidateFor(LiveQualificationScenario.Mono));
+		Assert.Throws<InvalidOperationException>(() => (mono with { EnableManagedInjection = true }).ValidateFor(LiveQualificationScenario.Mono));
+		Assert.Throws<InvalidOperationException>(() => (mono with { AssemblerQualification = true }).ValidateFor(LiveQualificationScenario.Mono));
+		Assert.Throws<InvalidOperationException>(() => (mono with { DebuggerQualification = true }).ValidateFor(LiveQualificationScenario.Mono));
+		Assert.Throws<InvalidOperationException>(() => (mono with { ProcessCreateQualification = true }).ValidateFor(LiveQualificationScenario.Mono));
+		Assert.Throws<InvalidOperationException>(() => (mono with { TempTopology = CompilerTempTopology.Shared }).ValidateFor(LiveQualificationScenario.Mono));
+		Assert.Throws<InvalidOperationException>(() => mono.ValidateFor(LiveQualificationScenario.Smoke));
+	}
+	[Fact]
 	public void ValidateFor_SymbolFixtureRequiresOnlyItsIsolatedExecutionConfiguration()
 	{
 		LiveSandboxOptions symbols = LiveSandboxOptions.Smoke with
@@ -44,6 +64,10 @@ public sealed class LiveSandboxOptionsTests
 		{
 			WorkflowQualification = true
 		}).ValidateFor(LiveQualificationScenario.Workflows);
+		(LiveSandboxOptions.Smoke with
+		{
+			ProcessCreateQualification = true
+		}).ValidateFor(LiveQualificationScenario.ProcessCreate);
 		(LiveSandboxOptions.Smoke with
 		{
 			PerformanceQualification = true
@@ -90,6 +114,8 @@ public sealed class LiveSandboxOptionsTests
 			LiveSandboxOptions.Smoke with { AssemblerQualification = true },
 			LiveSandboxOptions.Smoke with { DebuggerQualification = true },
 			LiveSandboxOptions.Smoke with { DebuggerTransitionDiagnostic = true },
+			LiveSandboxOptions.Smoke with { ProcessCreateQualification = true },
+			LiveSandboxOptions.Smoke with { MonoQualification = true },
 			LiveSandboxOptions.Smoke with { UseSoakLifetime = true }
 		];
 		foreach (LiveSandboxOptions options in invalid)
@@ -151,6 +177,26 @@ public sealed class LiveSandboxOptionsTests
 		workflows.ValidateFor(LiveQualificationScenario.Workflows);
 		Assert.Throws<InvalidOperationException>(() => (workflows with { EnableTargetCodeExecution = true }).ValidateFor(LiveQualificationScenario.Workflows));
 		Assert.Throws<InvalidOperationException>(() => (workflows with { LifecycleQualification = true }).ValidateFor(LiveQualificationScenario.Workflows));
+	}
+
+	[Fact]
+	public void ValidateFor_ProcessCreateRequiresItsDedicatedAllGatesDisabledConfiguration()
+	{
+		LiveSandboxOptions processCreate = LiveSandboxOptions.Smoke with
+		{
+			ProcessCreateQualification = true
+		};
+		processCreate.ValidateFor(LiveQualificationScenario.ProcessCreate);
+		Assert.True(processCreate.RequiresCapabilityConfiguration);
+		Assert.False(processCreate.EnableTargetCodeExecution);
+		Assert.False(processCreate.AssemblerQualification);
+		Assert.False(processCreate.CompilerQualification);
+		Assert.False(processCreate.EnableManagedInjection);
+		Assert.Throws<InvalidOperationException>(() => (processCreate with { EnableTargetCodeExecution = true }).ValidateFor(LiveQualificationScenario.ProcessCreate));
+		Assert.Throws<InvalidOperationException>(() => (processCreate with { AssemblerQualification = true }).ValidateFor(LiveQualificationScenario.ProcessCreate));
+		Assert.Throws<InvalidOperationException>(() => (processCreate with { CompilerQualification = true }).ValidateFor(LiveQualificationScenario.ProcessCreate));
+		Assert.Throws<InvalidOperationException>(() => (processCreate with { EnableManagedInjection = true }).ValidateFor(LiveQualificationScenario.ProcessCreate));
+		Assert.Throws<InvalidOperationException>(() => (processCreate with { WorkflowQualification = true }).ValidateFor(LiveQualificationScenario.ProcessCreate));
 	}
 
 	[Fact]

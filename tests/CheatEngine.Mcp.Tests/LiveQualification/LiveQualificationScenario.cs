@@ -15,5 +15,7 @@ internal enum LiveQualificationScenario
 	Assembler,
 	Debugger,
 	Execution,
-	SymbolFixture
+	SymbolFixture,
+	ProcessCreate,
+	Mono
 }
