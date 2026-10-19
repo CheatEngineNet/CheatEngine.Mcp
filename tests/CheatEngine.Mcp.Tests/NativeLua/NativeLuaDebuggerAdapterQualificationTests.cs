@@ -121,12 +121,14 @@ public sealed partial class NativeLuaToolRuntimeTests
 	}
 
 	[Theory]
-	[InlineData("true", true, true)]
-	[InlineData("false", true, false)]
-	[InlineData("{}", false, false)]
-	[InlineData("error('partial context failure')", false, false)]
+	[InlineData("true", true, true, 1)]
+	[InlineData("false", true, false, 1)]
+	[InlineData("{}", false, false, 1)]
+	[InlineData("error('partial context failure')", false, false, 1)]
+	[InlineData("false", true, false, 2)]
+	[InlineData("false", true, false, 3)]
 	public void DebuggerAdapter_Status_ContextRead_RestoresItsFixedRegisterGlobals(string contextResult, bool stateValid,
-		bool broken)
+		bool broken, int interfaceId)
 	{
 		using RuntimeScope scope = CreateScope();
 		InstallStubs($$"""
@@ -148,7 +150,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 		             debug_isBroken = function() return false end
 		             debug_isStepping = function() return false end
 		             targetIsX86 = function() return true end
-		             debug_getCurrentDebuggerInterface = function() return 1 end
+		             debug_getCurrentDebuggerInterface = function() return {{interfaceId}} end
 		             debug_getContext = function(extraregs)
 		                assert(extraregs == false)
 		                for index, name in ipairs(names) do rawset(_G, name, index) end
@@ -174,6 +176,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 		Assert.Equal(stateValid, status.StateValid);
 		Assert.Equal(broken, status.Broken);
 		Assert.False(status.ReportedBroken);
+		Assert.Equal(stateValid ? (DebuggerInterface?) interfaceId : null, status.ActiveInterface);
 		Assert.True((bool) ReadGlobal("registersRestored")!);
 	}
 

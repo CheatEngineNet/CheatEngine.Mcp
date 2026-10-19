@@ -435,7 +435,12 @@ public sealed partial class NativeLuaToolRuntimeTests
 
 	[Theory]
 	[InlineData("targetIsX86 = function() return false end")]
+	[InlineData("targetIsX86 = function() return {} end")]
+	[InlineData("targetIsX86 = function() error('architecture unavailable') end")]
+	[InlineData("debug_getCurrentDebuggerInterface = function() return 0 end")]
+	[InlineData("debug_getCurrentDebuggerInterface = function() return 1.5 end")]
 	[InlineData("debug_getCurrentDebuggerInterface = function() return 4 end")]
+	[InlineData("debug_getCurrentDebuggerInterface = function() error('interface unavailable') end")]
 	public void SpeedhackV2_ContextGuard_UnsupportedPrerequisites_DoNotReadContextOrChangeSpeed(string prerequisite)
 	{
 		using RuntimeScope scope = CreateScope();
