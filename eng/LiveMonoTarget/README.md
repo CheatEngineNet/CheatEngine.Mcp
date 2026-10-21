@@ -9,3 +9,14 @@ The private runtime is the approved extracted official Mono `6.12.0.206` x64 dis
 The manifest has fixed fields only and is atomically written below the supplied absolute owned root. The target does not read commands, paths, or code from it. `StaticAdd42(0)` is the only startup warmup; `InstanceBumpCounter(7)` stays untouched at `Counter == 7000` for the live harness to invoke exactly once and verify `7007`.
 
 This fixture is an input to qualification, not live evidence. No Mono tool is qualified until the private target, MCP calls, restoration, target exit, and host cleanup all pass together.
+
+The legacy Framework compiler does not produce deterministic EXE bytes.
+Before a live run, rebuild stale fixtures into unused output files, verify the build sidecar against the reviewed source and actual executable, and pin both files in the prepared input manifest.
+The runtime executable, native library, configuration and core assembly retain their reviewed fixed hashes.
+
+Choose a short absolute live run root: the legacy Mono runtime requires the full manifest path plus its
+37-character atomic-write suffix to stay below 260 characters. The harness rejects longer paths before launch.
+Private Mono sessions restore only the reviewed `autorun/dlls/MonoDataCollector64.dll` alongside the selected
+scripts; other autorun files stay disabled. Collector injection is verified through the owned process's OS module
+identity and exact file hash. The attach result's conservative patch and table-option warnings are not proof
+that those optional effects occurred.

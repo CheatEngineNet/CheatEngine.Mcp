@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace CheatEngine.Mcp.Tests.LiveQualification;
 
 /// <summary>Matches the Client's explicit, fail-fast workstation opt-in for native CE sessions.</summary>
@@ -7,6 +9,8 @@ internal static class LiveQualificationOptIn
 	internal const string Acknowledgement = "I_AUTHORIZE_CE77_LIVE_PROBES_ON_A_DISPOSABLE_TARGET";
 	internal const string CheatEngineDirectoryVariable = "CHEATENGINE_MCP_LIVE_QUALIFICATION_CE_DIRECTORY";
 	internal const string RunRootVariable = "CHEATENGINE_MCP_LIVE_QUALIFICATION_RUN_ROOT";
+	internal const string FrozenInputManifestPathVariable = "CHEATENGINE_MCP_LIVE_QUALIFICATION_FROZEN_INPUT_MANIFEST";
+	internal const string FrozenInputManifestSha256Variable = "CHEATENGINE_MCP_LIVE_QUALIFICATION_FROZEN_INPUT_MANIFEST_SHA256";
 	internal const string TargetArchitectureVariable = "CHEATENGINE_MCP_LIVE_QUALIFICATION_TARGET_ARCHITECTURE";
 	internal const string ScenarioVariable = "CHEATENGINE_MCP_LIVE_QUALIFICATION_SCENARIO";
 	internal const string DispatchDiagnosticCaseVariable = "CHEATENGINE_MCP_LIVE_DISPATCH_DIAGNOSTIC_CASE";
@@ -28,6 +32,9 @@ internal static class LiveQualificationOptIn
 	internal const string DebuggerOptInVariable = "CHEATENGINE_MCP_LIVE_DEBUGGER_QUALIFICATION";
 	internal const string DebuggerAcknowledgement =
 		"I_AUTHORIZE_WINDOWS_DEBUGGER_CHECKS_ON_OWNED_DISPOSABLE_TARGETS";
+	internal const string KernelStatusOptInVariable = "CHEATENGINE_MCP_LIVE_KERNEL_STATUS_QUALIFICATION";
+	internal const string KernelStatusAcknowledgement =
+		"I_AUTHORIZE_READ_ONLY_KERNEL_STATUS_ON_PRIVATE_CE";
 	internal const string DebuggerTransitionDiagnosticVariable = "CHEATENGINE_MCP_LIVE_DEBUGGER_TRANSITION_DIAGNOSTIC";
 	internal const string MonoOptInVariable = "CHEATENGINE_MCP_LIVE_MONO_QUALIFICATION";
 	internal const string MonoAcknowledgement = "I_AUTHORIZE_FIXED_MONO_COLLECTOR_AND_METHODS_ON_A_PRIVATE_OWNED_TARGET";
@@ -70,9 +77,16 @@ internal static class LiveQualificationOptIn
 			"compiler-extended" => LiveQualificationScenario.CompilerExtended,
 			"compiler-injection" => LiveQualificationScenario.CompilerInjection,
 			"lifecycle" => LiveQualificationScenario.Lifecycle,
+			"plugin-lifecycle" => LiveQualificationScenario.PluginLifecycle,
 			"workflows" => LiveQualificationScenario.Workflows,
+			"inspection" => LiveQualificationScenario.Inspection,
+			"state-workflows" => LiveQualificationScenario.StateWorkflows,
 			"assembler" => LiveQualificationScenario.Assembler,
 			"debugger" => LiveQualificationScenario.Debugger,
+			"debugger-basic" => LiveQualificationScenario.DebuggerBasic,
+			"debugger-events" => LiveQualificationScenario.DebuggerEvents,
+			"debugger-execution" => LiveQualificationScenario.DebuggerExecution,
+			"kernel-status" => LiveQualificationScenario.KernelStatus,
 			"execution" => LiveQualificationScenario.Execution,
 			"symbol-fixture" => LiveQualificationScenario.SymbolFixture,
 			"process-create" => LiveQualificationScenario.ProcessCreate,
@@ -84,10 +98,15 @@ internal static class LiveQualificationOptIn
 		};
 		if (selectedScenario is null)
 		{
-			return Refuse($"{ScenarioVariable} must be smoke, compiler, compiler-extended, compiler-injection, lifecycle, workflows, assembler, debugger, execution, symbol-fixture, process-create, mono, performance, soak, or dispatch-diagnostic.");
+			return Refuse($"{ScenarioVariable} must be smoke, compiler, compiler-extended, compiler-injection, lifecycle, plugin-lifecycle, workflows, inspection, state-workflows, assembler, debugger, debugger-basic, debugger-events, debugger-execution, kernel-status, execution, symbol-fixture, process-create, mono, performance, soak, or dispatch-diagnostic.");
 		}
 
 		LiveQualificationScenario scenario = selectedScenario.Value;
+		string? kernelStatusOptIn = variables(KernelStatusOptInVariable);
+		if (scenario != LiveQualificationScenario.KernelStatus && kernelStatusOptIn is not null)
+		{
+			return Refuse($"{KernelStatusOptInVariable} is valid only in the kernel-status scenario.");
+		}
 		string? transitionDiagnostic = variables(DebuggerTransitionDiagnosticVariable);
 		if (transitionDiagnostic is not null && (transitionDiagnostic != "1" || scenario != LiveQualificationScenario.Debugger))
 		{
@@ -129,10 +148,14 @@ internal static class LiveQualificationOptIn
 		{
 			return Refuse($"{AssemblerOptInVariable} must contain the exact acknowledgement {AssemblerAcknowledgement}.");
 		}
-		if (scenario == LiveQualificationScenario.Debugger &&
+		if ((scenario is LiveQualificationScenario.Debugger or LiveQualificationScenario.DebuggerBasic or LiveQualificationScenario.DebuggerEvents or LiveQualificationScenario.DebuggerExecution) &&
 			variables(DebuggerOptInVariable) != DebuggerAcknowledgement)
 		{
 			return Refuse($"{DebuggerOptInVariable} must contain the exact acknowledgement {DebuggerAcknowledgement}.");
+		}
+		if (scenario == LiveQualificationScenario.KernelStatus && kernelStatusOptIn != KernelStatusAcknowledgement)
+		{
+			return Refuse($"{KernelStatusOptInVariable} must contain the exact acknowledgement {KernelStatusAcknowledgement}.");
 		}
 		if (scenario == LiveQualificationScenario.Execution &&
 			variables(ExecutionOptInVariable) != ExecutionAcknowledgement)
@@ -159,7 +182,7 @@ internal static class LiveQualificationOptIn
 		{
 			return Refuse($"{TargetArchitectureVariable} must be x64 or x86.");
 		}
-		if ((scenario is LiveQualificationScenario.Execution or LiveQualificationScenario.SymbolFixture or LiveQualificationScenario.Debugger or LiveQualificationScenario.Mono) && architecture != "x64")
+		if ((scenario is LiveQualificationScenario.Execution or LiveQualificationScenario.SymbolFixture or LiveQualificationScenario.Debugger or LiveQualificationScenario.DebuggerBasic or LiveQualificationScenario.DebuggerEvents or LiveQualificationScenario.DebuggerExecution or LiveQualificationScenario.Mono) && architecture != "x64")
 		{
 			return Refuse("The fixed execution qualification supports only the owned x64 target.");
 		}
@@ -185,12 +208,27 @@ internal static class LiveQualificationOptIn
 			return Refuse(
 				"The run root must lie outside the repository and apart from the installed Cheat Engine directory.");
 		}
+		string? frozenInputManifestPath = variables(FrozenInputManifestPathVariable);
+		string? frozenInputManifestSha256 = variables(FrozenInputManifestSha256Variable);
+		if ((frozenInputManifestPath is null) != (frozenInputManifestSha256 is null))
+		{
+			return Refuse($"{FrozenInputManifestPathVariable} and {FrozenInputManifestSha256Variable} must be supplied together.");
+		}
+		if (frozenInputManifestPath is not null &&
+			(!Path.IsPathFullyQualified(frozenInputManifestPath) || !IsSameOrBelow(frozenInputManifestPath, repositoryRoot) ||
+				!Regex.IsMatch(frozenInputManifestSha256!, "^[0-9A-Fa-f]{64}$", RegexOptions.CultureInvariant)))
+		{
+			return Refuse("The frozen input manifest must be an absolute repository path with a SHA-256 digest.");
+		}
+
 		return new LiveQualificationDecision(
 			new LiveQualificationInputs(Path.GetFullPath(repositoryRoot), Path.GetFullPath(source),
 				Path.GetFullPath(runRoot), architecture, scenario)
 			{
 				DispatchDiagnosticCase = dispatchCase,
-				DebuggerTransitionDiagnostic = transitionDiagnostic == "1"
+				DebuggerTransitionDiagnostic = transitionDiagnostic == "1",
+				FrozenInputManifestPath = frozenInputManifestPath is null ? null : Path.GetFullPath(frozenInputManifestPath),
+				FrozenInputManifestSha256 = frozenInputManifestSha256
 			}, null);
 	}
 

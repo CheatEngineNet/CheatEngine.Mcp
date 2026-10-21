@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.Versioning;
+using System.Security.Cryptography;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 using CheatEngine.Mcp.Tests.LiveQualification.Infrastructure;
@@ -18,9 +20,20 @@ internal static partial class LiveCompilerCandidate
 		RequireNoReparseAncestors(inputs.RunRoot);
 		LiveCompilerPayload.RequireReviewedHashes();
 		string commit = Git(inputs.RepositoryRoot, "rev-parse", "HEAD").Trim();
-		if (!FullCommit().IsMatch(commit) || !string.IsNullOrWhiteSpace(Git(inputs.RepositoryRoot, "status", "--porcelain")))
+		bool cleanTree = string.IsNullOrWhiteSpace(Git(inputs.RepositoryRoot, "status", "--porcelain"));
+		if (!FullCommit().IsMatch(commit))
 		{
-			throw new InvalidOperationException("Compiler qualification requires one clean checkout at a full Git commit.");
+			throw new InvalidOperationException("Compiler qualification requires a full Git commit.");
+		}
+		int frozenInputCount = 0;
+		if (inputs.FrozenInputManifestPath is not null && inputs.FrozenInputManifestSha256 is not null)
+		{
+			frozenInputCount = VerifyFrozenInputManifest(inputs.RepositoryRoot, inputs.FrozenInputManifestPath,
+				inputs.FrozenInputManifestSha256, commit, LiveSandboxSession.DistributionDirectory(inputs.RepositoryRoot, "release"));
+		}
+		else if (!cleanTree)
+		{
+			throw new InvalidOperationException("Compiler qualification requires a clean checkout or a fully verified frozen-input manifest.");
 		}
 
 		string policyName = inputs.Scenario is LiveQualificationScenario.CompilerExtended or LiveQualificationScenario.CompilerInjection
@@ -44,7 +57,9 @@ internal static partial class LiveCompilerCandidate
 		return new
 		{
 			commit,
-			cleanTree = true,
+			cleanTree,
+			frozenInputManifestSha256 = frozenInputCount == 0 ? null : inputs.FrozenInputManifestSha256,
+			frozenInputCount,
 			productVersion = pluginVersion,
 			policy = policyName,
 			policySha256 = CheatEngineInstallation.Sha256(policy),
@@ -60,6 +75,85 @@ internal static partial class LiveCompilerCandidate
 				invalidReference = LiveCompilerPayload.InvalidReferenceSha256
 			}
 		};
+	}
+
+	internal static int VerifyFrozenInputManifest(string repositoryRoot, string manifestPath, string expectedManifestSha256,
+		string expectedCommit, string expectedDistribution)
+	{
+		string repository = Path.GetFullPath(repositoryRoot);
+		string manifest = Path.GetFullPath(manifestPath);
+		if (!Path.IsPathFullyQualified(manifestPath) || !LiveQualificationOptIn.IsSameOrBelow(manifest, repository) ||
+			!Regex.IsMatch(expectedManifestSha256, "^[0-9A-Fa-f]{64}$", RegexOptions.CultureInvariant) ||
+			!File.Exists(manifest))
+		{
+			throw new InvalidDataException("The frozen input manifest path or digest is invalid.");
+		}
+		RequireNoReparseAncestors(manifest);
+		if (!string.Equals(Hash(manifest), expectedManifestSha256, StringComparison.OrdinalIgnoreCase))
+		{
+			throw new InvalidDataException("The frozen input manifest digest changed.");
+		}
+
+		using JsonDocument document = JsonDocument.Parse(File.ReadAllBytes(manifest));
+		JsonElement root = document.RootElement;
+		if (root.ValueKind != JsonValueKind.Object ||
+			!string.Equals(root.GetProperty("repository").GetString(), repository, StringComparison.OrdinalIgnoreCase) ||
+			!string.Equals(root.GetProperty("baseCommit").GetString(), expectedCommit, StringComparison.OrdinalIgnoreCase) ||
+			!string.Equals(Path.GetFullPath(root.GetProperty("distribution").GetString() ?? string.Empty),
+				Path.GetFullPath(expectedDistribution), StringComparison.OrdinalIgnoreCase))
+		{
+			throw new InvalidDataException("The frozen input manifest belongs to a different repository, commit, or distribution.");
+		}
+
+		List<(string Path, string Sha256)> files = [];
+		AddFiles(root.GetProperty("source"), files);
+		AddFiles(root.GetProperty("binaries"), files);
+		foreach (JsonElement submodule in root.GetProperty("submodules").EnumerateArray())
+		{
+			AddFiles(submodule.GetProperty("source"), files);
+		}
+		if (files.Count == 0 || files.Select(static file => file.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count() != files.Count)
+		{
+			throw new InvalidDataException("The frozen input manifest is empty or contains duplicate paths.");
+		}
+
+		foreach ((string relativePath, string expectedSha256) in files)
+		{
+			if (Path.IsPathFullyQualified(relativePath) || !Regex.IsMatch(expectedSha256, "^[0-9A-Fa-f]{64}$", RegexOptions.CultureInvariant))
+			{
+				throw new InvalidDataException("The frozen input manifest contains an invalid relative path or digest.");
+			}
+			string path = Path.GetFullPath(Path.Combine(repository, relativePath));
+			if (!LiveQualificationOptIn.IsSameOrBelow(path, repository) || !File.Exists(path))
+			{
+				throw new InvalidDataException("A frozen input path escapes the repository or is missing.");
+			}
+			RequireNoReparseAncestors(path);
+			if (!string.Equals(Hash(path), expectedSha256, StringComparison.OrdinalIgnoreCase))
+			{
+				throw new InvalidDataException($"A frozen input changed: {relativePath}");
+			}
+		}
+		return files.Count;
+	}
+
+	private static void AddFiles(JsonElement element, List<(string Path, string Sha256)> files)
+	{
+		if (element.ValueKind != JsonValueKind.Array)
+		{
+			throw new InvalidDataException("The frozen input manifest has an invalid file list.");
+		}
+		foreach (JsonElement file in element.EnumerateArray())
+		{
+			files.Add((file.GetProperty("path").GetString() ?? string.Empty,
+				file.GetProperty("sha256").GetString() ?? string.Empty));
+		}
+	}
+
+	private static string Hash(string path)
+	{
+		using FileStream file = File.OpenRead(path);
+		return Convert.ToHexString(SHA256.HashData(file));
 	}
 
 	private static void RequireReleaseBuild()

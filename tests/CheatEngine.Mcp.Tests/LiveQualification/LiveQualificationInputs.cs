@@ -12,4 +12,14 @@ internal sealed record LiveQualificationInputs(string RepositoryRoot, string Che
 	{
 		get; init;
 	}
+
+	internal string? FrozenInputManifestPath
+	{
+		get; init;
+	}
+
+	internal string? FrozenInputManifestSha256
+	{
+		get; init;
+	}
 }

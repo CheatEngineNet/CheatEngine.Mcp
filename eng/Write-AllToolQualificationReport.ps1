@@ -159,10 +159,10 @@ function Assert-LiveEvidence($LiveMap, $Catalog, [string] $Repository) {
     }
     if ([string]::IsNullOrWhiteSpace([string] $LiveMap['boundary'])) { throw 'Live evidence requires a non-empty boundary.' }
     $names = @($LiveMap['tools'] | ForEach-Object { [string] $_['name'] })
-    $catalogNames = @($Catalog | ForEach-Object { [string] $_['name'] })
+    $catalogNames = @($Catalog | ForEach-Object { [string] $_['name'] }) + @('instance_list')
     if ($names.Count -eq 0 -or @($names | Sort-Object -Unique).Count -ne $names.Count -or
         @($names | Where-Object { $_ -notin $catalogNames }).Count -ne 0) {
-        throw 'Live evidence must contain a non-empty, unique subset of golden backend tool names.'
+        throw 'Live evidence must contain a non-empty, unique subset of advertised tool names.'
     }
     $root = [IO.Path]::GetFullPath($Repository).TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
     foreach ($entry in @($LiveMap['tools'])) {
@@ -171,8 +171,11 @@ function Assert-LiveEvidence($LiveMap, $Catalog, [string] $Repository) {
                 throw "Live evidence '$($entry['name'])' has no $key."
             }
         }
-        if ($entry['scope'] -notin @('safe_gate', 'reversible_workflow', 'read_only_workflow')) {
+        if ($entry['scope'] -notin @('safe_gate', 'reversible_workflow', 'read_only_workflow', 'gateway_discovery')) {
             throw "Unknown live evidence scope '$($entry['scope'])'."
+        }
+        if (($entry['name'] -eq 'instance_list') -ne ($entry['scope'] -eq 'gateway_discovery')) {
+            throw 'Only instance_list uses the gateway_discovery live scope.'
         }
         if ([IO.Path]::IsPathRooted([string] $entry['sourceFile'])) { throw 'Live sourceFile must be repository-relative.' }
         $source = [IO.Path]::GetFullPath((Join-Path $Repository $entry['sourceFile']))
@@ -304,11 +307,14 @@ $rows = foreach ($tool in $tools | Sort-Object { $_['name'] }) {
     $liveCase = $liveEvidenceByTool[$name]
     $liveSessionEvidence = if ($null -eq $liveCase) { @() } else { @($liveSessions | ForEach-Object {
         $receiptPresent = $_.receipts.counts[$liveCase['receipt']] -eq 1
-        $cleanupReceiptPresent = $liveCase['cleanupReceipt'] -eq 'none' -or $_.receipts.counts[$liveCase['cleanupReceipt']] -eq 1
+        $cleanupRequired = $liveCase['cleanupReceipt'] -ne 'none'
+        $cleanupReceiptPresent = if ($cleanupRequired) { $_.receipts.counts[$liveCase['cleanupReceipt']] -eq 1 } else { $false }
+        $cleanupSatisfied = -not $cleanupRequired -or $cleanupReceiptPresent
         [ordered]@{ runId = $_.runId; summarySha256 = $_.summarySha256; receiptPresent = $receiptPresent;
-            cleanupReceiptPresent = $cleanupReceiptPresent; passed = $_.passed; diagnosticOnly = $_.diagnosticOnly }
+            cleanupRequired = $cleanupRequired; cleanupReceiptPresent = $cleanupReceiptPresent; cleanupSatisfied = $cleanupSatisfied;
+            passed = $_.passed; diagnosticOnly = $_.diagnosticOnly }
     }) }
-    $verifiedLiveSession = @($liveSessionEvidence | Where-Object { $_.passed -and $_.receiptPresent -and $_.cleanupReceiptPresent })
+    $verifiedLiveSession = @($liveSessionEvidence | Where-Object { $_.passed -and $_.receiptPresent -and $_.cleanupSatisfied })
     $diagnosticLiveSession = @($liveSessionEvidence | Where-Object { $_.diagnosticOnly -and $_.receiptPresent })
     $failedLiveSession = @($liveSessionEvidence | Where-Object { -not $_.passed -and -not $_.diagnosticOnly -and $_.receiptPresent })
     [ordered]@{
@@ -317,9 +323,11 @@ $rows = foreach ($tool in $tools | Sort-Object { $_['name'] }) {
         routingCases = $routingCases
         behavior = if ($adapterEvidence.Count -gt 0 -and @($adapterEvidence | Where-Object { $_.outcome -ne 'Passed' }).Count -eq 0) { 'verified_with_doubles' } else { 'requires_reviewed_per_tool_evidence' }
         adapterEvidence = $adapterEvidence; fixedLuaBodyEvidence = $fixedEvidence
-        remaining = if ($name -eq 'instance_list') { 'Local gateway discovery only; no backend behavior applies.' } else { $evidenceByTool[$name]['remaining'] }
+        remaining = if ($name -eq 'instance_list') { 'Local gateway discovery only; no backend behavior applies.' }
+            elseif ($verifiedLiveSession.Count -gt 0) { 'The listed native case passed on the recorded bundle; wider behavior and environment coverage remain unverified.' }
+            else { $evidenceByTool[$name]['remaining'] }
         live = if ($null -eq $liveCase) { 'not_verified' } elseif ($verifiedLiveSession.Count -gt 0) { 'verified' } elseif ($diagnosticLiveSession.Count -gt 0) { 'diagnostic_only' } elseif ($failedLiveSession.Count -gt 0) { 'observed_in_failed_session' } else { 'not_verified' }
-        liveEvidence = if ($null -eq $liveCase) { $null } else { [ordered]@{ scope = $liveCase['scope']; sourceFile = $liveCase['sourceFile']; testMethod = $liveCase['testMethod']; oracle = $liveCase['oracle']; receipt = $liveCase['receipt']; cleanupReceipt = $liveCase['cleanupReceipt']; sessions = $liveSessionEvidence } }
+        liveEvidence = if ($null -eq $liveCase) { $null } else { [ordered]@{ scope = $liveCase['scope']; sourceFile = $liveCase['sourceFile']; testMethod = $liveCase['testMethod']; oracle = $liveCase['oracle']; receipt = $liveCase['receipt']; cleanupReceipt = $liveCase['cleanupReceipt']; sessions = @($liveSessionEvidence) } }
     }
 }
 $report = [ordered]@{
@@ -327,7 +335,7 @@ $report = [ordered]@{
     catalogSha256 = (Get-FileHash -LiteralPath $catalogPath).Hash; evidenceSha256 = (Get-FileHash -LiteralPath $evidencePath).Hash; liveEvidenceSha256 = (Get-FileHash -LiteralPath $liveEvidencePath).Hash
     toolCount = $rows.Count; routingComplete = @($rows | Where-Object { $_.routing -ne 'passed' }).Count -eq 0
     nativeQualificationComplete = $false
-    boundaries = @('Routing uses loopback doubles; it does not execute backend tools.', 'Fixed Lua body evidence bypasses the adapter and never qualifies adapter behavior.', 'Suite totals never infer per-tool positive evidence.', 'A live receipt and its cleanup receipt qualify only when each appears exactly once in the same passing session.', 'Failed or diagnostic-only live sessions are not verified.', 'Missing tests are Missing; refusals do not qualify success.')
+    boundaries = @('Routing uses loopback doubles; it does not execute backend tools.', 'Fixed Lua body evidence bypasses the adapter and never qualifies adapter behavior.', 'Suite totals never infer per-tool positive evidence.', 'A live success receipt and, when required, exactly one mapped cleanup receipt qualify only in the same passing session.', 'When cleanupReceipt is none, cleanupRequired is false and cleanupSatisfied is true; no cleanup receipt is claimed.', 'Failed or diagnostic-only live sessions are not verified.', 'Missing tests are Missing; refusals do not qualify success.')
     suites = $suiteReports
     liveSessions = @($liveSessions | ForEach-Object { [ordered]@{ summaryPath = $_.summaryPath; summarySha256 = $_.summarySha256; receiptsPath = $_.receipts.path; receiptsSha256 = $_.receipts.sha256; passed = $_.passed; runId = $_.runId; candidateIdentity = $_.candidateIdentity; host = $_.host; ownedTarget = $_.ownedTarget } })
     liveSession = if ($liveSessions.Count -eq 1) { [ordered]@{ summaryPath = $liveSessions[0].summaryPath; summarySha256 = $liveSessions[0].summarySha256; receiptsPath = $liveSessions[0].receipts.path; receiptsSha256 = $liveSessions[0].receipts.sha256; passed = $liveSessions[0].passed; runId = $liveSessions[0].runId; candidateIdentity = $liveSessions[0].candidateIdentity; host = $liveSessions[0].host; ownedTarget = $liveSessions[0].ownedTarget } } else { $null }

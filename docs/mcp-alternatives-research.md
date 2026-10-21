@@ -99,11 +99,24 @@ These feature checks do not complete the separate all-tool or same-process reloa
 | Structure interchange and width validation | `StructureInterchangeToolsTests.Import_ProductionAdapter_ValidFilePassesEncodedNestedReferencesToOneLuaMutation`; `Import_PointerWidthMismatch_IsRefusedBeforeLuaMutation` |
 | Compatible, stable process pages | `ProcessPagingTests.List_LegacyRequest_PreservesTheOriginalRequestAndJsonShape`; `List_PagedSnapshot_SortsOnceAndKeepsTheOriginalProcessesAcrossPages` |
 
-The current catalog contains 206 backend tools plus gateway discovery. The latest Release verification has 5,665
-passing portable cases and 742 passing standalone Lua cases. Detailed receipts and the remaining native gaps are recorded in the
-[full tool qualification report](qualification/all-tools/README.md). A subsequent x86 workflow found that pointer
-map capture retained out-of-width WOW64 module metadata; its correction passed regression tests and is awaiting
-fresh native verification.
+The current catalog contains 206 backend tools plus gateway discovery.
+Resumed Release verification on 2026-10-20 passed 5,736 portable cases and 743 standalone Lua cases.
+The isolated process-create scenario passed with cleanup, but the x64 workflow reproduced an invalid native Lua
+state before `structure_list`; the complete workflow failed. Ordinary x64/x86 workflows remain suspended;
+the independent Mono, smoke, assembler, execution and symbol scenarios continued separately.
+Detailed receipts and remaining gaps are recorded in the [full tool qualification report](qualification/all-tools/README.md).
+The earlier x86 pointer-map correction for out-of-width WOW64 module metadata still awaits fresh native verification.
+
+Subsequent isolated verification on `continue-20261020-4` passed all 15 Mono cases, the existing debugger
+basic/execution group and six independent scenario repetitions. Its exact-bundle report verifies 50 native cases
+and leaves 157 unverified, with all 207 routing rows accounted for. The arity-corrected diagnostic is kept
+separate from those success cases. New bundle `continue-20261020-5` includes the thread-ignore acknowledgement
+fix and prepared event fixtures; its first debugger attempt crashed during the earlier run-to cleanup, before
+the new cases. That session supplies no native qualification. Six independent scenarios then passed on bundle 5;
+its own report records 38 verified native cases, 12 failed-session observations and 157 unverified rows.
+The latest source passes 5,774 portable cases in each of Debug and Release and 757 standalone Lua cases.
+The SDK provider-state and debugger crash causes,
+same-process reload and suitable kernel-operation environments remain unresolved.
 
 ## Earlier inspection baseline
 

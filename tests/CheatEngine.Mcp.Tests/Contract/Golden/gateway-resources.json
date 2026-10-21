@@ -78,7 +78,7 @@
       "uri": "cheatengine://docs/debugger",
       "description": "Debugger interfaces and gates, the four breakpoint slots and methods, find-what-writes captures and data-hit heuristics, traces, registers and stepping, and how to leave the target running.",
       "mimeType": "text/markdown",
-      "size": 24663
+      "size": 24792
     },
     {
       "name": "doc_emulators",
@@ -158,7 +158,7 @@
       "uri": "cheatengine://docs/mono-and-dotnet",
       "description": "Choosing between the Mono and .NET collectors, what mono_attach and the Uses Mono option change, reading classes, fields, statics, instances and methods, and invoking or injecting managed code safely.",
       "mimeType": "text/markdown",
-      "size": 25774
+      "size": 25816
     },
     {
       "name": "doc_pointers",

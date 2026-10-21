@@ -479,11 +479,13 @@ public sealed class DebuggerTools
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
 		"Arms an execute breakpoint and then traces only the hitting thread for at most 256 steps. Only one trace " +
-		"can run at a time, because it installs Cheat Engine's global debugger_onBreakpoint hook while active: the " +
-		"call refuses (host_refused) while any debugger_onBreakpoint hook is installed, such as another trace or " +
-		"one set with lua_execute, and the job fails if one appears before its entry breakpoint is hit. The trace " +
+		"can run at a time, because it claims Cheat Engine's global debugger_onBreakpoint hook during setup: the " +
+		"call refuses (host_refused) while any such hook is already installed, including one set with lua_execute. " +
+		"Do not replace the hook while the trace waits for its entry breakpoint; replacing it can prevent trace events, " +
+		"so the job may expire. Cleanup removes the owned entry breakpoint and clears the hook only if it still owns " +
+		"the slot, preserving a replacement. The trace " +
 		"completes after maximumSteps contexts, the entry context included, or earlier after the first context that " +
-		"matches stopCondition. Completion leaves the thread stopped; runtime_stop_job releases the job and its hook.")]
+		"matches stopCondition. Completion leaves the thread stopped; runtime_stop_job releases the job, breakpoint and hook.")]
 	public DebuggerJobStarted StartTrace(
 		[Description("The instruction address expression where the trace starts.")]
 		string address,

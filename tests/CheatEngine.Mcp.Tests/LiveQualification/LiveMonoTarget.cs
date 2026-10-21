@@ -11,8 +11,7 @@ namespace CheatEngine.Mcp.Tests.LiveQualification;
 [SupportedOSPlatform("windows")]
 internal sealed class LiveMonoTarget : IAsyncDisposable
 {
-	private const string SourceHash = "81F48A0760C9A1646F0F03C16BE1BF7603872932F0F203738579FB00938275F8";
-	private const string FixtureHash = "19F2D71A92243740D8D4577EA8CCD46D8CEB647EB6AF0DD9E8BED5C027130A81";
+	private const string SourceHash = "0C7AC664A6F5165C15765F3231AD361C390B0E065F344D6FF89A502D65166FF5";
 	private const string MonoHash = "70AFA7611A4913DEB03C84F9EE0C1E24CED8EE0558EA8C4D60317637417BF0EC";
 	private const string NativeHash = "07A1DEBE6CED8E31FB944046EB6531D41969BAE1F686CF49A13F06877D77D55D";
 	private const string MscorlibHash = "C7512C133808ACB42E48B6C1B879AB6F3C988A9E7A83B6A80E75A9FF38B6E5CF";
@@ -62,29 +61,28 @@ internal sealed class LiveMonoTarget : IAsyncDisposable
 			throw new FileNotFoundException("The reviewed x64 Mono fixture or its private runtime is unavailable.", assembly);
 		}
 		JsonNode identityNode = ReadBoundedJson(identity);
-		string source = identityNode["sourcePath"]?.GetValue<string>() ?? string.Empty;
-		if (string.IsNullOrWhiteSpace(source) || !File.Exists(source))
+		string source = Path.Combine(repository, "eng", "LiveMonoTarget", "Program.cs");
+		if (!File.Exists(source))
 		{
 			throw new InvalidDataException("The Mono fixture identity has no source path.");
 		}
 
 		LiveCompilerCandidate.RequireNoReparseAncestors(source);
 		string assemblyHash = Hash(assembly);
-		if (!string.Equals(assemblyHash, FixtureHash, StringComparison.OrdinalIgnoreCase) || !string.Equals(Hash(mono), MonoHash, StringComparison.OrdinalIgnoreCase) || !string.Equals(Hash(native), NativeHash, StringComparison.OrdinalIgnoreCase) || !string.Equals(Hash(mscorlib), MscorlibHash, StringComparison.OrdinalIgnoreCase) || !string.Equals(Hash(config), ConfigHash, StringComparison.OrdinalIgnoreCase) ||
-			!string.Equals(identityNode["targetSha256"]?.GetValue<string>(), FixtureHash, StringComparison.OrdinalIgnoreCase) || identityNode["architecture"]?.GetValue<string>() != "x64" ||
-			!string.Equals(Path.GetFullPath(identityNode["targetPath"]?.GetValue<string>() ?? string.Empty), assembly, StringComparison.OrdinalIgnoreCase) ||
+		RequireFixtureIdentity(identityNode, assembly, source, assemblyHash, Hash(source), SourceHash);
+		if (!string.Equals(Hash(mono), MonoHash, StringComparison.OrdinalIgnoreCase) || !string.Equals(Hash(native), NativeHash, StringComparison.OrdinalIgnoreCase) || !string.Equals(Hash(mscorlib), MscorlibHash, StringComparison.OrdinalIgnoreCase) || !string.Equals(Hash(config), ConfigHash, StringComparison.OrdinalIgnoreCase) ||
 			!string.Equals(Path.GetFullPath(identityNode["monoPath"]?.GetValue<string>() ?? string.Empty), mono, StringComparison.OrdinalIgnoreCase) ||
 			!string.Equals(identityNode["monoSha256"]?.GetValue<string>(), MonoHash, StringComparison.OrdinalIgnoreCase) ||
-			!IdentityPathAndHash(identityNode, "monoNativeLibrary", native, NativeHash) || !IdentityPathAndHash(identityNode, "runtimeConfig", config, ConfigHash) || !IdentityPathAndHash(identityNode, "mscorlib", mscorlib, MscorlibHash) ||
-			!string.Equals(Hash(source), SourceHash, StringComparison.OrdinalIgnoreCase) || !string.Equals(identityNode["sourceSha256"]?.GetValue<string>(), SourceHash, StringComparison.OrdinalIgnoreCase))
+			!IdentityPathAndHash(identityNode, "monoNativeLibrary", native, NativeHash) || !IdentityPathAndHash(identityNode, "runtimeConfig", config, ConfigHash) || !IdentityPathAndHash(identityNode, "mscorlib", mscorlib, MscorlibHash))
 		{
 			throw new InvalidDataException("The reviewed Mono fixture bytes do not match the pinned identity.");
 		}
 
 		string root = Path.Combine(sandbox.RunDirectory, "mono-qualification", Guid.NewGuid().ToString("N"));
-		Directory.CreateDirectory(root);
 		string nonce = Guid.NewGuid().ToString("N");
 		string manifestPath = Path.Combine(root, $"mono-owned-{nonce}.manifest.json");
+		RequireShortManifestPath(manifestPath);
+		Directory.CreateDirectory(root);
 		string failurePath = Path.Combine(root, $"mono-owned-{nonce}.failure.txt");
 		ProcessStartInfo start = new(mono)
 		{
@@ -143,6 +141,15 @@ internal sealed class LiveMonoTarget : IAsyncDisposable
 				throw new AggregateException(startup, cleanup);
 			}
 			throw;
+		}
+	}
+
+	internal static void RequireShortManifestPath(string manifestPath)
+	{
+		// The reviewed legacy Mono runtime adds '.' + a 32-character GUID + '.tmp' for the atomic write.
+		if (Path.GetFullPath(manifestPath).Length + 37 >= 260)
+		{
+			throw new InvalidDataException("The Mono fixture's atomic manifest path exceeds the legacy runtime limit; select a shorter live run root.");
 		}
 	}
 
@@ -256,6 +263,19 @@ internal sealed class LiveMonoTarget : IAsyncDisposable
 			throw new InvalidDataException("The owned Mono fixture wrote unexpected output.");
 		}
 	}
+	internal static void RequireFixtureIdentity(JsonNode identity, string assembly, string source, string assemblyHash,
+		string sourceHash, string expectedSourceHash)
+	{
+		// Legacy csc output is not deterministic. The prepared run manifest pins the actual binary and sidecar.
+		if (!IdentityPathAndHash(identity, "target", assembly, assemblyHash) ||
+			!IdentityPathAndHash(identity, "source", source, expectedSourceHash) ||
+			!string.Equals(sourceHash, expectedSourceHash, StringComparison.OrdinalIgnoreCase) ||
+			identity["architecture"]?.GetValue<string>() != "x64")
+		{
+			throw new InvalidDataException("The owned Mono fixture does not match its build identity and reviewed source.");
+		}
+	}
+
 	private static JsonNode ReadBoundedJson(string path)
 	{
 		if (new FileInfo(path).Length is <= 0 or > MaximumInputBytes)

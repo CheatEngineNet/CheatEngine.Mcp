@@ -143,7 +143,10 @@ public sealed partial class ToolDispatch
 		catch (CheatEngineToolException exception) when (exception.Error.Kind is ToolErrorKind.Internal &&
 														 exception.InnerException is not null)
 		{
-			LogUnexpectedFault(_logger, operation);
+			// Match dispatcher diagnostics without logging exception messages, data or source-file paths.
+			Exception cause = exception.InnerException;
+			LogUnexpectedFault(_logger, operation, cause.GetType().FullName ?? cause.GetType().Name,
+				new StackTrace(cause, false).ToString());
 			throw;
 		}
 		finally
@@ -366,8 +369,8 @@ public sealed partial class ToolDispatch
 	private static partial void LogCancelledAfterStart(ILogger logger, string operation);
 
 	[LoggerMessage(EventId = 3004, Level = LogLevel.Error,
-		Message = "Dispatch {Operation} failed with an unexpected exception; reported as internal.")]
-	private static partial void LogUnexpectedFault(ILogger logger, string operation);
+		Message = "Dispatch {Operation} failed with an unexpected {ExceptionType}; reported as internal. Stack: {Stack}")]
+	private static partial void LogUnexpectedFault(ILogger logger, string operation, string exceptionType, string stack);
 
 	[LoggerMessage(EventId = 3005, Level = LogLevel.Error,
 		Message = "Dispatch {Operation} failed in the native dispatcher with {ExceptionType}; host effect is unknown. Stack: {Stack}")]

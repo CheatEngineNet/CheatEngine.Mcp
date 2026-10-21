@@ -239,7 +239,8 @@ public sealed record DebuggerJobStarted(
 public sealed record DebuggerCaptureContext(
 	[property: Description("The reported instruction pointer, uppercase hexadecimal without 0x.")]
 	string Ip,
-	[property: Description("The target thread identifier.")]
+	[property: Description(
+		"The target thread identifier reported by Cheat Engine; 0 means this callback did not report a thread ID.")]
 	long ThreadId,
 	[property:
 		Description("The candidate executed instruction address for a data trap, uppercase hexadecimal without 0x.")]

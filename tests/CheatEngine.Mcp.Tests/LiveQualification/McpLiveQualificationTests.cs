@@ -21,9 +21,14 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 	public async Task OneGateway_TwoOwnedInstances_RoutesStateAndSurvivesOneHostShutdown()
 	{
 		LiveQualificationInputs inputs = fixture.RequireAuthorization();
-		if (inputs.Scenario is LiveQualificationScenario.Assembler or LiveQualificationScenario.Debugger)
+		if (LiveSpecializedQualification.Handles(inputs.Scenario))
 		{
 			await LiveSpecializedQualification.RunAsync(inputs);
+			return;
+		}
+		if (inputs.Scenario == LiveQualificationScenario.KernelStatus)
+		{
+			await LiveKernelStatusQualification.RunAsync(inputs);
 			return;
 		}
 		if (inputs.Scenario == LiveQualificationScenario.Execution)
@@ -56,7 +61,7 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			await LivePerformanceQualification.RunAsync(inputs);
 			return;
 		}
-		if (inputs.Scenario is LiveQualificationScenario.Lifecycle or LiveQualificationScenario.Workflows)
+		if (inputs.Scenario is LiveQualificationScenario.Lifecycle or LiveQualificationScenario.PluginLifecycle or LiveQualificationScenario.Workflows or LiveQualificationScenario.Inspection or LiveQualificationScenario.StateWorkflows)
 		{
 			await LiveLifecycleQualification.RunAsync(inputs);
 			return;

@@ -17,6 +17,7 @@ namespace CheatEngine.Mcp.Tests.LiveQualification;
 [SupportedOSPlatform("windows")]
 internal static class LiveNativeSymbolFixtureQualification
 {
+	private static readonly TimeSpan SymbolReloadDeadline = TimeSpan.FromSeconds(15);
 	private static readonly ExpectedField[] ExpectedLayout =
 	[
 		new("Magic", "0", "uint32"),
@@ -61,7 +62,10 @@ internal static class LiveNativeSymbolFixtureQualification
 			injected = injected.DeepClone()
 		});
 
-		await RecordReloadInconclusiveAsync(sandbox, instance, Text(mcpModule, "name"));
+		string moduleName = Text(mcpModule, "name");
+		await RecordReloadInconclusiveAsync(sandbox, instance, moduleName);
+		await VerifyAllSymbolReloadAsync(sandbox, instance, moduleName,
+			checked(osModule.BaseAddress + artifact.ExportRvas["CemcpFixtureTick"]));
 		return await VerifyExistingPdbLayoutAsync(sandbox, instance);
 	}
 
@@ -229,6 +233,55 @@ internal static class LiveNativeSymbolFixtureQualification
 			moduleName,
 			reason = "Cheat Engine may discover an injected module asynchronously, so no reload request can be attributed as the cause."
 		});
+	}
+
+	private static async Task VerifyAllSymbolReloadAsync(LiveSandboxSession sandbox, LiveMcpInstanceClient instance,
+		string moduleName, ulong expectedAddress)
+	{
+		JsonNode before = await FindTickAsync(instance, moduleName);
+
+		JsonNode reload = await CallAsync(instance, CheatEngineToolNames.SymbolReload,
+			new Dictionary<string, object?> { ["scope"] = "all" });
+		JsonNode after = await WaitForSymbolsLoadedAsync(instance, moduleName);
+		AssertTickExport(after, expectedAddress);
+		sandbox.Record("all_tools_symbol_reload", new
+		{
+			scope = "all",
+			moduleName,
+			reload = reload.DeepClone(),
+			symbolsBefore = before.DeepClone(),
+			symbolsAfter = after.DeepClone(),
+			independentlyParsedPeAddress = Hex(expectedAddress),
+			completeAfterReload = after["symbolsLoaded"]!.GetValue<bool>()
+		});
+	}
+
+	private static async Task<JsonNode> WaitForSymbolsLoadedAsync(LiveMcpInstanceClient instance, string moduleName)
+	{
+		using CancellationTokenSource deadline = new(SymbolReloadDeadline);
+		LiveMcpInstanceClient bounded = instance.WithCancellation(deadline.Token);
+		while (true)
+		{
+			JsonNode symbols = await FindTickAsync(bounded, moduleName);
+			if (symbols["symbolsLoaded"]!.GetValue<bool>())
+			{
+				return symbols;
+			}
+
+			await Task.Delay(TimeSpan.FromMilliseconds(200), deadline.Token);
+		}
+	}
+
+	private static void AssertTickExport(JsonNode symbols, ulong expectedAddress)
+	{
+		Assert.False(symbols["truncated"]!.GetValue<bool>());
+		Assert.Equal(1, symbols["total"]!.GetValue<int>());
+		JsonNode symbol = Assert.Single(symbols["symbols"]!.AsArray())!;
+		string name = Text(symbol, "name");
+		Assert.True(name.Equals("CemcpFixtureTick", StringComparison.Ordinal)
+			|| name.EndsWith(".CemcpFixtureTick", StringComparison.Ordinal),
+			$"Expected the owned CemcpFixtureTick export, got '{name}'.");
+		Assert.Equal(expectedAddress, Address(Text(symbol, "address")));
 	}
 
 	private static async Task<JsonNode> FindTickAsync(LiveMcpInstanceClient instance, string moduleName) =>

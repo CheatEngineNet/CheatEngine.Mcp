@@ -212,9 +212,10 @@ let the game run briefly, poll as above, then `runtime_stop_job`.
   recording one context per step, entry included, up to `debugger_start_trace.maximumSteps` (default 32, at most 256).
   Start it while the target runs; the code must reach the address before the TTL. `debugger_start_trace.includeStack`
   adds `stackPointer`.
-- One trace at a time: once its entry is hit, a trace owns CE's global `debugger_onBreakpoint` hook. A start is
-  refused (`host_refused`) while any such hook exists, including one set with `lua_execute` ([Lua](lua.md)), and a
-  trace whose entry is hit while another hook is installed fails.
+- One trace at a time: setup claims CE's global `debugger_onBreakpoint` hook. While waiting for entry, an existing
+  hook makes start fail (`host_refused`), including one set with `lua_execute` ([Lua](lua.md)). Do not replace the
+  hook while waiting: it can suppress trace events and let the job expire. Cleanup removes the entry breakpoint and
+  clears the hook only if the trace still owns it; it does not chain hooks.
 - `debugger_start_trace.stopCondition` is optional: without it the trace runs all its steps; with it, the trace also
   ends after the first matching context, the entry included. Grammar: `REGISTER=HEX` (general-purpose register or
   `EFLAGS`) or `IP=HEX`, 1 to 16 hex digits, optional `0x`, at most 64 characters, compared as a number (`RAX=001A`

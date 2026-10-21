@@ -3,6 +3,15 @@
   "boundary": "Reviewed live positive evidence only. A row is verified only when its receipt, any required cleanup receipt, and a fully passed/restored live summary are present.",
   "tools": [
     {
+      "name": "instance_list",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/McpLiveQualificationTests.cs",
+      "testMethod": "OneGateway_TwoOwnedInstances_RoutesStateAndSurvivesOneHostShutdown",
+      "oracle": "The real gateway returns exactly the two independently owned CE instances; each instance ID, display name and process ID matches its sandbox host. The independently known hosts have distinct instance identities and endpoint ports. This is gateway-local discovery only, not backend tool behavior.",
+      "receipt": "gateway_instances",
+      "cleanupReceipt": "none",
+      "scope": "gateway_discovery"
+    },
+    {
       "name": "runtime_get_info",
       "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveWorkflowQualification.cs",
       "testMethod": "VerifyGatesAsync",
@@ -42,10 +51,10 @@
       "name": "debugger_get_status",
       "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/McpLiveQualificationTests.cs",
       "testMethod": "OneGateway_TwoOwnedInstances_RoutesStateAndSurvivesOneHostShutdown",
-      "oracle": "Smoke scenario status reports stateValid=true with attached=false and broken=false before the owned speedhack workflow.",
+    "oracle": "On the owned target, debugger_get_status returns stateValid=true while detached, then while attached and stopped. The stopped state is independently observed before the context, stack, continue and detach probes; cleanup reads back detached state.",
       "receipt": "all_tools_debugger_get_status",
-      "cleanupReceipt": "none",
-      "scope": "read_only_workflow"
+    "cleanupReceipt": "live_debugger_windows_cleanup",
+    "scope": "reversible_workflow"
     },
     {
       "name": "speedhack_set_speed",
@@ -1500,10 +1509,19 @@
       "name": "symbol_reload",
       "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveNativeSymbolFixtureQualification.cs",
       "testMethod": "VerifyAsync",
-      "oracle": "When the injected fixture was not already auto-discovered, new_modules reload must make its exact owned Tick export appear at base plus its preflight RVA with symbolsLoaded=true; auto-discovery remains explicitly inconclusive.",
+      "oracle": "The explicit all-scope symbol-handler reinitialization returns successfully; bounded post-reload symbol_find reports symbolsLoaded=true and the exact owned Tick export at the independently parsed PE base plus RVA. The separate new_modules auto-discovery observation remains inconclusive.",
       "receipt": "all_tools_symbol_reload",
       "cleanupReceipt": "native_symbol_fixture_cleanup",
       "scope": "reversible_workflow"
+    },
+    {
+      "name": "kernel_get_status",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveKernelStatusQualification.cs",
+      "testMethod": "RunAsync",
+      "oracle": "With only kernelAccess enabled, a typed native status query returns at least one DBK/DBVM state and neither initialized; repeated status is identical after a gateway restart, owned resources/jobs remain empty, and an independent Win32_SystemDriver inventory is unchanged.",
+      "receipt": "all_tools_kernel_get_status",
+      "cleanupReceipt": "live_kernel_status_cleanup",
+      "scope": "read_only_workflow"
     },
     {
       "name": "symbol_add_module",
@@ -1525,10 +1543,10 @@
     },
     {
       "name": "exec_compile_csharp",
-      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveCompilerQualification.cs",
-      "testMethod": "VerifyCompilerAsync",
-      "oracle": "Fixed source produces an owned PE export with independently matching output path, positive bounded length and SHA256; other instance files and target remain unchanged.",
-      "receipt": "compiler_export",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveManagedInjectionQualification.cs",
+      "testMethod": "VerifyOneFixedInjectionAsync",
+      "oracle": "The fixed held compiler request returns the independently verified owned export after host B stops, with exact output identity and digest; all owned compiler files are removed during cleanup.",
+      "receipt": "compiler_call_held_export",
       "cleanupReceipt": "ownedCompilerFilesRemoved",
       "scope": "reversible_workflow"
     },
@@ -1608,7 +1626,7 @@
       "name": "mono_attach",
       "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveMonoQualification.cs",
       "testMethod": "VerifyAsync",
-      "oracle": "The owned x64 Mono target reports an attached non-IL2CPP collector with a positive version and the expected injection, patch, hook and table-option effects.",
+      "oracle": "The owned x64 Mono target reports an attached non-IL2CPP collector with a positive version; OS module enumeration independently verifies its nonzero loaded image, exact private collector path and reviewed file hash. Optional patch and table-option effects remain unqualified.",
       "receipt": "all_tools_mono_attach",
       "cleanupReceipt": "live_mono_cleanup",
       "scope": "reversible_workflow"
@@ -1737,6 +1755,51 @@
       "oracle": "The exact owned job completes within a deadline, with no drops and bounded unique candidates including the pinned object; cleanup stops it and independently proves absence.",
       "receipt": "all_tools_mono_poll_instance_search",
       "cleanupReceipt": "live_mono_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "debugger_set_thread_ignored",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerEventQualification.cs",
+      "testMethod": "VerifyRemainingAsync",
+      "oracle": "Both independent owned loop counters advance with the exact thread's Entry breakpoint armed while ignored; unignore then stops at the exact manifest thread/RIP. Cleanup restores ignored=false, deletes the breakpoint, detaches and proves heartbeat.",
+      "receipt": "all_tools_debugger_set_thread_ignored",
+      "cleanupReceipt": "live_debugger_event_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "debugger_start_capture",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerEventQualification.cs",
+      "testMethod": "VerifyRemainingAsync",
+      "oracle": "The execute/instruction-group capture echoes the owned target PID, Entry address and TTL; its complete non-dropping page contains one repeated group at the independently known instruction. Cheat Engine's generic Lua breakpoint callback reports threadId=0, so process and instruction identity come from the owned PID, exact code address, registers and independent target counters. Cleanup stops the job, proves its absence and checks breakpoint removal.",
+      "receipt": "all_tools_debugger_start_capture",
+      "cleanupReceipt": "live_debugger_event_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "debugger_poll_capture",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerEventQualification.cs",
+      "testMethod": "VerifyRemainingAsync",
+      "oracle": "One complete instruction group has hitCount>=2 and threadId=0 in its current, first and last contexts because Cheat Engine's generic Lua breakpoint callback supplies no TID; the owned PID, exact IP/instruction/RIP, nonheuristic context and same RSP identify the event. Sequence is one, there are no drops or errors, and progressDone equals the group hit count.",
+      "receipt": "all_tools_debugger_poll_capture",
+      "cleanupReceipt": "live_debugger_event_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "debugger_start_trace",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerEventQualification.cs",
+      "testMethod": "VerifyRemainingAsync",
+      "oracle": "The three-context step-into trace starts at the owned Entry and completes at the exact fixed addresses CodeStart+9,+16,+23. A distinct one-context trace after release and resume proves the earlier global hook is absent; both jobs and breakpoints are released before detach.",
+      "receipt": "all_tools_debugger_start_trace",
+      "cleanupReceipt": "live_debugger_event_cleanup",
+      "scope": "reversible_workflow"
+    },
+    {
+      "name": "debugger_poll_trace",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerEventQualification.cs",
+      "testMethod": "VerifyRemainingAsync",
+      "oracle": "The completed page contains exactly the three independently encoded instruction addresses with exact owned TID, RIP and stable RSP, progress 3/3, complete sequences and no drops/errors/manual recovery. Cleanup separately proves hook admission, job absence, breakpoint absence and resumed heartbeat.",
+      "receipt": "all_tools_debugger_poll_trace",
+      "cleanupReceipt": "live_debugger_event_cleanup",
       "scope": "reversible_workflow"
     }
   ]

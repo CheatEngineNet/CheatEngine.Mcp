@@ -39,7 +39,7 @@ internal sealed partial class LiveSandboxSession
 				: "The owned plugin discovery identity is unavailable before disable.");
 		}
 
-		NeutralizeOwnedPluginRegistry();
+		PrepareOwnedPluginRegistryForSettingsReload(hostName, currentEnabled: !enabled);
 		long nonce = Interlocked.Increment(ref _pluginControlNonce);
 		string request = Path.Combine(_layout.RunDirectory, $"plugin-request-{hostName}.txt");
 		string response = Path.Combine(_layout.RunDirectory, $"plugin-response-{hostName}.txt");
@@ -85,6 +85,7 @@ internal sealed partial class LiveSandboxSession
 		{
 			throw new InvalidOperationException("The owned CE process exited during the plugin lifecycle transition.");
 		}
+		bool accessTokenChanged = false;
 		if (enabled)
 		{
 			InstanceDescriptor descriptor = await WaitForInstanceAsync(host, TimeSpan.FromSeconds(45));
@@ -93,6 +94,7 @@ internal sealed partial class LiveSandboxSession
 			{
 				throw new InvalidOperationException("Plugin re-enable did not publish a fresh discovery identity.");
 			}
+			accessTokenChanged = !string.Equals(previous.AccessToken, descriptor.AccessToken, StringComparison.Ordinal);
 			host.Public = host.Public with
 			{
 				InstanceId = descriptor.InstanceId,
@@ -105,7 +107,14 @@ internal sealed partial class LiveSandboxSession
 			_pendingPluginIdentities[hostName] = previous;
 		}
 
-		LivePluginCycle cycle = new(host.Public.ProcessId, nonce, enabled, DateTimeOffset.UtcNow);
+		string currentInstanceId = host.Public.InstanceId;
+		string currentEndpoint = host.Public.Endpoint;
+		LivePluginCycle cycle = new(host.Public.ProcessId, host.Public.TargetProcessId, nonce, enabled,
+			previous.InstanceId, currentInstanceId, previous.Endpoint, currentEndpoint,
+			enabled && previous.InstanceId != currentInstanceId,
+			enabled && previous.Endpoint != currentEndpoint,
+			accessTokenChanged,
+			DateTimeOffset.UtcNow);
 		Record($"plugin_{hostName}_{(enabled ? "enable" : "disable")}", cycle);
 		return cycle;
 	}
@@ -192,11 +201,8 @@ internal sealed partial class LiveSandboxSession
 		}
 
 		const string pluginsSubKey = CheatEngineUserStateLocations.CheatEngineRegistrySubKey + @"\Plugins64";
-		using RegistryKey? plugins = Registry.CurrentUser.OpenSubKey(pluginsSubKey, true);
-		if (plugins is null)
-		{
-			return;
-		}
+		using RegistryKey plugins = Registry.CurrentUser.CreateSubKey(pluginsSubKey, true)
+			?? throw new InvalidOperationException("The guarded CE Plugins64 registry key could not be created.");
 		if (plugins.GetSubKeyNames().Length != 0)
 		{
 			throw new InvalidOperationException("The CE Plugins64 registry key has unexpected subkeys; it is retained for recovery.");
@@ -246,11 +252,104 @@ internal sealed partial class LiveSandboxSession
 			}
 		}
 
-		Registry.CurrentUser.DeleteSubKeyTree(pluginsSubKey, false);
+		foreach (string valueName in names)
+		{
+			plugins.DeleteValue(valueName, false);
+		}
 		Record("plugins64_neutralized", new
 		{
-			count = pairs.Count
+			count = pairs.Count,
+			keyPresentForSettingsReload = true
 		});
+	}
+
+	private void PrepareOwnedPluginRegistryForSettingsReload(string hostName, bool currentEnabled)
+	{
+		if (!_hosts.TryGetValue(hostName, out OwnedHost? host) || host.Stopped)
+		{
+			throw new InvalidOperationException($"Owned host '{hostName}' is unavailable for plugin settings reload.");
+		}
+
+		LivePluginRegistrySeed seed = LivePluginRegistrySeed.Create(host.Public.PluginPath, currentEnabled);
+		RequireInsideRun(seed.PluginPath);
+		RequireNoReparseAncestors(seed.PluginPath);
+		NeutralizeOwnedPluginRegistry();
+		const string pluginsSubKey = CheatEngineUserStateLocations.CheatEngineRegistrySubKey + @"\Plugins64";
+		using RegistryKey plugins = Registry.CurrentUser.OpenSubKey(pluginsSubKey, writable: true)
+			?? throw new InvalidOperationException("The guarded CE Plugins64 key disappeared before the owned plugin pair could be seeded.");
+		OwnedPluginRegistryReadback readback = SetAndVerifyOwnedPluginRegistryPair(plugins, seed);
+		Record("plugins64_seeded_for_settings_reload", new
+		{
+			host = hostName,
+			action = currentEnabled ? "disable" : "enable",
+			pluginPath = seed.PluginPath,
+			registryValueCount = 2,
+			currentEnabled,
+			keyPresentForSettingsReload = true,
+			readback
+		});
+	}
+
+	private void SeedOwnedPluginChecklistAtStartup(string hostName, string pluginPath)
+	{
+		if (!_hosts.TryGetValue(hostName, out OwnedHost? host) || host.Stopped || host.Process is not null
+			|| !string.Equals(Path.GetFullPath(host.Public.PluginPath), Path.GetFullPath(pluginPath),
+				StringComparison.OrdinalIgnoreCase))
+		{
+			throw new InvalidOperationException("Startup plugin seeding requires the exact owned plugin before its CE host starts.");
+		}
+
+		LivePluginRegistrySeed seed = LivePluginRegistrySeed.Create(pluginPath, currentEnabled: false);
+		RequireInsideRun(seed.PluginPath);
+		RequireNoReparseAncestors(seed.PluginPath);
+		NeutralizeOwnedPluginRegistry();
+		const string pluginsSubKey = CheatEngineUserStateLocations.CheatEngineRegistrySubKey + @"\Plugins64";
+		using RegistryKey plugins = Registry.CurrentUser.OpenSubKey(pluginsSubKey, writable: true)
+			?? throw new InvalidOperationException("The guarded CE Plugins64 key disappeared before startup seeding.");
+		OwnedPluginRegistryReadback readback = SetAndVerifyOwnedPluginRegistryPair(plugins, seed);
+		Record("plugins64_seeded_before_host_start", new
+		{
+			host = hostName,
+			pluginPath = seed.PluginPath,
+			registryValueCount = 2,
+			currentEnabled = false,
+			hostProcessStarted = false,
+			readback
+		});
+	}
+
+	private static OwnedPluginRegistryReadback SetAndVerifyOwnedPluginRegistryPair(RegistryKey plugins,
+		LivePluginRegistrySeed seed)
+	{
+		if (plugins.GetSubKeyNames().Length != 0)
+		{
+			throw new InvalidOperationException("The guarded CE Plugins64 key has unexpected subkeys before seeding.");
+		}
+
+		plugins.SetValue(seed.PathValueName, seed.PluginPath, RegistryValueKind.String);
+		plugins.SetValue(seed.EnabledValueName, seed.EnabledValue, RegistryValueKind.DWord);
+		plugins.Flush();
+
+		string[] names = plugins.GetValueNames().Order(StringComparer.Ordinal).ToArray();
+		string[] expectedNames = [seed.PathValueName, seed.EnabledValueName];
+		if (!names.SequenceEqual(expectedNames, StringComparer.Ordinal))
+		{
+			throw new InvalidOperationException("The guarded CE Plugins64 key does not contain exactly the expected owned pair.");
+		}
+
+		RegistryValueKind pathKind = plugins.GetValueKind(seed.PathValueName);
+		RegistryValueKind enabledKind = plugins.GetValueKind(seed.EnabledValueName);
+		string? path = plugins.GetValue(seed.PathValueName, null, RegistryValueOptions.DoNotExpandEnvironmentNames) as string;
+		object? enabled = plugins.GetValue(seed.EnabledValueName, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
+		if (plugins.GetSubKeyNames().Length != 0 || pathKind != RegistryValueKind.String
+			|| enabledKind != RegistryValueKind.DWord || !string.Equals(path, seed.PluginPath, StringComparison.OrdinalIgnoreCase)
+			|| enabled is not int enabledValue || enabledValue != seed.EnabledValue)
+		{
+			throw new InvalidOperationException("The guarded CE Plugins64 pair failed exact type/value readback.");
+		}
+
+		return new OwnedPluginRegistryReadback(names, pathKind.ToString(), enabledKind.ToString(), path!, enabledValue,
+			plugins.GetValueNames().Length, true);
 	}
 
 	private void PrepareRestartArtifacts(string name, OwnedHost previous)
@@ -278,6 +377,26 @@ internal sealed partial class LiveSandboxSession
 	}
 }
 
-internal sealed record LivePluginCycle(int ProcessId, long Nonce, bool Enabled, DateTimeOffset CompletedAt);
+internal sealed record LivePluginRegistrySeed(string PathValueName, string EnabledValueName, string PluginPath,
+	int EnabledValue)
+{
+	internal static LivePluginRegistrySeed Create(string pluginPath, bool currentEnabled)
+	{
+		if (string.IsNullOrWhiteSpace(pluginPath) || !Path.IsPathFullyQualified(pluginPath)
+			|| !string.Equals(Path.GetExtension(pluginPath), ".dll", StringComparison.OrdinalIgnoreCase))
+		{
+			throw new InvalidDataException("The owned plugin registry seed requires one absolute DLL path.");
+		}
+
+		return new LivePluginRegistrySeed("00000000 A", "00000000 B", Path.GetFullPath(pluginPath), currentEnabled ? 1 : 0);
+	}
+}
+
+internal sealed record OwnedPluginRegistryReadback(string[] ValueNames, string PathValueKind, string EnabledValueKind,
+	string PluginPath, int EnabledValue, int ValueCount, bool ExactMatch);
+
+internal sealed record LivePluginCycle(int ProcessId, int TargetProcessId, long Nonce, bool Enabled,
+	string PreviousInstanceId, string CurrentInstanceId, string PreviousEndpoint, string CurrentEndpoint,
+	bool InstanceIdChanged, bool EndpointChanged, bool AccessTokenChanged, DateTimeOffset CompletedAt);
 
 internal sealed record PendingPluginIdentity(string InstanceId, string Endpoint, string AccessToken);

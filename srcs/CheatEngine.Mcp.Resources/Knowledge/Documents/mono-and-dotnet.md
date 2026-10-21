@@ -47,12 +47,12 @@ Before calling it:
 - `host_refused` with `hostEffect` `unknown` means CE did not confirm the attach. Read `mono_get_status()` before
   anything else, and never call `mono_attach` again blindly.
 
-On success the result gives `attached`, `il2Cpp` (CE's reduced IL2CPP mode), `collectorVersion` and
-`mono_attach.hostEffects`:
+Success returns `attached`, `il2Cpp` (CE's reduced IL2CPP mode), `collectorVersion` and `hostEffects`:
+conservative warnings, not confirmed effects.
 
 - `collector_injected`: `MonoDataCollector64.dll` (or `32`) is loaded, with a pipe, until the game exits.
-- `mono_error_ok_patched` (never on IL2CPP): `mono_error_ok` in `mono-2.0-bdwgc.dll` returns 1 until the game
-  restarts. MCP lists it for every Mono target, even a `mono.dll` game with nothing to patch.
+- `mono_error_ok_patched` (Mono only): CE attempts to make `mono-2.0-bdwgc.dll`'s `mono_error_ok` return 1
+  until restart. It ignores patch failure. MCP lists this even for `mono.dll` or sgen targets with nothing to patch.
 - `cheat_engine_hooks_installed`: CE-wide symbol, address, structure-name and dissect hooks and a replacement
   `createStructureFromName`, until a detach.
 - `uses_mono_table_option`: the table option Uses Mono is set (or unreadable). CE sets it on each attach while its

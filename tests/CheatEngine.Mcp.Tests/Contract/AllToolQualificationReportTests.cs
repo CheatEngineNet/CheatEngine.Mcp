@@ -10,6 +10,43 @@ namespace CheatEngine.Mcp.Tests.Contract;
 public sealed class AllToolQualificationReportTests
 {
 	[Fact]
+	public async Task Report_PassingNativeGatewayDiscovery_VerifiesOnlyGatewayLocalEvidence()
+	{
+		await using ReportFixture fixture = new();
+		string session = fixture.CreateSession("gateway-discovery", ["gateway_instances"]);
+
+		RunResult run = await fixture.RunAsync(session);
+
+		Assert.Equal(0, run.ExitCode);
+		JsonObject gateway = Tool(fixture.ReadReport(), "instance_list");
+		Assert.Equal("verified", gateway["live"]!.GetValue<string>());
+		Assert.Equal("gateway_discovery", gateway["liveEvidence"]!["scope"]!.GetValue<string>());
+		Assert.Equal("Local gateway discovery only; no backend behavior applies.", gateway["remaining"]!.GetValue<string>());
+		Assert.Empty(gateway["adapterEvidence"]!.AsArray());
+		Assert.Equal("not_verified", Tool(fixture.ReadReport(), "process_create")["live"]!.GetValue<string>());
+	}
+
+	[Fact]
+	public async Task Report_NoCleanupReceiptMapping_MarksCleanupNotApplicable()
+	{
+		await using ReportFixture fixture = new();
+		string session = fixture.CreateSession("read-only", ["live_workflow_gates"]);
+
+		RunResult run = await fixture.RunAsync(session);
+
+		Assert.Equal(0, run.ExitCode);
+		JsonObject tool = Tool(fixture.ReadReport(), "runtime_get_info");
+		Assert.Equal("verified", tool["live"]!.GetValue<string>());
+		JsonObject liveEvidence = tool["liveEvidence"]!.AsObject();
+		Assert.Equal("none", liveEvidence["cleanupReceipt"]!.GetValue<string>());
+		JsonObject sessionEvidence = liveEvidence["sessions"]!.AsArray().Single()!.AsObject();
+		Assert.True(sessionEvidence["receiptPresent"]!.GetValue<bool>());
+		Assert.False(sessionEvidence["cleanupRequired"]!.GetValue<bool>());
+		Assert.False(sessionEvidence["cleanupReceiptPresent"]!.GetValue<bool>());
+		Assert.True(sessionEvidence["cleanupSatisfied"]!.GetValue<bool>());
+	}
+
+	[Fact]
 	public async Task Report_DisjointPassingSameBundleSessions_VerifiesTheirReceiptUnion()
 	{
 		await using ReportFixture fixture = new();
@@ -24,7 +61,26 @@ public sealed class AllToolQualificationReportTests
 		Assert.Equal(2, report["liveSessions"]!.AsArray().Count);
 		Assert.Equal("verified", Tool(report, "process_create")["live"]!.GetValue<string>());
 		Assert.Equal("verified", Tool(report, "dotnet_get_object")["live"]!.GetValue<string>());
+		Assert.Equal("The listed native case passed on the recorded bundle; wider behavior and environment coverage remain unverified.",
+			Tool(report, "process_create")["remaining"]!.GetValue<string>());
+		Assert.Equal("Native success, side effects and cleanup on the exact product bundle remain unverified.",
+			Tool(report, "mono_attach")["remaining"]!.GetValue<string>());
 		Assert.Equal(2, Tool(report, "process_create")["liveEvidence"]!["sessions"]!.AsArray().Count);
+	}
+
+	[Theory]
+	[InlineData("instance_list", "safe_gate")]
+	[InlineData("process_create", "gateway_discovery")]
+	public async Task Report_GatewayAndBackendScopesCannotBeInterchanged(string name, string scope)
+	{
+		await using ReportFixture fixture = new();
+		fixture.ChangeLiveScope(name, scope);
+		string session = fixture.CreateSession("invalid-gateway-scope", ["gateway_instances"]);
+
+		RunResult run = await fixture.RunAsync(session);
+
+		Assert.NotEqual(0, run.ExitCode);
+		Assert.Contains("Only instance_list uses the gateway_discovery live scope.", run.Output);
 	}
 
 	[Fact]
@@ -71,6 +127,11 @@ public sealed class AllToolQualificationReportTests
 		Assert.Equal("verified", Tool(report, "process_create")["live"]!.GetValue<string>());
 		Assert.Equal("observed_in_failed_session", Tool(report, "dotnet_get_object")["live"]!.GetValue<string>());
 		Assert.Equal("diagnostic_only", Tool(report, "dotnet_get_type")["live"]!.GetValue<string>());
+		foreach (string name in new[] { "dotnet_get_object", "dotnet_get_type" })
+		{
+			Assert.Equal("Native success, side effects and cleanup on the exact product bundle remain unverified.",
+				Tool(report, name)["remaining"]!.GetValue<string>());
+		}
 	}
 
 	[Theory]
@@ -182,6 +243,16 @@ public sealed class AllToolQualificationReportTests
 			get;
 		}
 		internal string ReportPath => Path.Combine(_root, "report", "tool-results.json");
+		private string? _liveEvidencePath;
+
+		internal void ChangeLiveScope(string name, string scope)
+		{
+			JsonObject map = JsonNode.Parse(File.ReadAllText(Path.Combine(RepositoryPaths.Root, "docs", "qualification",
+				"all-tools", "live-evidence.json")))!.AsObject();
+			map["tools"]!.AsArray().Single(entry => entry!["name"]!.GetValue<string>() == name)!["scope"] = scope;
+			_liveEvidencePath = Path.Combine(_root, "live-evidence.json");
+			File.WriteAllText(_liveEvidencePath, map.ToJsonString());
+		}
 
 		internal string CreateSession(string runId, IReadOnlyList<string> receipts, bool passed = true,
 			bool diagnosticOnly = false, string productVersion = "2.0.0", string? pluginSha256 = null,
@@ -239,6 +310,10 @@ public sealed class AllToolQualificationReportTests
 			if (liveSummaries is not null)
 			{
 				invocation["liveSummaries"] = new JsonArray(liveSummaries.Select(static value => (JsonNode?) JsonValue.Create(value)).ToArray());
+			}
+			if (_liveEvidencePath is not null)
+			{
+				invocation["liveEvidencePath"] = _liveEvidencePath;
 			}
 			File.WriteAllText(configuration, invocation.ToJsonString());
 			ProcessStartInfo start = new("pwsh")
@@ -305,6 +380,7 @@ public sealed class AllToolQualificationReportTests
 			$splat = @{ GatewayTrx = $config['gatewayTrx']; OutputDirectory = $config['outputDirectory'] }
 			if ($config.ContainsKey('liveSummary')) { $splat.LiveSummary = $config['liveSummary'] }
 			if ($config.ContainsKey('liveSummaries')) { $splat.LiveSummaries = @($config['liveSummaries']) }
+			if ($config.ContainsKey('liveEvidencePath')) { $splat.LiveEvidencePath = $config['liveEvidencePath'] }
 			& $config['script'] @splat
 			exit $LASTEXITCODE
 			""";

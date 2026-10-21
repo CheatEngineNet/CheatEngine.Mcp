@@ -3197,7 +3197,7 @@
                     "type": "string"
                   },
                   "threadId": {
-                    "description": "The target thread identifier.",
+                    "description": "The target thread identifier reported by Cheat Engine; 0 means this callback did not report a thread ID.",
                     "type": "integer"
                   },
                   "instructionAddress": {
@@ -3245,7 +3245,7 @@
                     "type": "string"
                   },
                   "threadId": {
-                    "description": "The target thread identifier.",
+                    "description": "The target thread identifier reported by Cheat Engine; 0 means this callback did not report a thread ID.",
                     "type": "integer"
                   },
                   "instructionAddress": {
@@ -3287,7 +3287,7 @@
                     "type": "string"
                   },
                   "threadId": {
-                    "description": "The target thread identifier.",
+                    "description": "The target thread identifier reported by Cheat Engine; 0 means this callback did not report a thread ID.",
                     "type": "integer"
                   },
                   "instructionAddress": {
@@ -3508,7 +3508,7 @@
                 "type": "string"
               },
               "threadId": {
-                "description": "The target thread identifier.",
+                "description": "The target thread identifier reported by Cheat Engine; 0 means this callback did not report a thread ID.",
                 "type": "integer"
               },
               "instructionAddress": {
@@ -3955,7 +3955,7 @@
   {
     "name": "debugger_start_trace",
     "title": "Start debugger trace",
-    "description": "Arms an execute breakpoint and then traces only the hitting thread for at most 256 steps. Only one trace can run at a time, because it installs Cheat Engine\u0027s global debugger_onBreakpoint hook while active: the call refuses (host_refused) while any debugger_onBreakpoint hook is installed, such as another trace or one set with lua_execute, and the job fails if one appears before its entry breakpoint is hit. The trace completes after maximumSteps contexts, the entry context included, or earlier after the first context that matches stopCondition. Completion leaves the thread stopped; runtime_stop_job releases the job and its hook.",
+    "description": "Arms an execute breakpoint and then traces only the hitting thread for at most 256 steps. Only one trace can run at a time, because it claims Cheat Engine\u0027s global debugger_onBreakpoint hook during setup: the call refuses (host_refused) while any such hook is already installed, including one set with lua_execute. Do not replace the hook while the trace waits for its entry breakpoint; replacing it can prevent trace events, so the job may expire. Cleanup removes the owned entry breakpoint and clears the hook only if it still owns the slot, preserving a replacement. The trace completes after maximumSteps contexts, the entry context included, or earlier after the first context that matches stopCondition. Completion leaves the thread stopped; runtime_stop_job releases the job, breakpoint and hook.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -10682,7 +10682,7 @@
           "type": "integer"
         },
         "hostEffects": {
-          "description": "The effects left behind: collector_injected, mono_error_ok_patched (not on IL2CPP), cheat_engine_hooks_installed and uses_mono_table_option (when Cheat Engine set it).",
+          "description": "Conservative warnings about persistent effects: collector_injected, mono_error_ok_patched (possible on Mono), cheat_engine_hooks_installed and uses_mono_table_option (set or unreadable). Entries do not confirm each effect occurred.",
           "type": "array",
           "items": {
             "type": "string"
@@ -20785,7 +20785,7 @@
   {
     "name": "symbol_reload",
     "title": "Reload symbols",
-    "description": "Start a symbol reload and return at once; it never waits. new_modules loads the symbols of modules loaded since the last scan, all reinitializes the whole symbol handler, dotnet reinitializes the .NET symbols (after code was JIT-compiled), optionally of one module. done tells whether Cheat Engine reports every symbol loaded; while it is false, poll runtime_get_overview (symbolsLoaded) instead of waiting.",
+    "description": "Start a symbol reload and return at once; it never waits. new_modules loads the symbols of modules loaded since the last scan, all reinitializes the whole symbol handler, dotnet reinitializes the .NET symbols (after code was JIT-compiled), optionally of one module. done tells whether Cheat Engine reports every symbol loaded; while it is false, poll symbol_find with a bounded nameContains filter and read symbolsLoaded instead of waiting.",
     "inputSchema": {
       "type": "object",
       "properties": {

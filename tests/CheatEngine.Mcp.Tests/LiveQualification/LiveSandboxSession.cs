@@ -15,6 +15,7 @@ namespace CheatEngine.Mcp.Tests.LiveQualification;
 internal sealed partial class LiveSandboxSession : IAsyncDisposable
 {
 	private const string PluginFileName = "CheatEngine.Mcp.dll";
+	internal const string MonoCollectorSha256 = "37339066F2E0386C4DFF690CF8C774CC34408656EBEA77A2C7D24AF2B150AC86";
 
 	private static readonly string[] RemovedEnvironmentPrefixes =
 		["DOTNET_", "MSBUILD", "TESTINGPLATFORM", "VSTEST", "CHEATENGINE_", "CE_SDK_", "CECLIENT_", "MCP_"];
@@ -758,6 +759,10 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 			"F139E50B788C85A15ACFA92B892FCCBC3DECA6D8D609AD9E5428B4C336C90600");
 		CopyReviewedAutorun(disabledAutorun, autorun, "SpeedhackV3.lua",
 			"69DE7EE3F4563005B5BC34A27F720D9D6E714A14FE7D6E1C47D5CF0AECD93D9C");
+		if (_options.MonoQualification)
+		{
+			Record("MonoDataCollector64.dll", StageMonoCollector(disabledAutorun, autorun, MonoCollectorSha256));
+		}
 		if (_options.EnableManagedInjection)
 		{
 			CopyReviewedAutorun(disabledAutorun, autorun, "DotNetInject.lua",
@@ -796,7 +801,7 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 			string[] allowedRoots = _options.CompilerQualification ? [CompilerRoots(name).Output]
 				: _options.SymbolFixtureQualification ? [Path.GetDirectoryName(NativeSymbolFixture.DllPath)!]
 				: _options.ProcessCreateQualification ? [Path.Combine(_layout.RunDirectory, "roadmap-qualification")]
-				: _options.WorkflowQualification || _options.LifecycleQualification
+				: _options.WorkflowQualification || _options.LifecycleQualification || _options.StateWorkflowsQualification
 					? [Path.Combine(_layout.RunDirectory, "roadmap-qualification"), Path.Combine(_layout.RunDirectory, "pointer-qualification")]
 					: [];
 			File.WriteAllText(Path.Combine(pluginDirectory, "appsettings.json"), JsonSerializer.Serialize(new
@@ -806,7 +811,7 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 					EnableUnsafeLua = _options.AssemblerQualification,
 					EnableAutoAssembler = _options.AssemblerQualification,
 					EnableTargetCodeExecution = _options.EnableTargetCodeExecution,
-					EnableKernelAccess = false,
+					EnableKernelAccess = _options.KernelStatusQualification,
 					Files = new
 					{
 						AllowedRoots = allowedRoots
@@ -814,7 +819,7 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 				},
 				CheatEngineClient = new
 				{
-					AllowedTableRoots = _options.WorkflowQualification || _options.LifecycleQualification
+					AllowedTableRoots = _options.WorkflowQualification || _options.LifecycleQualification || _options.StateWorkflowsQualification
 						? new[] { Path.Combine(_layout.RunDirectory, "roadmap-qualification", "tables") }
 						: []
 				}
@@ -837,6 +842,10 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 				new LiveSandboxHost(name, 0, target.Id, string.Empty, string.Empty, string.Empty, string.Empty,
 					string.Empty, pluginPath, string.Empty, string.Empty));
 			_hosts.Add(name, owned);
+			if (_options.SeedPluginChecklistAtStartup && name == "A")
+			{
+				SeedOwnedPluginChecklistAtStartup(name, pluginPath);
+			}
 			JsonNode manifest = await ReadPublishedTargetManifestAsync(targetManifest, target, name);
 			LiveTargetManifest targetFacts = ReadTargetManifest(manifest, target.Id, name);
 			string selectionDiagnostic = string.Empty;
@@ -1402,6 +1411,23 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		{
 			throw new InvalidOperationException("A sandbox file operation escaped the current run directory.");
 		}
+	}
+
+	internal static string StageMonoCollector(string sourceAutorun, string destinationAutorun, string expectedHash)
+	{
+		string source = Path.Combine(sourceAutorun, "dlls", "MonoDataCollector64.dll");
+		string destination = Path.Combine(destinationAutorun, "dlls", "MonoDataCollector64.dll");
+		LiveCompilerCandidate.RequireNoReparseAncestors(source);
+		LiveCompilerCandidate.RequireNoReparseAncestors(destination);
+		string hash = CheatEngineInstallation.Sha256(source);
+		if (!string.Equals(hash, expectedHash, StringComparison.Ordinal))
+		{
+			throw new InvalidOperationException("The Mono collector differs from the reviewed live-test version.");
+		}
+		Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+		LiveCompilerCandidate.RequireNoReparseAncestors(destination);
+		File.Copy(source, destination);
+		return hash;
 	}
 
 	private void CopyReviewedAutorun(string source, string destination, string name, string expectedHash)

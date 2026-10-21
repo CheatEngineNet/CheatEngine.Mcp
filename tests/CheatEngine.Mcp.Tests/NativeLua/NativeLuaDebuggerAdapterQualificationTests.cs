@@ -51,8 +51,8 @@ public sealed partial class NativeLuaToolRuntimeTests
 		             debug_continueFromBreakpoint = function(value) continueModes[#continueModes + 1] = value end
 		             debug_setContext = function(_) return true end
 		             debug_updateGUI = function() guiUpdates = (guiUpdates or 0) + 1 end
-		             debug_addThreadToNoBreakList = function(value) ignoredThread, ignored = value, true end
-		             debug_removeThreadFromNoBreakList = function(value) ignoredThread, ignored = value, false end
+		             debug_addThreadToNoBreakList = function(value) ignoredThread, ignored = value, true; return true end
+		             debug_removeThreadFromNoBreakList = function(value) ignoredThread, ignored = value, false; return true end
 		             readQword = function(address) return address == 0x7000 and 0x401005 or nil end
 		             getPreviousOpcode = function(address) return address - 5 end
 		             disassemble = function(address) return address == 0x401000 and 'call target' or 'nop' end
@@ -311,7 +311,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 			maximumHits: 4, lifetimeSeconds: 10, cancellationToken: Token);
 		InstallStubs("captureCallback()");
 		DebuggerJobStarted trace = tools.StartTrace("401000", DebuggerStepMode.Into, 3, "RAX=1", false, 10, Token);
-		InstallStubs("RAX = 1; RIP = 0x401000; captureCallback()");
+		InstallStubs("RAX = 1; RIP = 0x401000; THREADID = 9; debugger_onBreakpoint()");
 		InstallStubs("debug_getContext = function(_) return true end");
 		DebuggerRunToStarted runTo = tools.RunTo("401000", 10, Token);
 		DebuggerCapturePage capturePage = tools.PollCapture(capture.JobId, 0, 4, Token);

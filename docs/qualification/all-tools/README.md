@@ -1,9 +1,241 @@
 # Full tool qualification
 
 The current catalog contains 206 backend tools and the gateway's `instance_list` tool.
-Every tool needs a reviewed success case with known inputs, an independent result or side-effect oracle,
-and cleanup verification. Catalog discovery, routing, disabled-feature refusals and compilation of a fixed
-Lua body do not establish successful native execution.
+Every tool needs a reviewed success case with known inputs, an independent result or side-effect oracle, and
+cleanup verification when it changes external state. Catalog discovery, routing, disabled-feature refusals and
+compilation of a fixed Lua body do not establish successful native execution.
+
+## Latest checkpoint (current-27, 2026-10-21)
+
+The report is [`all-tools-current-27/tool-results.json`](../../../artifacts/all-tools-goal/all-tools-current-27/tool-results.json),
+SHA-256 `E5A8293487BCCF155C28DBB72311FC86832A9F00FD54901F22B0123AD50C2BCE`. It records **200 verified**
+and **7 not verified** rows across all 207 advertised tools; `nativeQualificationComplete=false`. All 17
+live sessions use the same exact candidate `artifacts/dist/all-tool-final-20261020-06`: product
+`2.0.0-beta.4+1f987742b7fcd7760057a19508ddacbf2aad4bd8`, plugin SHA-256
+`E05A449551716AC485E2C5897397D109584B94CBEC3444FD8C7461432CF0462B`, gateway SHA-256
+`1FEEFE4975AE558C78932B63C93BAE7A97EB6DBA571C76402B87B63B0406467A`, and installed CE host SHA-256
+`CF6CCC664A90C23531EC20F5C41458CFDC1D04679D6D05ED94C06BCECF95544F`. No product or gateway evidence
+from another candidate was pooled.
+
+The current exact-bundle `structure_list` workflows pass, and the mapped debugger success and cleanup cases
+pass with the reviewed breakpoint-arity and deferred trace-cleanup changes. The old provider `-101889` and
+debugger monitor-overlap `SEHException` did not recur; their historical causes remain unknown. Three plugin
+disable/enable cycles pass when the registry row is seeded before host startup. Explicit symbol reload and the
+local DLL/PDB fixture pass. `symbol_enable_sources` remains open because there is no safe independent effect
+oracle; no public symbol download or source-enable call was made.
+
+Exact-bundle `kernel_get_status` passes and confirms DBK/DBVM inactive; an independent driver inventory found
+no matching driver. This environment has no VM, so the six DBK/DBVM-dependent tools remain open. No driver,
+service, boot, firmware, VBS, virtualization or user setting was changed. The original run-root `C000050B`
+refusal remains unexplained and its no-reparse guard remains in place.
+
+Normalized-checkout validation passed Release portable **5,838/5,838**, Debug portable **5,838/5,838**, and
+NativeLua **766/766**, all without failures or skips. Release and Debug solution builds completed with zero
+warnings or errors; style and whitespace verification passed. The report's Release TRX SHA-256 is
+`FB0CFC401CA94A7AD242CAAD2B98E1E6B93D5B4C1E43C2515D5693001442DE0A`; NativeLua is
+`23BAE4953CC35F2812BB126B83A7E41F97DC0E27C5486C1CAEBDC51105415A8A`. Debug TRX SHA-256 is
+`2BAA55FFE972CAAA1B2382C33511A9F08C22C3EAE9142D4E0D80D25185321653`.
+
+Whitespace verification identified CRLF normalization in two test-only source files after the native sessions.
+The audit at `artifacts/test-results/all-tool-qualification-20261021/line-ending-normalization-audit.json`
+confirms their normalized text hashes are unchanged; the earlier frozen v5 manifest is preserved as historical
+evidence. Product plugin/gateway hashes are unchanged. See the current-27 entry in `TODO.md` for exact file
+hashes. The independent current-27 validation record is
+[`current27-final-validation-independent.json`](../../../artifacts/test-results/all-tool-qualification-20261021/current27-final-validation-independent.json).
+It rechecks all 17 summary/receipt hashes and identities, all 200 qualifying report rows, the candidate binaries,
+and final test/build artifacts. The 17 summaries also record restored user state, unchanged installed CE files, and
+zero cleanup failures. Its independent final review returned **GO** with no actionable findings; record SHA-256
+is `B41DF8AF659A1765D91D45C6E028955FE8A53CF36755770006640A5925F1B93C`. All-tool qualification remains
+incomplete.
+
+## Previous checkpoint (current-26, 2026-10-21)
+
+The report is [`all-tools-current-26/tool-results.json`](../../../artifacts/all-tools-goal/all-tools-current-26/tool-results.json),
+SHA-256 `04168F6F69F5A36143F4F73E9774FB1CE314888F3F9EEB841B77AE2BC2B4166D`. It records **200 verified**
+and **7 not verified** rows across 207 advertised tools; `nativeQualificationComplete=false`. All 17
+reported live sessions use the exact candidate `artifacts/dist/all-tool-final-20261020-06`: product
+`2.0.0-beta.4+1f987742b7fcd7760057a19508ddacbf2aad4bd8`, plugin SHA-256
+`E05A449551716AC485E2C5897397D109584B94CBEC3444FD8C7461432CF0462B`, gateway SHA-256
+`1FEEFE4975AE558C78932B63C93BAE7A97EB6DBA571C76402B87B63B0406467A`, and installed CE host SHA-256
+`CF6CCC664A90C23531EC20F5C41458CFDC1D04679D6D05ED94C06BCECF95544F`. Four passing sessions added 27
+tool rows since current-25: assembler (9), compiler plus managed injection (2), process creation (1), and
+Mono (15). Both later failed attempts remain in the report as observations and do not count as success.
+
+Assembler, compiler/injection, process-create and Mono each passed their MTP scenario, supplied mapped
+success and cleanup receipts, restored settings, preserved installed CE files and stopped all owned
+processes. Their run IDs and evidence hashes are listed in `TODO.md`. The v5 frozen source/binary manifest
+contains 3,287 unique inputs; the process-create postrun independently rehashed all of them with no mismatch,
+and the Mono launcher repeated its pre/post input check. The earlier Mono v4 attempt stopped before starting
+the Mono child because its generated manifest exceeded the legacy path limit; the reviewed shorter run root
+now passes preflight and the native Mono scenario.
+
+The later v5 compiler-injection attempt has a mapped `compiler_call_held_export` receipt, but it records
+`IsError=true`, `kind=invalid_argument`, and `hostEffect=not_started`. The separate fixed hold-ready file was
+not published, so compilation and injection were not attempted. It timed out waiting for that file, then
+restored settings and cleaned the owned files and processes. The full API error body was not retained, so the
+rejection cause remains unknown. The same exact candidate passed held export and fixed managed injection in
+`20261021T000621Z-a348`, which supplies the compiler success evidence.
+
+The old provider `-101889` stack-top failure and debugger monitor-overlap `SEHException` have not recurred
+in exact-bundle cases: `structure_list` passes in state-workflows and workflows, while debugger basic,
+event-capture and execution scenarios pass with cleanup. A separate diagnostic-only replay
+(`artifacts/provider-fields-diagnostic/provider-fields-live-20261020T125039Z-8ac7.json`) also passed its
+historical provider prefix on an isolated candidate: hosts A/B recorded 118/22 provider-top reads, each
+calibrated top 0 and 1 against the loaded Lua module, with no negative tops, read errors, or trace overflow.
+This replay is not final-bundle qualification and does not explain the historical failure. Both historical
+root causes remain unknown; no speculative native-code change was made. Plugin reload passes three in-process
+disable/enable cycles when the owned `Plugins64` entry is seeded before host startup. The earlier harness
+inserted the registry values only after the Settings form existed, so its zero-row observation does not
+establish a product reload regression.
+
+The no-VM kernel evidence is recorded in [the kernel qualification record](later-kernel-test.md): exact-bundle
+`kernel_get_status` passed, DBK/DBVM were inactive and the independent driver inventory contained no matching
+driver. Hypervisor/VBS presence does not establish DBK/DBVM readiness. The six DBK/DBVM-dependent operations
+(`kernel_initialize_dbvm`, `kernel_poll_watch`, `kernel_read_physical`, `kernel_start_watch`,
+`kernel_translate_address`, and `kernel_write_physical`) remain unqualified. `symbol_enable_sources` also
+remains open because no independent effect oracle is available without relying on echoed output or external
+symbol downloads. A read-only cache check found `C:\Symbols\ntdll.pdb\2CF5F86ACB68735923D72913BBD9B0E31\ntdll.pdb`,
+but its key does not match the current system `ntdll.dll` CodeView identity (`C031D45B-0DA1-8A6E-74D0-6ED6AB2DD9E1`,
+age 1; DLL SHA-256 `651AC9041AF8E6B5EBD331D53163244C0A27D36D1433F0F15CAC1F28C5F2E82C`). No source-enable call was made.
+No driver, service, boot, firmware, VBS or virtualization setting was changed. The
+historical provider/debugger causes and original run-root `C000050B` refusal remain unresolved; its no-reparse
+guard was not weakened. All-tool qualification remains incomplete.
+
+Release portable validation passed **5,832/5,832** tests and NativeLua passed **757/757**, with no failures or
+skips. The report reuses the Release TRX for the gateway and portable suite inputs.
+
+Independent final review returned **GO** with no actionable findings. The validation record at
+`artifacts/test-results/all-tool-qualification-20261020/current26-final-validation-independent.json` has
+SHA-256 `4D2994B22426AD96FD9AE57F820BFECD617C8D0DB73F70CC165A7F19AD155040`; it confirms the report hash,
+zero session issues, and a recheck of 3,287 frozen inputs with only the declared postrun edits to `TODO.md`
+and this README. The report remains incomplete because the seven native tool rows above are still open.
+
+## Previous checkpoint (current-25, 2026-10-21)
+
+The current report is [`all-tools-current-25/tool-results.json`](../../../artifacts/all-tools-goal/all-tools-current-25/tool-results.json),
+SHA-256 `19F232D92161EE2976E99887A9AE75CB7E404A7F128080B7A5572F1A5079DA27`. It contains **173 verified**
+and **34 not verified** rows across the 207 advertised tools; `nativeQualificationComplete=false`. Its eleven
+live sessions all use the exact candidate at `artifacts/dist/all-tool-final-20261020-06`: product
+`2.0.0-beta.4+1f987742b7fcd7760057a19508ddacbf2aad4bd8`, plugin SHA-256
+`E05A449551716AC485E2C5897397D109584B94CBEC3444FD8C7461432CF0462B`, gateway SHA-256
+`1FEEFE4975AE558C78932B63C93BAE7A97EB6DBA571C76402B87B63B0406467A`, and installed CE host SHA-256
+`CF6CCC664A90C23531EC20F5C41458CFDC1D04679D6D05ED94C06BCECF95544F`. The four new execution rows passed
+on this bundle with no regressions from current-24.
+
+Plugin lifecycle was separately qualified in `20261020T232333Z-da96`: the owned `Plugins64` entry was seeded
+before host startup, then three in-process disable/enable cycles passed 1/1 MTP case. The summary, receipts
+and TRX hashes are recorded in `TODO.md`; settings were restored, installed files were unchanged, and cleanup
+failures were zero. The earlier unseeded attempt observed zero plugin rows after load; this seeded pass
+qualifies the reload path without claiming that it proves the earlier observation's root cause.
+
+The smoke session `20261020T233322Z-c49d` passed its 1/1 MTP case and directly qualifies six mapped tools.
+Its wrapper exited 1 after the native pass because StrictMode read an absent optional `diagnosticOnly` field.
+The independent postrun audit at
+`artifacts/test-results/all-tool-qualification-20261020/final-bundle-06-smoke-native/run-2a296e25f98e4b06a7a891194f810312/postrun-validation-independent.json`
+confirmed exact candidate/host identity, all 3,280 frozen input hashes, restored state, unchanged installed
+files, zero cleanup failures and no remaining owned processes. All four optional gates were enabled in that
+session; it does not establish disabled-gate refusal behavior. The six mapped cases are `instance_list`,
+`pointer_get_access_info` (supplied-fact arithmetic, not a register capture), `scan_list_scanners`,
+`scan_delete`, `speedhack_set_speed`, and `speedhack_get_state`.
+
+Execution session `20261020T234126Z-7aba` passed its exact-bundle MTP case 1/1. It qualifies
+`exec_compile_c`, `exec_call_remote`, `exec_call_method`, and `exec_call_local` with direct receipts. Both the
+owned data and code allocations have separate `freed=true` receipts and were independently confirmed absent;
+the scenario cannot pass unless both cleanup checks succeed. All 3,280 frozen inputs matched, user state was
+restored, installed files were unchanged, and cleanup failures and owned processes remaining were zero.
+Target-code execution alone was enabled for this scenario; Auto Assembler, unsafe Lua, and kernel access
+were disabled.
+
+Release portable validation passed **5,832/5,832** tests and NativeLua passed **757/757**, with no failures or
+skips. The report reuses the Release TRX for its gateway and portable suite inputs.
+
+Still open: the historical provider-state `structure_list` failure (`20261020T092949Z-4423`, stack top
+`-101889`) did not recur in exact-bundle workflows, but its root cause is not established; the historical
+debugger monitor-overlap `SEHException` likewise did not recur in the passing event, execution and basic
+scenarios, but its cause is unknown. `symbol_enable_sources` still lacks an independent effect oracle. Six
+DBK/DBVM-dependent operations (`kernel_initialize_dbvm`, `kernel_poll_watch`, `kernel_read_physical`,
+`kernel_start_watch`, `kernel_translate_address`, and `kernel_write_physical`) remain unqualified because
+this PC has no VM and DBK/DBVM were inactive; no machine-level setting or driver was changed. The original
+run-root `C000050B` refusal also remains unexplained, and its guard was not weakened. The exact-bundle
+`structure_list` and debugger tools have passing cases despite those historical causes remaining unresolved.
+All-tool qualification remains incomplete. See [the kernel qualification record](later-kernel-test.md) for
+the environment boundary and per-operation evidence plan.
+
+## Previous checkpoint (current-23, 2026-10-21)
+
+The current report is `artifacts/all-tools-goal/all-tools-current-23/tool-results.json`, SHA-256
+`3AB5D941145F2BC706229EAB6307C8806E545F699AD9DD575E50EBD9770C5254`. It contains **163 verified** and
+**44 not verified** rows across the 207 advertised tools; `nativeQualificationComplete=false`. All native
+sessions recorded by this report use the exact candidate at `artifacts/dist/all-tool-final-20261020-06`:
+product `2.0.0-beta.4+1f987742b7fcd7760057a19508ddacbf2aad4bd8`, plugin SHA-256
+`E05A449551716AC485E2C5897397D109584B94CBEC3444FD8C7461432CF0462B`, and gateway SHA-256
+`1FEEFE4975AE558C78932B63C93BAE7A97EB6DBA571C76402B87B63B0406467A`.
+
+The report requires one exact success receipt and checks a mapped cleanup receipt only when the live-evidence
+map requires one. When the map says `cleanupReceipt: none`, rows state `cleanupRequired=false`,
+`cleanupReceiptPresent=false`, and `cleanupSatisfied=true`; no tool-specific cleanup receipt is claimed.
+Fifteen of the 59 newly verified rows since current-21 are read-only cases in this category. Their session must still pass the
+overall restoration and zero-cleanup-failure checks.
+
+Six same-candidate sessions passed: debugger event capture (`20261020T220121Z-d800`), debugger
+execution/run-to (`20261020T220529Z-dd07`), state workflows (`20261020T220755Z-2b6f`), read-only
+`kernel_get_status` (`20261020T221714Z-226c`), the reviewed local DLL/PDB fixture
+(`20261020T222142Z-7fef`), and the workflows case (`20261020T223158Z-a2f8`). The last passed its one MTP
+test. Its launcher then exited in its postrun check because StrictMode rejected an omitted optional
+`release.failed` field in an otherwise successful response. An independent validator
+(`artifacts/test-results/all-tool-qualification-20261020/final-bundle-06-workflows-native/run-9f2c7d83e0b14d41a784b62f09c13a65/postrun-validation-independent.json`)
+first confirmed the summary pass, all 3,278 frozen input hashes, exact candidate and installed-host hashes,
+resource release and cleanup, symbol-preference readback/restoration, module-expression resolution, stopped
+owned processes and restored temporary settings. The refreshed proof records that snapshot check and verifies
+only the four later README/TODO/report-generator/regression-test inputs changed; it rechecks the raw summary,
+receipts, TRX, candidate, host and runner-log pass. The runner OS exit code was not independently captured.
+No retry was made.
+This run adds runtime overview/resource-release,
+module-preference, module-symbol and broader owned-workflow receipts; 52 report rows became newly verified
+since current-21, with no regressions. It recorded `pluginCycles=0` and provides no plugin-reload evidence.
+
+The monitor-free debugger-basic case (`20261020T225741Z-5c14`) then passed its single MTP case. Its summary
+SHA-256 is `490CA85D0C3176E83575EC7FF1559C033EF6BCBF2A10A3B51A9D068577282040` and its receipt SHA-256 is
+`1F396E4B0EA5F52AE78A3FE34259EDC5805B55FD080B71292E41A38FA2F218DD`. It supplies the missing attach,
+break-thread, status, context, stack-trace, continue and detach success receipts in that one passing run,
+plus `live_debugger_windows_cleanup`, both host-stop receipts and the usual restoration checks. Those seven
+rows are now verified in current-23. The earlier monitor-overlap `SEHException` was not reproduced; its
+historical cause is still unknown.
+
+The earlier state-workflows launcher also reported a postrun count mismatch because it expected one
+`host_A_stopped` receipt while the valid restart and final cleanup produced two. That MTP test passed; its
+independent read-only validator confirmed the receipts, host restart identities, cleanup, all 3,278 frozen
+input hashes, restored state and zero owned processes remaining.
+
+The exact-bundle plugin lifecycle attempt (`20261020T221415Z-d111`) failed its positive assertion: after
+plugin load, the Settings bridge saw zero owned plugin rows. Cleanup, state restoration and installed-file
+preservation succeeded; this failed summary is retained in the report and does not qualify a tool. The later
+current-25 startup-seeded lifecycle case passed three disable/enable cycles; the original observation's cause
+remains unknown.
+
+Release portable validation passed **5,832/5,832** tests and NativeLua passed **757/757**, with no failures or
+skips. The report uses the same Release TRX for its gateway and portable suite inputs. Current-source builds
+and Debug validation were completed before the final native batch.
+
+Still open: the provider-state `structure_list` failure (`20261020T092949Z-4423`, stack top `-101889`) was
+not reproduced by the final-bundle state/workflows cases and has no established root cause, although
+`structure_list` now has passing exact-bundle evidence; the original run-root `C000050B` refusal remains
+unexplained; `symbol_enable_sources` has no independent effect oracle; and six DBK/DBVM-dependent operations
+(`kernel_initialize_dbvm`, `kernel_poll_watch`, `kernel_read_physical`, `kernel_start_watch`,
+`kernel_translate_address`, `kernel_write_physical`) lack suitable native evidence without a VM/DBK/DBVM
+environment. Only read-only `kernel_get_status` is qualified. The historical debugger monitor-overlap
+exception also remains unexplained despite current-bundle debugger success. No DBK/DBVM initialization or
+machine-level driver, service, boot, firmware, VBS or virtualization settings were changed. Temporary
+private CE settings used by the harness were restored. The independent final review of current-22 returned GO
+with no actionable findings; current-23 also received an independent GO review with no actionable findings.
+All-tool qualification remains
+incomplete. The exact read-only status evidence and per-operation
+admission and cleanup requirements are in [the kernel qualification record](later-kernel-test.md).
+
+Earlier reports and the `state-workflows`/`inspection` session details below preserve historical evidence and
+counts; they are not pooled into the current report unless the report explicitly lists that evidence.
+
+## Historical checkpoint (pre final bundle 06)
 
 ## Checklist
 
@@ -12,7 +244,7 @@ Lua body do not establish successful native execution.
 - [x] Check gateway-local discovery with zero and two instances.
 - [x] Run the portable Release suite; final results are recorded below.
 - [x] Run the portable Debug suite with the same exclusions.
-- [x] Run standalone Lua 5.3 with CE API doubles (743 passed, zero failed or skipped).
+- [x] Run standalone Lua 5.3 with CE API doubles (latest: 757 passed, zero failed or skipped).
 - [x] Add and run result assertions for the Lua, table-save and code-view adapters (12 passed).
 - [x] Add seven record adapter cases and four code/process adapter cases; run both focused classes.
 - [x] Fix the `code_get_comments` array argument expansion found by those tests.
@@ -50,7 +282,7 @@ Lua body do not establish successful native execution.
 - [x] Qualify local native DLL injection on package 13 using OS module identity, image hashes and independently parsed exports.
 - [x] Qualify explicit local PDB loading on a fresh second host and the independently known four-field layout on package 14.
 - [x] Prepare the private x64 Mono fixture and verify standalone startup, pinned-object publication and graceful exit.
-- [ ] Qualify all 15 Mono tools against that owned fixture, including method effects, collector detach and target cleanup.
+- [x] Qualify all 15 Mono tools against that owned fixture, including method effects, collector detach and target cleanup.
 - [ ] Qualify successful gated operations and DBK/DBVM operations in their required environments.
 - [ ] Qualify all tools on the exact replacement product bundle after fixes, including restart and cleanup.
 
@@ -63,12 +295,288 @@ These cases use Client or CE API doubles, including real standalone Lua where ap
 cases, not complete behavior partitions or native CE qualification. The gateway's local discovery checks
 bring the advertised catalog total to 207. A live mapping requires its own concrete oracle and cleanup receipts.
 
+## Resumed verification on 2026-10-20
+
+The latest debugger/event source passes 5,774 portable cases in each of Debug and Release, plus 757
+standalone Lua cases, with zero failures/skips. Both builds pass without warnings/errors. An earlier loaded
+Debug run hit notebook directory-lease contention; its focused rerun and the full sequential rerun passed
+without changing that behavior. `all-tools-current-7` records bundle 5's failed debugger session separately:
+207 routing passes, 13 failed-session observations and 194 unverified native rows, with no verified native row.
+After the final input freeze, six independent bundle-5 repetitions passed: smoke `20261020T122756Z-115c`,
+process-create `20261020T122829Z-828c`, assembler `20261020T122901Z-eac8`, fixed C/ABI `20261020T122940Z-16c2`,
+symbols `20261020T123008Z-bc8d` and Mono `20261020T123037Z-35e9`. Each passed cleanup, settings restoration,
+installed-file preservation and owned-process exit checks. All frozen inputs matched after the batch.
+`all-tools-current-8` consequently records 38 verified native cases, 12 failed-session observations and
+157 unverified rows on bundle 5. The debugger crash remains unresolved; bundle 4's 12 passing debugger
+cases are historical evidence only and are not pooled into this bundle's report.
+
+Report `artifacts/all-tools-goal/all-tools-current-9/tool-results.json` adds the existing passing smoke
+session's exact two-instance discovery receipt under the reserved `gateway_discovery` scope. It contains
+39 verified cases: 38 backend cases and gateway-local `instance_list`, plus 12 failed-session observations
+and 156 unverified rows. The report rejects gateway/backend scope interchange; all 17 report regressions
+pass. This does not add a backend native success or transfer evidence between bundles.
+
+The subsequent source refresh passes 5,777 portable cases in each of Debug and Release and all 757
+standalone Lua cases, with zero failures/skips. Both builds report zero warnings/errors. Style and whitespace
+verification find no changes; workspace loading reports duplicate analyzer-release documents and a
+source-generator metadata reference warning. `artifacts/all-tools-goal/all-tools-current-10/tool-results.json`
+uses the fresh Release/Lua reports and the same seven bundle-5 sessions; its classifications remain 39
+verified (38 backend plus gateway discovery), 12 failed-session observations and 156 unverified.
+
+After correcting the symbol-reload polling description, fresh portable Debug and Release runs again pass
+5,777 cases each, and standalone Lua passes 757, all without failures/skips. The Debug rebuild has zero
+warnings/errors; style, whitespace and Git whitespace checks pass. Report
+`artifacts/all-tools-goal/all-tools-current-11/tool-results.json` uses those fresh Release/Lua reports and
+the same seven old bundle-5 sessions. Its 39 verified, 12 failed-session observations and 156 unverified
+rows remain evidence for that exact old bundle; private diagnostics and a replacement bundle are unqualified.
+
+A later offline logging change retains unexpected operation-body exception types and managed frames in
+local dispatch diagnostics, following the existing dispatcher format. Exception messages, data and
+source-file paths remain excluded; public error behavior is unchanged. Two regressions fail before the
+change, and all 92 focused dispatch, error-correlation and logging tests pass in both Release and Debug
+without failures/skips. Both builds have zero warnings/errors; changed-file style and Git whitespace
+checks pass, and independent source review found no blockers. These checks do not establish a native
+fix or tool qualification. The full-suite runs and report 11 above predate this logging edit.
+
+The subsequent full offline refresh validates the logging change: portable Release and Debug each pass
+5,779 cases, standalone Lua passes 757, and all 11 seeded fuzz cases pass in each portable configuration.
+There are no test failures/skips; both solution builds have zero warnings/errors, and full style,
+whitespace and Git whitespace checks pass. Report
+`artifacts/all-tools-goal/all-tools-current-12/tool-results.json` uses the fresh Release/Lua TRXs and
+the same seven bundle-5 sessions, whose 14 summary/receipt hashes remain unchanged. All 207 routing
+checks pass; the report retains 39 verified rows (38 backend plus gateway discovery), 12 failed-session
+observations and 156 unverified rows. These remain old-bundle receipts, with no native qualification
+for the changed source or a replacement bundle.
+
+The user subsequently authorized live testing again, lifting the temporary hold after cybersecurity
+prompts. A fresh `continue-20261020-6` bundle passed isolated plugin-load and Native AOT gateway smoke
+checks. Its plugin SHA-256 is `5F86B15826142FD655498AA1E8E5AF8A380A488D27E55AF939679A4B7A72F9FA`;
+its gateway SHA-256 is `059727F11E310988C501C4DB494529660FF40D938B20638805AF05924E9ADBB3`.
+Six reviewed sequential live scenarios passed: smoke `20261020T160645Z-e46d`, process-create
+`20261020T160750Z-1b18`, assembler `20261020T160814Z-f8ee`, C/ABI execution `20261020T160848Z-7b1b`,
+DLL/PDB `20261020T160912Z-1be0`, and Mono `20261020T160938Z-bcb2`. Each TRX contains one intended live
+case, passed without failures/skips. Independent raw-evidence review confirms success/cleanup receipts,
+restored settings, unchanged installed files, unchanged hashes for all 9,153 frozen inputs and no
+remaining recorded host, target, child or Mono process. The reviewed launchers enforce one-use attempts,
+post-cleanup input verification and sequential stop-on-failure behavior.
+
+Report `artifacts/all-tools-goal/all-tools-current-13/tool-results.json` uses only these six bundle-6
+sessions: 39 verified rows (38 backend plus gateway discovery), 168 unverified and zero failed-session
+observations. The absence of a failed observation on this new bundle does not resolve or transfer the
+old bundle's debugger failures. No debugger attachment/mutation or kernel call ran; smoke queried
+read-only debugger status. Wrapper logs establish admission/restoration; the TRXs and sandbox receipts
+carry native scenario evidence. Ordinary debugger/workflow retries still need new diagnostic evidence;
+kernel tests remain planned for later. Final all-tool qualification and final independent review remain
+incomplete.
+
+Kernel cases remain unchecked. The user selected a later test on this same physical PC; see the
+[proposed test plan](later-kernel-test.md). No driver, VBS or virtualization configuration is changed now.
+
+The separate provider-fields diagnostic subsequently passed one reviewed run, `20261020T125039Z-8ac7`.
+Its V2 capture uses bounded self-memory reads, the exact loaded Lua DLL identity and per-state/lifetime
+healthy calibration; diagnostic failures cannot replace the original provider guard. All 20 focused SDK and
+92 harness cases passed, the packaged SDK bytes matched, and independent preflight verified 3,281 frozen inputs.
+Both hosts retained complete traces (946 and 150 records), matching loaded-module hashes and same-state
+top-0/top-1 calibration. No incomplete, overflow or first-failure record occurred. Settings restoration,
+installed-file preservation, owned-process exits and post-run frozen hashes passed. This private prefix
+uses a diagnostic snapshot and is excluded from shipping-bundle native qualification. The provider failure
+did not recur, so its cause and the separate debugger access violation remain unresolved.
+
+Private plugin-registry diagnostic `20261020T133119Z-43a6` tested a new guarded registry-seeding hypothesis
+once. The selected owned path and prior enabled state were read back before the request, but the Settings
+checklist remained at zero rows before and after reload (`loading=nil`). No plugin transition was reached.
+The summary and report preserve `diagnosticOnly=true`, `stableQualification=false` and `passed=false`.
+User state was restored, installed files and all 3,266 frozen inputs were unchanged, and owned processes
+exited without cleanup failures. The result rejects that bounded hypothesis; it does not identify a cause
+or qualify plugin lifecycle. Original response, logs and summary hashes are retained in
+`artifacts/plugin-registry-diagnostic/plugin-registry-live-20261020T133119Z-43a6.json`.
+
+The external crash monitor has separately passed its reviewed fixture-only run
+`d36ed920e2cd4260a65e28cb667f8875`: 20 admission-refusal cases and six runtime cases, including handled
+exceptions, one second-chance AV dump, verified detach and target survival after confirmed exit-kill
+disablement. All owned processes exited. The x86, oversized-file, recovery-fault-injection and redundant
+parser partitions remain explicitly untested. An initial reader-sharing failure occurred before helper
+startup; the corrected bounded readers passed local probes and re-review. These results qualify only the
+owned monitor fixture, not Cheat Engine or any MCP tool. Rebuilt v3 fixture run
+`8d13ede4ac5c469cbef5b42b3ed35167` repeats the 26 passing cases and four explicit exclusions while binding
+absolute compiler/linker identities and clearing inherited `CL`, `_CL_` and `LINK` flags.
+
+The separately reviewed CE integration's one-use attempt `c035416b6a624bcc9986b425a77c9cbc` failed before
+sandbox construction. A read-only call reproduced the manifest validator's JSON parent-ownership exception.
+The apphost exited with code 2; no sandbox summary, helper ready/log/dump or native qualification was produced.
+Installed files and all 3,763 frozen inputs were unchanged, and no owned processes remained. The launcher
+records restoration unconfirmed because the sandbox summary is absent. Its missing durable child output is
+also being corrected in a new snapshot. The failed attempt remains immutable and must not be replayed.
+
+The corrected, independently reviewed v2 attempt `0eb66dff7959434c801cc37fd9b4dead` reached both private hosts
+in session `20261020T151945Z-3c25`, with durable logs and exact helper readiness. It failed at basic
+`debugger_detach` with an unknown-outcome `SEHException`, before the first execution group. The helper's 224
+events include one first-chance invalid-handle exception (`0xC0000008`), one thread-name exception and ten CLR
+exceptions, all passed through. There was no second-chance AV or dump. Read-only cleanup observed detached
+state; helper stop/detach, settings restoration, unchanged installed/frozen files and owned process exits
+all passed independent review. This is failed diagnostic evidence, not crash coverage or tool qualification.
+The exact native callee and any observer effect remain unproven; do not replay the consumed attempt.
+
+V3 attempt `57a45025da89451f81f6be24af22f7ba`, session `20261020T162659Z-23f9`, changes that ordering on
+bundle 6: the basic group completes without the monitor before monitor readiness and first-group
+execution. Basic detach succeeded, and the execution body reached its independently checked run-to stop.
+Cleanup then failed in `debugger_detach` with `SEHException`, error ID `c9261948eb11f175`; the plugin log
+retains managed frames through `PluginLuaToolRuntime.TryRun`. The 221 helper events contain one thread-name,
+one invalid-handle and eight CLR exceptions, all first-chance and passed through. There is no AV or dump.
+Helper stop/detach/exit, user-state restoration, unchanged installed files and all 3,777 frozen inputs,
+and absence of owned processes passed independent review. This establishes a monitor-overlap correlation
+for this detach failure, not its cause, a fix, or native qualification. The original AV remains unresolved;
+do not repeat this unchanged diagnostic.
+
+Report `artifacts/all-tools-goal/all-tools-current-14/tool-results.json` includes the six passing bundle-6
+sessions and this failed diagnostic separately: 39 verified, 12 diagnostic-only and 156 unverified rows.
+The 39 verified names are identical to report 13; diagnostic observations add no native qualification.
+
+The saved checkpoint's GitHub build [39314293272](https://github.com/CheatEngineNet/CheatEngine.Mcp/actions/runs/39314293272)
+passed at `1f987742b7fcd7760057a19508ddacbf2aad4bd8`.
+Fresh local verification passed both Debug and Release solution builds with zero warnings/errors,
+5,736 portable cases in each configuration and 743 standalone Release Lua cases, all with zero failures/skips.
+The eight new build-identity cases accept rebuilt legacy compiler output only with matching actual EXE/sidecar
+hashes and reviewed source, and reject altered identities or stale source.
+
+The isolated `continue-20261020-1` distribution passed publication and its Native AOT gateway smoke check.
+Its plugin SHA-256 is `838B398B0BB842B568115093C1D00CDBDA7BFBD52DDC510B015324639FEB9B25`;
+its gateway SHA-256 is `11874E779DEC0397E95FE72185EB5BC4DCEFE03DCA9F1FA7962BA2C5E5340533`.
+The rebuilt Mono fixture also passed a fresh standalone startup/stop preflight against matching source/runtime/EXE
+identities, PID/nonce, nonzero pinned object pointer, primitive values, warmup result and exit code zero.
+It remains prepared for MCP verification; no Mono tool was exercised in these sessions.
+
+Process-create session `20261020T092911Z-916a` passed its owned child identity, exit and target-restoration assertions.
+Both hosts stopped, user settings were restored, installed files were preserved and no cleanup failure was reported.
+The subsequent x64 workflow `20261020T092949Z-4423` completed allocation release and scanner-stop cleanup, then
+`structure_list` was refused because CE supplied a Lua state with a negative stack top (`-101889`).
+The workflow failed; its earlier receipts provide observations only.
+Both hosts stopped, user settings were restored, installed files were preserved and its cleanup-failure list was empty.
+That reproduced state failure remains unresolved. Independent fresh scenarios can still provide bounded evidence;
+passing them does not establish SDK stability.
+
+The separate current-source diagnostic prefix `20261020T100317Z-52fd` completed without reproducing the failure,
+restored user settings, preserved installed files and reported no cleanup failures or remaining owned processes.
+It was marked diagnostic-only before the prelude.
+Its capture postcheck failed because host A produced no trace; host B retained 150 complete records, including
+88 provider records, with no overflow or first-failure record.
+The incomplete capture neither explains the ordinary failure nor supplies native qualification.
+
+After synchronous owned-directory creation and before/after reparse checks were added to the private harness,
+18 focused cases passed and independent review verified all 282 frozen inputs. The single replacement
+diagnostic `20261020T102110Z-3f05` retained complete traces from both hosts: 946 records on A and 150 on B,
+including 472 and 88 provider records respectively, with no incomplete, overflow or failure record.
+User settings were restored, installed files were preserved and all owned processes exited.
+The state failure did not recur. This closes the capture defect only.
+
+Mono attempts `20261020T102640Z-8602` and `20261020T102945Z-4038` failed before method invocation.
+The first exceeded the legacy runtime's temporary-manifest path limit; the second reached `mono_attach`,
+which was refused because the private harness had left the collector DLL inside its disabled autorun folder.
+Both restored settings, preserved installed files and cleaned up all owned processes, including the Mono target.
+The harness now checks the path limit and stages only the reviewed collector DLL for Mono sessions.
+The corrected oracle verifies the loaded collector through OS module path/hash evidence; optional patch and
+table-option warnings remain unqualified. These changes await a complete passing native scenario.
+
+The next Mono run `20261020T105656Z-fce5` attached and independently verified the loaded collector's exact
+private module path/hash, then failed assembly selection before method invocation. The fixture had compared
+Mono's image name with an EXE filename; it now reads the CLI assembly name from the hash-checked fixture's
+metadata and requires one exact match. All 43 focused Mono fixture cases pass in Debug and Release, including
+renamed-file, foreign-name and duplicate-name regressions. The raw assembly list is retained before assertions.
+Collector detach, user settings restoration, installed-file preservation and all owned process exits passed.
+Because the complete session failed, its earlier receipts remain observations.
+
+After those corrections, Debug and Release each passed 5,743 portable cases; the fresh standalone Lua run passed
+743 cases, all with zero failures/skips. Both solution builds and both formatting checks passed.
+The refreshed `continue-20261020-3` distribution passed packaged-plugin validation and Native AOT gateway smoke.
+Its plugin SHA-256 is `DBA6ABAFB35002523958FAFCDEE4A6FE53F921485D56E92C2F9BBD88E28EEA71`;
+its gateway SHA-256 is `C7E9D569D9CD487AE6782BBE73A337972927673BF2B513C8A9CA9E76E54125E2`.
+Exactly four catalog golden lines changed: the two Mono warning descriptions and two document-size values.
+
+The cumulative `continue-20261020/all-tools-2` report for `continue-20261020-1` retains all 207 routing rows, positive adapter evidence for all
+206 backend tools, one verified native case (`process_create`), 12 `observed_in_failed_session` rows and 194
+`not_verified` rows. Both latter classifications lack verified native success on these exact bytes.
+Historical results from other bundles are not pooled into this report.
+The report's remaining-work text now acknowledges a verified native case without implying wider behavior or
+environment coverage; its regression failed against the old script and all 14 cumulative-report cases passed after
+the correction, including failed-session and diagnostic-only boundaries.
+
+The next Mono session `20261020T113335Z-7c44` passed all 15 bounded Mono cases on `continue-20261020-3`.
+The fixed static invocation returned 42, the instance invocation produced counter 7007, and exact field/address
+checks and the complete instance-search page matched the owned fixture. Collector detach, job absence,
+target exit code zero, settings restoration, installed-file preservation and owned-process exit all passed.
+The optional patch/table effects remain unqualified.
+
+Fresh same-bundle sessions also passed smoke (`20261020T113552Z-757d`), isolated process-create
+(`20261020T113649Z-0577`), assembler and API-hook generation (`20261020T113725Z-a97b`), fixed C/ABI
+execution (`20261020T113806Z-2760`) and the DLL/PDB fixture (`20261020T113838Z-0c99`), each with cleanup.
+Smoke used the plugin's enabled default gates and made no kernel calls. The other scenarios assert their
+explicit configuration. API-hook generation checked exact generated source and unchanged allocation bytes;
+it did not apply or execute the generated hook. The DLL/PDB case verified injection identity and a fresh-host
+four-field layout; automatic symbol discovery still leaves explicit `symbol_reload` inconclusive.
+
+The `continue-20261020/all-tools-current-5` report combines only these six sessions from the identical bundle:
+207 routing passes, 38 verified native cases and 169 `not_verified` rows. All 206 backend tools retain positive
+adapter evidence. These bounded native cases do not complete every behavior or environment partition.
+
+Independent preflight found that debugger diagnostic dispatch first ran an ordinary break/context cycle.
+Diagnostic mode now invokes only its callback-gated transition probe; normal mode retains basic then execution
+checks. Two focused regressions reproduced the old order, and all four pass after the correction. This harness
+fix supplies no debugger native qualification; a fresh diagnostic run is still required.
+
+The corrected dispatch diagnostic `20261020T114533Z-36ae` observed the installed `CC` byte and advancing
+owned loop counters but zero callback invocations throughout its bounded observation. It never requested
+MCP debugger context. Callback restoration, breakpoint removal, debugger detach and sandbox cleanup passed;
+settings and installed files were preserved. This failed diagnostic qualifies no native tool.
+
+The breakpoint adapter also passed explicit `nil` optional slots to CE's arity-sensitive overload parser.
+It now omits absent method/callback arguments for global and thread-specific calls. Eight standalone Lua
+cases check exact argument counts and positions across default/explicit methods and persistent/one-shot
+breakpoints, including callback invocation and owned removal; three reproduced the old defect. All eight
+and the complete 751-case standalone Lua suite pass after the correction. Independent review found no
+remaining arity issue. Whether this explains the native callback failure still requires a new diagnostic.
+
+The resulting local `continue-20261020-4` distribution passed isolated-plugin catalog validation and the
+Native AOT gateway smoke check. Its plugin SHA-256 is
+`4293CFFD053C625B271BD9C27FE0098627C40995FDCE14AB48613DACE5BF33C2`; its gateway SHA-256 is
+`723CC9D148E94AEFA6F36F4D06DCAC32FC638ACDCC508101EA753E6F0EA6438D`.
+The 38 native cases above remain evidence for `continue-20261020-3` until repeated on these new bytes.
+
+Those repetitions passed on bundle 4: Mono `20261020T115638Z-f2b5`, smoke `20261020T115702Z-60cc`,
+process-create `20261020T115728Z-287d`, assembler `20261020T115750Z-9cd7`, C/ABI `20261020T115824Z-7842`
+and DLL/PDB `20261020T115846Z-c4af`. The corrected debugger diagnostic `20261020T115504Z-1dfb` separately
+observed one exact owned callback, matching context and advancing post-detach counters, with clean restoration.
+It remains diagnostic-only. Ordinary debugger session `20261020T115551Z-681a` then passed the basic and
+first execution group, including register restoration, stepping, run-to and cleanup.
+The exact-bundle `all-tools-current-6` report therefore verifies 50 bounded native cases and leaves 157
+unverified; all 207 routing rows pass. Diagnostic observations supply none of those verified cases.
+
+The no-break adapter also now requires CE's explicit Boolean acknowledgement, instead of reporting the
+requested thread-ignore state after a refused or missing host result. Four false-success cases reproduced
+the old defect; all six direction/result cases and all 757 standalone Lua cases pass after the correction.
+The five remaining debugger tools have reviewed capture/trace/ignore fixtures and 23 passing exact-oracle
+regressions; they still need native success evidence.
+
+Local bundle `continue-20261020-5` passed isolated-plugin catalog and Native AOT gateway checks. Its plugin
+SHA-256 is `E87F9297CE2D8BB1630FD0EF4970EF524F9A72F984F239827A3CB276291E6020`; its gateway SHA-256 is
+`F56E4B75BC6487A25EB8C0ECE46DC59BC8D5417BAC9658803CABE50C6969C177`.
+Its debugger session `20261020T121721Z-6535` failed during existing run-to cleanup before the new event group.
+Windows Application event 1000 independently confirms owned host A PID 72728 (`0x11C18`) crashed with access
+violation `0xc0000005`, unknown module/address `0x7ffb09b29820`. Settings were restored, installed files were
+unchanged and all owned processes exited. The missing host-A disable receipt remains a cleanup failure.
+Its earlier operation receipts are failed-session observations, not native qualification for bundle 5.
+Crash evidence is retained in `artifacts/test-results/continue-20261020/debugger-crash-6535`; no unchanged
+debugger retry was made. The 50 bundle-4 successes are not transferred to these new product bytes.
+
+A fresh independent Astra checkpoint review found no implementation issue. Its stale suspension wording
+finding was corrected. The final all-tool verification and publication checklist remains incomplete.
+
 ## Source-built native results from 2026-10-19
 
 The paused source checkpoint passes the Release build with zero warnings/errors, **5,728** portable cases,
 **743** standalone Lua cases and changed-source whitespace verification (`pause-checkpoint-*` final reports).
-The new Mono, process-create and debugger diagnostic work remains prepared for live verification. No new
-CE session was started after the pause request. See the repository's [continuation checklist](../../../TODO.md).
+At that pause, the new Mono, process-create and debugger diagnostic work remained prepared for live verification.
+No CE session was started between the pause and the explicit resume on 2026-10-20.
+See the repository's [continuation checklist](../../../TODO.md).
 
 The file-target guard and recovery fixture, fresh-host PDB case and private debugger transition diagnostic
 passed the integrated Release build with zero warnings/errors. All **5,665** portable and **742** standalone Lua

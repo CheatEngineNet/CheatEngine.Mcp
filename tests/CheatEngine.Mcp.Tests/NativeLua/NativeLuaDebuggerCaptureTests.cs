@@ -29,37 +29,37 @@ public sealed partial class NativeLuaToolRuntimeTests
 	                                        targetIs64Bit = function() return wide end
 	                                        getOpenedProcessID = function() return 77 end
 	                                        symbols = {['401000'] = 0x401000, ['game.exe'] = 0x140000000,
-	                                        	['my module.dll'] = 0x7FF000000000}
+	                                            ['my module.dll'] = 0x7FF000000000}
 	                                        getAddressSafe = function(name) return symbols[name] end
 	                                        disassemble = function(_) return 'instruction' end
 	                                        breakpointCalls = 0
 	                                        debug_removeBreakpointByID = function(_) return true end
 	                                        debug_setBreakpoint = function(address, size, trigger, callback)
-	                                        	breakpointCalls = breakpointCalls + 1
-	                                        	breakpointAddress = address
-	                                        	breakpointTrigger = trigger
-	                                        	captureCallback = callback
-	                                        	return true, 88
+	                                            breakpointCalls = breakpointCalls + 1
+	                                            breakpointAddress = address
+	                                            breakpointTrigger = trigger
+	                                            if callback ~= nil then captureCallback = callback end
+	                                            return true, 88
 	                                        end
 	                                        instructionOpcode = 'mov'
 	                                        instructionParameters = '[rax],edx'
 	                                        instructionBytes = {0x8B, 0x05, 0x10, 0x00, 0x00, 0x00}
 	                                        disassemblersDestroyed = 0
 	                                        createDisassembler = function()
-	                                        	local disassembler = {}
-	                                        	disassembler.disassemble = function(address)
-	                                        		disassembledAt = address
-	                                        		return ''
-	                                        	end
-	                                        	disassembler.getLastDisassembleData = function()
-	                                        		return {opcode = instructionOpcode,
-	                                        			parameters = instructionParameters,
-	                                        			bytes = instructionBytes}
-	                                        	end
-	                                        	disassembler.destroy = function()
-	                                        		disassemblersDestroyed = disassemblersDestroyed + 1
-	                                        	end
-	                                        	return disassembler
+	                                            local disassembler = {}
+	                                            disassembler.disassemble = function(address)
+	                                                disassembledAt = address
+	                                                return ''
+	                                            end
+	                                            disassembler.getLastDisassembleData = function()
+	                                                return {opcode = instructionOpcode,
+	                                                    parameters = instructionParameters,
+	                                                    bytes = instructionBytes}
+	                                            end
+	                                            disassembler.destroy = function()
+	                                                disassemblersDestroyed = disassemblersDestroyed + 1
+	                                            end
+	                                            return disassembler
 	                                        end
 	                                        THREADID = 9
 	                                        RIP = 0x401000
@@ -168,8 +168,8 @@ public sealed partial class NativeLuaToolRuntimeTests
 		StartEffectiveAddressCapture(2L);
 		InstallStubs("""
 		             for index = 1, 1000 do
-		             	RAX = index * 16
-		             	captureCallback()
+		                 RAX = index * 16
+		                 captureCallback()
 		             end
 		             RAX = 1000 * 16
 		             captureCallback()
@@ -181,7 +181,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 		                                      for _ in pairs(job.groups) do groups = groups + 1 end
 		                                      for _ in pairs(job.groupKeys) do groupKeys = groupKeys + 1 end
 		                                      return {groups = groups, groupKeys = groupKeys, total = job.total,
-		                                      	dropped = job.dropped, last = job.last}
+		                                          dropped = job.dropped, last = job.last}
 		                                      """, OwnNamespace, CaptureJobId));
 		Assert.Equal((2L, 2L, 1001L, 998L, 1000L),
 			(capture.GetProperty("groups").GetInt64(), capture.GetProperty("groupKeys").GetInt64(),

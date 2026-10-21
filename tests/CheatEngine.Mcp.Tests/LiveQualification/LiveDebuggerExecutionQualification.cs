@@ -9,7 +9,7 @@ using CheatEngine.Mcp.Core.Contract;
 namespace CheatEngine.Mcp.Tests.LiveQualification;
 
 [SupportedOSPlatform("windows")]
-internal static class LiveDebuggerExecutionQualification
+internal static partial class LiveDebuggerExecutionQualification
 {
 	private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(10);
 	private static readonly TimeSpan Poll = TimeSpan.FromMilliseconds(50);

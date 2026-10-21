@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Reflection;
 using System.Runtime.Versioning;
+using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 
 using CheatEngine.Mcp.Core.Contract;
@@ -13,6 +15,7 @@ internal static class LiveMonoQualification
 {
 	private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(15);
 	private static readonly string[] FieldNames = ["Counter", "Magic", "Speed", "StaticMagic", "StaticRoot"];
+	private static readonly string[] UnqualifiedEffects = ["mono_error_ok_patched", "uses_mono_table_option"];
 
 	internal static async Task VerifyAsync(LiveSandboxSession sandbox, LiveMcpInstanceClient instanceA, string repositoryRoot)
 	{
@@ -51,9 +54,28 @@ internal static class LiveMonoQualification
 			Assert.True(attach["attached"]!.GetValue<bool>());
 			Assert.False(attach["il2Cpp"]!.GetValue<bool>());
 			Assert.True(attach["collectorVersion"]!.GetValue<long>() > 0);
-			foreach (string effect in new[] { "collector_injected", "mono_error_ok_patched", "cheat_engine_hooks_installed", "uses_mono_table_option" })
+			foreach (string effect in new[] { "collector_injected", "cheat_engine_hooks_installed" })
 			{
 				Assert.Contains(effect, attach["hostEffects"]!.AsArray().Select(item => item!.GetValue<string>()));
+			}
+			using (Process monoProcess = Process.GetProcessById(target.ProcessId))
+			{
+				ProcessModule collector = Assert.Single(monoProcess.Modules.Cast<ProcessModule>(), module =>
+					string.Equals(module.ModuleName, "MonoDataCollector64.dll", StringComparison.OrdinalIgnoreCase));
+				string expectedPath = Path.Combine(sandbox.RunDirectory, "ce-A", "autorun", "dlls", "MonoDataCollector64.dll");
+				Assert.Equal(Path.GetFullPath(expectedPath), Path.GetFullPath(collector.FileName), StringComparer.OrdinalIgnoreCase);
+				Assert.NotEqual(IntPtr.Zero, collector.BaseAddress);
+				Assert.True(collector.ModuleMemorySize > 0);
+				string hash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(collector.FileName)));
+				Assert.Equal(LiveSandboxSession.MonoCollectorSha256, hash);
+				sandbox.Record("live_mono_collector_identity", new
+				{
+					processId = target.ProcessId,
+					path = collector.FileName,
+					sha256 = hash,
+					// These conservative warnings are not side-effect evidence for the sgen fixture.
+					unqualifiedEffects = UnqualifiedEffects
+				});
 			}
 			Receipt(sandbox, CheatEngineToolNames.MonoAttach, attach);
 			JsonNode status = await CallAsync(instance, CheatEngineToolNames.MonoGetStatus);
@@ -67,8 +89,9 @@ internal static class LiveMonoQualification
 			Receipt(sandbox, CheatEngineToolNames.MonoGetStatus, status);
 
 			JsonNode assemblies = await CallAsync(instance, CheatEngineToolNames.MonoListAssemblies, new Dictionary<string, object?> { ["offset"] = 0, ["limit"] = 1000 });
+			sandbox.Record("live_mono_assemblies_observed", assemblies.DeepClone());
 			AssertCompletePage(assemblies, "assemblies", 1000);
-			JsonNode assembly = assemblies["assemblies"]!.AsArray().Single(item => string.Equals(Text(item!, "name"), Path.GetFileName(target.Facts.AssemblyPath), StringComparison.OrdinalIgnoreCase))!;
+			JsonNode assembly = RequireOwnedAssembly(assemblies, target.Facts.AssemblyPath);
 			string image = Text(assembly, "imageHandle");
 			Receipt(sandbox, CheatEngineToolNames.MonoListAssemblies, assemblies);
 			JsonNode classes = await CallAsync(instance, CheatEngineToolNames.MonoListClasses, new Dictionary<string, object?> { ["imageHandle"] = image, ["offset"] = 0, ["limit"] = 32, ["nameContains"] = target.Facts.ClassName });
@@ -343,6 +366,15 @@ internal static class LiveMonoQualification
 		_ => throw new InvalidDataException($"Unexpected fixed Mono fixture type '{value}'.")
 	};
 	private static HashSet<string> JobIds(JsonNode list) => [.. list["jobs"]!.AsArray().Select(job => Text(job!, "jobId"))];
+	internal static JsonNode RequireOwnedAssembly(JsonNode assemblies, string assemblyPath)
+	{
+		// Mono 6.12 mono_image_get_name returns the Assembly metadata name, not the image filename.
+		string expected = AssemblyName.GetAssemblyName(assemblyPath).Name
+			?? throw new InvalidDataException("The owned Mono fixture has no assembly metadata name.");
+		return assemblies["assemblies"]!.AsArray().Single(item =>
+			string.Equals(Text(item!, "name"), expected, StringComparison.Ordinal))!;
+	}
+
 	private static ulong ParseHex(string value) => ulong.Parse(Normalize(value), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture);
 
 	private static async Task AssertMemoryAsync(LiveMcpInstanceClient instance, string address, string valueType, string expected)

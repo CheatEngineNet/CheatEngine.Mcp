@@ -201,9 +201,14 @@ internal static class DebuggerLuaScripts
 	                                                                          end
 	                                                                          local callback = a[8] and oneShot or nil
 	                                                                          local accepted, id
+	                                                                          -- CE parses optional slots by arity; a supplied nil can select a named callback.
 	                                                                          if a[7] ~= nil then
 	                                                                             if method == nil and callback == nil then
 	                                                                                accepted, id = debug_setBreakpointForThread(a[7], address, a[4], trigger)
+	                                                                             elseif method == nil then
+	                                                                                accepted, id = debug_setBreakpointForThread(a[7], address, a[4], trigger, callback)
+	                                                                             elseif callback == nil then
+	                                                                                accepted, id = debug_setBreakpointForThread(a[7], address, a[4], trigger, method)
 	                                                                             else
 	                                                                                accepted, id = debug_setBreakpointForThread(a[7], address, a[4], trigger, method, callback)
 	                                                                             end
@@ -211,6 +216,8 @@ internal static class DebuggerLuaScripts
 	                                                                             accepted, id = debug_setBreakpoint(address, a[4], trigger)
 	                                                                          elseif method == nil then
 	                                                                             accepted, id = debug_setBreakpoint(address, a[4], trigger, callback)
+	                                                                          elseif callback == nil then
+	                                                                             accepted, id = debug_setBreakpoint(address, a[4], trigger, method)
 	                                                                          else
 	                                                                             accepted, id = debug_setBreakpoint(address, a[4], trigger, method, callback)
 	                                                                          end
@@ -352,7 +359,9 @@ internal static class DebuggerLuaScripts
 	// Arguments: thread id, ignored.
 	internal const string SetThreadIgnored = """
 	                                         assert(debug_isDebugging(), 'Debugger is not attached')
-	                                         if a[2] then debug_addThreadToNoBreakList(a[1]) else debug_removeThreadFromNoBreakList(a[1]) end
+	                                         local accepted
+	                                         if a[2] then accepted = debug_addThreadToNoBreakList(a[1]) else accepted = debug_removeThreadFromNoBreakList(a[1]) end
+	                                         assert(accepted == true, 'Cheat Engine rejected the thread no-break change')
 	                                         return {threadId = a[1], ignored = a[2]}
 	                                         """;
 
@@ -557,6 +566,8 @@ internal static class DebuggerLuaScripts
 	                                                                           end
 	                                                                           assert(type(debug_removeBreakpointByID) == 'function',
 	                                                                              'This Cheat Engine version cannot safely remove owned breakpoint ids')
+	                                                                           assert(type(createTimer) == 'function',
+	                                                                              'This Cheat Engine version cannot defer trace breakpoint cleanup')
 	                                                                           assert(_G.debugger_onBreakpoint == nil, 'Another debugger_onBreakpoint hook is installed')
 	                                                                           local address = getAddressSafe(a[5])
 	                                                                           assert(address ~= nil, 'The trace address could not be resolved')
@@ -566,54 +577,62 @@ internal static class DebuggerLuaScripts
 	                                                                              job.total = 0
 	                                                                              job.onStop = function(current)
 	                                                                                 if current.hook ~= nil and _G.debugger_onBreakpoint == current.hook then _G.debugger_onBreakpoint = nil end
-	                                                                                 if current.breakpointId ~= nil and getOpenedProcessID() == current.processId then
+	                                                                                 if current.breakpointId ~= nil then
+	                                                                                    assert(getOpenedProcessID() == current.processId,
+	                                                                                       'The selected target changed before the trace entry breakpoint could be safely removed')
 	                                                                                    assert(debug_removeBreakpointByID(current.breakpointId) ~= false,
 	                                                                                       'Cheat Engine rejected removal of the trace entry breakpoint')
+	                                                                                    current.breakpointId = nil
 	                                                                                 end
-	                                                                                 current.breakpointId = nil
 	                                                                              end
-	                                                                              local function append(current)
-	                                                                                 local context = traceContext(a[10])
+	                                                                              local function append(current, context)
+	                                                                                 context = context or traceContext(a[10])
 	                                                                                 current.total = current.total + 1
 	                                                                                 jobPush(current, context)
 	                                                                                 jobProgress(current, current.total, a[7])
 	                                                                                 return context
 	                                                                              end
-	                                                                              local function step(current)
-	                                                                                 if getOpenedProcessID() ~= current.processId then
-	                                                                                    jobFinish(current, 'target_changed', 'The selected target changed during trace')
-	                                                                                    return 0
+	                                                                              local function finishAfterBreakpoint(current, state, message)
+	                                                                                 if current.finalizing then return 0 end
+	                                                                                 current.finalizing = true
+	                                                                                 local scheduled, timer = pcall(createTimer, 1, function()
+	                                                                                    if current.state ~= 'running' then return end
+	                                                                                    current.finalizing = false
+	                                                                                    jobFinish(current, state, message)
+	                                                                                 end)
+	                                                                                 if not scheduled or timer == nil then
+	                                                                                    current.finalizing = false
+	                                                                                    current.error = ('Could not schedule trace cleanup after the breakpoint callback: '
+	                                                                                       .. tostring(timer)):sub(1, 4096)
 	                                                                                 end
-	                                                                                 if THREADID ~= current.threadId or not debug_isStepping() then return 0 end
-	                                                                                 local context = append(current)
+	                                                                                 return 0
+	                                                                              end
+	                                                                              job.hook = jobEvent(job, function(current)
+	                                                                                 if current.finalizing then return 0 end
+	                                                                                 if getOpenedProcessID() ~= current.processId then
+	                                                                                    return finishAfterBreakpoint(current, 'target_changed',
+	                                                                                       'The selected target changed during trace')
+	                                                                                 end
+	                                                                                 local context = traceContext(a[10])
+	                                                                                 if current.threadId == nil then
+	                                                                                    if context.ip ~= string.format('%X', address) then return 0 end
+	                                                                                    current.threadId = THREADID
+	                                                                                    append(current, context)
+	                                                                                 elseif THREADID ~= current.threadId or not debug_isStepping() then
+	                                                                                    return finishAfterBreakpoint(current, 'failed',
+	                                                                                       'The trace was interrupted before its next single-step')
+	                                                                                 else
+	                                                                                    append(current, context)
+	                                                                                 end
 	                                                                                 if current.total >= a[7] or conditionReached(context) then
-	                                                                                    jobFinish(current, 'completed')
-	                                                                                    return 1
+	                                                                                    return finishAfterBreakpoint(current, 'completed')
 	                                                                                 end
 	                                                                                 debug_continueFromBreakpoint(a[6] == 'over' and co_stepover or co_stepinto)
 	                                                                                 return 1
-	                                                                              end
-	                                                                              job.callback = jobEvent(job, function(current)
-	                                                                                 if getOpenedProcessID() ~= current.processId then
-	                                                                                    jobFinish(current, 'target_changed', 'The selected target changed during trace')
-	                                                                                    return 0
-	                                                                                 end
-	                                                                                 current.threadId = THREADID
-	                                                                                 local context = append(current)
-	                                                                                 assert(debug_removeBreakpointByID(current.breakpointId) ~= false,
-	                                                                                    'Cheat Engine rejected removal of the trace entry breakpoint')
-	                                                                                 current.breakpointId = nil
-	                                                                                 if current.total >= a[7] or conditionReached(context) then
-	                                                                                    jobFinish(current, 'completed')
-	                                                                                    return 1
-	                                                                                 end
-	                                                                                 current.hook = jobEvent(current, step, 0)
-	                                                                                 assert(_G.debugger_onBreakpoint == nil, 'Another debugger_onBreakpoint hook appeared during trace setup')
-	                                                                                 _G.debugger_onBreakpoint = current.hook
-	                                                                                 debug_continueFromBreakpoint(a[6] == 'over' and co_stepover or co_stepinto)
-	                                                                                 return 0
 	                                                                              end, 0)
-	                                                                              local accepted, id = debug_setBreakpoint(address, 1, bptExecute, job.callback)
+	                                                                              assert(_G.debugger_onBreakpoint == nil, 'Another debugger_onBreakpoint hook appeared during trace setup')
+	                                                                              _G.debugger_onBreakpoint = job.hook
+	                                                                              local accepted, id = debug_setBreakpoint(address, 1, bptExecute)
 	                                                                              assert(accepted == true and id ~= nil, 'Cheat Engine rejected the trace entry breakpoint')
 	                                                                              job.breakpointId = id
 	                                                                           end)

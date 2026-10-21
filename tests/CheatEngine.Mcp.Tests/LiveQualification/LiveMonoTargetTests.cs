@@ -9,6 +9,78 @@ public sealed class LiveMonoTargetTests
 	private const string Nonce = "0123456789abcdef0123456789abcdef";
 	private const int ProcessId = 4242;
 	private const string AssemblyHash = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+	private const string SourceHash = "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC";
+
+	[Fact]
+	public void RequireShortManifestPath_AcceptsTemporaryPathBelowLegacyLimit()
+	{
+		LiveMonoTarget.RequireShortManifestPath(@"C:\" + new string('x', 219));
+	}
+
+	[Theory]
+	[InlineData(220)]
+	[InlineData(221)]
+	public void RequireShortManifestPath_RejectsTemporaryPathAtOrAboveLegacyLimit(int leafLength)
+	{
+		InvalidDataException error = Assert.Throws<InvalidDataException>(() =>
+			LiveMonoTarget.RequireShortManifestPath(@"C:\" + new string('x', leafLength)));
+		Assert.Contains("shorter live run root", error.Message, StringComparison.Ordinal);
+	}
+
+	[Theory]
+	[InlineData("first build", 'A')]
+	[InlineData("rebuilt legacy executable", 'B')]
+	public void RequireFixtureIdentity_AcceptsEachBinaryMatchingItsBuildSidecar(string caseName, char hashDigit)
+	{
+		Assert.NotEmpty(caseName);
+		Fixture fixture = CreateFixture();
+		string source = Path.Combine(fixture.Root, "Program.cs");
+		string binaryHash = new(hashDigit, 64);
+		JsonObject identity = BuildIdentity(fixture.Assembly, source, binaryHash);
+
+		LiveMonoTarget.RequireFixtureIdentity(identity, fixture.Assembly, source, binaryHash, SourceHash, SourceHash);
+	}
+
+	[Theory]
+	[InlineData("targetSha256", "changed binary")]
+	[InlineData("sourceSha256", "stale build source")]
+	[InlineData("targetPath", "foreign executable")]
+	[InlineData("sourcePath", "foreign source")]
+	[InlineData("architecture", "x86")]
+	public void RequireFixtureIdentity_RejectsChangedBuildIdentity(string property, string caseName)
+	{
+		Assert.NotEmpty(caseName);
+		Fixture fixture = CreateFixture();
+		string source = Path.Combine(fixture.Root, "Program.cs");
+		JsonObject identity = BuildIdentity(fixture.Assembly, source, AssemblyHash);
+		identity[property] = property.EndsWith("Path", StringComparison.Ordinal)
+			? Path.Combine(fixture.Root, "foreign", "input") : new string('D', 64);
+
+		Assert.Throws<InvalidDataException>(() => LiveMonoTarget.RequireFixtureIdentity(identity, fixture.Assembly,
+			source, AssemblyHash, SourceHash, SourceHash));
+	}
+
+	[Fact]
+	public void RequireFixtureIdentity_RejectsChangedReviewedSourceEvenWithMatchingSidecar()
+	{
+		Fixture fixture = CreateFixture();
+		string source = Path.Combine(fixture.Root, "Program.cs");
+		JsonObject identity = BuildIdentity(fixture.Assembly, source, AssemblyHash);
+		string changedHash = new('D', 64);
+		identity["sourceSha256"] = changedHash;
+
+		Assert.Throws<InvalidDataException>(() => LiveMonoTarget.RequireFixtureIdentity(identity, fixture.Assembly,
+			source, AssemblyHash, changedHash, SourceHash));
+	}
+
+	private static JsonObject BuildIdentity(string assembly, string source, string binaryHash) => new()
+	{
+		["architecture"] = "x64",
+		["targetPath"] = assembly,
+		["targetSha256"] = binaryHash,
+		["sourcePath"] = source,
+		["sourceSha256"] = SourceHash
+	};
 
 	[Fact]
 	public void ManifestParse_AcceptsFixedOwnedMonoProbe()

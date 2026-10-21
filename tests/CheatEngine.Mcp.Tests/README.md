@@ -57,6 +57,17 @@ live opt-in. Their fixed cases and cleanup requirements are described in
 [the additional native cases](../../docs/qualification/all-tools/additional-native-cases.md). They use the same
 private hosts and disposable targets. Ordinary workflows retain all four optional gates disabled.
 
+The `inspection` scenario runs the existing process/thread, memory-read, utility, assembly-byte and
+reversible symbol-preference checks independently of the full workflow. It uses the ordinary live
+acknowledgement, disables all four optional gates, and verifies gateway restart and owned-target health.
+It does not establish completion of the full workflow or plugin reload.
+
+The `state-workflows` scenario separately runs the existing record/structure/symbol state, owned pointer,
+roadmap/file/table, code-analysis, module-export, dissection and signature cases, followed by target,
+gateway and host restarts and persisted-note checks. It uses the ordinary live acknowledgement and all
+four optional gates disabled. File/table access is confined to this run's roadmap and pointer fixtures.
+It does not replay the failing resource/scanner prefix or qualify the full workflow, debugger or plugin reload.
+
 The `process-create` scenario uses the ordinary live acknowledgement with all four optional gates disabled. It also
 requires the installed .NET Framework compiler to build its fixed owned fixture. It produces its own session receipts.
 The `mono` scenario uses the privately extracted x64 Mono runtime and a dedicated fixed-Mono acknowledgement;

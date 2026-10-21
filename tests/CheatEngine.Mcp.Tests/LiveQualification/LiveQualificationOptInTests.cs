@@ -115,6 +115,29 @@ public sealed class LiveQualificationOptInTests
 		Assert.Equal(LiveQualificationScenario.Compiler, decision.Inputs!.Scenario);
 	}
 
+	[Fact]
+	public void Evaluate_FrozenInputManifestRequiresPathAndDigestTogether()
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.ScenarioVariable] = "compiler-injection";
+		variables[LiveQualificationOptIn.CodeExecutionOptInVariable] = LiveQualificationOptIn.CodeExecutionAcknowledgement;
+		variables[LiveQualificationOptIn.InjectionOptInVariable] = LiveQualificationOptIn.InjectionAcknowledgement;
+		variables[LiveQualificationOptIn.FrozenInputManifestPathVariable] = Path.Combine(Repository, "artifacts", "test-results", "manifest.json");
+
+		LiveQualificationDecision partial = Evaluate(variables);
+
+		Assert.False(partial.IsAuthorized);
+		Assert.Contains(LiveQualificationOptIn.FrozenInputManifestSha256Variable, partial.Refusal, StringComparison.Ordinal);
+
+		variables[LiveQualificationOptIn.FrozenInputManifestSha256Variable] = new string('A', 64);
+		LiveQualificationDecision complete = Evaluate(variables);
+
+		Assert.True(complete.IsAuthorized, complete.Refusal);
+		Assert.Equal(Path.GetFullPath(variables[LiveQualificationOptIn.FrozenInputManifestPathVariable]!),
+			complete.Inputs!.FrozenInputManifestPath);
+		Assert.Equal(new string('A', 64), complete.Inputs.FrozenInputManifestSha256);
+	}
+
 	[Theory]
 	[InlineData(null)]
 	[InlineData("")]
@@ -200,7 +223,10 @@ public sealed class LiveQualificationOptInTests
 
 	[Theory]
 	[InlineData("lifecycle", LiveQualificationScenario.Lifecycle)]
+	[InlineData("plugin-lifecycle", LiveQualificationScenario.PluginLifecycle)]
 	[InlineData("workflows", LiveQualificationScenario.Workflows)]
+	[InlineData("inspection", LiveQualificationScenario.Inspection)]
+	[InlineData("state-workflows", LiveQualificationScenario.StateWorkflows)]
 	[InlineData("process-create", LiveQualificationScenario.ProcessCreate)]
 	[InlineData("performance", LiveQualificationScenario.Performance)]
 	[InlineData("soak", LiveQualificationScenario.Soak)]
@@ -343,6 +369,15 @@ public sealed class LiveQualificationOptInTests
 	[InlineData("debugger", null)]
 	[InlineData("debugger", "true")]
 	[InlineData("debugger", LiveQualificationOptIn.AssemblerAcknowledgement)]
+	[InlineData("debugger-basic", null)]
+	[InlineData("debugger-basic", "true")]
+	[InlineData("debugger-basic", LiveQualificationOptIn.AssemblerAcknowledgement)]
+	[InlineData("debugger-events", null)]
+	[InlineData("debugger-events", "true")]
+	[InlineData("debugger-events", LiveQualificationOptIn.AssemblerAcknowledgement)]
+	[InlineData("debugger-execution", null)]
+	[InlineData("debugger-execution", "true")]
+	[InlineData("debugger-execution", LiveQualificationOptIn.AssemblerAcknowledgement)]
 	public void Evaluate_SpecializedScenarioRequiresItsOwnAcknowledgementBeforeInspection(string scenario, string? acknowledgement)
 	{
 		Dictionary<string, string?> variables = Authorized();
@@ -358,6 +393,9 @@ public sealed class LiveQualificationOptInTests
 	[Theory]
 	[InlineData("assembler", LiveQualificationScenario.Assembler)]
 	[InlineData("debugger", LiveQualificationScenario.Debugger)]
+	[InlineData("debugger-basic", LiveQualificationScenario.DebuggerBasic)]
+	[InlineData("debugger-events", LiveQualificationScenario.DebuggerEvents)]
+	[InlineData("debugger-execution", LiveQualificationScenario.DebuggerExecution)]
 	public void Evaluate_SpecializedScenarioAcknowledgement_AuthorizesOnlyThatScenario(string scenario, int expected)
 	{
 		Dictionary<string, string?> variables = Authorized();
@@ -376,10 +414,40 @@ public sealed class LiveQualificationOptInTests
 	}
 
 	[Theory]
+	[InlineData(null)]
+	[InlineData("")]
+	[InlineData("true")]
+	public void Evaluate_KernelStatusRequiresItsReadOnlyAcknowledgement(string? acknowledgement)
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.ScenarioVariable] = "kernel-status";
+		variables[LiveQualificationOptIn.KernelStatusOptInVariable] = acknowledgement;
+		LiveQualificationDecision decision = LiveQualificationOptIn.Evaluate(variables.GetValueOrDefault,
+			Repository, LocalData, Installation, static _ => throw new InvalidOperationException("Must refuse before inspection."));
+		Assert.False(decision.IsAuthorized);
+		Assert.Contains(LiveQualificationOptIn.KernelStatusOptInVariable, decision.Refusal, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Evaluate_KernelStatusWithExactAcknowledgement_Authorizes()
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.ScenarioVariable] = "kernel-status";
+		variables[LiveQualificationOptIn.KernelStatusOptInVariable] = LiveQualificationOptIn.KernelStatusAcknowledgement;
+		LiveQualificationDecision decision = Evaluate(variables);
+		Assert.True(decision.IsAuthorized, decision.Refusal);
+		Assert.Equal(LiveQualificationScenario.KernelStatus, decision.Inputs!.Scenario);
+	}
+
+	[Theory]
 	[InlineData("smoke", "1")]
 	[InlineData("assembler", "1")]
 	[InlineData("debugger", "")]
 	[InlineData("debugger", "true")]
+	[InlineData("debugger-events", "1")]
+	[InlineData("debugger-events", "true")]
+	[InlineData("debugger-execution", "1")]
+	[InlineData("debugger-execution", "true")]
 	public void Evaluate_TransitionDiagnosticOutsideItsExactDebuggerMode_Refuses(string scenario, string value)
 	{
 		Dictionary<string, string?> variables = Authorized();

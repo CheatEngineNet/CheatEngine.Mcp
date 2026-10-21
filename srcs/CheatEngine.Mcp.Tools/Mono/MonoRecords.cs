@@ -26,7 +26,7 @@ public sealed record MonoAttachResult(
 	[property: Description("The collector version when Cheat Engine reports it.")]
 	long? CollectorVersion,
 	[property: Description(
-		"The effects left behind: collector_injected, mono_error_ok_patched (not on IL2CPP), cheat_engine_hooks_installed and uses_mono_table_option (when Cheat Engine set it).")]
+		"Conservative warnings about persistent effects: collector_injected, mono_error_ok_patched (possible on Mono), cheat_engine_hooks_installed and uses_mono_table_option (set or unreadable). Entries do not confirm each effect occurred.")]
 	string[] HostEffects);
 
 /// <summary>The result of closing the Mono collector connection.</summary>

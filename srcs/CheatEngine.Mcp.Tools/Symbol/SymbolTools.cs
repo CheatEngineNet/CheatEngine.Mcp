@@ -249,7 +249,7 @@ public sealed class SymbolTools
 		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Start a symbol reload and return at once; it never waits. new_modules loads the symbols of modules loaded since the last scan, all reinitializes the whole symbol handler, dotnet reinitializes the .NET symbols (after code was JIT-compiled), optionally of one module. done tells whether Cheat Engine reports every symbol loaded; while it is false, poll runtime_get_overview (symbolsLoaded) instead of waiting.")]
+		"Start a symbol reload and return at once; it never waits. new_modules loads the symbols of modules loaded since the last scan, all reinitializes the whole symbol handler, dotnet reinitializes the .NET symbols (after code was JIT-compiled), optionally of one module. done tells whether Cheat Engine reports every symbol loaded; while it is false, poll symbol_find with a bounded nameContains filter and read symbolsLoaded instead of waiting.")]
 	public SymbolLoadState Reload(
 		[Description("new_modules, all or dotnet.")]
 		SymbolReloadScope scope = SymbolReloadScope.NewModules,

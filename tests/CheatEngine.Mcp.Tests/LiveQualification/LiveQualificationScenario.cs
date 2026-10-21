@@ -8,6 +8,7 @@ internal enum LiveQualificationScenario
 	CompilerExtended,
 	CompilerInjection,
 	Lifecycle,
+	PluginLifecycle,
 	Performance,
 	Soak,
 	DispatchDiagnostic,
@@ -17,5 +18,11 @@ internal enum LiveQualificationScenario
 	Execution,
 	SymbolFixture,
 	ProcessCreate,
-	Mono
+	Mono,
+	Inspection,
+	StateWorkflows,
+	DebuggerBasic,
+	KernelStatus,
+	DebuggerEvents,
+	DebuggerExecution
 }

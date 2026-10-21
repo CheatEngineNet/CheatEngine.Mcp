@@ -3,6 +3,46 @@ namespace CheatEngine.Mcp.Tests.LiveQualification;
 public sealed class LiveSandboxOptionsTests
 {
 	[Fact]
+	public void ValidateFor_StateWorkflowsRequiresItsDedicatedDisabledCapabilityConfiguration()
+	{
+		LiveSandboxOptions state = LiveSandboxOptions.Smoke with
+		{
+			StateWorkflowsQualification = true
+		};
+		state.ValidateFor(LiveQualificationScenario.StateWorkflows);
+		Assert.True(state.RequiresCapabilityConfiguration);
+		Assert.False(state.WorkflowQualification);
+		Assert.False(state.UsesTargetFirstExecutionShutdown);
+		Assert.Throws<InvalidOperationException>(() => state.ValidateFor(LiveQualificationScenario.Workflows));
+		Assert.Throws<InvalidOperationException>(() => state.ValidateFor(LiveQualificationScenario.Inspection));
+		Assert.Throws<InvalidOperationException>(() => (state with { WorkflowQualification = true }).ValidateFor(LiveQualificationScenario.StateWorkflows));
+		Assert.Throws<InvalidOperationException>(() => (state with { InspectionQualification = true }).ValidateFor(LiveQualificationScenario.StateWorkflows));
+		Assert.Throws<InvalidOperationException>(() => (state with { EnableTargetCodeExecution = true }).ValidateFor(LiveQualificationScenario.StateWorkflows));
+		Assert.Throws<InvalidOperationException>(() => (state with { AssemblerQualification = true }).ValidateFor(LiveQualificationScenario.StateWorkflows));
+		Assert.Throws<InvalidOperationException>(() => (state with { DebuggerQualification = true }).ValidateFor(LiveQualificationScenario.StateWorkflows));
+	}
+
+	[Fact]
+	public void ValidateFor_InspectionRequiresItsDedicatedDisabledCapabilityConfiguration()
+	{
+		LiveSandboxOptions inspection = LiveSandboxOptions.Smoke with
+		{
+			InspectionQualification = true
+		};
+		inspection.ValidateFor(LiveQualificationScenario.Inspection);
+		Assert.True(inspection.RequiresCapabilityConfiguration);
+		Assert.False(inspection.UsesTargetFirstExecutionShutdown);
+		Assert.False(inspection.WorkflowQualification);
+		Assert.Throws<InvalidOperationException>(() => inspection.ValidateFor(LiveQualificationScenario.Workflows));
+		Assert.Throws<InvalidOperationException>(() => (inspection with { WorkflowQualification = true }).ValidateFor(LiveQualificationScenario.Inspection));
+		Assert.Throws<InvalidOperationException>(() => LiveSandboxOptions.Smoke.ValidateFor(LiveQualificationScenario.Inspection));
+		Assert.Throws<InvalidOperationException>(() => (inspection with { EnableTargetCodeExecution = true }).ValidateFor(LiveQualificationScenario.Inspection));
+		Assert.Throws<InvalidOperationException>(() => (inspection with { AssemblerQualification = true }).ValidateFor(LiveQualificationScenario.Inspection));
+		Assert.Throws<InvalidOperationException>(() => (inspection with { DebuggerQualification = true }).ValidateFor(LiveQualificationScenario.Inspection));
+		Assert.Throws<InvalidOperationException>(() => (inspection with { LifecycleQualification = true }).ValidateFor(LiveQualificationScenario.Inspection));
+	}
+
+	[Fact]
 	public void ValidateFor_MonoRequiresOnlyItsOwnedTargetExecutionConfiguration()
 	{
 		LiveSandboxOptions mono = LiveSandboxOptions.Smoke with
@@ -62,6 +102,26 @@ public sealed class LiveSandboxOptionsTests
 		}).ValidateFor(LiveQualificationScenario.Lifecycle);
 		(LiveSandboxOptions.Smoke with
 		{
+			LifecycleQualification = true,
+			SeedPluginChecklistAtStartup = true
+		}).ValidateFor(LiveQualificationScenario.PluginLifecycle);
+		Assert.Throws<InvalidOperationException>(() => (LiveSandboxOptions.Smoke with
+		{
+			LifecycleQualification = true
+		}).ValidateFor(LiveQualificationScenario.PluginLifecycle));
+		Assert.Throws<InvalidOperationException>(() => (LiveSandboxOptions.Smoke with
+		{
+			LifecycleQualification = true,
+			SeedPluginChecklistAtStartup = true
+		}).ValidateFor(LiveQualificationScenario.Lifecycle));
+		Assert.Throws<InvalidOperationException>(() => LiveSandboxOptions.Smoke.ValidateFor(LiveQualificationScenario.PluginLifecycle));
+		Assert.Throws<InvalidOperationException>(() => (LiveSandboxOptions.Smoke with
+		{
+			LifecycleQualification = true,
+			WorkflowQualification = true
+		}).ValidateFor(LiveQualificationScenario.PluginLifecycle));
+		(LiveSandboxOptions.Smoke with
+		{
 			WorkflowQualification = true
 		}).ValidateFor(LiveQualificationScenario.Workflows);
 		(LiveSandboxOptions.Smoke with
@@ -91,10 +151,42 @@ public sealed class LiveSandboxOptionsTests
 		}).ValidateFor(LiveQualificationScenario.Debugger);
 		(LiveSandboxOptions.Smoke with
 		{
+			DebuggerQualification = true
+		}).ValidateFor(LiveQualificationScenario.DebuggerBasic);
+		(LiveSandboxOptions.Smoke with
+		{
+			DebuggerQualification = true,
+			DebuggerEventsQualification = true
+		}).ValidateFor(LiveQualificationScenario.DebuggerEvents);
+		(LiveSandboxOptions.Smoke with
+		{
+			DebuggerQualification = true
+		}).ValidateFor(LiveQualificationScenario.DebuggerExecution);
+		(LiveSandboxOptions.Smoke with
+		{
+			KernelStatusQualification = true
+		}).ValidateFor(LiveQualificationScenario.KernelStatus);
+		(LiveSandboxOptions.Smoke with
+		{
 			SymbolFixtureQualification = true,
 			EnableTargetCodeExecution = true
 		})
 			.ValidateFor(LiveQualificationScenario.SymbolFixture);
+	}
+
+	[Fact]
+	public void ValidateFor_KernelStatusAdmitsOnlyItsReadOnlyKernelGate()
+	{
+		LiveSandboxOptions status = LiveSandboxOptions.Smoke with
+		{
+			KernelStatusQualification = true
+		};
+		status.ValidateFor(LiveQualificationScenario.KernelStatus);
+		Assert.True(status.RequiresCapabilityConfiguration);
+		Assert.False(status.EnableTargetCodeExecution);
+		Assert.Throws<InvalidOperationException>(() => status.ValidateFor(LiveQualificationScenario.Smoke));
+		Assert.Throws<InvalidOperationException>(() => (status with { EnableTargetCodeExecution = true }).ValidateFor(LiveQualificationScenario.KernelStatus));
+		Assert.Throws<InvalidOperationException>(() => (status with { AssemblerQualification = true }).ValidateFor(LiveQualificationScenario.KernelStatus));
 	}
 
 	[Fact]
@@ -113,7 +205,9 @@ public sealed class LiveSandboxOptionsTests
 			LiveSandboxOptions.Smoke with { DispatchDiagnostic = true },
 			LiveSandboxOptions.Smoke with { AssemblerQualification = true },
 			LiveSandboxOptions.Smoke with { DebuggerQualification = true },
+			LiveSandboxOptions.Smoke with { DebuggerEventsQualification = true },
 			LiveSandboxOptions.Smoke with { DebuggerTransitionDiagnostic = true },
+			LiveSandboxOptions.Smoke with { KernelStatusQualification = true },
 			LiveSandboxOptions.Smoke with { ProcessCreateQualification = true },
 			LiveSandboxOptions.Smoke with { MonoQualification = true },
 			LiveSandboxOptions.Smoke with { UseSoakLifetime = true }
@@ -122,6 +216,34 @@ public sealed class LiveSandboxOptionsTests
 		{
 			Assert.Throws<InvalidOperationException>(() => options.ValidateFor(LiveQualificationScenario.Smoke));
 		}
+	}
+
+	[Fact]
+	public void ValidateFor_DebuggerEventsRequiresItsDedicatedDebuggerConfiguration()
+	{
+		LiveSandboxOptions events = LiveSandboxOptions.Smoke with
+		{
+			DebuggerQualification = true,
+			DebuggerEventsQualification = true
+		};
+		events.ValidateFor(LiveQualificationScenario.DebuggerEvents);
+		Assert.True(events.RequiresCapabilityConfiguration);
+		Assert.False(events.EnableTargetCodeExecution);
+		Assert.Throws<InvalidOperationException>(() => (events with { DebuggerEventsQualification = false }).ValidateFor(LiveQualificationScenario.DebuggerEvents));
+		Assert.Throws<InvalidOperationException>(() => (events with { DebuggerQualification = false }).ValidateFor(LiveQualificationScenario.DebuggerEvents));
+		Assert.Throws<InvalidOperationException>(() => (events with { DebuggerTransitionDiagnostic = true }).ValidateFor(LiveQualificationScenario.DebuggerEvents));
+		Assert.Throws<InvalidOperationException>(() => (events with { EnableTargetCodeExecution = true }).ValidateFor(LiveQualificationScenario.DebuggerEvents));
+		Assert.Throws<InvalidOperationException>(() => events.ValidateFor(LiveQualificationScenario.Debugger));
+		LiveSandboxOptions execution = LiveSandboxOptions.Smoke with
+		{
+			DebuggerQualification = true
+		};
+		execution.ValidateFor(LiveQualificationScenario.DebuggerExecution);
+		Assert.True(execution.RequiresCapabilityConfiguration);
+		Assert.False(execution.DebuggerEventsQualification);
+		Assert.Throws<InvalidOperationException>(() => (execution with { DebuggerQualification = false }).ValidateFor(LiveQualificationScenario.DebuggerExecution));
+		Assert.Throws<InvalidOperationException>(() => (execution with { DebuggerEventsQualification = true }).ValidateFor(LiveQualificationScenario.DebuggerExecution));
+		Assert.Throws<InvalidOperationException>(() => execution.ValidateFor(LiveQualificationScenario.DebuggerEvents));
 	}
 
 	[Theory]

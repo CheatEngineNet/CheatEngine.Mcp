@@ -71,24 +71,38 @@ internal sealed class LiveLifecycleSession(LiveSandboxSession sandbox, LiveMcpCl
 		}
 	}
 
-	internal async Task CyclePluginAsync(string name)
+	internal async Task<LivePluginReloadCycleEvidence> CyclePluginAsync(string name)
 	{
 		LiveSandboxHost before = name == "A" ? sandbox.HostA : sandbox.HostB;
 		LiveSandboxHost unaffected = name == "A" ? sandbox.HostB : sandbox.HostA;
-		await sandbox.ReloadPluginAsync(name, false, TestContext.Current.CancellationToken);
+		LivePluginCycle disabled = await sandbox.ReloadPluginAsync(name, false, TestContext.Current.CancellationToken);
+		Assert.Equal((before.ProcessId, before.TargetProcessId, false, before.InstanceId, before.InstanceId),
+			(disabled.ProcessId, disabled.TargetProcessId, disabled.Enabled,
+				disabled.PreviousInstanceId, disabled.CurrentInstanceId));
 		await RequireInstancesAsync(unaffected.InstanceId);
 		await RejectStaleAsync(before.InstanceId);
 		JsonNode remaining = (await Gateway.Bind(unaffected.InstanceId).CallToolAsync(CheatEngineToolNames.MemoryRead,
 			new Dictionary<string, object?> { ["address"] = unaffected.TargetAddress, ["valueType"] = "int32" }))!;
 		Assert.Equal("20260926", remaining["value"]!.GetValue<string>());
-		await sandbox.ReloadPluginAsync(name, true, TestContext.Current.CancellationToken);
+		LivePluginCycle enabled = await sandbox.ReloadPluginAsync(name, true, TestContext.Current.CancellationToken);
 		LiveSandboxHost after = name == "A" ? sandbox.HostA : sandbox.HostB;
 		LiveLifecycleQualification.RequirePluginReload(before, after);
+		Assert.True(enabled.Enabled);
+		Assert.True(enabled.InstanceIdChanged);
+		Assert.True(enabled.EndpointChanged);
+		Assert.True(enabled.AccessTokenChanged);
+		Assert.Equal((before.InstanceId, after.InstanceId, before.Endpoint, after.Endpoint),
+			(enabled.PreviousInstanceId, enabled.CurrentInstanceId, enabled.PreviousEndpoint, enabled.CurrentEndpoint));
 		Assert.Equal(unaffected, name == "A" ? sandbox.HostB : sandbox.HostA);
 		await RequireInstancesAsync(sandbox.HostA.InstanceId, sandbox.HostB.InstanceId);
 		await RejectStaleAsync(before.InstanceId);
 		await AttachBothAsync();
 		await VerifyBothAsync();
+		LivePluginReloadCycleEvidence evidence = new(disabled.Nonce, enabled.Nonce, before.ProcessId,
+			before.TargetProcessId, before.InstanceId, after.InstanceId, before.Endpoint, after.Endpoint,
+			enabled.AccessTokenChanged);
+		sandbox.Record($"plugin_{name}_cycle", evidence);
+		return evidence;
 	}
 
 	internal async Task RequireInstancesAsync(params string[] expected)
@@ -116,3 +130,7 @@ internal sealed class LiveLifecycleSession(LiveSandboxSession sandbox, LiveMcpCl
 		Assert.Equal("not_started", result.Payload["error"]!["hostEffect"]!.GetValue<string>());
 	}
 }
+
+internal sealed record LivePluginReloadCycleEvidence(long DisableNonce, long EnableNonce, int ProcessId,
+	int TargetProcessId, string BeforeInstanceId, string AfterInstanceId, string BeforeEndpoint,
+	string AfterEndpoint, bool AccessTokenChanged);

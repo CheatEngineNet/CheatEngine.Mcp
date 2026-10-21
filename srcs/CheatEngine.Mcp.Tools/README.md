@@ -201,16 +201,18 @@ dotnet build srcs/CheatEngine.Mcp.Tools/CheatEngine.Mcp.Tools.csproj --no-restor
 Run the portable tool-focused tests with:
 
 ```powershell
-dotnet test --project tests/CheatEngine.Mcp.Tests --no-restore --filter "FullyQualifiedName~CheatEngine.Mcp.Tests.Tools"
+dotnet test --project tests/CheatEngine.Mcp.Tests --no-restore --filter-class 'CheatEngine.Mcp.Tests.Tools.*' --fail-skips on
 ```
 
 Run the contract tests after an intentional surface change:
 
 ```powershell
-dotnet test --project tests/CheatEngine.Mcp.Tests --no-restore --filter "FullyQualifiedName~CheatEngine.Mcp.Tests.Contract"
+dotnet test --project tests/CheatEngine.Mcp.Tests --no-restore --filter-class 'CheatEngine.Mcp.Tests.Contract.*' --fail-skips on
 ```
 
 The portable suite does not prove behavior against a native Cheat Engine host.
 Use the opt-in live and Native Lua qualification paths in the
 [repository README](../../README.md#verification) when a change needs that
 level of evidence.
+The [per-tool qualification report](../../docs/qualification/all-tools/README.md)
+records the remaining native success and lifecycle requirements separately from portable results.

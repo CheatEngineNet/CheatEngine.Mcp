@@ -135,6 +135,65 @@ public sealed class LiveLifecycleQualificationTests
 	}
 
 	[Fact]
+	public void RequirePluginReloadCycles_AcceptsThreeSequentialFreshOwnedCycles()
+	{
+		IReadOnlyList<LivePluginReloadCycleEvidence> cycles = PluginCycles();
+		LiveLifecycleQualification.RequirePluginReloadCycles(cycles, 10, 20);
+	}
+
+	[Theory]
+	[InlineData("count")]
+	[InlineData("host")]
+	[InlineData("nonce")]
+	[InlineData("token")]
+	[InlineData("identity")]
+	[InlineData("continuity")]
+	public void RequirePluginReloadCycles_RejectsIncompleteOrReusedEvidence(string defect)
+	{
+		List<LivePluginReloadCycleEvidence> cycles = PluginCycles().ToList();
+		switch (defect)
+		{
+			case "count":
+				cycles.RemoveAt(2);
+				break;
+			case "host":
+				cycles[1] = cycles[1] with
+				{
+					ProcessId = 11
+				};
+				break;
+			case "nonce":
+				cycles[1] = cycles[1] with
+				{
+					DisableNonce = cycles[0].EnableNonce
+				};
+				break;
+			case "token":
+				cycles[2] = cycles[2] with
+				{
+					AccessTokenChanged = false
+				};
+				break;
+			case "identity":
+				cycles[1] = cycles[1] with
+				{
+					AfterInstanceId = cycles[1].BeforeInstanceId
+				};
+				break;
+			case "continuity":
+				cycles[1] = cycles[1] with
+				{
+					BeforeEndpoint = "http://127.0.0.1:1999/"
+				};
+				break;
+			default:
+				throw new ArgumentOutOfRangeException(nameof(defect));
+		}
+
+		Assert.Throws<InvalidOperationException>(() => LiveLifecycleQualification.RequirePluginReloadCycles(cycles, 10, 20));
+	}
+
+	[Fact]
 	public void ResourceThresholds_RejectMetricGrowthOverAcceptanceLimits()
 	{
 		LiveProcessMetrics baseline = new(DateTimeOffset.UtcNow, 1, 100, 1024, 2048, null);
@@ -173,4 +232,11 @@ public sealed class LiveLifecycleQualificationTests
 
 	private static LiveSandboxHost Host(string name, int processId, int targetProcessId, string instanceId, string endpoint) =>
 		new(name, processId, targetProcessId, "0x1", "0x2", "0x3", "0x4", "0x5", "plugin", instanceId, endpoint);
+
+	private static LivePluginReloadCycleEvidence[] PluginCycles() =>
+	[
+		new(1, 2, 10, 20, "instance-1", "instance-2", "http://127.0.0.1:1001/", "http://127.0.0.1:1002/", true),
+		new(3, 4, 10, 20, "instance-2", "instance-3", "http://127.0.0.1:1002/", "http://127.0.0.1:1003/", true),
+		new(5, 6, 10, 20, "instance-3", "instance-4", "http://127.0.0.1:1003/", "http://127.0.0.1:1004/", true)
+	];
 }

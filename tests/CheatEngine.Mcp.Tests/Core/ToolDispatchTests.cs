@@ -51,6 +51,44 @@ public sealed class ToolDispatchTests
 		Assert.Null(logged);
 	}
 
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public void Run_UnexpectedBodyFault_LogsTypeAndFramesWithoutPrivatePayload(bool formatFault)
+	{
+		const string privateMessage = "private-message-or-target-value";
+		const string privateData = "private-exception-data";
+		const string privateInnerMessage = "private-inner-exception-message";
+		Harness harness = new();
+		Exception inner = new IOException(privateInnerMessage);
+		Exception cause = formatFault ? new FormatException(privateMessage, inner) : new InvalidOperationException(privateMessage, inner);
+		cause.Data["sensitive"] = privateData;
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			harness.Dispatch.Run("body_fault_probe", _ => ThrowBodyFault(cause), CancellationToken.None));
+
+		Assert.Equal(ToolErrorKind.Internal, exception.Error.Kind);
+		Assert.Equal(ToolHostEffect.Unknown, exception.Error.HostEffect);
+		Assert.False(exception.Error.Retryable);
+		Assert.Same(cause, exception.InnerException);
+		Assert.DoesNotContain(privateMessage, exception.Error.Message, StringComparison.Ordinal);
+		(LogLevel level, EventId eventId, string message, Exception? logged) = Assert.Single(harness.Logger.Entries);
+		Assert.Equal((LogLevel.Error, 3004), (level, eventId.Id));
+		Assert.Null(logged);
+		Assert.Contains(cause.GetType().FullName!, message, StringComparison.Ordinal);
+		Assert.Contains(nameof(ThrowBodyFault), message, StringComparison.Ordinal);
+		Assert.DoesNotContain(privateMessage, message, StringComparison.Ordinal);
+		Assert.DoesNotContain(privateData, message, StringComparison.Ordinal);
+		Assert.DoesNotContain(privateInnerMessage, message, StringComparison.Ordinal);
+		Assert.DoesNotContain("ToolDispatchTests.cs", message, StringComparison.Ordinal);
+	}
+
+	[MethodImpl(MethodImplOptions.NoInlining)]
+	private static int ThrowBodyFault(Exception exception)
+	{
+		throw exception;
+	}
+
 	[Fact]
 	public void Run_ExceptionBeforeAdmission_IsInternalNotStartedWithoutRunningTheBody()
 	{
