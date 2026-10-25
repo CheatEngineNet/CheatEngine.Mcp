@@ -1,10 +1,7 @@
 # Native compileCS qualification policy
 
-Status: The maintainer approved compiler-only phases 1 through 4 on 2026-10-08 for this roadmap session.
-Optional phase 5 (managed injection) is not approved.
-
-[CONTRIBUTING.md](../../../CONTRIBUTING.md#live-qualification) currently prohibits live code-execution probes.
-This approval is a bounded exception and does not change the general rule.
+This is the maintained contract for the compiler-only harness, not authorization to start a run.
+Follow [CONTRIBUTING.md](../../../CONTRIBUTING.md#live-qualification) and the current user request.
 Every compiler run still requires both explicit runner acknowledgements, a reviewed clean candidate, and the prerequisites below.
 Ordinary VL authorization alone is insufficient for a future compiler session; managed injection requires separate approval.
 
@@ -183,7 +180,8 @@ The expected signed decimal result is `7319`.
 
 ## Measurements and evidence
 
-The report must use the evidence fields defined in [acceptance.md](acceptance.md) and remain redacted before commit.
+The report must retain exact candidate, host and fixture identities, operation and cleanup receipts,
+independent oracle results and user-state restoration evidence, and remain redacted before commit.
 It must record the policy revision, authorization decision, candidate commit, clean-tree state, package hashes, payload hashes, and configuration.
 It must record the Windows build, CE fingerprint and version, .NET runtimes, target architecture, fixture hash, and compiler availability evidence.
 For every call it must record the instance, operation, start and end time, duration, expected result, actual result, error kind, host effect, retryability, and correlation identifier.

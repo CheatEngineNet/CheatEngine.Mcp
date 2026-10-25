@@ -116,18 +116,18 @@ public sealed class McpStateLedger
 
 	/// <summary>
 	///     Releases, newest first, the entries that hold host state and that no managed handle tracks: every entry of an
-	///     earlier activation and any untracked entry of this one. It stops at the first failed cleanup, which stays
-	///     recorded for manual recovery. With <paramref name="release" /> false it only lists them. Inside a dispatch.
+	///     untracked entries of this activation, plus earlier activations when <paramref name="includeOrphans" /> is true.
+	///     It stops at the first failed cleanup, which stays recorded for manual recovery. Inside a dispatch.
 	/// </summary>
 	/// <param name="managedIds">The ids this activation tracks in <see cref="TargetResources" />.</param>
-	/// <param name="release">Whether to release them or only list them.</param>
+	/// <param name="includeOrphans">Whether to release entries from earlier activations too.</param>
 	/// <param name="cancellationToken">The token of the enclosing dispatch body.</param>
 	/// <returns>What was released and what remains.</returns>
-	internal LuaStateRelease ReleaseUnmanaged(IReadOnlyCollection<string> managedIds, bool release,
+	internal LuaStateRelease ReleaseUnmanaged(IReadOnlyCollection<string> managedIds, bool includeOrphans,
 		CancellationToken cancellationToken)
 	{
 		return Dispatch.ExecuteLua("mcp_state_release", LuaJobKernelScripts.StateReleaseUnmanaged,
-			StateJsonContext.Default.LuaStateRelease, cancellationToken, Namespace, managedIds, release);
+			StateJsonContext.Default.LuaStateRelease, cancellationToken, Namespace, managedIds, includeOrphans);
 	}
 
 	/// <summary>

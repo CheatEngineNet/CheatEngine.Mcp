@@ -6,6 +6,15 @@ namespace CheatEngine.Mcp.Tools.Debugger;
 /// <summary>Fixed, bounded Lua bodies for debugger functions missing from CheatEngine.Client.</summary>
 internal static class DebuggerLuaScripts
 {
+	internal const string BreakpointIdNormalization = """
+		local function normalizeBreakpointHandle(value)
+		   local id = type(value) == 'table' and value.ID or value
+		   assert(type(id) == 'number' and math.type(id) == 'integer' and id > 0,
+		      'Cheat Engine did not return a usable breakpoint ID')
+		   return value
+		end
+		""";
+
 	internal const string Status = DebuggerStateScripts.ReadContextStopped + "\n" + """
 	                               local function read(name, ...)
 	                                  local value = _G[name](...)
@@ -170,7 +179,7 @@ internal static class DebuggerLuaScripts
 	                                    """;
 
 	// Arguments: namespace, resource id, address expression, size, trigger, method, thread id, one-shot.
-	internal const string SetBreakpoint = LuaJobKernelScripts.Kernel + "\n" + """
+	internal const string SetBreakpoint = LuaJobKernelScripts.Kernel + "\n" + BreakpointIdNormalization + "\n" + """
 	                                                                          assert(debug_isDebugging(), 'Debugger is not attached')
 	                                                                          local address = getAddressSafe(a[3])
 	                                                                          assert(address ~= nil, 'The breakpoint address could not be resolved')
@@ -184,18 +193,38 @@ internal static class DebuggerLuaScripts
 	                                                                          end
 	                                                                          local method = a[6] == 'default' and nil or methods[a[6]]
 	                                                                          assert(a[6] == 'default' or method ~= nil, 'Unknown breakpoint method')
+	                                                                          local breakpointProcessId = getOpenedProcessID()
+	                                                                          assert(math.type(breakpointProcessId) == 'integer' and breakpointProcessId > 0,
+	                                                                             'No process is selected')
 	                                                                          local breakpointId = nil
+	                                                                          local breakpointHandle = nil
+	                                                                          local breakpointAccepted = false
 	                                                                          local function release(entry)
-	                                                                             if breakpointId ~= nil then
-	                                                                                assert(debug_removeBreakpointByID(breakpointId) ~= false,
-	                                                                                   'Cheat Engine rejected removal of the MCP-owned breakpoint')
-	                                                                                breakpointId = nil
-	                                                                             end
+	                                                                             assert(getOpenedProcessID() == entry.processId,
+	                                                                                'The selected target changed before the owned breakpoint could be safely removed')
+	                                                                             if not breakpointAccepted then return end
+	                                                                             local ownedHandle = breakpointHandle or breakpointId
+	                                                                             assert(ownedHandle ~= nil,
+	                                                                                'Cheat Engine accepted the MCP-owned breakpoint without a usable ID; manual recovery is required')
+	                                                                             local usable, validation = pcall(normalizeBreakpointHandle, ownedHandle)
+	                                                                             assert(usable, validation)
+	                                                                             local removed, failure = debug_removeBreakpointByID(ownedHandle)
+	                                                                             assert(removed, failure or 'Cheat Engine rejected removal of the MCP-owned breakpoint')
+	                                                                             breakpointId = nil
+	                                                                             breakpointHandle = nil
+	                                                                             breakpointAccepted = false
 	                                                                          end
 	                                                                          local function oneShot()
-	                                                                             local removed = breakpointId == nil or debug_removeBreakpointByID(breakpointId) ~= false
-	                                                                             assert(removed, 'Cheat Engine rejected removal of the one-shot breakpoint')
+	                                                                             local ownedHandle = breakpointHandle or breakpointId
+	                                                                             assert(breakpointAccepted and ownedHandle ~= nil,
+	                                                                                'Cheat Engine accepted the one-shot breakpoint without a usable ID; manual recovery is required')
+	                                                                             assert(getOpenedProcessID() == breakpointProcessId,
+	                                                                                'The selected target changed before the one-shot breakpoint could be safely removed')
+	                                                                             local removed, failure = debug_removeBreakpointByID(ownedHandle)
+	                                                                             assert(removed, failure or 'Cheat Engine rejected removal of the one-shot breakpoint')
 	                                                                             breakpointId = nil
+	                                                                             breakpointHandle = nil
+	                                                                             breakpointAccepted = false
 	                                                                             resourceForget(a[1], a[2])
 	                                                                             return 1
 	                                                                          end
@@ -221,14 +250,26 @@ internal static class DebuggerLuaScripts
 	                                                                          else
 	                                                                             accepted, id = debug_setBreakpoint(address, a[4], trigger, method, callback)
 	                                                                          end
-	                                                                          assert(accepted == true and id ~= nil, 'Cheat Engine rejected the breakpoint')
-	                                                                          breakpointId = id
+	                                                                          assert(accepted == true, 'Cheat Engine rejected the breakpoint')
+	                                                                          breakpointAccepted = true
+	                                                                          breakpointHandle = id
+	                                                                          local normalized, normalizedId = pcall(normalizeBreakpointHandle, id)
+	                                                                          if not normalized then
+	                                                                             local tracked, trackingFailure = pcall(resourceRecord, a[1], a[2], 'breakpoint',
+	                                                                                {address = address, size = a[4], name = 'MCP debugger breakpoint', detail = a[5]}, release)
+	                                                                             assert(tracked, 'Cheat Engine created a breakpoint with an unusable ID and its cleanup could not be tracked: '
+	                                                                                .. tostring(normalizedId) .. '; ' .. tostring(trackingFailure))
+	                                                                             error(normalizedId, 0)
+	                                                                          end
+	                                                                          breakpointId = normalizedId
 	                                                                          local recorded, record = pcall(resourceRecord, a[1], a[2], 'breakpoint',
 	                                                                             {address = address, size = a[4], name = 'MCP debugger breakpoint', detail = a[5]}, release)
 	                                                                          if not recorded then
-	                                                                             local removed = debug_removeBreakpointByID(breakpointId)
+	                                                                             assert(getOpenedProcessID() == breakpointProcessId,
+	                                                                                'The selected target changed before the untracked breakpoint could be safely removed')
+	                                                                             local removed, failure = debug_removeBreakpointByID(breakpointHandle)
+	                                                                             assert(removed, failure or 'Breakpoint creation succeeded but state recording failed and cleanup was rejected')
 	                                                                             breakpointId = nil
-	                                                                             assert(removed ~= false, 'Breakpoint creation succeeded but state recording failed and cleanup was rejected')
 	                                                                             error(record, 0)
 	                                                                          end
 	                                                                          return {resourceId = a[2], address = string.format('%X', address), trigger = a[5], size = a[4],
@@ -399,7 +440,7 @@ internal static class DebuggerLuaScripts
 
 	// Arguments: namespace, job id, buffer limit, ttl ms, address, trigger, size, aggregate by instruction, group by
 	// effective address.
-	internal static string StartCapture => LuaJobKernelScripts.Strategies + "\n" + $$"""
+	internal static string StartCapture => LuaJobKernelScripts.Strategies + "\n" + BreakpointIdNormalization + "\n" + $$"""
 		local function captureContext(trigger, includeStack)
 		   local wide = targetIs64Bit()
 		   local ip = wide and RIP or EIP
@@ -493,11 +534,23 @@ internal static class DebuggerLuaScripts
 		   job.groupKeys = {}
 		   job.total = 0
 		   job.onStop = function(current)
-		      if current.breakpointId ~= nil and getOpenedProcessID() == current.processId then
-		         assert(debug_removeBreakpointByID(current.breakpointId) ~= false,
-		            'Cheat Engine rejected removal of the capture breakpoint')
+			      local breakpointAccepted = current.breakpointAccepted == true
+			      if breakpointAccepted or current.breakpointId ~= nil or current.breakpointHandle ~= nil then
+		         assert(getOpenedProcessID() == current.processId,
+		            'The selected target changed before the capture breakpoint could be safely removed')
+		      end
+		      local breakpointHandle = current.breakpointHandle or current.breakpointId
+			      if breakpointAccepted then
+			         assert(breakpointHandle ~= nil,
+			            'Cheat Engine accepted the capture breakpoint without a usable ID; manual recovery is required')
+		         local usable, validation = pcall(normalizeBreakpointHandle, breakpointHandle)
+		         assert(usable, validation)
+		         local removed, failure = debug_removeBreakpointByID(breakpointHandle)
+		         assert(removed, failure or 'Cheat Engine rejected removal of the capture breakpoint')
+			         current.breakpointAccepted = false
 		      end
 		      current.breakpointId = nil
+		      current.breakpointHandle = nil
 		   end
 		   job.callback = jobEvent(job, function(current)
 		      if getOpenedProcessID() ~= current.processId then
@@ -520,8 +573,10 @@ internal static class DebuggerLuaScripts
 		      return 0
 		   end, 0)
 		   local accepted, id = debug_setBreakpoint(address, a[7], triggers[a[6]], job.callback)
-		   assert(accepted == true and id ~= nil, 'Cheat Engine rejected the capture breakpoint')
-		   job.breakpointId = id
+		   assert(accepted == true, 'Cheat Engine rejected the capture breakpoint')
+			   job.breakpointAccepted = true
+		   job.breakpointHandle = id
+		   job.breakpointId = normalizeBreakpointHandle(id)
 		end)
 		return {jobId = job.id, processId = job.processId, address = string.format('%X', address),
 		   lifetimeSeconds = math.floor(a[4] / 1000)}
@@ -530,7 +585,7 @@ internal static class DebuggerLuaScripts
 	// Arguments: namespace, job id, buffer limit, ttl ms, address, mode, maximum steps, condition register, condition value, include stack.
 	// Without a condition register the trace runs for the maximum steps; with one it also stops after the first
 	// context whose register (or IP) equals the condition value, the entry context included.
-	internal const string StartTrace = LuaJobKernelScripts.Strategies + "\n" + """
+	internal const string StartTrace = LuaJobKernelScripts.Strategies + "\n" + BreakpointIdNormalization + "\n" + """
 	                                                                           local function traceContext(includeStack)
 	                                                                              local wide = targetIs64Bit()
 	                                                                              local ip = wide and RIP or EIP
@@ -577,12 +632,25 @@ internal static class DebuggerLuaScripts
 	                                                                              job.total = 0
 	                                                                              job.onStop = function(current)
 	                                                                                 if current.hook ~= nil and _G.debugger_onBreakpoint == current.hook then _G.debugger_onBreakpoint = nil end
-	                                                                                 if current.breakpointId ~= nil then
+	                                                                                 local breakpointAccepted = current.breakpointAccepted == true
+	                                                                                 if breakpointAccepted or current.breakpointId ~= nil or current.breakpointHandle ~= nil then
 	                                                                                    assert(getOpenedProcessID() == current.processId,
 	                                                                                       'The selected target changed before the trace entry breakpoint could be safely removed')
-	                                                                                    assert(debug_removeBreakpointByID(current.breakpointId) ~= false,
-	                                                                                       'Cheat Engine rejected removal of the trace entry breakpoint')
+	                                                                                 end
+	                                                                                 local breakpointHandle = current.breakpointHandle or current.breakpointId
+	                                                                                 if breakpointAccepted then
+	                                                                                    assert(breakpointHandle ~= nil,
+	                                                                                       'Cheat Engine accepted the trace entry breakpoint without a usable ID; manual recovery is required')
+	                                                                                    local usable, validation = pcall(normalizeBreakpointHandle, breakpointHandle)
+	                                                                                    assert(usable, validation)
+	                                                                                    assert(getOpenedProcessID() == current.processId,
+	                                                                                       'The selected target changed before the trace entry breakpoint could be safely removed')
+	                                                                                    local removed, failure = debug_removeBreakpointByID(breakpointHandle)
+	                                                                                    assert(removed, failure or 'Cheat Engine rejected removal of the trace entry breakpoint')
+	                                                                                    -- CE can defer removal requested from the active breakpoint callback until continue.
 	                                                                                    current.breakpointId = nil
+	                                                                                    current.breakpointHandle = nil
+	                                                                                    current.breakpointAccepted = false
 	                                                                                 end
 	                                                                              end
 	                                                                              local function append(current, context)
@@ -633,15 +701,17 @@ internal static class DebuggerLuaScripts
 	                                                                              assert(_G.debugger_onBreakpoint == nil, 'Another debugger_onBreakpoint hook appeared during trace setup')
 	                                                                              _G.debugger_onBreakpoint = job.hook
 	                                                                              local accepted, id = debug_setBreakpoint(address, 1, bptExecute)
-	                                                                              assert(accepted == true and id ~= nil, 'Cheat Engine rejected the trace entry breakpoint')
-	                                                                              job.breakpointId = id
+	                                                                              assert(accepted == true, 'Cheat Engine rejected the trace entry breakpoint')
+	                                                                              job.breakpointAccepted = true
+	                                                                              job.breakpointHandle = id
+	                                                                              job.breakpointId = normalizeBreakpointHandle(id)
 	                                                                           end)
 	                                                                           return {jobId = job.id, processId = job.processId, address = string.format('%X', address),
 	                                                                              lifetimeSeconds = math.floor(a[4] / 1000)}
 	                                                                           """;
 
 	// Arguments: namespace, job id, buffer limit, ttl ms, address.
-	internal const string StartRunTo = LuaJobKernelScripts.Strategies + "\n" + """
+	internal const string StartRunTo = LuaJobKernelScripts.Strategies + "\n" + BreakpointIdNormalization + "\n" + """
 	                                                                           assert(debug_isDebugging(), 'Debugger is not attached')
 	                                                                           assert(debug_getContext(false), 'Debugger has no stopped context')
 	                                                                           assert(type(debug_removeBreakpointByID) == 'function',
@@ -652,11 +722,23 @@ internal static class DebuggerLuaScripts
 	                                                                              job.processId = getOpenedProcessID()
 	                                                                              assert(math.type(job.processId) == 'integer' and job.processId > 0, 'No process is selected')
 	                                                                              job.onStop = function(current)
-	                                                                                 if current.breakpointId ~= nil and getOpenedProcessID() == current.processId then
-	                                                                                    assert(debug_removeBreakpointByID(current.breakpointId) ~= false,
-	                                                                                       'Cheat Engine rejected removal of the run-to breakpoint')
+	                                                                                 local breakpointAccepted = current.breakpointAccepted == true
+	                                                                                 if breakpointAccepted or current.breakpointId ~= nil or current.breakpointHandle ~= nil then
+	                                                                                    assert(getOpenedProcessID() == current.processId,
+	                                                                                       'The selected target changed before the run-to breakpoint could be safely removed')
 	                                                                                 end
-	                                                                                 current.breakpointId = nil
+	                                                                                 local breakpointHandle = current.breakpointHandle or current.breakpointId
+	                                                                                 if breakpointAccepted then
+	                                                                                    assert(breakpointHandle ~= nil,
+	                                                                                       'Cheat Engine accepted the run-to breakpoint without a usable ID; manual recovery is required')
+	                                                                                    local usable, validation = pcall(normalizeBreakpointHandle, breakpointHandle)
+	                                                                                    assert(usable, validation)
+	                                                                                    local removed, failure = debug_removeBreakpointByID(breakpointHandle)
+	                                                                                    assert(removed, failure or 'Cheat Engine rejected removal of the run-to breakpoint')
+	                                                                                    current.breakpointId = nil
+	                                                                                    current.breakpointHandle = nil
+	                                                                                    current.breakpointAccepted = false
+	                                                                                 end
 	                                                                              end
 	                                                                              job.callback = jobEvent(job, function(current)
 	                                                                                 if getOpenedProcessID() ~= current.processId then
@@ -667,8 +749,10 @@ internal static class DebuggerLuaScripts
 	                                                                                 return 1
 	                                                                              end, 1)
 	                                                                              local accepted, id = debug_setBreakpoint(address, 1, bptExecute, job.callback)
-	                                                                              assert(accepted == true and id ~= nil, 'Cheat Engine rejected the run-to breakpoint')
-	                                                                              job.breakpointId = id
+	                                                                              assert(accepted == true, 'Cheat Engine rejected the run-to breakpoint')
+	                                                                              job.breakpointAccepted = true
+	                                                                              job.breakpointHandle = id
+	                                                                              job.breakpointId = normalizeBreakpointHandle(id)
 	                                                                           end)
 	                                                                           debug_continueFromBreakpoint(co_run)
 	                                                                           return {jobId = job.id, processId = job.processId, address = string.format('%X', address),

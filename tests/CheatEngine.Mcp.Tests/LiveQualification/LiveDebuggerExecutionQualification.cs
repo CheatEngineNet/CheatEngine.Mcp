@@ -15,13 +15,14 @@ internal static partial class LiveDebuggerExecutionQualification
 	private static readonly TimeSpan Poll = TimeSpan.FromMilliseconds(50);
 
 	internal sealed record Manifest(int ProcessId, int ThreadId, ulong CodeStart, ulong Entry, ulong RunTo, ulong CodeEnd,
-		string ProgressAddress, string HitCounterAddress)
+		string ProgressAddress, string HitCounterAddress, string PauseAddress, string PauseAcknowledgedAddress)
 	{
 		internal void Validate(int expectedProcessId)
 		{
-			if (ProcessId != expectedProcessId || ThreadId <= 0 || CodeStart == 0 || CodeEnd != checked(CodeStart + 55) ||
+			if (ProcessId != expectedProcessId || ThreadId <= 0 || CodeStart == 0 || CodeEnd != checked(CodeStart + 76) ||
 				LiveDebuggerExecutionQualification.ParseHex(HitCounterAddress) != checked(CodeStart + 0x104) || LiveDebuggerExecutionQualification.ParseHex(ProgressAddress) != checked(CodeStart + 0x108) ||
-				Entry != checked(CodeStart + 9) || RunTo != checked(CodeStart + 23))
+				LiveDebuggerExecutionQualification.ParseHex(PauseAddress) != checked(CodeStart + 0x10C) || LiveDebuggerExecutionQualification.ParseHex(PauseAcknowledgedAddress) != checked(CodeStart + 0x110) ||
+				Entry != checked(CodeStart + 18) || RunTo != checked(CodeStart + 32))
 			{
 				throw new InvalidDataException("The owned debugger execution manifest is inconsistent.");
 			}
@@ -32,7 +33,8 @@ internal static partial class LiveDebuggerExecutionQualification
 	{
 		Manifest result = new(processId, value["threadId"]!.GetValue<int>(), ParseHex(Text(value, "codeStart")),
 			ParseHex(Text(value, "entryAddress")), ParseHex(Text(value, "runToAddress")), ParseHex(Text(value, "codeEnd")),
-			Text(value, "progressAddress"), Text(value, "hitCounterAddress"));
+			Text(value, "progressAddress"), Text(value, "hitCounterAddress"), Text(value, "pauseAddress"),
+			Text(value, "pauseAcknowledgedAddress"));
 		result.Validate(processId);
 		return result;
 	}

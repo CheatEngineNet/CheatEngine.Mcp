@@ -386,6 +386,21 @@ public sealed class MonoToolsTests
 	}
 
 	[Fact]
+	public void Attach_TracksOwnershipBeforeDispatchCompletes()
+	{
+		StateTestHarness harness = new();
+		harness.Answer<MonoAttachResult>(static _ => new MonoAttachResult(true, false, 7,
+			["collector_injected"]));
+		harness.AfterDispatch = harness.Resources.StopAcceptingTracks;
+
+		MonoAttachResult result = Tools(harness).Attach(Token);
+
+		Assert.True(result.Attached);
+		Assert.Equal("mono", Assert.Single(harness.Resources.List()).Kind);
+		Assert.Equal(1, harness.Dispatches);
+	}
+
+	[Fact]
 	public void Detach_AttachmentThatEndedOutsideMcp_ReleasesOnlyTheResourceAndReportsIt()
 	{
 		StateTestHarness harness = new();

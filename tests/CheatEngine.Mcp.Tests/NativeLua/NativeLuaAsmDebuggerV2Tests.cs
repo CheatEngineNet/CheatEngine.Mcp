@@ -503,8 +503,13 @@ public sealed partial class NativeLuaToolRuntimeTests
 		                                   targetIs64Bit = function() return true end
 		                                   getOpenedProcessID = function() return 77 end
 		                                   getAddressSafe = function(_) return 0x401000 end
+		                                   breakpointAddresses = {}
+		                                   debug_getBreakpointList = function() return breakpointAddresses end
 		                                   debug_removeBreakpointByID = function(_) return true end
-		                                   debug_setBreakpoint = function(_, _, _, callback) captureCallback = callback; return true, 88 end
+		                                   debug_setBreakpoint = function(address, _, _, callback)
+		                                   captureCallback = callback; table.insert(breakpointAddresses, address)
+		                                   return true, {ID = 88, PID = 77, DTID = 9}
+		                                   end
 		                                   """);
 
 		LuaJsonResult<DebuggerJobStarted> result = ReadJson(LuaToolRuntime.BuildSource(DebuggerLuaScripts.StartCapture,

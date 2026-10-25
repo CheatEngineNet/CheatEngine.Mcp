@@ -71,6 +71,13 @@ dotnet format whitespace CheatEngine.Mcp.slnx --no-restore --verify-no-changes
 
 The two dependencies live in `externals/CheatEngine.Client` and `externals/CheatEngine.SDK`.
 Git records their exact commits, while `.gitmodules` identifies `main` as the update branch.
+Before updating, inspect each dependency with `git -C externals/CheatEngine.Client status`
+and `git -C externals/CheatEngine.SDK status`. Changes inside a submodule are not included
+when the parent repository is committed. Preserve them on a local branch, validate and
+commit them in that repository first, then record the dependency revisions in MCP.
+Do not reset a dirty dependency to make the parent status clean. Local integration commits
+must be reviewed and available upstream before a release records them as dependencies.
+
 To prepare a dependency update:
 
 ```powershell

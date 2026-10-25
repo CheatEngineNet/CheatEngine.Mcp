@@ -15,14 +15,15 @@ public sealed class LiveDebuggerTransitionMemoryTests
 		try
 		{
 			byte[] bytes = new byte[0x1000];
-			bytes[9] = 0xCC;
+			bytes[18] = 0xCC;
 			BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(0x104), 123u);
 			BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(0x108), 456u);
 			Marshal.Copy(bytes, 0, allocation, bytes.Length);
 			using Process process = Process.GetCurrentProcess();
 			ulong codeStart = checked((ulong) allocation);
-			LiveDebuggerExecutionQualification.Manifest manifest = new(process.Id, 1, codeStart, codeStart + 9,
-				codeStart + 23, codeStart + 55, $"0x{codeStart + 0x108:X}", $"0x{codeStart + 0x104:X}");
+			LiveDebuggerExecutionQualification.Manifest manifest = new(process.Id, 1, codeStart, codeStart + 18,
+				codeStart + 32, codeStart + 76, $"0x{codeStart + 0x108:X}", $"0x{codeStart + 0x104:X}",
+				$"0x{codeStart + 0x10C:X}", $"0x{codeStart + 0x110:X}");
 
 			Assert.Equal(new LiveDebuggerTransitionMemory.Snapshot(0xCC, 123, 456),
 				LiveDebuggerTransitionMemory.Read(process, manifest));
@@ -37,8 +38,8 @@ public sealed class LiveDebuggerTransitionMemoryTests
 	public void Read_RejectsManifestForAnotherProcessBeforeNativeRead()
 	{
 		using Process process = Process.GetCurrentProcess();
-		LiveDebuggerExecutionQualification.Manifest wrong = new(process.Id + 1, 1, 0x1000, 0x1009, 0x1017, 0x1037,
-			"0x1108", "0x1104");
+		LiveDebuggerExecutionQualification.Manifest wrong = new(process.Id + 1, 1, 0x1000, 0x1012, 0x1020, 0x104C,
+			"0x1108", "0x1104", "0x110C", "0x1110");
 
 		Assert.Throws<InvalidDataException>(() => LiveDebuggerTransitionMemory.Read(process, wrong));
 	}

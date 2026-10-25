@@ -87,7 +87,9 @@ internal static class Program
 					runToAddress = Address(debuggerExecution.RunToAddress),
 					codeEnd = Address(debuggerExecution.CodeEnd),
 					progressAddress = Address(debuggerExecution.ProgressAddress),
-					hitCounterAddress = Address(debuggerExecution.HitCounterAddress)
+					hitCounterAddress = Address(debuggerExecution.HitCounterAddress),
+					pauseAddress = Address(debuggerExecution.PauseAddress),
+					pauseAcknowledgedAddress = Address(debuggerExecution.PauseAcknowledgedAddress)
 				}
 			});
 			File.WriteAllText(manifestPath + ".tmp", manifest);

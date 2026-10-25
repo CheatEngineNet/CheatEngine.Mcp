@@ -50,7 +50,7 @@ It is opt-in, refuses to run in CI, requires Cheat Engine and DebugView to be cl
 Follow [Live qualification](../../CONTRIBUTING.md#live-qualification) exactly, including publishing the matching configuration and supplying the required acknowledgement environment variable.
 Do not include this category in an ordinary local test run.
 
-The compiler-only qualification is a separately approved scenario. It is never selected by ordinary VL runs: set `CHEATENGINE_MCP_LIVE_QUALIFICATION_SCENARIO` to `compiler` and `CHEATENGINE_MCP_LIVE_CODE_EXECUTION_QUALIFICATION` to its exact acknowledgement from [the compiler policy](../../docs/qualification/v2.0.0/compiler-probe-policy.md). It refuses CI, a non-clean/unidentified candidate, a saved Cheat Engine `Don't use tempdir` override, or a missing reviewed Release distribution before a private run directory or Cheat Engine process is created. It compiles only the policy's fixed payloads and does not authorize injection or invocation.
+The compiler-only qualification is a separately approved scenario. It is never selected by ordinary VL runs: set `CHEATENGINE_MCP_LIVE_QUALIFICATION_SCENARIO` to `compiler` and `CHEATENGINE_MCP_LIVE_CODE_EXECUTION_QUALIFICATION` to its exact acknowledgement from [the compiler policy](../../docs/qualification/all-tools/compiler-probe-policy.md). It refuses CI, a non-clean/unidentified candidate, a saved Cheat Engine `Don't use tempdir` override, or a missing reviewed Release distribution before a private run directory or Cheat Engine process is created. It compiles only the policy's fixed payloads and does not authorize injection or invocation.
 
 The `assembler` and `debugger` scenarios also require their own exact acknowledgement in addition to the ordinary
 live opt-in. Their fixed cases and cleanup requirements are described in
@@ -71,7 +71,7 @@ It does not replay the failing resource/scanner prefix or qualify the full workf
 The `process-create` scenario uses the ordinary live acknowledgement with all four optional gates disabled. It also
 requires the installed .NET Framework compiler to build its fixed owned fixture. It produces its own session receipts.
 The `mono` scenario uses the privately extracted x64 Mono runtime and a dedicated fixed-Mono acknowledgement;
-only target-code execution is enabled. See the [runner contracts](../../docs/qualification/v2.0.0/runners.md).
+only target-code execution is enabled. See the [runner contracts](../../docs/qualification/all-tools/runners.md).
 The report's `-LiveSummaries` parameter combines separate sessions only when their product binaries match;
 each tool's operation and cleanup receipts must belong to the same passing session.
 

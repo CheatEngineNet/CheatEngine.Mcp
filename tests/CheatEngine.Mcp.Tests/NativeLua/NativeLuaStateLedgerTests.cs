@@ -1,10 +1,15 @@
 using System.Text.Json;
 
+using CheatEngine.Client;
+using CheatEngine.Client.Dispatching;
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Features;
 using CheatEngine.Mcp.Core.Jobs;
+using CheatEngine.Mcp.Core.Targets;
+using CheatEngine.Mcp.Plugin;
 using CheatEngine.Mcp.Tests.Support;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace CheatEngine.Mcp.Tests.NativeLua;
@@ -25,6 +30,43 @@ public sealed partial class NativeLuaToolRuntimeTests
 	                                    """;
 
 	private static readonly string[] AcknowledgedIds = ["pause-aaaa11-1", "speedhack-bbbb22-1"];
+
+	[Fact]
+	public void ResourceCleanup_LedgerOnlyState_UsesTheStoppingActivationRuntime()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(JobHostStubs + "\ngetOpenedProcessID = function() return 77 end");
+		using CancellationTokenSource stopping = new();
+		stopping.Cancel();
+		ICheatEngineDispatcher dispatcher = ClientTestDouble.Create<ICheatEngineDispatcher>((method, arguments) =>
+		{
+			if (method.Name == "get_IsMainThread")
+			{
+				return true;
+			}
+
+			if (method.Name.StartsWith("Invoke", StringComparison.Ordinal) && arguments?[0] is Delegate callback)
+			{
+				return callback.DynamicInvoke();
+			}
+
+			throw new NotSupportedException($"Unexpected lifecycle dispatcher member: {method.Name}.");
+		});
+		ICheatEngineClient client = ClientTestDouble.Client(dispatcher, stopping.Token);
+		using TestActivation activation = new(client);
+		TargetResources resources = activation.Services.GetRequiredService<TargetResources>();
+		string id = $"pause-{resources.Namespace}-1";
+		Record(resources.Namespace, id, "pause");
+
+		McpServerModule module = activation.Module;
+		module.OnDisabling(client);
+		Assert.Throws<InvalidOperationException>(() => resources.TrackState(id, "pause"));
+		module.OnReleasingResources(client);
+
+		Assert.Equal($"{id}:released;", ReadGlobal("released"));
+		Assert.Empty(ReadKernel(LuaJobKernelScripts.StateSnapshot,
+			StateJsonContext.Default.LuaStateSnapshot, resources.Namespace).Entries);
+	}
 
 	[Fact]
 	public void StateLedger_RecordedEffects_AreDescribedAndReleasedOnceOrKeptWithTheirCleanupError()
@@ -105,16 +147,16 @@ public sealed partial class NativeLuaToolRuntimeTests
 		string ownTracked = CreateJob("trace", 8, 60000, 0);
 		InstallStubs("clock = 40; failRelease = 'speedhack-aaaa11-1'");
 
-		LuaStateRelease listed = ReadKernel(LuaJobKernelScripts.StateReleaseUnmanaged,
+		LuaStateRelease ownedOnly = ReadKernel(LuaJobKernelScripts.StateReleaseUnmanaged,
 			StateJsonContext.Default.LuaStateRelease, OwnNamespace, new[] { ownTracked }, false);
-		Assert.Empty(listed.Released);
-		Assert.Equal(["pause-bbbb22-1", "pause-aaaa11-3", orphanJob, "speedhack-aaaa11-1"],
-			listed.Remaining.Select(static entry => entry.Id).ToArray());
+		Assert.Equal(["pause-bbbb22-1"], ownedOnly.Released.Select(static entry => entry.Id).ToArray());
+		Assert.Equal(["pause-aaaa11-3", orphanJob, "speedhack-aaaa11-1"],
+			ownedOnly.Remaining.Select(static entry => entry.Id).ToArray());
 
 		LuaStateRelease released = ReadKernel(LuaJobKernelScripts.StateReleaseUnmanaged,
 			StateJsonContext.Default.LuaStateRelease, OwnNamespace, new[] { ownTracked }, true);
 
-		Assert.Equal(["pause-bbbb22-1", "pause-aaaa11-3", orphanJob],
+		Assert.Equal(["pause-aaaa11-3", orphanJob],
 			released.Released.Select(static entry => entry.Id).ToArray());
 		Assert.Equal(("speedhack-aaaa11-1", "restore refused"), (released.Failed!.Id, released.Failed.CleanupError));
 		Assert.Equal("speedhack-aaaa11-1", Assert.Single(released.Remaining).Id);

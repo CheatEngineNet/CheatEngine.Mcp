@@ -26,6 +26,7 @@ public sealed class JobRegistryTests
 		StateTestHarness harness = new(new McpExecutionOptions { MaxJobs = 4 });
 		ConcurrentBag<ManagedJob<long>> started = [];
 		ConcurrentBag<CheatEngineToolException> refused = [];
+		TaskCompletionSource allStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		int ran = 0;
 
 		Parallel.For(0, 32, _ =>
@@ -35,7 +36,10 @@ public sealed class JobRegistryTests
 				started.Add(harness.Jobs.StartManaged<long>("probe", TimeSpan.FromSeconds(60), 8,
 					async (_, token) =>
 					{
-						Interlocked.Increment(ref ran);
+						if (Interlocked.Increment(ref ran) == 4)
+						{
+							allStarted.TrySetResult();
+						}
 						await Task.Delay(Timeout.Infinite, token).ConfigureAwait(false);
 					}));
 			}
@@ -51,7 +55,14 @@ public sealed class JobRegistryTests
 			(error.Error.Kind, error.Error.HostEffect, error.Error.Retryable)));
 		Assert.Equal(4, harness.Jobs.Count);
 		Assert.Equal(4, harness.Resources.Count);
-		harness.Jobs.Dispose();
+		try
+		{
+			await allStarted.Task.WaitAsync(Wait, Token);
+		}
+		finally
+		{
+			harness.Jobs.Dispose();
+		}
 		await Task.WhenAll(started.Select(static job => job.Completion)).WaitAsync(Wait, Token);
 		Assert.Equal(4, Volatile.Read(ref ran));
 		Assert.All(started, job => Assert.Equal(JobState.Cancelled, job.State));
@@ -81,6 +92,81 @@ public sealed class JobRegistryTests
 		Assert.Equal(0, workRuns);
 		Assert.Equal(0, harness.Jobs.Count);
 		Assert.Equal(0, harness.Resources.Count);
+	}
+
+	[Fact]
+	public void StartManaged_RegistrationClosed_DoesNotPublishOrStartTheJob()
+	{
+		StateTestHarness harness = new();
+		int workRuns = 0;
+		harness.Resources.StopAcceptingTracks();
+
+		Assert.Throws<InvalidOperationException>(() => harness.Jobs.StartManaged<long>("probe",
+			TimeSpan.FromSeconds(60), 8, (_, _) =>
+			{
+				Interlocked.Increment(ref workRuns);
+				return Task.CompletedTask;
+			}));
+
+		Assert.Equal((0, 0, 0), (harness.Jobs.Count, harness.Resources.Count, workRuns));
+	}
+
+	[Fact]
+	public async Task StartManaged_TrackWinsBeforeClose_DoesNotStartAfterCleanup()
+	{
+		StateTestHarness harness = new();
+		TaskCompletionSource<bool> registered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		TaskCompletionSource<bool> continueStart = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		int workRuns = 0;
+		Task<ManagedJob<long>> start = Task.Run(() => harness.Jobs.StartManaged<long>("probe",
+			TimeSpan.FromSeconds(60), 8, (_, _) =>
+			{
+				Interlocked.Increment(ref workRuns);
+				return Task.CompletedTask;
+			}, _ =>
+			{
+				registered.TrySetResult(true);
+				continueStart.Task.GetAwaiter().GetResult();
+			}));
+
+		await registered.Task.WaitAsync(Wait, Token);
+		harness.Resources.StopAcceptingTracks();
+		ReleaseAllResult cleanup = harness.Resources.ReleaseAll(Token);
+
+		Assert.True(cleanup.IsComplete);
+		Assert.Equal((0, 0), (harness.Jobs.Count, harness.Resources.Count));
+		continueStart.TrySetResult(true);
+		CheatEngineToolException refusal = await Assert.ThrowsAsync<CheatEngineToolException>(async () =>
+			await start.WaitAsync(Wait, Token));
+
+		Assert.Equal(ToolErrorKind.Busy, refusal.Error.Kind);
+		Assert.Equal(0, workRuns);
+		Assert.Equal("probe", Assert.Single(cleanup.Released).Resource.Kind);
+	}
+
+	[Fact]
+	public void StartLua_RegistrationClosesAfterStart_LeavesTheLuaJobForUnmanagedCleanup()
+	{
+		StateTestHarness harness = new();
+		string? startedId = null;
+		harness.Answer(_ => new LuaStateRelease(
+			[StateTestHarness.Entry(startedId!, "job", "stopped", false)], null, []));
+
+		InvalidOperationException failure = Assert.Throws<InvalidOperationException>(() =>
+			harness.Jobs.StartLua("capture", TimeSpan.FromSeconds(60), 8,
+				StateTestJsonContext.Default.Int64, started =>
+				{
+					startedId = started.Id;
+					// The start callback models CE creating the ledger entry before the HTTP worker registers the handle.
+					harness.Resources.StopAcceptingTracks();
+				}));
+
+		Assert.Contains("no new resources", failure.Message, StringComparison.Ordinal);
+		Assert.Equal((0, 0), (harness.Jobs.Count, harness.Resources.Count));
+		ReleaseAllResult cleanup = harness.Resources.ReleaseAll(Token);
+		Assert.True(cleanup.IsComplete);
+		Assert.Equal(startedId, Assert.Single(cleanup.Released).Resource.Id);
+		Assert.Equal("mcp_state_release", Assert.Single(harness.LuaCalls).Operation);
 	}
 
 	[Fact]

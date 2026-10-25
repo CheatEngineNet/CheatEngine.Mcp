@@ -38,6 +38,27 @@ public sealed class TargetResourcesTests
 	}
 
 	[Fact]
+	public void StopAcceptingTracks_RejectsLateLuaOwnershipButReleaseAllCleansItsLedgerEntry()
+	{
+		StateTestHarness state = new();
+		TargetResources resources = state.Resources;
+		string id = $"pause-{resources.Namespace}-1";
+		state.Answer(_ => new LuaStateRelease([StateTestHarness.Entry(id, "resource", "released", false)], null, []));
+
+		resources.StopAcceptingTracks();
+
+		InvalidOperationException failure = Assert.Throws<InvalidOperationException>(() =>
+			resources.TrackState(id, "pause"));
+		Assert.Contains("no new resources", failure.Message, StringComparison.Ordinal);
+		Assert.Empty(resources.List());
+		ReleaseAllResult result = resources.ReleaseAll(Token);
+
+		Assert.True(result.IsComplete);
+		Assert.Equal(id, Assert.Single(result.Released).Resource.Id);
+		Assert.Equal("mcp_state_release", Assert.Single(state.LuaCalls).Operation);
+	}
+
+	[Fact]
 	public void ReleaseAll_CompleteResources_ReleasesNewestFirstAndForgetsThem()
 	{
 		List<int> released = [];

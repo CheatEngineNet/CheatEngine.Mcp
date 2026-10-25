@@ -26,12 +26,14 @@ internal sealed partial class DebuggerExecutionLoop : IDisposable
 		get;
 	}
 	internal IntPtr CodeStart => _memory;
-	internal IntPtr EntryAddress => IntPtr.Add(_memory, 9);
+	internal IntPtr EntryAddress => IntPtr.Add(_memory, 18);
 	internal IntPtr CaptureAddress => EntryAddress;
-	internal IntPtr RunToAddress => IntPtr.Add(_memory, 23);
+	internal IntPtr RunToAddress => IntPtr.Add(_memory, 32);
 	internal IntPtr CodeEnd => IntPtr.Add(_memory, DebuggerExecutionLoopEncoding.Length);
 	internal IntPtr ProgressAddress => IntPtr.Add(_memory, ProgressOffset);
 	internal IntPtr HitCounterAddress => IntPtr.Add(_memory, HitOffset);
+	internal IntPtr PauseAddress => IntPtr.Add(_memory, 0x10C);
+	internal IntPtr PauseAcknowledgedAddress => IntPtr.Add(_memory, 0x110);
 
 	internal static DebuggerExecutionLoop Start()
 	{

@@ -5,6 +5,15 @@ namespace CheatEngine.Mcp.Tests.NativeLua;
 public sealed partial class NativeLuaToolRuntimeTests
 {
 	[Fact]
+	public void LivePluginBridge_ObserveProtocolCarriesOneExactBreakpointAddress()
+	{
+		string source = LivePluginBridge.Render("request", "response", Quote);
+		Assert.Contains("debug_getBreakpointList()", source, StringComparison.Ordinal);
+		Assert.Contains("(0x[0-9A-F]+)", source, StringComparison.Ordinal);
+		Assert.Contains("missing exact breakpoint address", source, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void LivePluginBridge_Disable_UsesOnlySpaceKeyMessagesAndSettingsOk()
 	{
 		using RuntimeScope scope = CreateScope();
@@ -61,6 +70,47 @@ public sealed partial class NativeLuaToolRuntimeTests
 		Assert.Equal(1L, EvaluateLua("okClicks"));
 	}
 
+	[Fact]
+	public void LivePluginBridge_ObserveReportsDisabledPluginWithoutStatusHook()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(Stubs("10\nobserve\n0x7FF600001012\n", "CheatEngine.Mcp.dll:CheatEngine.Mcp", pluginChecked: false,
+			statusHookPresent: false));
+		RunPluginBridge("pluginEnabled=false; pluginControl()");
+		string[] fields = ((string) EvaluateLua("response")!).Split('\n');
+		Assert.Equal(23, fields.Length);
+		Assert.Equal("ok", fields[0]);
+		Assert.Equal("uninstalled", fields[10]);
+		Assert.Equal("", fields[21]);
+		Assert.Equal("raw:0:", fields[22]);
+		Assert.Equal(0L, EvaluateLua("#messages"));
+		Assert.Equal(0L, EvaluateLua("okClicks"));
+	}
+
+	[Fact]
+	public void LivePluginBridge_RemovalProbe_RecordsIdAndReturnErrorThenRestoresOriginal()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(Stubs("11\ninstall_probe\n", "CheatEngine.Mcp.dll:CheatEngine.Mcp") + "\n" + $$"""
+			debug_removeBreakpointByID=function(id) return nil,'CE refused '..tostring(type(id)=='table' and id.ID or id) end
+			debug_getBreakpointList=function() return {[1]=0x7FF600001012} end
+			""");
+		RunPluginBridge("pluginEnabled=false; originalRemover=debug_removeBreakpointByID; pluginControl(); first,second=debug_removeBreakpointByID({ID=88,id=88}); probeState=rawget(_G,'__cheatengine_mcp_lifecycle_removal_probe'); probeReceipt=probeState.receipt; response=''; pluginCommand='12\\nremove_probe\\n'; pluginControl()");
+		Assert.Equal("ok\n12\nremove_probe", EvaluateLua("response"));
+		Assert.StartsWith("table:", (string) EvaluateLua("probeReceipt.id")!, StringComparison.Ordinal);
+		Assert.Equal("table", EvaluateLua("probeReceipt.idType"));
+		Assert.True((bool) EvaluateLua("probeReceipt.succeeded")!);
+		Assert.Equal("CE refused 88", EvaluateLua("probeReceipt.failure"));
+		Assert.Contains("string:ID=number:88", (string) EvaluateLua("probeReceipt.idFields")!, StringComparison.Ordinal);
+		Assert.Equal("nil", EvaluateLua("probeReceipt.returnValue"));
+		Assert.Equal(1L, EvaluateLua("probeReceipt.beforeCount"));
+		Assert.Equal(1L, EvaluateLua("probeReceipt.afterCount"));
+		Assert.True((bool) EvaluateLua("debug_removeBreakpointByID==originalRemover")!);
+		Assert.True((bool) EvaluateLua("rawget(_G,'__cheatengine_mcp_lifecycle_removal_probe')==nil")!);
+		Assert.Null(EvaluateLua("first"));
+		Assert.Equal("CE refused 88", EvaluateLua("second"));
+	}
+
 	[Theory]
 	[InlineData(0, 2, "TformSettings")]
 	[InlineData(1, 0, "TUnexpectedSettings")]
@@ -91,9 +141,9 @@ public sealed partial class NativeLuaToolRuntimeTests
 	}
 
 	private static string Stubs(string command, string row, int count = 1, int? countAfterReload = null,
-		string settingsClass = "TformSettings") => $$"""
-		response=''; messages={}; okClicks=0; settingsFormRequested=false
-		io={open=function(_,mode) if mode=='r' then return {read=function() return {{Quote(command)}} end,close=function() end} end return {write=function(_,v) response=response..v end,close=function() end} end}
+		string settingsClass = "TformSettings", bool pluginChecked = false, bool statusHookPresent = false) => $$"""
+		response=''; messages={}; okClicks=0; settingsFormRequested=false; pluginCommand={{Quote(command)}}
+		io={open=function(_,mode) if mode=='r' then return {read=function() return pluginCommand end,close=function() end} end return {write=function(_,v) response=response..v end,close=function() end} end}
 		os={remove=function() return true end,rename=function() return true end}
 		local items={[0]={{Quote(row)}},Count={{count}}}
 		reloadSettingsFromRegistry=function()
@@ -101,9 +151,18 @@ public sealed partial class NativeLuaToolRuntimeTests
 		  items.Count={{countAfterReload ?? count}}
 		end
 		local clb={Items=items,Handle=99}
+		clb.Checked={}
+		clb.Checked[0]={{pluginChecked.ToString().ToLowerInvariant()}}
 		local pc,tab,ok={},{},{doClick=function() okClicks=okClicks+1 end}
 		local f={ClassName={{Quote(settingsClass)}},findComponentByName=function(n) return ({pcSetting=pc,Plugins=tab,clbPlugins=clb,btnOK=ok})[n] end}
 		getSettingsForm=function() settingsFormRequested=true; return f end
+		getOpenedProcessID=function() return 77 end
+		debug_getBreakpointList=function() return {} end
+		getMainForm=function()
+		  local menu={}
+		  menu.findComponentByName=function(_) return {{(statusHookPresent ? "true" : "nil")}} end
+		  return {Menu=menu}
+		end
 		sendMessage=function(...) table.insert(messages,{...}) end
 		""";
 

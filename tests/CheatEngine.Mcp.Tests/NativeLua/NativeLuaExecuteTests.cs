@@ -1,10 +1,12 @@
 using System.Reflection;
 
 using CheatEngine.Client;
+using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Lua;
 using CheatEngine.Client.Results;
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Features;
+using CheatEngine.Mcp.Core.Lua;
 using CheatEngine.Mcp.Tests.Support;
 using CheatEngine.SDK.Lua.Interop.Api;
 
@@ -30,6 +32,36 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 
 		Assert.Equal(new LuaPreludeProbe("FFFF800000001000", "FFFFFFFFFFFFFFFF", true, "48 8B 05", "01 02", "41 00",
 			"NaN", "Infinity", "-Infinity", 0.5, 7, LuaToolRuntime.DefaultBudgetMilliseconds, false), probe);
+	}
+
+	[Fact]
+	public void FixedLuaExecutor_StoppingCleanupUsesTheAttachedRuntimeOnlyForReleaseScripts()
+	{
+		using RuntimeScope scope = CreateScope();
+		using CancellationTokenSource stopping = new();
+		stopping.Cancel();
+		ICheatEngineDispatcher dispatcher = ClientTestDouble.Create<ICheatEngineDispatcher>((method, _) =>
+			method.Name == "get_IsMainThread"
+				? true
+				: throw new NotSupportedException($"Unexpected dispatcher call: {method.Name}."));
+		ILuaClient lua = ClientTestDouble.Create<ILuaClient>((_, _) =>
+			throw new InvalidOperationException("The Client Lua facade must stay closed during disable."));
+		ICheatEngineClient client = ClientTestDouble.Client(dispatcher, stopping.Token,
+			(nameof(ICheatEngineClient.Lua), lua));
+		PluginLifecycleLuaScope lifecycleLuaScope = new();
+		PluginFixedLuaExecutor executor = new(client, lifecycleLuaScope);
+		using (lifecycleLuaScope.BeginResourceCleanup(client))
+		{
+			LuaJsonResult<string[]> result = executor.Execute("mcp_job_stop",
+				LuaToolRuntime.BuildSource("return {'released'}", []), TestJsonContext.Default.StringArray,
+				new LuaJsonBufferPool(), LuaOpaqueValueHandling.Reject, CancellationToken.None);
+
+			Assert.Equal(["released"], result.Value!);
+			Assert.False(result.IsError);
+			Assert.Throws<InvalidOperationException>(() => executor.Execute("debugger_get_status",
+				LuaToolRuntime.BuildSource("return {'blocked'}", []), TestJsonContext.Default.StringArray,
+				new LuaJsonBufferPool(), LuaOpaqueValueHandling.Reject, CancellationToken.None));
+		}
 	}
 
 	[Fact]

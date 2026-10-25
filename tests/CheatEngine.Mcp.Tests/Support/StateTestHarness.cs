@@ -22,6 +22,7 @@ internal sealed class StateTestHarness
 {
 	private readonly ConcurrentDictionary<Type, Func<string, object>> _answers = new();
 	private int _dispatches;
+	private Action? _afterDispatch;
 
 	internal StateTestHarness(McpExecutionOptions? options = null, bool onMainThread = true, bool withLedger = true)
 	{
@@ -40,7 +41,9 @@ internal sealed class StateTestHarness
 				}
 
 				Interlocked.Increment(ref _dispatches);
-				return callback.DynamicInvoke();
+				object? result = callback.DynamicInvoke();
+				Interlocked.Exchange(ref _afterDispatch, null)?.Invoke();
+				return result;
 			}
 
 			throw new NotSupportedException($"No dispatcher behavior was configured for {method.Name}.");
@@ -107,6 +110,13 @@ internal sealed class StateTestHarness
 
 	/// <summary>How many dispatches were requested.</summary>
 	internal int Dispatches => Volatile.Read(ref _dispatches);
+
+	/// <summary>Runs once after the next dispatcher callback returns, before its caller observes the result.</summary>
+	internal Action? AfterDispatch
+	{
+		get => Volatile.Read(ref _afterDispatch);
+		set => Volatile.Write(ref _afterDispatch, value);
+	}
 
 	/// <summary>Answers every Lua operation whose result is <typeparamref name="T" />, given its complete source.</summary>
 	internal void Answer<T>(Func<string, T> answer)

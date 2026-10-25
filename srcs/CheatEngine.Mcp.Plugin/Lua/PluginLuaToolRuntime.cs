@@ -38,12 +38,17 @@ internal static class PluginLuaToolRuntime
 	                                           return item.Caption == a[1]
 	                                           """;
 
-	internal static bool ShowPluginStatus(ICheatEngineClient client, string state, string details, bool existingOnly)
+	internal static bool ShowPluginStatus(ICheatEngineClient client, string state, string details, bool existingOnly,
+		PluginLifecycleLuaScope? lifecycleScope = null)
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		if (!client.Dispatcher.IsMainThread)
 		{
 			throw new InvalidOperationException("The MCP status must be updated on Cheat Engine's main thread.");
+		}
+		if (state == "Disabled" && lifecycleScope?.IsDeactivationNotification(client) != true)
+		{
+			throw new InvalidOperationException("The disabled MCP status can only be reported during deactivation notification.");
 		}
 
 		LuaToolOperation operation = new("mcp_status",
@@ -54,6 +59,24 @@ internal static class PluginLuaToolRuntime
 		}
 
 		return result is true;
+	}
+
+	internal static bool IsLifecycleCleanupOperation(string operation)
+	{
+		return operation is "mcp_job_stop" or "mcp_state_release_resource" or "mcp_state_release";
+	}
+
+	internal static LuaJsonResult<T> ExecuteLifecycleCleanup<T>(string operation, string source,
+		JsonTypeInfo<T> resultType, LuaJsonBufferPool buffers, LuaOpaqueValueHandling opaque)
+	{
+		LuaJsonOperation<T> request = new(operation, source, resultType, buffers, opaque);
+		if (request.TryExecuteInRuntime(out LuaJsonResult<T> result, out CheatEngineFailure failure))
+		{
+			return result;
+		}
+
+		failure.Throw();
+		throw new InvalidOperationException("A failed Lua cleanup did not throw its recorded failure.");
 	}
 
 	internal static T Execute<T>(ICheatEngineClient client, string operation, string body, JsonTypeInfo<T> resultType,
@@ -234,6 +257,11 @@ internal static class PluginLuaToolRuntime
 		{
 			ArgumentNullException.ThrowIfNull(context);
 			context.ThrowIfExpired();
+			return TryExecuteInRuntime(out result, out failure);
+		}
+
+		internal bool TryExecuteInRuntime(out LuaJsonResult<T> result, out CheatEngineFailure failure)
+		{
 			result = default;
 			if (!TryAcquire(out LuaRuntimeOperation acquired, out failure))
 			{
@@ -379,14 +407,104 @@ internal static class PluginLuaToolRuntime
 			return values;
 		}
 	}
+
+}
+
+/// <summary>Tracks one activation's synchronous fixed-Lua deactivation windows without process-wide mutable state.</summary>
+internal sealed class PluginLifecycleLuaScope
+{
+	private ActiveScope? _active;
+
+	internal IDisposable BeginResourceCleanup(ICheatEngineClient client)
+	{
+		return Begin(client, ScopeKind.ResourceCleanup,
+			"MCP resource cleanup requires the stopping activation's Cheat Engine main thread.");
+	}
+
+	internal IDisposable BeginDeactivationNotification(ICheatEngineClient client)
+	{
+		return Begin(client, ScopeKind.DeactivationNotification,
+			"MCP lifecycle notification requires the stopping activation's Cheat Engine main thread.");
+	}
+
+	internal bool IsResourceCleanup(ICheatEngineClient client)
+	{
+		return IsCurrent(client, ScopeKind.ResourceCleanup);
+	}
+
+	internal bool IsDeactivationNotification(ICheatEngineClient client)
+	{
+		return IsCurrent(client, ScopeKind.DeactivationNotification);
+	}
+
+	private Scope Begin(ICheatEngineClient client, ScopeKind kind, string error)
+	{
+		ArgumentNullException.ThrowIfNull(client);
+		if (!client.Stopping.IsCancellationRequested || !client.Dispatcher.IsMainThread)
+		{
+			throw new InvalidOperationException(error);
+		}
+
+		ActiveScope? previous = Volatile.Read(ref _active);
+		ActiveScope scope = new(client, kind, Environment.CurrentManagedThreadId, previous);
+		Volatile.Write(ref _active, scope);
+		return new Scope(this, scope);
+	}
+
+	private bool IsCurrent(ICheatEngineClient client, ScopeKind kind)
+	{
+		ActiveScope? scope = Volatile.Read(ref _active);
+		return scope is not null && scope.Kind == kind && ReferenceEquals(scope.Client, client)
+			&& scope.ThreadId == Environment.CurrentManagedThreadId
+			&& client.Stopping.IsCancellationRequested && client.Dispatcher.IsMainThread;
+	}
+
+	private void Exit(ActiveScope scope)
+	{
+		if (!ReferenceEquals(Volatile.Read(ref _active), scope))
+		{
+			throw new InvalidOperationException("MCP lifecycle Lua scopes must be disposed in reverse order.");
+		}
+
+		Volatile.Write(ref _active, scope.Previous);
+	}
+
+	private enum ScopeKind
+	{
+		ResourceCleanup,
+		DeactivationNotification
+	}
+
+	private sealed record ActiveScope(ICheatEngineClient Client, ScopeKind Kind, int ThreadId, ActiveScope? Previous);
+
+	private sealed class Scope(PluginLifecycleLuaScope owner, ActiveScope scope) : IDisposable
+	{
+		private int _disposed;
+
+		public void Dispose()
+		{
+			if (Interlocked.Exchange(ref _disposed, 1) == 0)
+			{
+				owner.Exit(scope);
+			}
+		}
+	}
 }
 
 /// <summary>Provides Core with fixed Lua execution through the active Plugin Client.</summary>
-internal sealed class PluginFixedLuaExecutor(ICheatEngineClient client) : IFixedLuaExecutor
+internal sealed class PluginFixedLuaExecutor(ICheatEngineClient client,
+	PluginLifecycleLuaScope? lifecycleLuaScope = null)
+	: IFixedLuaExecutor
 {
 	public LuaJsonResult<T> Execute<T>(string operation, string source, JsonTypeInfo<T> resultType,
 		LuaJsonBufferPool buffers, LuaOpaqueValueHandling opaque, CancellationToken cancellationToken)
 	{
+		if (!cancellationToken.CanBeCanceled && lifecycleLuaScope?.IsResourceCleanup(client) == true
+			&& PluginLuaToolRuntime.IsLifecycleCleanupOperation(operation))
+		{
+			return PluginLuaToolRuntime.ExecuteLifecycleCleanup(operation, source, resultType, buffers, opaque);
+		}
+
 		return PluginLuaToolRuntime.ExecuteRaw(client, operation, source, resultType, buffers, opaque,
 			cancellationToken);
 	}

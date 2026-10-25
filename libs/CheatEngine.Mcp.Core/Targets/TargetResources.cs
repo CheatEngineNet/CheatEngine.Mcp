@@ -34,6 +34,7 @@ public sealed class TargetResources : ITargetTransitionGuard
 	private readonly List<Entry> _entries = [];
 	private readonly Lock _lock = new();
 	private readonly TimeProvider _time;
+	private bool _acceptingTracks = true;
 	private long _sequence;
 
 	/// <summary>Creates the activation's resource list.</summary>
@@ -67,6 +68,21 @@ public sealed class TargetResources : ITargetTransitionGuard
 			{
 				return _entries.Count;
 			}
+		}
+	}
+
+	/// <summary>Atomically closes resource registration before activation cleanup begins.</summary>
+	/// <remarks>
+	///     An in-flight request may finish its Cheat Engine dispatch just before deactivation and only then register its
+	///     ownership handle. Closing this gate linearizes that registration with cleanup: an earlier track is included in
+	///     the release snapshot, and a later Lua-state track is rejected while its ledger entry remains eligible for
+	///     unmanaged cleanup. Existing tracked resources remain releasable.
+	/// </remarks>
+	internal void StopAcceptingTracks()
+	{
+		lock (_lock)
+		{
+			_acceptingTracks = false;
 		}
 	}
 
@@ -191,6 +207,11 @@ public sealed class TargetResources : ITargetTransitionGuard
 		string id = resource is ClientLeaseResource lease ? lease.Id : resource.Descriptor.Id;
 		lock (_lock)
 		{
+			if (!_acceptingTracks)
+			{
+				throw new InvalidOperationException("The plugin activation is stopping and no new resources can be tracked.");
+			}
+
 			if (_entries.Exists(entry => ReferenceEquals(entry.Resource, resource) ||
 										 string.Equals(entry.Id, id, StringComparison.Ordinal)))
 			{
@@ -198,6 +219,25 @@ public sealed class TargetResources : ITargetTransitionGuard
 			}
 
 			_entries.Add(new Entry(resource, id, onReleased));
+		}
+	}
+
+	/// <summary>Starts managed work only while its ownership is still tracked and the activation accepts starts.</summary>
+	/// <param name="resource">The registered resource whose start is protected.</param>
+	/// <param name="start">Queues the work without waiting for it or dispatching to Cheat Engine.</param>
+	/// <returns><see langword="true" /> when the resource was tracked and its start callback ran.</returns>
+	internal bool TryStartTracked(ITargetResource resource, Func<bool> start)
+	{
+		ArgumentNullException.ThrowIfNull(resource);
+		ArgumentNullException.ThrowIfNull(start);
+		lock (_lock)
+		{
+			if (!_acceptingTracks || !_entries.Exists(entry => ReferenceEquals(entry.Resource, resource)))
+			{
+				return false;
+			}
+
+			return start();
 		}
 	}
 
@@ -308,12 +348,13 @@ public sealed class TargetResources : ITargetTransitionGuard
 	/// <summary>
 	///     Releases every tracked resource newest first, because an older one may be a dependency of a newer one, and stops
 	///     at the first release that does not complete. A retryable handle stays tracked for a later attempt; one that
-	///     needs manual recovery is reported and forgotten. Then, through the ledger, it releases the unmanaged Lua state
-	///     entries when <paramref name="includeOrphans" /> is set, or only lists them. Inside a dispatch; it never throws
+	///     needs manual recovery is reported and forgotten. Then, through the ledger, it releases untracked entries from
+	///     this activation and releases earlier-activation entries only when <paramref name="includeOrphans" /> is set.
+	///     Inside a dispatch; it never throws
 	///     for a failed cleanup: use <see cref="ReleaseAllResult.ThrowIfIncomplete" /> to report an incomplete release.
 	/// </summary>
 	/// <param name="cancellationToken">The token of the enclosing dispatch body.</param>
-	/// <param name="includeOrphans">Whether to release the orphans of earlier activations and untracked Lua state too.</param>
+	/// <param name="includeOrphans">Whether to also release orphans from earlier activations.</param>
 	/// <returns>What was released, the first incomplete release and what still holds host state.</returns>
 	public ReleaseAllResult ReleaseAll(CancellationToken cancellationToken, bool includeOrphans = false)
 	{
@@ -352,6 +393,8 @@ public sealed class TargetResources : ITargetTransitionGuard
 			return new ReleaseAllResult(released, null, RemainingManaged());
 		}
 
+		// Always clean untracked state owned by this activation. Earlier-activation orphans remain listed unless the
+		// caller explicitly opted in to releasing them.
 		LuaStateRelease state = Ledger.ReleaseUnmanaged(ManagedIds(), includeOrphans, cancellationToken);
 		released.AddRange(state.Released.Select(entry =>
 			new ReleasedResource(Ledger.Describe(entry), ResourceReleaseOutcome.Released())));

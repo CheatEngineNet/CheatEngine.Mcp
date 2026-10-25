@@ -66,12 +66,15 @@ public sealed class MonoTools
 
 		// The Lua body records the attachment under this id, so a later detach can tell it from one Cheat Engine made.
 		string id = _resources.NextId("mono");
-		MonoAttachResult result = _dispatch.RunLua(CheatEngineToolNames.MonoAttach, MonoLuaScripts.Attach,
-			MonoJsonContext.Default.MonoAttachResult, cancellationToken, id);
-		MonoAttachment attachment = new(id, _dispatch);
-		_resources.Track(attachment, () => _attachment = null);
-		_attachment = attachment;
-		return result;
+		return _dispatch.Run(CheatEngineToolNames.MonoAttach, token =>
+		{
+			MonoAttachResult result = _dispatch.ExecuteLua(CheatEngineToolNames.MonoAttach, MonoLuaScripts.Attach,
+				MonoJsonContext.Default.MonoAttachResult, token, id);
+			MonoAttachment attachment = new(id, _dispatch);
+			_resources.Track(attachment, () => _attachment = null);
+			_attachment = attachment;
+			return result;
+		}, cancellationToken);
 	}
 
 	/// <summary>Detaches the Mono collector connection and releases this activation's attachment resource.</summary>

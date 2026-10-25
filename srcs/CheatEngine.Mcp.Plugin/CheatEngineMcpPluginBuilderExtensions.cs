@@ -69,6 +69,7 @@ internal static class CheatEngineMcpPluginBuilderExtensions
 			mcp.Services.AddSingleton(Options.Create(features));
 			mcp.Services.AddOptions<McpExecutionOptions>()
 				.Bind(configuration.GetSection(McpExecutionOptions.SectionName));
+			mcp.Services.TryAddScoped<PluginLifecycleLuaScope>();
 			mcp.Services.TryAddScoped<IFixedLuaExecutor, PluginFixedLuaExecutor>();
 			return mcp.AddExecutionServices();
 		}

@@ -990,7 +990,7 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		{
 			start.ArgumentList.Add("--soak");
 		}
-		else if (_options.DebuggerQualification)
+		else if (_options.DebuggerQualification || _options.ActivePluginLifecycleQualification)
 		{
 			start.ArgumentList.Add("--debugger-loop");
 		}
@@ -1008,7 +1008,7 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		int width = manifest["pointerWidth"]!.GetValue<int>();
 		LiveDebuggerExecutionQualification.Manifest? debuggerExecution = manifest["debuggerExecution"] is { } loop
 			? LiveDebuggerExecutionQualification.ReadManifest(loop, processId) : null;
-		if (_options.DebuggerQualification && debuggerExecution is null)
+		if ((_options.DebuggerQualification || _options.ActivePluginLifecycleQualification) && debuggerExecution is null)
 		{
 			throw new InvalidDataException("The debugger target omitted its owned advancing thread manifest.");
 		}

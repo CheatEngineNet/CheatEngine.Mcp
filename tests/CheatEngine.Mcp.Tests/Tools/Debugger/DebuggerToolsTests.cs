@@ -536,10 +536,14 @@ public sealed class DebuggerToolsTests
 	{
 		Assert.Contains("pcall(resourceRecord, a[1], a[2], 'breakpoint'", DebuggerLuaScripts.SetBreakpoint,
 			StringComparison.Ordinal);
+		Assert.Contains("getOpenedProcessID() == breakpointProcessId", DebuggerLuaScripts.SetBreakpoint,
+			StringComparison.Ordinal);
 		Assert.Contains("resourceRelease(matched, 'deleted')", DebuggerLuaScripts.DeleteBreakpoint,
 			StringComparison.Ordinal);
 		Assert.Contains("job.onStop", DebuggerLuaScripts.StartCapture, StringComparison.Ordinal);
-		Assert.Contains("debug_removeBreakpointByID(current.breakpointId)", DebuggerLuaScripts.StartCapture,
+		Assert.Contains("debug_removeBreakpointByID(breakpointHandle)", DebuggerLuaScripts.StartCapture,
+			StringComparison.Ordinal);
+		Assert.DoesNotContain("assertBreakpointAddressCount", DebuggerLuaScripts.StartCapture,
 			StringComparison.Ordinal);
 		Assert.Contains("_G.debugger_onBreakpoint = nil", DebuggerLuaScripts.StartTrace,
 			StringComparison.Ordinal);
