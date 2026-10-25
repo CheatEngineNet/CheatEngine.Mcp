@@ -34,8 +34,12 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 			"NaN", "Infinity", "-Infinity", 0.5, 7, LuaToolRuntime.DefaultBudgetMilliseconds, false), probe);
 	}
 
-	[Fact]
-	public void FixedLuaExecutor_StoppingCleanupUsesTheAttachedRuntimeOnlyForReleaseScripts()
+	[Theory]
+	[InlineData("mcp_job_stop")]
+	[InlineData("mcp_state_release_resource")]
+	[InlineData("mcp_state_release")]
+	[InlineData(CheatEngineToolNames.MonoDetach)]
+	public void FixedLuaExecutor_StoppingCleanupUsesTheAttachedRuntimeOnlyForReleaseScripts(string operation)
 	{
 		using RuntimeScope scope = CreateScope();
 		using CancellationTokenSource stopping = new();
@@ -52,7 +56,7 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 		PluginFixedLuaExecutor executor = new(client, lifecycleLuaScope);
 		using (lifecycleLuaScope.BeginResourceCleanup(client))
 		{
-			LuaJsonResult<string[]> result = executor.Execute("mcp_job_stop",
+			LuaJsonResult<string[]> result = executor.Execute(operation,
 				LuaToolRuntime.BuildSource("return {'released'}", []), TestJsonContext.Default.StringArray,
 				new LuaJsonBufferPool(), LuaOpaqueValueHandling.Reject, CancellationToken.None);
 
@@ -62,6 +66,10 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 				LuaToolRuntime.BuildSource("return {'blocked'}", []), TestJsonContext.Default.StringArray,
 				new LuaJsonBufferPool(), LuaOpaqueValueHandling.Reject, CancellationToken.None));
 		}
+
+		Assert.Throws<InvalidOperationException>(() => executor.Execute(operation,
+			LuaToolRuntime.BuildSource("return {'outside cleanup'}", []), TestJsonContext.Default.StringArray,
+			new LuaJsonBufferPool(), LuaOpaqueValueHandling.Reject, CancellationToken.None));
 	}
 
 	[Fact]

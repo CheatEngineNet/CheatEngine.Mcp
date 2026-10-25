@@ -63,7 +63,8 @@ internal static class PluginLuaToolRuntime
 
 	internal static bool IsLifecycleCleanupOperation(string operation)
 	{
-		return operation is "mcp_job_stop" or "mcp_state_release_resource" or "mcp_state_release";
+		return operation is "mcp_job_stop" or "mcp_state_release_resource" or "mcp_state_release"
+			or CheatEngineToolNames.MonoDetach;
 	}
 
 	internal static LuaJsonResult<T> ExecuteLifecycleCleanup<T>(string operation, string source,
