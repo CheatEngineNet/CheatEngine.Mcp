@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.Versioning;
 
 using CheatEngine.Mcp.Tests.LiveQualification.Infrastructure;
@@ -38,7 +39,6 @@ internal sealed partial class LiveSandboxSession
 				? "Plugin enable requires a successful prior disable transition."
 				: "The owned plugin discovery identity is unavailable before disable.");
 		}
-
 		PrepareOwnedPluginRegistryForSettingsReload(hostName, currentEnabled: !enabled);
 		long nonce = Interlocked.Increment(ref _pluginControlNonce);
 		string request = Path.Combine(_layout.RunDirectory, $"plugin-request-{hostName}.txt");
@@ -54,6 +54,12 @@ internal sealed partial class LiveSandboxSession
 		string temporary = request + ".tmp";
 		RequireNoReparseAncestors(temporary);
 		await File.WriteAllTextAsync(temporary, $"{nonce}\n{(enabled ? "enable" : "disable")}\n", cancellationToken);
+		if (!enabled)
+		{
+			// The UI request is about to become observable. Retain this exact identity only after all preparation has
+			// succeeded, so malformed/missing replies can recover an unload without treating preflight failure as one.
+			_pendingPluginIdentities[hostName] = previous;
+		}
 		File.Move(temporary, request, false);
 		await WaitUntilAsync(() => File.Exists(response), host.Process, TimeSpan.FromSeconds(15));
 		RequireNoReparseAncestors(response);
@@ -102,10 +108,6 @@ internal sealed partial class LiveSandboxSession
 			};
 			_pendingPluginIdentities.Remove(hostName);
 		}
-		else
-		{
-			_pendingPluginIdentities[hostName] = previous;
-		}
 
 		string currentInstanceId = host.Public.InstanceId;
 		string currentEndpoint = host.Public.Endpoint;
@@ -118,6 +120,149 @@ internal sealed partial class LiveSandboxSession
 		Record($"plugin_{hostName}_{(enabled ? "enable" : "disable")}", cycle);
 		return cycle;
 	}
+
+	/// <summary>Uses the fixed CE Settings/Plugins bridge to observe disabled plugin and cleanup state.</summary>
+	internal async Task<LivePluginDisabledObservation> ObservePluginDisabledAsync(string hostName, ulong breakpointAddress,
+		CancellationToken cancellationToken = default)
+	{
+		Stopwatch elapsed = Stopwatch.StartNew();
+		int observations = 0;
+		LivePluginDisabledObservation observation;
+		do
+		{
+			observation = await ObservePluginStateAsync(hostName, breakpointAddress, cancellationToken);
+			observations++;
+			if (observation.PluginChecked || !observation.StatusMenuPresent || !observation.StatusMenuDisabled)
+			{
+				break;
+			}
+
+			if (!observation.BreakpointPresent)
+			{
+				Record($"plugin_{hostName}_disabled_cleanup_wait", new
+				{
+					elapsedMilliseconds = elapsed.Elapsed.TotalMilliseconds,
+					observations,
+					breakpointAbsent = true,
+					observation
+				});
+				return observation;
+			}
+
+			if (elapsed.Elapsed >= TimeSpan.FromSeconds(8))
+			{
+				break;
+			}
+
+			await Task.Delay(TimeSpan.FromMilliseconds(50), cancellationToken);
+		}
+		while (true);
+
+		Record($"plugin_{hostName}_disabled_cleanup_wait", new
+		{
+			elapsedMilliseconds = elapsed.Elapsed.TotalMilliseconds,
+			observations,
+			breakpointAbsent = false,
+			observation
+		});
+		throw new InvalidOperationException(string.Create(CultureInfo.InvariantCulture,
+			$"The fixed CE Plugin Manager bridge did not observe the plugin unchecked, its status menu marked Disabled, and its owned breakpoint absent within {elapsed.Elapsed.TotalMilliseconds:F0} ms (checked={observation.PluginChecked}, statusMenuPresent={observation.StatusMenuPresent}, statusMenuDisabled={observation.StatusMenuDisabled}, breakpointPresent={observation.BreakpointPresent})."));
+	}
+
+	internal async Task<LivePluginDisabledObservation> ObservePluginStateAsync(string hostName, ulong breakpointAddress,
+		CancellationToken cancellationToken = default)
+	{
+		if (!_hosts.TryGetValue(hostName, out OwnedHost? host) || host.Process is null || host.Stopped)
+		{
+			throw new InvalidOperationException($"Owned host '{hostName}' is not running.");
+		}
+		long nonce = Interlocked.Increment(ref _pluginControlNonce);
+		string request = Path.Combine(_layout.RunDirectory, $"plugin-request-{hostName}.txt");
+		string response = Path.Combine(_layout.RunDirectory, $"plugin-response-{hostName}.txt");
+		RequireInsideRun(request);
+		RequireInsideRun(response);
+		RequireNoReparseAncestors(request);
+		RequireNoReparseAncestors(response);
+		if (File.Exists(response))
+		{
+			File.Delete(response);
+		}
+		string temporary = request + ".tmp";
+		RequireNoReparseAncestors(temporary);
+		string address = $"0x{breakpointAddress:X}";
+		await File.WriteAllTextAsync(temporary, $"{nonce}\nobserve\n{address}\n", cancellationToken);
+		File.Move(temporary, request, false);
+		await WaitUntilAsync(() => File.Exists(response), host.Process, TimeSpan.FromSeconds(15));
+		RequireNoReparseAncestors(response);
+		FileInfo responseFacts = new(response);
+		if (responseFacts.Length is <= 0 or > 4096)
+		{
+			throw new InvalidOperationException("The fixed CE Plugin Manager observation response has an invalid bounded length.");
+		}
+		LivePluginDisabledObservation observation = LivePluginDisabledObservation.ParseResponse(
+			await File.ReadAllTextAsync(response, cancellationToken), nonce, address, host.Public.TargetProcessId);
+		Record($"plugin_{hostName}_observed", observation);
+		Record($"plugin_{hostName}_observed_{nonce}", observation);
+		return observation;
+	}
+
+	/// <summary>Temporarily wraps the native breakpoint remover inside an owned CE host for one cleanup observation.</summary>
+	internal async Task SetBreakpointRemovalProbeAsync(string hostName, bool installed,
+		CancellationToken cancellationToken = default)
+	{
+		if (!_hosts.TryGetValue(hostName, out OwnedHost? host) || host.Process is null || host.Stopped)
+		{
+			throw new InvalidOperationException($"Owned host '{hostName}' is not running.");
+		}
+
+		string action = installed ? "install_probe" : "remove_probe";
+		long nonce = Interlocked.Increment(ref _pluginControlNonce);
+		string request = Path.Combine(_layout.RunDirectory, $"plugin-request-{hostName}.txt");
+		string response = Path.Combine(_layout.RunDirectory, $"plugin-response-{hostName}.txt");
+		RequireInsideRun(request);
+		RequireInsideRun(response);
+		RequireNoReparseAncestors(request);
+		RequireNoReparseAncestors(response);
+		if (File.Exists(response))
+		{
+			File.Delete(response);
+		}
+
+		string temporary = request + ".tmp";
+		RequireNoReparseAncestors(temporary);
+		await File.WriteAllTextAsync(temporary, $"{nonce}\n{action}\n", cancellationToken);
+		File.Move(temporary, request, false);
+		await WaitUntilAsync(() => File.Exists(response), host.Process, TimeSpan.FromSeconds(15));
+		RequireNoReparseAncestors(response);
+		FileInfo responseFacts = new(response);
+		if (responseFacts.Length is <= 0 or > 4096)
+		{
+			throw new InvalidOperationException("The fixed CE Plugin Manager cleanup-probe response has an invalid bounded length.");
+		}
+
+		string[] fields = (await File.ReadAllTextAsync(response, cancellationToken))
+			.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+		if (fields.Length == 4 && fields[0] == "error" && long.TryParse(fields[1], out long failedNonce)
+			&& failedNonce == nonce && fields[2] == action && fields[3].Length is > 0 and <= 1024)
+		{
+			throw new InvalidOperationException($"The fixed CE Plugin Manager bridge rejected {action}: {fields[3]}");
+		}
+		if (fields.Length != 3 || fields[0] != "ok" || !long.TryParse(fields[1], out long received)
+			|| received != nonce || fields[2] != action)
+		{
+			throw new InvalidOperationException("The fixed CE Plugin Manager cleanup-probe bridge returned an invalid response.");
+		}
+
+		Record($"plugin_{hostName}_removal_probe_{(installed ? "installed" : "removed")}", new
+		{
+			nonce,
+			action,
+			processId = host.Public.ProcessId,
+			completedAt = DateTimeOffset.UtcNow
+		});
+	}
+
+	internal void ClearPendingPluginIdentity(string hostName) => _pendingPluginIdentities.Remove(hostName);
 	/// <summary>Restarts one private CE installation and its owned target without disturbing the second host.</summary>
 	public async Task RestartHostAsync(string name)
 	{
@@ -398,5 +543,61 @@ internal sealed record OwnedPluginRegistryReadback(string[] ValueNames, string P
 internal sealed record LivePluginCycle(int ProcessId, int TargetProcessId, long Nonce, bool Enabled,
 	string PreviousInstanceId, string CurrentInstanceId, string PreviousEndpoint, string CurrentEndpoint,
 	bool InstanceIdChanged, bool EndpointChanged, bool AccessTokenChanged, DateTimeOffset CompletedAt);
+
+internal sealed record LivePluginDisabledObservation(long Nonce, string BreakpointAddress, bool PluginChecked,
+	bool StatusMenuPresent, bool StatusMenuDisabled, bool BreakpointPresent, int OpenedProcessId, int BreakpointCount,
+	string[] BreakpointSamples, string[] CleanupProbeFields, string RawBreakpointSnapshot, DateTimeOffset ObservedAt)
+{
+	internal bool CleanupRemovalSucceeded => CleanupProbeFields.Length == 12
+		&& CleanupProbeFields[0] == "called" && CleanupProbeFields[3] == "true"
+		&& CleanupProbeFields[4] == "boolean" && CleanupProbeFields[5] == "true"
+		&& CleanupProbeFields[6].Length == 0;
+
+	internal static LivePluginDisabledObservation ParseResponse(string response, long expectedNonce, string expectedAddress,
+		int expectedProcessId)
+	{
+		string[] fields = response.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+		if (fields.Length != 23 || fields[0] != "ok" || !long.TryParse(fields[1], out long received) || received != expectedNonce
+			|| fields[2] != "observe" || fields[3] != expectedAddress || fields[4] is not ("enabled" or "disabled")
+			|| fields[5] is not ("disabled" or "other" or "absent") || fields[6] is not ("present" or "absent")
+			|| !int.TryParse(fields[7], out int openedProcessId) || openedProcessId < 0
+			|| !int.TryParse(fields[8], out int breakpointCount) || breakpointCount < 0 || fields[9].Length > 2048
+			|| fields[10] is not ("uninstalled" or "installed-no-call" or "called")
+			|| fields[18].Length > 1024 || fields[20].Length > 1024 || fields[21].Length > 1536 || fields[22].Length > 1200
+			|| !fields[22].StartsWith("raw:", StringComparison.Ordinal))
+		{
+			throw new InvalidOperationException("The fixed CE Plugin Manager bridge returned an invalid bounded lifecycle observation.");
+		}
+		if (expectedProcessId <= 0 || openedProcessId != expectedProcessId)
+		{
+			throw new InvalidOperationException("The fixed CE Plugin Manager observation did not match the owned target process.");
+		}
+
+		string[] breakpointSamples = fields[9].Length == 0 ? [] : fields[9].Split(';');
+		if (breakpointSamples.Length > 16 || breakpointSamples.Length > breakpointCount
+			|| breakpointSamples.Any(static sample => sample.Length is 0 or > 128))
+		{
+			throw new InvalidOperationException("The fixed CE Plugin Manager breakpoint sample is invalid.");
+		}
+		string[] cleanupProbeFields = fields[10..22];
+		if (fields[10] == "called"
+			&& (fields[11].Length is 0 or > 32 || fields[12].Length is 0 or > 32
+				|| fields[13] is not ("true" or "false") || fields[14].Length is 0 or > 32
+				|| fields[15].Length > 32 || fields[16].Length > 32
+				|| !int.TryParse(fields[17], out int beforeCount) || beforeCount < -1
+				|| !int.TryParse(fields[19], out int afterCount) || afterCount < -1))
+		{
+			throw new InvalidOperationException("The fixed CE Plugin Manager cleanup receipt is invalid.");
+		}
+		if (fields[10] != "called" && fields[11..21].Any(static field => field.Length != 0))
+		{
+			throw new InvalidOperationException("The fixed CE Plugin Manager returned receipt fields without a remover call.");
+		}
+
+		return new LivePluginDisabledObservation(expectedNonce, expectedAddress, fields[4] == "enabled",
+			fields[5] != "absent", fields[5] == "disabled", fields[6] == "present", openedProcessId,
+			breakpointCount, breakpointSamples, cleanupProbeFields, fields[22], DateTimeOffset.UtcNow);
+	}
+}
 
 internal sealed record PendingPluginIdentity(string InstanceId, string Endpoint, string AccessToken);

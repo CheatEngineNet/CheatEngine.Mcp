@@ -66,6 +66,11 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			await LiveLifecycleQualification.RunAsync(inputs);
 			return;
 		}
+		if (inputs.Scenario == LiveQualificationScenario.PluginLifecycleActive)
+		{
+			await LiveActivePluginLifecycleQualification.RunAsync(inputs);
+			return;
+		}
 		if (inputs.Scenario == LiveQualificationScenario.Soak)
 		{
 			await LiveSoakQualification.RunAsync(inputs);

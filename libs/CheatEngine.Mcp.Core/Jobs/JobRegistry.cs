@@ -254,8 +254,9 @@ public sealed class JobRegistry : IDisposable
 
 	/// <summary>
 	///     Starts a managed job on the thread pool. The slot is reserved atomically and the work starts after the job is
-	///     registered; it never runs on Cheat Engine's main thread and is never waited for there. Each dispatch the work
-	///     makes must stay within the dispatch budget.
+	///     registered only while its tracked resource remains active and the activation accepts starts; it never runs on
+	///     Cheat Engine's main thread and is never waited for there. Each dispatch the work makes must stay within the
+	///     dispatch budget.
 	/// </summary>
 	/// <typeparam name="TItem">The item type.</typeparam>
 	/// <param name="kind">The job kind, a lowercase identifier of at most 32 characters, such as <c>pointermap</c>.</param>
@@ -289,7 +290,27 @@ public sealed class JobRegistry : IDisposable
 			throw;
 		}
 
-		job.Run(work, OnManagedJobEnded, _dispatch.Client.Stopping);
+		bool started;
+		try
+		{
+			started = _resources.TryStartTracked(job,
+				() => job.Run(work, OnManagedJobEnded, _dispatch.Client.Stopping));
+		}
+		catch
+		{
+			ResourceReleaseOutcome release = job.Release(CancellationToken.None);
+			Remove(job, release.IsComplete);
+			throw;
+		}
+
+		if (!started)
+		{
+			ResourceReleaseOutcome release = job.Release(CancellationToken.None);
+			Remove(job, release.IsComplete);
+			throw CheatEngineToolException.Busy(
+				"The plugin activation is stopping, or the job was released before its work could start.", StopHint);
+		}
+
 		return job;
 	}
 
@@ -510,11 +531,11 @@ public sealed class JobRegistry : IDisposable
 		lock (_lock)
 		{
 			_reserved--;
+			// Track before publishing to the registry, under the same lock. If deactivation closed resource tracking,
+			// the started Lua record remains unmanaged for TargetResources.ReleaseAll to clean from the ledger.
+			_resources.Track(job, () => Remove(job, job.CleanupError is null));
 			_jobs.Add(job.Id, job);
 		}
-
-		// Released by TargetResources: a completed stop leaves a tombstone, a failed cleanup stays with its Lua entry.
-		_resources.Track(job, () => Remove(job, job.CleanupError is null));
 	}
 
 	/// <summary>Drops a job and its items; a completed stop leaves a tombstone until the job's TTL would have ended.</summary>

@@ -6,6 +6,7 @@ using CheatEngine.Client.Lua;
 using CheatEngine.Client.Processes;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
+using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Features;
 using CheatEngine.Mcp.Core.Jobs;
 using CheatEngine.Mcp.Tests.Support;
@@ -96,11 +97,20 @@ public sealed partial class NativeLuaToolRuntimeTests
 		InstallStubs(JobHostStubs + "\n" + """
 		             bptExecute, bptAccess, bptWrite, bpmDebugRegister, bpmInt3, bpmException = 1, 2, 3, 4, 5, 6
 		             debug_isDebugging = function() return true end
+		             getOpenedProcessID = function() return 77 end
 		             getAddressSafe = function(value) observedExpression = value; return 0x401000 end
+		             breakpointAddresses = {}
+		             debug_getBreakpointList = function() return breakpointAddresses end
 		             debug_setBreakpoint = function(address, size, trigger, method, callback)
-		              observedBreakpoint = {address, size, trigger, method, callback}; return true, 88
+		             observedBreakpoint = {address, size, trigger, method, callback}; table.insert(breakpointAddresses, address)
+		             return true, {ID = 88, PID = 77, DTID = 9}
 		             end
-		             debug_removeBreakpointByID = function(id) removedBreakpoint = id; return true end
+		             debug_removeBreakpointByID = function(id)
+		                 removalArgumentType = type(id)
+		                 removedBreakpoint = type(id) == 'table' and id.ID or id
+		                 table.remove(breakpointAddresses)
+		                 return true
+		             end
 		             targetIs64Bit = function() return true end
 		             """);
 		using DebuggerToolHarness harness = CreateDebuggerTools();
@@ -118,6 +128,39 @@ public sealed partial class NativeLuaToolRuntimeTests
 		Assert.True(deleted.Released);
 		Assert.Equal(set.ResourceId, deleted.ResourceId);
 		Assert.Equal(88L, ReadGlobal("removedBreakpoint"));
+		Assert.Equal("table", ReadGlobal("removalArgumentType"));
+	}
+
+	[Fact]
+	public void DebuggerAdapter_BreakpointAcceptedWithoutId_RetainsLedgerEntryForManualRecovery()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(JobHostStubs + "\n" + """
+		             bptExecute, bptAccess, bptWrite = 1, 2, 3
+		             debug_isDebugging = function() return true end
+		             getOpenedProcessID = function() return 77 end
+		             targetIs64Bit = function() return true end
+		             getAddressSafe = function(_) return 0x401000 end
+		             debug_setBreakpoint = function() return true, nil end
+		             breakpointRemovalCalls = 0
+		             debug_removeBreakpointByID = function(_)
+		                 breakpointRemovalCalls = breakpointRemovalCalls + 1
+		                 return true
+		             end
+		             """);
+		ToolDispatch dispatch = CreateNativeDispatch(new McpFeatureOptions());
+
+		Assert.Throws<CheatEngineToolException>(() => dispatch.RunLua(CheatEngineToolNames.DebuggerSetBreakpoint,
+			DebuggerLuaScripts.SetBreakpoint, DebuggerJsonContext.Default.DebuggerBreakpointSet, Token,
+			OwnNamespace, "breakpoint-bbbb22-1", "401000", 1L, "execute", "default", null, false));
+		LuaStateRelease cleanup = ReadKernel(LuaJobKernelScripts.StateReleaseUnmanaged,
+			StateJsonContext.Default.LuaStateRelease, OwnNamespace, Array.Empty<string>(), false);
+
+		Assert.NotNull(cleanup.Failed);
+		Assert.Equal("breakpoint-bbbb22-1", cleanup.Failed.Id);
+		Assert.Contains("without a usable ID", cleanup.Failed.CleanupError, StringComparison.Ordinal);
+		Assert.Contains("breakpoint-bbbb22-1", Assert.Single(cleanup.Remaining).Id);
+		Assert.Equal(0L, ReadGlobal("breakpointRemovalCalls"));
 	}
 
 	[Theory]
@@ -324,6 +367,76 @@ public sealed partial class NativeLuaToolRuntimeTests
 		Assert.Equal("401000", Assert.Single(capturePage.Hits).Context.Ip);
 		Assert.Equal("1", Assert.Single(tracePage.Steps).Registers["RAX"]);
 		Assert.Equal(3L, ReadGlobal("lastContinue"));
+	}
+
+	[Fact]
+	public void DebuggerAdapter_RunTo_StopAfterSelectedTargetChanges_RetainsJobWithoutRemovingFromTheNewTarget()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(JobHostStubs + "\n" + """
+		             selectedProcessId = 77
+		             getOpenedProcessID = function() return selectedProcessId end
+		             debug_isDebugging = function() return true end
+		             debug_getContext = function(extra) assert(extra == false); return {} end
+		             getAddressSafe = function(_) return 0x401000 end
+		             bptExecute = 1
+		             co_run = 0
+		             debug_continueFromBreakpoint = function(_) end
+		             breakpointAddresses = {}
+		             debug_getBreakpointList = function() return breakpointAddresses end
+		             debug_setBreakpoint = function(address, ...) table.insert(breakpointAddresses, address); return true, {ID = 88, PID = 77, DTID = 9} end
+		             breakpointRemovalCalls = 0
+		             debug_removeBreakpointByID = function(id)
+		                 breakpointRemovalCalls = breakpointRemovalCalls + 1
+		                 removedBreakpoint = id
+		                 return true
+		             end
+		             """);
+
+		DebuggerRunToStarted runTo = CreateNativeDispatch(new McpFeatureOptions()).RunLua(
+			CheatEngineToolNames.DebuggerRunTo, DebuggerLuaScripts.StartRunTo,
+			DebuggerJsonContext.Default.DebuggerRunToStarted, Token, OwnNamespace, "debugrunto-bbbb22-1", 1, 10_000L,
+			"401000");
+		InstallStubs("selectedProcessId = 78");
+		LuaJobStop stopped = ReadKernel(LuaJobKernelScripts.Stop, StateJsonContext.Default.LuaJobStop,
+			OwnNamespace, runTo.JobId);
+		LuaJobPage retained = PollJob(runTo.JobId, 0, 1);
+
+		Assert.Equal((77, "401000"), (runTo.ProcessId, runTo.Address));
+		Assert.Equal((true, true, false, "stopped"), (stopped.Found, stopped.WasRunning, stopped.Released, stopped.State));
+		Assert.Contains("selected target changed", stopped.CleanupError, StringComparison.OrdinalIgnoreCase);
+		Assert.Equal((JobState.Stopped, true), (retained.Job.State, retained.Job.RequiresManualRecovery));
+		Assert.Equal(0L, ReadGlobal("breakpointRemovalCalls"));
+	}
+
+	[Fact]
+	public void DebuggerAdapter_RunTo_AcceptedBreakpointWithoutId_RetainsJobForManualRecovery()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(JobHostStubs + "\n" + """
+		             getOpenedProcessID = function() return 77 end
+		             debug_isDebugging = function() return true end
+		             debug_getContext = function(extra) assert(extra == false); return {} end
+		             getAddressSafe = function(_) return 0x401000 end
+		             bptExecute = 1
+		             debug_setBreakpoint = function() return true, nil end
+		             runToRemovalCalls = 0
+		             debug_removeBreakpointByID = function(_)
+		                 runToRemovalCalls = runToRemovalCalls + 1
+		                 return true
+		             end
+		             """);
+		ToolDispatch dispatch = CreateNativeDispatch(new McpFeatureOptions());
+
+		Assert.Throws<CheatEngineToolException>(() => dispatch.RunLua(CheatEngineToolNames.DebuggerRunTo,
+			DebuggerLuaScripts.StartRunTo, DebuggerJsonContext.Default.DebuggerRunToStarted, Token,
+			OwnNamespace, "debugrunto-bbbb22-1", 1, 10_000L, "401000"));
+		LuaJobPage retained = PollJob("debugrunto-bbbb22-1", 0, 1);
+
+		Assert.Equal(JobState.Failed, retained.Job.State);
+		Assert.True(retained.Job.RequiresManualRecovery);
+		Assert.Contains("without a usable ID", retained.Job.CleanupError, StringComparison.Ordinal);
+		Assert.Equal(0L, ReadGlobal("runToRemovalCalls"));
 	}
 
 	private static DebuggerToolHarness CreateDebuggerTools(bool withProcess = false)

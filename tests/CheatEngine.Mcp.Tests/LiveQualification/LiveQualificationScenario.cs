@@ -9,6 +9,7 @@ internal enum LiveQualificationScenario
 	CompilerInjection,
 	Lifecycle,
 	PluginLifecycle,
+	PluginLifecycleActive,
 	Performance,
 	Soak,
 	DispatchDiagnostic,

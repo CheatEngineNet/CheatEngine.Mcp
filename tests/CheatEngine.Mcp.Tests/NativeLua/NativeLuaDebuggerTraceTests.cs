@@ -63,7 +63,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 	                                           end
 	                                           debug_removeBreakpointByID = function(id)
 	                                               breakpointRemovalCalls = breakpointRemovalCalls + 1
-	                                               removedBreakpoint = id
+	                                               removedBreakpoint = type(id) == 'table' and id.ID or id
 	                                               if not breakpointRemovalAccepted then return false end
 	                                               if traceBreakpointDeferredRemoval then
 	                                                   traceBreakpointRemovalPending = true
@@ -80,7 +80,8 @@ public sealed partial class NativeLuaToolRuntimeTests
 	                                               breakpointTrigger = arguments[3]
 	                                               breakpointCallback = arguments[4]
 	                                               traceBreakpointListed = true
-	                                               return breakpointAccepted, breakpointAccepted and 88 or nil
+	                                               if returnNilBreakpointHandle then return breakpointAccepted, nil end
+	                                               return breakpointAccepted, breakpointAccepted and {ID = 88, PID = 77, DTID = 9} or nil
 	                                           end
 	                                           """;
 
@@ -151,6 +152,24 @@ public sealed partial class NativeLuaToolRuntimeTests
 		Assert.Null(ReadGlobal("debugger_onBreakpoint"));
 		Assert.Equal((1L, 1L), (ReadGlobal("breakpointCalls"), ReadGlobal("breakpointTrigger")));
 		LuaFixedScriptAssert.NeverLoadsCode(DebuggerLuaScripts.StartTrace);
+	}
+
+	[Fact]
+	public void DebuggerV2_Trace_AcceptedBreakpointWithoutId_RetainsJobForManualRecovery()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(JobHostStubs + "\n" + CaptureHostStubs + "\n" + TraceHostStubs + "\n" + TraceBreakpointStub);
+		InstallStubs("returnNilBreakpointHandle = true");
+
+		Assert.Throws<CheatEngineToolException>(() => StartTrace(5L, null, null));
+
+		LuaJobPage retained = PollJob(TraceJobId, 0, 1);
+		Assert.Equal(JobState.Failed, retained.Job.State);
+		Assert.True(retained.Job.RequiresManualRecovery);
+		Assert.Contains("without a usable ID", retained.Job.CleanupError, StringComparison.Ordinal);
+		Assert.Equal((1L, 0L, true),
+			(ReadGlobal("breakpointCalls"), ReadGlobal("breakpointRemovalCalls"), ReadGlobal("traceBreakpointListed")));
+		Assert.Null(ReadGlobal("debugger_onBreakpoint"));
 	}
 
 	[Fact]

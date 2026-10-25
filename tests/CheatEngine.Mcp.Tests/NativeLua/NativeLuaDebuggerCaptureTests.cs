@@ -27,19 +27,42 @@ public sealed partial class NativeLuaToolRuntimeTests
 	                                        debug_getContext = function(_) return false end
 	                                        targetIsX86 = function() return true end
 	                                        targetIs64Bit = function() return wide end
-	                                        getOpenedProcessID = function() return 77 end
+	                                        selectedProcessId = 77
+	                                        getOpenedProcessID = function() return selectedProcessId end
 	                                        symbols = {['401000'] = 0x401000, ['game.exe'] = 0x140000000,
 	                                            ['my module.dll'] = 0x7FF000000000}
 	                                        getAddressSafe = function(name) return symbols[name] end
 	                                        disassemble = function(_) return 'instruction' end
 	                                        breakpointCalls = 0
-	                                        debug_removeBreakpointByID = function(_) return true end
+	                                        breakpointRemovalCalls = 0
+	                                        breakpointRemovalResult = true
+	                                        breakpointRemovalFailure = nil
+	                                        breakpointRemovalDeferred = false
+	                                        breakpointRemovalArgumentType = nil
+	                                        breakpointAddresses = {}
+	                                        debug_getBreakpointList = function() return breakpointAddresses end
+	                                        debug_removeBreakpointByID = function(id)
+	                                            breakpointRemovalCalls = breakpointRemovalCalls + 1
+	                                            breakpointRemovalArgumentType = type(id)
+	                                            removedBreakpoint = type(id) == 'table' and id.ID or id
+	                                            if breakpointRemovalResult and not breakpointRemovalDeferred then
+	                                                for index = #breakpointAddresses, 1, -1 do
+	                                                    if breakpointAddresses[index] == breakpointAddress then
+	                                                        table.remove(breakpointAddresses, index)
+	                                                        break
+	                                                    end
+	                                                end
+	                                            end
+	                                            return breakpointRemovalResult, breakpointRemovalFailure
+	                                        end
 	                                        debug_setBreakpoint = function(address, size, trigger, callback)
 	                                            breakpointCalls = breakpointCalls + 1
 	                                            breakpointAddress = address
+	                                            table.insert(breakpointAddresses, address)
 	                                            breakpointTrigger = trigger
 	                                            if callback ~= nil then captureCallback = callback end
-	                                            return true, 88
+	                                            if returnNilBreakpointHandle then return true, nil end
+	                                            return true, breakpointHandle or {ID = 88, PID = 77, DTID = 9}
 	                                        end
 	                                        instructionOpcode = 'mov'
 	                                        instructionParameters = '[rax],edx'
@@ -127,6 +150,23 @@ public sealed partial class NativeLuaToolRuntimeTests
 		Assert.Empty(LuaFeatureScan.Scan(DebuggerLuaScripts.StartCapture));
 	}
 
+	[Fact]
+	public void DebuggerV2_Capture_AcceptedBreakpointWithoutId_RetainsJobForManualRecovery()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(JobHostStubs + "\n" + CaptureHostStubs);
+		InstallStubs("returnNilBreakpointHandle = true");
+
+		Assert.Throws<CheatEngineToolException>(() => StartEffectiveAddressCapture(8L));
+
+		LuaJobPage retained = PollJob(CaptureJobId, 0, 1);
+		Assert.Equal(JobState.Failed, retained.Job.State);
+		Assert.True(retained.Job.RequiresManualRecovery);
+		Assert.Contains("without a usable ID", retained.Job.CleanupError, StringComparison.Ordinal);
+		Assert.Equal((1L, 0L, 1L),
+			(ReadGlobal("breakpointCalls"), ReadGlobal("breakpointRemovalCalls"), EvaluateLua("#breakpointAddresses")));
+	}
+
 	[Theory]
 	[InlineData("lea", "rax,[rbx+10]", ToolErrorKind.InvalidArgument, "only computes an address")]
 	[InlineData("nop", "dword ptr [rax+rax+00]", ToolErrorKind.InvalidArgument, "only computes an address")]
@@ -156,6 +196,21 @@ public sealed partial class NativeLuaToolRuntimeTests
 		Assert.Equal((0L, 1L), (ReadGlobal("breakpointCalls"), ReadGlobal("disassemblersDestroyed")));
 		Assert.False(Parse(RunKernel("return {exists = jobFind(a[1], a[2]) ~= nil}", OwnNamespace, CaptureJobId))
 			.GetProperty("exists").GetBoolean());
+	}
+
+	[Fact]
+	public void DebuggerV2_Capture_UnusableBreakpointId_RetainsTheJobForManualRecovery()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(JobHostStubs + "\n" + CaptureHostStubs);
+		InstallStubs("breakpointHandle = {PID = 77, DTID = 9}");
+
+		Assert.Throws<CheatEngineToolException>(() => StartEffectiveAddressCapture(8L));
+		LuaJobPage retained = PollJob(CaptureJobId, 0, 1);
+
+		Assert.Equal((JobState.Failed, true), (retained.Job.State, retained.Job.RequiresManualRecovery));
+		Assert.Contains("usable breakpoint ID", retained.Job.CleanupError, StringComparison.Ordinal);
+		Assert.Equal((1L, 0L), (ReadGlobal("breakpointCalls"), ReadGlobal("breakpointRemovalCalls")));
 	}
 
 	[Fact]
@@ -207,6 +262,82 @@ public sealed partial class NativeLuaToolRuntimeTests
 		Assert.Equal(JobState.Failed, page.Job.State);
 		Assert.Contains("registers of the memory operand", page.Job.Error, StringComparison.Ordinal);
 		Assert.Empty(page.Items);
+	}
+
+	[Fact]
+	public void DebuggerV2_Capture_StopAfterSelectedTargetChanges_RetainsJobWithoutRemovingFromTheNewTarget()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(JobHostStubs + "\n" + CaptureHostStubs);
+		StartEffectiveAddressCapture(8L);
+		InstallStubs("selectedProcessId = 78");
+
+		LuaJobStop stopped = ReadKernel(LuaJobKernelScripts.Stop, StateJsonContext.Default.LuaJobStop,
+			OwnNamespace, CaptureJobId);
+		LuaJobPage retained = PollJob(CaptureJobId, 0, 1);
+
+		Assert.Equal((true, true, false, "stopped"),
+			(stopped.Found, stopped.WasRunning, stopped.Released, stopped.State));
+		Assert.Contains("selected target changed", stopped.CleanupError, StringComparison.OrdinalIgnoreCase);
+		Assert.Equal((JobState.Stopped, true), (retained.Job.State, retained.Job.RequiresManualRecovery));
+		Assert.Equal(0L, ReadGlobal("breakpointRemovalCalls"));
+	}
+
+	[Fact]
+	public void DebuggerV2_Capture_FalseyBreakpointRemovalResult_RetainsTheJobForManualRecovery()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(JobHostStubs + "\n" + CaptureHostStubs);
+		StartEffectiveAddressCapture(8L);
+		InstallStubs("breakpointRemovalResult = nil; breakpointRemovalFailure = 'breakpoint removal failed'");
+
+		LuaJobStop stopped = ReadKernel(LuaJobKernelScripts.Stop, StateJsonContext.Default.LuaJobStop,
+			OwnNamespace, CaptureJobId);
+		LuaJobPage retained = PollJob(CaptureJobId, 0, 1);
+
+		Assert.Equal((true, true, false, "stopped"),
+			(stopped.Found, stopped.WasRunning, stopped.Released, stopped.State));
+		Assert.Contains("breakpoint removal failed", stopped.CleanupError, StringComparison.Ordinal);
+		Assert.Equal((JobState.Stopped, true), (retained.Job.State, retained.Job.RequiresManualRecovery));
+		Assert.Equal((88L, 1L, "table"), (ReadGlobal("removedBreakpoint"), ReadGlobal("breakpointRemovalCalls"),
+			ReadGlobal("breakpointRemovalArgumentType")));
+	}
+
+	[Fact]
+	public void DebuggerV2_Capture_TruthyBreakpointRemoval_AllowsCheatEngineDeferredListCleanup()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(JobHostStubs + "\n" + CaptureHostStubs);
+		StartEffectiveAddressCapture(8L);
+		InstallStubs("breakpointRemovalDeferred = true");
+
+		LuaJobStop stopped = ReadKernel(LuaJobKernelScripts.Stop, StateJsonContext.Default.LuaJobStop,
+			OwnNamespace, CaptureJobId);
+
+		Assert.True(stopped.Released);
+		Assert.Equal((88L, 1L, "table"), (ReadGlobal("removedBreakpoint"), ReadGlobal("breakpointRemovalCalls"),
+			ReadGlobal("breakpointRemovalArgumentType")));
+		Assert.Equal(1L, EvaluateLua("#breakpointAddresses"));
+
+		// CE keeps an inactive, marked-for-deletion breakpoint in its list until the debugger thread's later cleanup pass.
+		InstallStubs("table.remove(breakpointAddresses)");
+		Assert.Equal(0L, EvaluateLua("#breakpointAddresses"));
+	}
+
+	[Fact]
+	public void DebuggerV2_Capture_RemovalReadbackPreservesAnExistingBreakpointAtTheSameAddress()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(JobHostStubs + "\n" + CaptureHostStubs);
+		InstallStubs("table.insert(breakpointAddresses, 0x401000)");
+		StartEffectiveAddressCapture(8L);
+
+		LuaJobStop stopped = ReadKernel(LuaJobKernelScripts.Stop, StateJsonContext.Default.LuaJobStop,
+			OwnNamespace, CaptureJobId);
+
+		Assert.True(stopped.Released);
+		Assert.Equal(1L, EvaluateLua("#breakpointAddresses"));
+		Assert.Equal("table", ReadGlobal("breakpointRemovalArgumentType"));
 	}
 
 	// Cheat Engine's 64-bit operand text names 64-bit registers even under an address-size override (67), so only the

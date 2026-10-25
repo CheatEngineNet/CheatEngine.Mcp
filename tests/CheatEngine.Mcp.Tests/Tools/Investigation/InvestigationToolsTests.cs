@@ -176,8 +176,16 @@ public sealed class InvestigationToolsTests : IDisposable
 		Task<object> second = Task.Run(() => TryCreate("second"), Token);
 		object[] results = await Task.WhenAll(first, second);
 
-		Assert.Single(results.OfType<InvestigationNote>());
-		Assert.Equal(ToolErrorKind.LimitExceeded, Assert.Single(results.OfType<CheatEngineToolException>()).Error.Kind);
+		InvestigationNote winner = Assert.Single(results.OfType<InvestigationNote>());
+		CheatEngineToolException failure = Assert.Single(results.OfType<CheatEngineToolException>());
+		if (failure.Error.Kind == ToolErrorKind.InvalidState)
+		{
+			// Loading 4095 revisions can outlast the bounded directory lease wait on a busy runner.
+			Assert.Equal("The note directory is busy; retry after the current operation finishes.", failure.Error.Message);
+			string losingName = winner.Name == "first" ? "second" : "first";
+			failure = Assert.IsType<CheatEngineToolException>(TryCreate(losingName));
+		}
+		Assert.Equal(ToolErrorKind.LimitExceeded, failure.Error.Kind);
 		Assert.Equal(InvestigationTools.MaximumFiles, Directory.GetFiles(_root, "cemcp-note-*.json").Length);
 	}
 

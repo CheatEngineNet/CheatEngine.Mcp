@@ -6,15 +6,15 @@ namespace CheatEngine.Mcp.Tests.LiveQualification;
 [SupportedOSPlatform("windows")]
 public sealed class LiveDebuggerEventOracleTests
 {
-	private static readonly LiveDebuggerExecutionQualification.Manifest Owned = new(42, 7, 0x1000, 0x1009, 0x1017, 0x1037, "1108", "1104");
+	private static readonly LiveDebuggerExecutionQualification.Manifest Owned = new(42, 7, 0x1000, 0x1012, 0x1020, 0x104C, "1108", "1104", "110C", "1110");
 
 	[Fact]
 	public void BreakpointListPresence_UsesExactAddressRegardlessOfOwner()
 	{
-		JsonNode page = JsonNode.Parse("""{"breakpoints":[{"address":"1009","owned":false},{"address":"0x1017","owned":true}]}""")!;
+		JsonNode page = JsonNode.Parse("""{"breakpoints":[{"address":"1012","owned":false},{"address":"0x1020","owned":true}]}""")!;
 
-		Assert.True(LiveDebuggerExecutionQualification.HasBreakpointAt(page, 0x1009));
-		Assert.True(LiveDebuggerExecutionQualification.HasBreakpointAt(page, 0x1017));
+		Assert.True(LiveDebuggerExecutionQualification.HasBreakpointAt(page, 0x1012));
+		Assert.True(LiveDebuggerExecutionQualification.HasBreakpointAt(page, 0x1020));
 		Assert.False(LiveDebuggerExecutionQualification.HasBreakpointAt(page, 0x100A));
 	}
 
@@ -110,7 +110,7 @@ public sealed class LiveDebuggerEventOracleTests
 		switch (mutation)
 		{
 			case "wrong second instruction":
-				page["steps"]![1]!["ip"] = "1009";
+				page["steps"]![1]!["ip"] = "1012";
 				break;
 			case "foreign thread":
 				page["steps"]![2]!["threadId"] = 8L;
@@ -144,7 +144,7 @@ public sealed class LiveDebuggerEventOracleTests
 	private static JsonNode CapturePage()
 	{
 		JsonNode page = Page("capture-owned", "debugcapture", "running", 1, 2);
-		JsonNode context = Context("1009", 0);
+		JsonNode context = Context("1012", 0);
 		page["hits"] = new JsonArray(new JsonObject
 		{
 			["context"] = context,
@@ -161,9 +161,9 @@ public sealed class LiveDebuggerEventOracleTests
 		page["job"]!["progressTotal"] = (long) count;
 		page["steps"] = count switch
 		{
-			1 => new JsonArray(Context("1009")),
-			2 => new JsonArray(Context("1009"), Context("1010")),
-			3 => new JsonArray(Context("1009"), Context("1010"), Context("1017")),
+			1 => new JsonArray(Context("1012")),
+			2 => new JsonArray(Context("1012"), Context("1019")),
+			3 => new JsonArray(Context("1012"), Context("1019"), Context("1020")),
 			_ => throw new ArgumentOutOfRangeException(nameof(count))
 		};
 		return page;

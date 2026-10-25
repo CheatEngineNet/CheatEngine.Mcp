@@ -78,6 +78,7 @@ internal static class LiveQualificationOptIn
 			"compiler-injection" => LiveQualificationScenario.CompilerInjection,
 			"lifecycle" => LiveQualificationScenario.Lifecycle,
 			"plugin-lifecycle" => LiveQualificationScenario.PluginLifecycle,
+			"plugin-lifecycle-active" => LiveQualificationScenario.PluginLifecycleActive,
 			"workflows" => LiveQualificationScenario.Workflows,
 			"inspection" => LiveQualificationScenario.Inspection,
 			"state-workflows" => LiveQualificationScenario.StateWorkflows,
@@ -98,7 +99,7 @@ internal static class LiveQualificationOptIn
 		};
 		if (selectedScenario is null)
 		{
-			return Refuse($"{ScenarioVariable} must be smoke, compiler, compiler-extended, compiler-injection, lifecycle, plugin-lifecycle, workflows, inspection, state-workflows, assembler, debugger, debugger-basic, debugger-events, debugger-execution, kernel-status, execution, symbol-fixture, process-create, mono, performance, soak, or dispatch-diagnostic.");
+			return Refuse($"{ScenarioVariable} must be smoke, compiler, compiler-extended, compiler-injection, lifecycle, plugin-lifecycle, plugin-lifecycle-active, workflows, inspection, state-workflows, assembler, debugger, debugger-basic, debugger-events, debugger-execution, kernel-status, execution, symbol-fixture, process-create, mono, performance, soak, or dispatch-diagnostic.");
 		}
 
 		LiveQualificationScenario scenario = selectedScenario.Value;
@@ -148,7 +149,7 @@ internal static class LiveQualificationOptIn
 		{
 			return Refuse($"{AssemblerOptInVariable} must contain the exact acknowledgement {AssemblerAcknowledgement}.");
 		}
-		if ((scenario is LiveQualificationScenario.Debugger or LiveQualificationScenario.DebuggerBasic or LiveQualificationScenario.DebuggerEvents or LiveQualificationScenario.DebuggerExecution) &&
+		if ((scenario is LiveQualificationScenario.Debugger or LiveQualificationScenario.DebuggerBasic or LiveQualificationScenario.DebuggerEvents or LiveQualificationScenario.DebuggerExecution or LiveQualificationScenario.PluginLifecycleActive) &&
 			variables(DebuggerOptInVariable) != DebuggerAcknowledgement)
 		{
 			return Refuse($"{DebuggerOptInVariable} must contain the exact acknowledgement {DebuggerAcknowledgement}.");
@@ -182,7 +183,7 @@ internal static class LiveQualificationOptIn
 		{
 			return Refuse($"{TargetArchitectureVariable} must be x64 or x86.");
 		}
-		if ((scenario is LiveQualificationScenario.Execution or LiveQualificationScenario.SymbolFixture or LiveQualificationScenario.Debugger or LiveQualificationScenario.DebuggerBasic or LiveQualificationScenario.DebuggerEvents or LiveQualificationScenario.DebuggerExecution or LiveQualificationScenario.Mono) && architecture != "x64")
+		if ((scenario is LiveQualificationScenario.Execution or LiveQualificationScenario.SymbolFixture or LiveQualificationScenario.Debugger or LiveQualificationScenario.DebuggerBasic or LiveQualificationScenario.DebuggerEvents or LiveQualificationScenario.DebuggerExecution or LiveQualificationScenario.PluginLifecycleActive or LiveQualificationScenario.Mono) && architecture != "x64")
 		{
 			return Refuse("The fixed execution qualification supports only the owned x64 target.");
 		}

@@ -45,4 +45,4 @@ in the same passing session. Failed and diagnostic-only sessions supply observat
 
 Use an unused distribution directory to preserve any gateway currently used by an MCP client.
 Raw reports stay in the private run directory; committed evidence must redact personal paths and exclude discovery tokens.
-Use the [requirement matrix](requirement-matrix.md) to map actual results to the issue checkboxes.
+Use the [current checklist](../../../TODO.md) and the per-tool evidence maps to record actual results.

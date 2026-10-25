@@ -25,8 +25,17 @@ public sealed partial class NativeLuaToolRuntimeTests
 		InstallStubs("statusItem.OnClick()");
 		Assert.Equal(enabledDetails, ReadGlobal("shownMessage"));
 
-		// Lifecycle UI must work without Client Lua dispatch; this double exposes no Lua service.
-		McpStatusIndicator.ShowDisabled(ClientTestDouble.Client(), "This instance is disabled.");
+		using CancellationTokenSource stopping = new();
+		stopping.Cancel();
+		ICheatEngineDispatcher dispatcher = ClientTestDouble.Create<ICheatEngineDispatcher>((method, _) =>
+			method.Name == "get_IsMainThread" ? true : throw new NotSupportedException());
+		ICheatEngineClient stoppingClient = ClientTestDouble.Client(dispatcher, stopping.Token);
+		PluginLifecycleLuaScope lifecycleLuaScope = new();
+		// Final status reporting has a dedicated lifecycle scope and does not expose the Client Lua facade.
+		using (lifecycleLuaScope.BeginDeactivationNotification(stoppingClient))
+		{
+			McpStatusIndicator.ShowDisabled(stoppingClient, "This instance is disabled.", lifecycleLuaScope);
+		}
 		Assert.Equal("MCP: Disabled", ReadStatusCaption());
 		InstallStubs("statusItem.OnClick()");
 		Assert.Equal("This instance is disabled.", ReadGlobal("shownMessage"));
@@ -44,8 +53,19 @@ public sealed partial class NativeLuaToolRuntimeTests
 	{
 		using RuntimeScope scope = CreateScope();
 		InstallStatusMenu();
+		using CancellationTokenSource stopping = new();
+		stopping.Cancel();
+		ICheatEngineDispatcher dispatcher = ClientTestDouble.Create<ICheatEngineDispatcher>((method, _) =>
+			method.Name == "get_IsMainThread" ? true : throw new NotSupportedException());
+		ICheatEngineClient client = ClientTestDouble.Client(dispatcher, stopping.Token);
+		PluginLifecycleLuaScope lifecycleLuaScope = new();
 
-		McpStatusIndicator.ShowDisabled(ClientTestDouble.Client(), "Disabled");
+		Assert.Throws<InvalidOperationException>(() =>
+			McpStatusIndicator.ShowDisabled(ClientTestDouble.Client(), "Disabled", lifecycleLuaScope));
+		using (lifecycleLuaScope.BeginDeactivationNotification(client))
+		{
+			McpStatusIndicator.ShowDisabled(client, "Disabled", lifecycleLuaScope);
+		}
 
 		Assert.Equal(0L, ReadGlobal("createdMenus"));
 		Assert.Equal(0L, ReadGlobal("addedMenus"));
@@ -85,6 +105,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 		Assert.Contains("Could not start the MCP server", failure.Message);
 		Assert.Equal("MCP: Start failed", ReadStatusCaption());
 		module.OnDisabling(client);
+		module.OnDeactivated(client);
 		Assert.Equal("MCP: Start failed", ReadStatusCaption());
 		InstallStubs("statusItem.OnClick()");
 		string shown = Assert.IsType<string>(ReadGlobal("shownMessage"));

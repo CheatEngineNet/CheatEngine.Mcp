@@ -3,8 +3,12 @@
           DependsOnTargets="IncludeTransitiveProjectReferences">
     <ItemGroup>
       <ProjectReference Update="@(ProjectReference)"
-                        Condition="$([System.String]::Copy('%(ProjectReference.FullPath)').Contains('/externals/')) or $([System.String]::Copy('%(ProjectReference.FullPath)').Contains('\externals\'))"
-                        AdditionalProperties="%(ProjectReference.AdditionalProperties);ShouldUnsetParentConfigurationAndPlatform=false"/>
+                        Condition="$([System.String]::Copy('%(ProjectReference.FullPath)').Contains('/externals/')) or $([System.String]::Copy('%(ProjectReference.FullPath)').Contains('\externals\'))">
+        <!-- Match Client's SDK references even when building a project without a solution Platform global. -->
+        <SetPlatform>Platform=AnyCPU</SetPlatform>
+        <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
+        <AdditionalProperties>%(ProjectReference.AdditionalProperties);ShouldUnsetParentConfigurationAndPlatform=false</AdditionalProperties>
+      </ProjectReference>
     </ItemGroup>
   </Target>
   <Import Project="$(CeMcpSdkSourceRoot)/src/CheatEngine.SDK/build/CheatEngine.SDK.targets"

@@ -117,6 +117,25 @@ public sealed class McpStateLedgerTests
 	}
 
 	[Fact]
+	public void ReleaseAll_WithNoManagedHandles_ReleasesOwnUntrackedStateAndLeavesEarlierActivationOrphans()
+	{
+		StateTestHarness harness = new();
+		string own = $"pause-{harness.Ledger!.Namespace}-1";
+		string orphan = $"pause-{Foreign}-1";
+		harness.Answer(_ => new LuaStateRelease(
+			[StateTestHarness.Entry(own, "resource", "released", false)], null,
+			[StateTestHarness.Entry(orphan, "resource", "active", true)]));
+
+		ReleaseAllResult result = harness.Resources.ReleaseAll(Token);
+
+		Assert.False(result.IsComplete);
+		Assert.Equal(own, Assert.Single(result.Released).Resource.Id);
+		Assert.Equal(orphan, Assert.Single(result.Remaining).Id);
+		Assert.Equal(0, harness.Resources.Count);
+		Assert.Equal("mcp_state_release", Assert.Single(harness.LuaCalls).Operation);
+	}
+
+	[Fact]
 	public void TrackState_FailedLuaCleanup_IsReportedThenBlocksUntilAcknowledged()
 	{
 		StateTestHarness harness = new();

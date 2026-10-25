@@ -40,6 +40,7 @@ public sealed class ManagedJob<TItem> : McpJob
 	private const int ActivationEnd = 3;
 
 	private readonly CancellationTokenSource _cancellation = new();
+	private readonly Lock _startLock = new();
 	private readonly TimeProvider _time;
 	private readonly JobWriter<TItem> _writer;
 	private Task _completion = Task.CompletedTask;
@@ -47,6 +48,7 @@ public sealed class ManagedJob<TItem> : McpJob
 	private ITimer? _expiryTimer;
 	private int _state = (int) JobState.Running;
 	private int _stopReason;
+	private bool _started;
 
 	internal ManagedJob(JobStart start, TimeProvider time)
 		: base(start)
@@ -150,28 +152,39 @@ public sealed class ManagedJob<TItem> : McpJob
 		RequestStop(ActivationEnd);
 	}
 
-	/// <summary>Starts the work on the thread pool.</summary>
+	/// <summary>Starts the work on the thread pool unless the job was already stopped.</summary>
 	/// <param name="work">The work.</param>
 	/// <param name="ended">Runs on the work's thread once the job reached its final state.</param>
 	/// <param name="stopping">The activation's stopping token.</param>
-	internal void Run(Func<JobWriter<TItem>, CancellationToken, Task> work, Action<McpJob> ended,
+	/// <returns><see langword="true" /> when the work was queued; otherwise the job had already stopped.</returns>
+	internal bool Run(Func<JobWriter<TItem>, CancellationToken, Task> work, Action<McpJob> ended,
 		CancellationToken stopping)
 	{
 		ArgumentNullException.ThrowIfNull(work);
 		ArgumentNullException.ThrowIfNull(ended);
-		TimeSpan due = ExpiresUtc - _time.GetUtcNow();
-		ITimer timer = _time.CreateTimer(static state => ((ManagedJob<TItem>) state!).Expire(), this,
-			due > TimeSpan.Zero ? due : TimeSpan.Zero, Timeout.InfiniteTimeSpan);
-		Volatile.Write(ref _expiryTimer, timer);
-		try
+		lock (_startLock)
 		{
-			Volatile.Write(ref _completion,
-				Task.Run(() => RunAsync(work, ended, stopping), CancellationToken.None));
-		}
-		catch
-		{
-			Interlocked.Exchange(ref _expiryTimer, null)?.Dispose();
-			throw;
+			if (State is not JobState.Running || IsEnded)
+			{
+				return false;
+			}
+
+			TimeSpan due = ExpiresUtc - _time.GetUtcNow();
+			ITimer timer = _time.CreateTimer(static state => ((ManagedJob<TItem>) state!).Expire(), this,
+				due > TimeSpan.Zero ? due : TimeSpan.Zero, Timeout.InfiniteTimeSpan);
+			Volatile.Write(ref _expiryTimer, timer);
+			try
+			{
+				Volatile.Write(ref _completion,
+					Task.Run(() => RunAsync(work, ended, stopping), CancellationToken.None));
+				_started = true;
+				return true;
+			}
+			catch
+			{
+				Interlocked.Exchange(ref _expiryTimer, null)?.Dispose();
+				throw;
+			}
 		}
 	}
 
@@ -191,6 +204,7 @@ public sealed class ManagedJob<TItem> : McpJob
 		{
 			try
 			{
+				token.ThrowIfCancellationRequested();
 				await work(_writer, token).ConfigureAwait(false);
 				final = InterruptedAfterWork() ?? JobState.Completed;
 			}
@@ -281,13 +295,33 @@ public sealed class ManagedJob<TItem> : McpJob
 
 	/// <summary>Asks a running job to stop; the first reason wins. Cancellation callbacks run on the thread pool.</summary>
 	/// <param name="reason">Why it stops.</param>
-	private void RequestStop(int reason)
+	private bool RequestStop(int reason)
 	{
-		Interlocked.CompareExchange(ref _stopReason, reason, NoStop);
-		if (Interlocked.CompareExchange(ref _state, (int) JobState.Stopping, (int) JobState.Running) ==
-			(int) JobState.Running)
+		bool cancel = false;
+		bool endedBeforeStart = false;
+		lock (_startLock)
+		{
+			Interlocked.CompareExchange(ref _stopReason, reason, NoStop);
+			if (Interlocked.CompareExchange(ref _state, (int) JobState.Stopping, (int) JobState.Running) ==
+				(int) JobState.Running)
+			{
+				if (_started)
+				{
+					cancel = true;
+				}
+				else
+				{
+					Volatile.Write(ref _state, (int) Interrupted());
+					endedBeforeStart = true;
+				}
+			}
+		}
+
+		if (cancel)
 		{
 			_ = _cancellation.CancelAsync();
 		}
+
+		return endedBeforeStart;
 	}
 }

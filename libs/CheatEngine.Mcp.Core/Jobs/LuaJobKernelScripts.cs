@@ -701,8 +701,8 @@ public static class LuaJobKernelScripts
 	                                                      """;
 
 	/// <summary>
-	///     Releases, newest first, the entries that hold host state and that no managed handle tracks, stopping at the first
-	///     failed cleanup, or only lists them. Arguments: namespace, the tracked ids, whether to release.
+	///     Releases this activation's untracked entries and, when requested, entries from earlier activations, stopping at
+	///     the first failed cleanup. Arguments: namespace, the tracked ids, whether to include earlier activations.
 	/// </summary>
 	internal const string StateReleaseUnmanaged = Kernel + "\n" + """
 	                                                              stateCheckNamespace(a[1])
@@ -714,22 +714,20 @@ public static class LuaJobKernelScripts
 	                                                              end)
 	                                                              local released = {}
 	                                                              local failed
-	                                                              if a[3] then
-	                                                              	for _, entry in ipairs(entries) do
-	                                                              		if entry.cleanupError == nil then
-	                                                              			local done
-	                                                              			if entry.family == 'job' then
-	                                                              				jobFinish(entry, 'stopped')
-	                                                              				done = jobRelease(entry)
-	                                                              			else
-	                                                              				done = resourceRelease(entry, 'released')
-	                                                              			end
-	                                                              			if not done then
-	                                                              				failed = stateDescribe(entry, now)
-	                                                              				break
-	                                                              			end
-	                                                              			released[#released + 1] = stateDescribe(entry, now)
-	                                                              		end
+	                                                              for _, entry in ipairs(entries) do
+	                                                               if (entry.namespace == a[1] or a[3]) and entry.cleanupError == nil then
+	                                                                  local done
+	                                                                  if entry.family == 'job' then
+	                                                                      jobFinish(entry, 'stopped')
+	                                                                      done = jobRelease(entry)
+	                                                                  else
+	                                                                      done = resourceRelease(entry, 'released')
+	                                                                  end
+	                                                                  if not done then
+	                                                                      failed = stateDescribe(entry, now)
+	                                                                      break
+	                                                                  end
+	                                                                  released[#released + 1] = stateDescribe(entry, now)
 	                                                              	end
 	                                                              end
 	                                                              local remaining = {}

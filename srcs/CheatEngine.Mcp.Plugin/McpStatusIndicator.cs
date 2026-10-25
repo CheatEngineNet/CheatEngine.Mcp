@@ -14,12 +14,16 @@ internal sealed partial class McpStatusIndicator(
 	ILogger<McpStatusIndicator> logger)
 {
 	/// <summary>Shows a state; a failure is logged, never thrown, so it cannot change the lifecycle outcome.</summary>
-	internal void Report(ICheatEngineClient client, string state, string? endpoint = null)
+	internal void Report(ICheatEngineClient client, string state, string? endpoint = null,
+		PluginLifecycleLuaScope? lifecycleLuaScope = null)
 	{
 		try
 		{
 			string details = Describe(state, discovery.Value.InstanceName, log, endpoint);
-			bool updated = state == "Disabled" ? ShowDisabled(client, details) : Show(client, state, details);
+			bool updated = state == "Disabled"
+				? ShowDisabled(client, details, lifecycleLuaScope ?? throw new InvalidOperationException(
+					"The disabled status requires its lifecycle notification scope."))
+				: Show(client, state, details);
 			if (updated)
 			{
 				LogStatusShown(logger, state);
@@ -36,9 +40,10 @@ internal sealed partial class McpStatusIndicator(
 		return PluginLuaToolRuntime.ShowPluginStatus(client, state, details, false);
 	}
 
-	internal static bool ShowDisabled(ICheatEngineClient client, string details)
+	internal static bool ShowDisabled(ICheatEngineClient client, string details, PluginLifecycleLuaScope lifecycleLuaScope)
 	{
-		return PluginLuaToolRuntime.ShowPluginStatus(client, "Disabled", details, true);
+		ArgumentNullException.ThrowIfNull(lifecycleLuaScope);
+		return PluginLuaToolRuntime.ShowPluginStatus(client, "Disabled", details, true, lifecycleLuaScope);
 	}
 
 	internal static string Describe(string state, string instanceName, PluginLog log, string? endpoint = null)

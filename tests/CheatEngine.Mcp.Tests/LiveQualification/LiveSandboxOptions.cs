@@ -8,7 +8,7 @@ internal sealed record LiveSandboxOptions(bool CompilerQualification, bool Enabl
 	internal bool RequiresCapabilityConfiguration => CompilerQualification || LifecycleQualification
 		|| PerformanceQualification || SoakQualification || DispatchDiagnostic || WorkflowQualification || InspectionQualification || StateWorkflowsQualification || AssemblerQualification
 		|| DebuggerQualification || DebuggerEventsQualification || ExecutionQualification || SymbolFixtureQualification || ProcessCreateQualification || MonoQualification
-		|| KernelStatusQualification;
+		|| KernelStatusQualification || ActivePluginLifecycleQualification;
 
 	internal LiveCompilerVariant Variant { get; init; } = LiveCompilerVariant.Normal;
 	internal CompilerTempTopology TempTopology { get; init; } = CompilerTempTopology.Isolated;
@@ -21,6 +21,10 @@ internal sealed record LiveSandboxOptions(bool CompilerQualification, bool Enabl
 		get; init;
 	}
 	internal bool SeedPluginChecklistAtStartup
+	{
+		get; init;
+	}
+	internal bool ActivePluginLifecycleQualification
 	{
 		get; init;
 	}
@@ -104,7 +108,8 @@ internal sealed record LiveSandboxOptions(bool CompilerQualification, bool Enabl
 		bool symbolFixture = scenario == LiveQualificationScenario.SymbolFixture;
 		bool processCreate = scenario == LiveQualificationScenario.ProcessCreate;
 		bool mono = scenario == LiveQualificationScenario.Mono;
-		bool debugger = scenario is LiveQualificationScenario.Debugger or LiveQualificationScenario.DebuggerBasic or LiveQualificationScenario.DebuggerEvents or LiveQualificationScenario.DebuggerExecution;
+		bool activePluginLifecycle = scenario == LiveQualificationScenario.PluginLifecycleActive;
+		bool debugger = scenario is LiveQualificationScenario.Debugger or LiveQualificationScenario.DebuggerBasic or LiveQualificationScenario.DebuggerEvents or LiveQualificationScenario.DebuggerExecution or LiveQualificationScenario.PluginLifecycleActive;
 		bool debuggerEvents = scenario == LiveQualificationScenario.DebuggerEvents;
 		bool kernelStatus = scenario == LiveQualificationScenario.KernelStatus;
 		bool valid = Enum.IsDefined(scenario) && Enum.IsDefined(Variant) && Enum.IsDefined(TempTopology)
@@ -121,8 +126,9 @@ internal sealed record LiveSandboxOptions(bool CompilerQualification, bool Enabl
 			&& (!execution || (!CompilerQualification && !EnableManagedInjection))
 			&& (!symbolFixture || (EnableTargetCodeExecution && !CompilerQualification && !EnableManagedInjection))
 			&& (!injection || EnableTargetCodeExecution)
-			&& LifecycleQualification == (scenario is LiveQualificationScenario.Lifecycle or LiveQualificationScenario.PluginLifecycle)
-			&& SeedPluginChecklistAtStartup == (scenario == LiveQualificationScenario.PluginLifecycle)
+			&& LifecycleQualification == (scenario is LiveQualificationScenario.Lifecycle or LiveQualificationScenario.PluginLifecycle or LiveQualificationScenario.PluginLifecycleActive)
+			&& SeedPluginChecklistAtStartup == (scenario is LiveQualificationScenario.PluginLifecycle or LiveQualificationScenario.PluginLifecycleActive)
+			&& ActivePluginLifecycleQualification == activePluginLifecycle
 			&& WorkflowQualification == (scenario == LiveQualificationScenario.Workflows)
 			&& InspectionQualification == (scenario == LiveQualificationScenario.Inspection)
 			&& StateWorkflowsQualification == (scenario == LiveQualificationScenario.StateWorkflows)

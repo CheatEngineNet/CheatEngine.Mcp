@@ -243,6 +243,38 @@ public sealed class LiveQualificationOptInTests
 	}
 
 	[Theory]
+	[InlineData(null)]
+	[InlineData("")]
+	[InlineData("true")]
+	public void Evaluate_ActivePluginLifecycleRequiresDebuggerAcknowledgementBeforeInspection(string? acknowledgement)
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.ScenarioVariable] = "plugin-lifecycle-active";
+		variables[LiveQualificationOptIn.DebuggerOptInVariable] = acknowledgement;
+
+		LiveQualificationDecision decision = LiveQualificationOptIn.Evaluate(variables.GetValueOrDefault,
+			Repository, LocalData, Installation, static _ => throw new InvalidOperationException("Must refuse before inspection."));
+
+		Assert.False(decision.IsAuthorized);
+		Assert.Contains(LiveQualificationOptIn.DebuggerOptInVariable, decision.Refusal, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Evaluate_ActivePluginLifecycleWithDebuggerAcknowledgement_AuthorizesX64Only()
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.ScenarioVariable] = "plugin-lifecycle-active";
+		variables[LiveQualificationOptIn.DebuggerOptInVariable] = LiveQualificationOptIn.DebuggerAcknowledgement;
+
+		LiveQualificationDecision decision = Evaluate(variables);
+
+		Assert.True(decision.IsAuthorized, decision.Refusal);
+		Assert.Equal(LiveQualificationScenario.PluginLifecycleActive, decision.Inputs!.Scenario);
+		variables[LiveQualificationOptIn.TargetArchitectureVariable] = "x86";
+		Assert.False(Evaluate(variables).IsAuthorized);
+	}
+
+	[Theory]
 	[InlineData("AobOnly", (int) LiveDispatchDiagnosticCase.AobOnly)]
 	[InlineData("NamedScanThenAob", (int) LiveDispatchDiagnosticCase.NamedScanThenAob)]
 	[InlineData("MemoryNamedScanThenAob", (int) LiveDispatchDiagnosticCase.MemoryNamedScanThenAob)]

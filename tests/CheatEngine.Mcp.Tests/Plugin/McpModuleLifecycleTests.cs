@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 
 using CheatEngine.Client;
 using CheatEngine.Client.Dispatching;
+using CheatEngine.Mcp.Core.Targets;
 using CheatEngine.Mcp.Plugin;
 using CheatEngine.Mcp.Tests.Support;
 
@@ -366,7 +367,8 @@ public sealed class McpModuleLifecycleTests
 				activation.Services.GetRequiredService<IOptions<CheatEngineMcpPrimitiveOptions>>());
 			McpStatusIndicator status = new(discovery, unavailableLog,
 				activation.Services.GetRequiredService<ILogger<McpStatusIndicator>>());
-			module = new McpServerModule(factory, activation.Targets, status);
+			module = new McpServerModule(factory, activation.Targets, status,
+				activation.Services.GetRequiredService<TargetResources>(), new PluginLifecycleLuaScope());
 			InstanceRegistry registry = new(instances);
 			using HttpClient http = new();
 
@@ -404,7 +406,8 @@ public sealed class McpModuleLifecycleTests
 		using TestActivation activation = new(client);
 		PartiallyStartedBackend backend = new();
 		McpServerModule module = new(new FailingBackendFactory(backend), activation.Targets,
-			activation.Services.GetRequiredService<McpStatusIndicator>());
+			activation.Services.GetRequiredService<McpStatusIndicator>(),
+			activation.Services.GetRequiredService<TargetResources>(), new PluginLifecycleLuaScope());
 
 		InvalidOperationException failure = Assert.Throws<InvalidOperationException>(() =>
 			module.OnEnabled(client));
@@ -424,7 +427,8 @@ public sealed class McpModuleLifecycleTests
 		StartedBackend backend = new();
 		CountingBackendFactory factory = new(backend);
 		McpServerModule module = new(factory, activation.Targets,
-			activation.Services.GetRequiredService<McpStatusIndicator>());
+			activation.Services.GetRequiredService<McpStatusIndicator>(),
+			activation.Services.GetRequiredService<TargetResources>(), new PluginLifecycleLuaScope());
 		try
 		{
 			module.OnEnabled(client);
@@ -445,6 +449,90 @@ public sealed class McpModuleLifecycleTests
 	}
 
 	[Fact]
+	public void ResourceCleanup_ReleasesTrackedMcpResourcesBeforeClientLeaseDrain()
+	{
+		List<string> accessed = [];
+		using CancellationTokenSource stopping = new();
+		stopping.Cancel();
+		ICheatEngineClient client = CleanupClient(accessed, stopping);
+		using TestActivation activation = new(client);
+		TargetResources resources = new();
+		TrackedResource owned = new();
+		resources.Track(owned);
+		StartedBackend backend = new();
+		McpServerModule module = new(new CountingBackendFactory(backend), activation.Targets,
+			activation.Services.GetRequiredService<McpStatusIndicator>(), resources, new PluginLifecycleLuaScope());
+		try
+		{
+			module.OnEnabled(client);
+
+			module.OnDisabling(client);
+
+			Assert.Equal(0, owned.ReleaseCalls);
+			Assert.Equal(1, resources.Count);
+			Assert.Throws<InvalidOperationException>(() => resources.Track(new TrackedResource()));
+			Assert.Equal(1, resources.Count);
+			Assert.DoesNotContain("Invoke", accessed);
+			Assert.Equal(1, backend.StopAcceptingCalls);
+
+			module.OnDeactivated(client);
+
+			Assert.Equal(1, accessed.Count(member => member == "Invoke"));
+			Assert.Equal(1, backend.StopAcceptingCalls);
+
+			module.OnReleasingResources(client);
+
+			Assert.Equal(1, owned.ReleaseCalls);
+			Assert.Equal(0, resources.Count);
+			Assert.Contains("Invoke", accessed);
+			Assert.Equal(1, backend.StopAcceptingCalls);
+		}
+		finally
+		{
+			module.Dispose();
+		}
+
+		Assert.Equal(2, accessed.Count(member => member == "Invoke"));
+		Assert.All(accessed.Where(member => member != "Invoke"), member => Assert.Contains(member, AllowedClientMembers));
+	}
+
+	[Fact]
+	public void ResourceCleanup_WithNoManagedEntriesStillReleasesLedgerOwnedState()
+	{
+		List<string> accessed = [];
+		using CancellationTokenSource stopping = new();
+		stopping.Cancel();
+		ICheatEngineClient client = CleanupClient(accessed, stopping);
+		using TestActivation activation = new(client);
+		StateTestHarness state = new();
+		string id = $"pause-{state.Ledger!.Namespace}-1";
+		state.Answer(_ => new LuaStateRelease(
+			[StateTestHarness.Entry(id, "resource", "released", false)], null, []));
+		StartedBackend backend = new();
+		McpServerModule module = new(new CountingBackendFactory(backend), activation.Targets,
+			activation.Services.GetRequiredService<McpStatusIndicator>(), state.Resources,
+			new PluginLifecycleLuaScope());
+		try
+		{
+			module.OnEnabled(client);
+			module.OnDisabling(client);
+			Assert.Throws<InvalidOperationException>(() => state.Resources.TrackState(id, "pause"));
+
+			Assert.Equal(0, state.Resources.Count);
+			module.OnReleasingResources(client);
+
+			Assert.Equal("mcp_state_release", Assert.Single(state.LuaCalls).Operation);
+			Assert.Empty(state.Resources.List());
+		}
+		finally
+		{
+			module.Dispose();
+		}
+
+		Assert.All(accessed.Where(member => member != "Invoke"), member => Assert.Contains(member, AllowedClientMembers));
+	}
+
+	[Fact]
 	public async Task Disabling_DuringEnable_StopsTheBackendBeforeItCanRun()
 	{
 		List<string> accessed = [];
@@ -452,7 +540,8 @@ public sealed class McpModuleLifecycleTests
 		using TestActivation activation = new(client);
 		BlockingBackend backend = new();
 		McpServerModule module = new(new BlockingBackendFactory(backend), activation.Targets,
-			activation.Services.GetRequiredService<McpStatusIndicator>());
+			activation.Services.GetRequiredService<McpStatusIndicator>(),
+			activation.Services.GetRequiredService<TargetResources>(), new PluginLifecycleLuaScope());
 		try
 		{
 			Task enabling = Task.Run(() => module.OnEnabled(client), TestContext.Current.CancellationToken);
@@ -475,16 +564,36 @@ public sealed class McpModuleLifecycleTests
 
 	private static ICheatEngineClient StrictClient(List<string> accessed, CancellationTokenSource? stopping = null)
 	{
-		ICheatEngineDispatcher dispatcher = ClientTestDouble.Create<ICheatEngineDispatcher>((method, _) =>
+		return CreateClient(accessed, stopping, allowDispatch: false);
+	}
+
+	private static ICheatEngineClient CleanupClient(List<string> accessed, CancellationTokenSource stopping)
+	{
+		return CreateClient(accessed, stopping, allowDispatch: true);
+	}
+
+	private static ICheatEngineClient CreateClient(List<string> accessed, CancellationTokenSource? stopping,
+		bool allowDispatch)
+	{
+		ICheatEngineDispatcher dispatcher = ClientTestDouble.Create<ICheatEngineDispatcher>((method, arguments) =>
 		{
 			lock (accessed)
 			{
 				accessed.Add(method.Name);
 			}
 
-			return method.Name == "get_IsMainThread"
-				? true
-				: throw new NotSupportedException($"Lifecycle callbacks must not dispatch Client work: {method.Name}.");
+			if (allowDispatch && method.Name.StartsWith("Invoke", StringComparison.Ordinal)
+				&& arguments?[0] is Delegate callback)
+			{
+				return callback.DynamicInvoke();
+			}
+
+			if (method.Name == "get_IsMainThread")
+			{
+				return true;
+			}
+
+			throw new NotSupportedException($"Lifecycle callbacks must not dispatch Client work: {method.Name}.");
 		});
 		return ClientTestDouble.Create<ICheatEngineClient>((method, _) =>
 		{
@@ -523,6 +632,7 @@ public sealed class McpModuleLifecycleTests
 		throw new TimeoutException("The disposed module left its MCP listener running.");
 	}
 
+
 	private static async Task AssertPublishedIdentityAsync(HttpClient http, InstanceDescriptor instance)
 	{
 		using HttpRequestMessage request = new(HttpMethod.Get, new Uri(new Uri(instance.Endpoint), "instance"));
@@ -531,6 +641,31 @@ public sealed class McpModuleLifecycleTests
 		Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 		JsonNode body = JsonNode.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))!;
 		Assert.Equal(instance.InstanceId, body["instanceId"]!.GetValue<string>());
+	}
+
+	private sealed class TrackedResource : ITargetResource
+	{
+		private bool _released;
+
+		public TargetResourceDescriptor Descriptor => new("test-activation-1", "test", TargetResourceCategory.LuaState,
+			_released ? TargetResourceState.Ended : TargetResourceState.Active, DateTimeOffset.UtcNow);
+
+		public bool IsEnded => _released;
+
+		public bool HoldsHostState => !_released;
+
+		public int ReleaseCalls
+		{
+			get;
+			private set;
+		}
+
+		public ResourceReleaseOutcome Release(CancellationToken cancellationToken)
+		{
+			ReleaseCalls++;
+			_released = true;
+			return ResourceReleaseOutcome.Released();
+		}
 	}
 
 	private sealed class FailingBackendFactory(PartiallyStartedBackend backend) : IMcpBackendHostFactory

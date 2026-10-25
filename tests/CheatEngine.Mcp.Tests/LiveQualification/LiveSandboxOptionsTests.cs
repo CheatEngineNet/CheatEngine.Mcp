@@ -105,6 +105,13 @@ public sealed class LiveSandboxOptionsTests
 			LifecycleQualification = true,
 			SeedPluginChecklistAtStartup = true
 		}).ValidateFor(LiveQualificationScenario.PluginLifecycle);
+		(LiveSandboxOptions.Smoke with
+		{
+			LifecycleQualification = true,
+			SeedPluginChecklistAtStartup = true,
+			ActivePluginLifecycleQualification = true,
+			DebuggerQualification = true
+		}).ValidateFor(LiveQualificationScenario.PluginLifecycleActive);
 		Assert.Throws<InvalidOperationException>(() => (LiveSandboxOptions.Smoke with
 		{
 			LifecycleQualification = true
@@ -120,6 +127,24 @@ public sealed class LiveSandboxOptionsTests
 			LifecycleQualification = true,
 			WorkflowQualification = true
 		}).ValidateFor(LiveQualificationScenario.PluginLifecycle));
+		Assert.Throws<InvalidOperationException>(() => (LiveSandboxOptions.Smoke with
+		{
+			LifecycleQualification = true,
+			SeedPluginChecklistAtStartup = true,
+			ActivePluginLifecycleQualification = true
+		}).ValidateFor(LiveQualificationScenario.PluginLifecycleActive));
+		Assert.Throws<InvalidOperationException>(() => (LiveSandboxOptions.Smoke with
+		{
+			LifecycleQualification = true,
+			DebuggerQualification = true,
+			ActivePluginLifecycleQualification = true
+		}).ValidateFor(LiveQualificationScenario.PluginLifecycleActive));
+		Assert.Throws<InvalidOperationException>(() => (LiveSandboxOptions.Smoke with
+		{
+			LifecycleQualification = true,
+			SeedPluginChecklistAtStartup = true,
+			DebuggerQualification = true
+		}).ValidateFor(LiveQualificationScenario.PluginLifecycleActive));
 		(LiveSandboxOptions.Smoke with
 		{
 			WorkflowQualification = true
@@ -207,6 +232,7 @@ public sealed class LiveSandboxOptionsTests
 			LiveSandboxOptions.Smoke with { DebuggerQualification = true },
 			LiveSandboxOptions.Smoke with { DebuggerEventsQualification = true },
 			LiveSandboxOptions.Smoke with { DebuggerTransitionDiagnostic = true },
+			LiveSandboxOptions.Smoke with { ActivePluginLifecycleQualification = true },
 			LiveSandboxOptions.Smoke with { KernelStatusQualification = true },
 			LiveSandboxOptions.Smoke with { ProcessCreateQualification = true },
 			LiveSandboxOptions.Smoke with { MonoQualification = true },

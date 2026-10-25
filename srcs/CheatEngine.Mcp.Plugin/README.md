@@ -99,6 +99,8 @@ sequenceDiagram
     CE->>Plugin: OnDisabling
     Plugin->>Registry: withdraw this activation record
     Plugin->>Backend: reject new requests with 503
+	CE->>Plugin: OnDeactivated
+	Plugin->>CE: update the session-long Disabled status item
     Plugin->>Backend: stop asynchronously during disposal
 ```
 
@@ -108,10 +110,13 @@ endpoint in the status item. A startup failure withdraws and stops any partially
 created backend before the enable failure is returned to Cheat Engine.
 
 `OnDisabling` immediately withdraws this activation's discovery record and
-asks the backend to reject new requests. It does not wait for HTTP workers on
-Cheat Engine's main thread. Client Hosting drains activation-owned leases, then
-`Dispose` initiates the bounded backend shutdown in the background. Repeated
-shutdown calls share the backend's shutdown task.
+asks the backend to reject new requests. It does not run Lua or wait for HTTP
+workers on Cheat Engine's main thread. The separate deactivation notification
+updates the session-long Disabled status item after shutdown callbacks finish;
+the item remains in Cheat Engine after this activation ends. Client Hosting
+then releases module-owned and Client-owned resources, and `Dispose` initiates
+the bounded backend shutdown in the background. Repeated shutdown calls share
+the backend's shutdown task.
 
 Each activation receives its own generated ID and bearer token. After the
 listener binds, the backend publishes a descriptor containing its loopback
