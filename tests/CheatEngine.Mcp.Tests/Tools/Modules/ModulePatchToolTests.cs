@@ -3,6 +3,7 @@ using System.Buffers.Binary;
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Files;
 using CheatEngine.Mcp.Tests.Core;
+using CheatEngine.Mcp.Tests.Support;
 using CheatEngine.Mcp.Tools.Modules;
 
 namespace CheatEngine.Mcp.Tests.Tools.Modules;
@@ -10,7 +11,7 @@ namespace CheatEngine.Mcp.Tests.Tools.Modules;
 /// <summary><c>module_find_patches</c>: the comparison itself and the host-file rules on the module's path.</summary>
 public sealed class ModulePatchToolTests : IDisposable
 {
-	private readonly McpFilePathsTests.Scratch _scratch = new();
+	private readonly McpFileScratch _scratch = new();
 	private static CancellationToken Token => TestContext.Current.CancellationToken;
 
 	public static TheoryData<string> RefusedModulePaths => new()

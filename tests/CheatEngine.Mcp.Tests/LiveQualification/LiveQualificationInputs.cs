@@ -22,4 +22,10 @@ internal sealed record LiveQualificationInputs(string RepositoryRoot, string Che
 	{
 		get; init;
 	}
+
+	/// <summary>Exact acknowledgement carried from admission to the one native WFP mutation boundary.</summary>
+	internal string? WfpIsolationAcknowledgement
+	{
+		get; init;
+	}
 }

@@ -68,11 +68,11 @@ internal static class KernelScripts
 
 	internal const string TranslateAddress = """
 	                                         if type(dbk_getPhysicalAddress) ~= 'function' then
-	                                             return mcp.err('unsupported', 'This Cheat Engine build has no DBK address-translation API.', 'not_started')
+	                                             return mcp.err('unsupported', 'This Cheat Engine build has no physical-address translation API.', 'not_started')
 	                                         end
 	                                         local called, physical = pcall(dbk_getPhysicalAddress, a[1])
 	                                         if not called or type(physical) ~= 'number' then
-	                                             return mcp.err('not_found', 'DBK could not translate the virtual address to a current physical page.', 'not_started',
+	                                             return mcp.err('not_found', 'Cheat Engine could not translate the virtual address to a current physical page.', 'not_started',
 	                                                 'Translate immediately before a physical access; the page may no longer be resident.')
 	                                         end
 	                                         return {virtualAddress = mcp.hex(a[1]), physicalAddress = mcp.hex(physical)}
@@ -116,7 +116,7 @@ internal static class KernelScripts
 	                                          return mcp.err('unsupported', 'This Cheat Engine build has no DBVM physical-memory write API.', 'not_started')
 	                                      end
 	                                      local called, accepted = pcall(dbvm_writePhysicalMemory, a[1], a[2])
-	                                      if not called or accepted == false then
+	                                      if not called or accepted ~= true then
 	                                          return mcp.err('host_refused', 'DBVM did not confirm the physical-memory write; bytes may have changed.', 'unknown',
 	                                              'Read the physical range before considering another write.')
 	                                      end
@@ -139,7 +139,8 @@ internal static class KernelScripts
 			error('Unknown DBVM watch access.', 0)
 		end
 		if type(dbvm_watch_reads) ~= 'function' or type(dbvm_watch_writes) ~= 'function' or
-			type(dbvm_watch_executes) ~= 'function' or type(dbvm_watch_disable) ~= 'function' then
+			type(dbvm_watch_executes) ~= 'function' or type(dbvm_watch_disable) ~= 'function' or
+			type(dbvm_watch_retrievelog) ~= 'function' then
 			return mcp.err('unsupported', 'This Cheat Engine build has no complete DBVM watch API.', 'not_started')
 		end
 		local job = jobStart(a[1], a[2], 'kernelwatch', a[3], a[4], function(active)
@@ -148,8 +149,13 @@ internal static class KernelScripts
 			active.watchId = id
 			active.watchRetrieved = 0
 			active.onStop = function(current)
-				local stopped, result = pcall(dbvm_watch_disable, current.watchId)
-				if not stopped or result == false then error('DBVM watch ' .. tostring(current.watchId) .. ' could not be disabled', 0) end
+				-- dbvm_watch_disable is void. Confirm our own id became inactive; neither a void return nor an
+				-- invalid id proves that the potentially active watch was removed.
+				local stopped = pcall(dbvm_watch_disable, current.watchId)
+				local checked, entries, reason = pcall(dbvm_watch_retrievelog, current.watchId)
+				if not stopped or not checked or entries ~= nil or reason ~= 'inactive id' then
+					error('DBVM watch ' .. tostring(current.watchId) .. ' cleanup could not be confirmed', 0)
+				end
 			end
 		end)
 		return {watchId = job.watchId}

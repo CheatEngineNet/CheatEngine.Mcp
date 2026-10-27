@@ -501,7 +501,8 @@ public sealed class ScanTools : IDisposable
 
 		ScanReleaseFailure details = new(name, release.IsRetryable, release.RequiresManualRecovery);
 		throw CheatEngineToolException.PartialEffect(
-			$"The scan session {name} was asked to release but did not complete.", ToolHostEffect.Unknown, details,
+			$"The scan session {name} was asked to release but did not complete.",
+			ToolFailureMapping.MapHostEffect(release.HostEffect), details,
 			ScanJsonContext.Default.ScanReleaseFailure, release.IsRetryable,
 			release.IsRetryable
 				? "Repeat the scan release shortly."

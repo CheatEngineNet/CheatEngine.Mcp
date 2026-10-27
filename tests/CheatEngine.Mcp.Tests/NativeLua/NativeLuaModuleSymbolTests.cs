@@ -244,7 +244,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 	public void ModuleSymbolAddModule_Stubbed_PassesThePathBaseAndFlagAndReportsFailures()
 	{
 		using RuntimeScope scope = CreateScope();
-		using McpFilePathsTests.Scratch scratch = new();
+		using McpFileScratch scratch = new();
 		string folder = scratch.CreateFolder("symbols");
 		string pdb = Path.Combine(folder, "game.pdb");
 		File.WriteAllBytes(pdb, [1]);
@@ -304,7 +304,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 	/// <summary>Reads a Lua expression over the stubs' globals, such as <c>added.path</c>.</summary>
 	private static object? ModuleSymbolRead(string expression)
 	{
-		PluginLuaToolRuntime.LuaToolOperation operation = new("read_expression", "return " + expression);
+		NativeLuaProbeOperation operation = new("read_expression", "return " + expression);
 		Assert.True(operation.TryExecute(ActiveContext.Instance, out object? result, out CheatEngineFailure failure),
 			failure.Message);
 		return result;

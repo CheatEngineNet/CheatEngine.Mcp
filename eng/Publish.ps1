@@ -4,6 +4,31 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 
+function Get-GitCommit([string] $directory) {
+    $commit = @(git -C $directory rev-parse HEAD)
+    if ($LASTEXITCODE -ne 0 -or $commit.Count -ne 1 -or $commit[0] -notmatch '^[0-9a-f]{40}$') {
+        throw "Could not determine the Git commit for $directory."
+    }
+    return $commit[0]
+}
+
+function Get-Sha256([string] $path) {
+    return (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToUpperInvariant()
+}
+
+function Get-SourceSnapshot([string] $root) {
+    $status = @(git -C $root status --porcelain --ignore-submodules=none)
+    $clean = $LASTEXITCODE -eq 0 -and $status.Count -eq 0
+    return [ordered]@{
+        clean = $clean
+        sourceCommit = Get-GitCommit $root
+        dependencies = [ordered]@{
+            cheatEngineClient = Get-GitCommit (Join-Path $root 'externals/CheatEngine.Client')
+            cheatEngineSdk = Get-GitCommit (Join-Path $root 'externals/CheatEngine.SDK')
+        }
+    }
+}
+
 function Invoke-GatewayNativeAotSmoke([string] $gateway) {
     $registry = Join-Path ([IO.Path]::GetTempPath()) "CheatEngine.Mcp.Gateway-smoke-$([guid]::NewGuid().ToString('N'))"
     [IO.Directory]::CreateDirectory($registry) | Out-Null
@@ -79,6 +104,9 @@ function Invoke-GatewayNativeAotSmoke([string] $gateway) {
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 Push-Location $repoRoot
 try {
+    # Local developer builds may be dirty, but only a stable, clean source snapshot is eligible for release upload.
+    $sourceBeforeBuild = Get-SourceSnapshot $repoRoot
+    [IO.Directory]::CreateDirectory((Join-Path $repoRoot 'artifacts/log')) | Out-Null
     $variant = $Configuration.ToLowerInvariant()
     $dist = if ($OutputDirectory) { [IO.Path]::GetFullPath($OutputDirectory) } else { Join-Path $repoRoot "artifacts/dist/$variant" }
     $allowedDistRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot 'artifacts/dist')) + [IO.Path]::DirectorySeparatorChar
@@ -109,7 +137,7 @@ try {
     # Remove only known obsolete layouts. Operator guidance is served through MCP resources and prompts.
     foreach ($stale in @('CheatEngine.Mcp', 'skills', 'licenses')) { Remove-Contained (Join-Path $dist $stale) $distRoot | Out-Null }
     $expected = @('CheatEngine.Mcp.dll', 'CheatEngine.Mcp.Gateway.exe', 'README.md', 'LICENSE', 'THIRD-PARTY-NOTICES.md')
-    $unexpected = @(Get-ChildItem -LiteralPath $dist -Force | Where-Object { $_.Name -notin $expected -or $_.PSIsContainer -or ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) })
+    $unexpected = @(Get-ChildItem -LiteralPath $dist -Force | Where-Object { $_.Name -cnotin $expected -or $_.PSIsContainer -or ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) })
     if ($unexpected.Count -ne 0) { throw "Unexpected files in distribution folder $dist. Move them before publishing." }
 
     # Use standard framework-dependent dotnet publish. Costura embeds copy-local managed dependencies and the SDK's
@@ -118,20 +146,20 @@ try {
     Remove-Contained (Join-Path $repoRoot "artifacts/bin/CheatEngine.Mcp.Plugin/$variant") $binRoot | Out-Null
     $publishRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot 'artifacts/publish')) + [IO.Path]::DirectorySeparatorChar
     $pluginOutput = Remove-Contained (Join-Path $repoRoot "artifacts/publish/CheatEngine.Mcp.Plugin/$variant") $publishRoot
-    dotnet publish srcs/CheatEngine.Mcp.Plugin -c $Configuration -p:RestoreLockedMode=true -p:ContinuousIntegrationBuild=true -o $pluginOutput
+    dotnet publish srcs/CheatEngine.Mcp.Plugin -c $Configuration -p:RestoreLockedMode=true -p:ContinuousIntegrationBuild=true -o $pluginOutput '-bl:artifacts/log/publish-plugin-{}.binlog'
     if ($LASTEXITCODE -ne 0) { throw 'Bundled plugin publish failed.' }
     Copy-Item -LiteralPath (Join-Path $pluginOutput 'CheatEngine.Mcp.dll') -Destination (Join-Path $dist 'CheatEngine.Mcp.dll') -Force
     Copy-Item -LiteralPath (Join-Path $repoRoot 'srcs/CheatEngine.Mcp.Plugin/Distribution/README.md') -Destination (Join-Path $dist 'README.md') -Force
     # Probe the exact installed DLL from a fresh process, with no adjacent dependency or runtime configuration files.
     # The runtimeconfig below belongs to the probe host and remains a build output, never a distributed sidecar.
-    dotnet build tests/CheatEngine.Mcp.LiveTarget -c $Configuration -p:RestoreLockedMode=true -p:ContinuousIntegrationBuild=true
+    dotnet build tests/CheatEngine.Mcp.LiveTarget -c $Configuration -p:RestoreLockedMode=true -p:ContinuousIntegrationBuild=true '-bl:artifacts/log/publish-probe-{}.binlog'
     if ($LASTEXITCODE -ne 0) { throw 'Plugin bundle probe build failed.' }
     $probe = Join-Path $repoRoot "artifacts/bin/CheatEngine.Mcp.LiveTarget/$variant/CheatEngine.Mcp.LiveTarget.dll"
     $goldenDirectory = Join-Path $repoRoot 'tests/CheatEngine.Mcp.Tests/Contract/Golden'
     dotnet exec --runtimeconfig (Join-Path $pluginOutput 'CheatEngine.Mcp.runtimeconfig.json') $probe --probe-plugin (Join-Path $dist 'CheatEngine.Mcp.dll') $goldenDirectory
     if ($LASTEXITCODE -ne 0) { throw 'The published single-DLL plugin failed the isolated load probe.' }
 
-    dotnet publish srcs/CheatEngine.Mcp.Gateway -c $Configuration -p:PublishProfile=Standalone -p:RestoreLockedMode=true -p:ContinuousIntegrationBuild=true
+    dotnet publish srcs/CheatEngine.Mcp.Gateway -c $Configuration -p:PublishProfile=Standalone -p:RestoreLockedMode=true -p:ContinuousIntegrationBuild=true '-bl:artifacts/log/publish-gateway-{}.binlog'
     if ($LASTEXITCODE -ne 0) { throw 'Native AOT gateway publish failed.' }
     $gateway = Join-Path $dist 'CheatEngine.Mcp.Gateway.exe'
     Copy-Item -LiteralPath (Join-Path $repoRoot "artifacts/publish/CheatEngine.Mcp.Gateway/$variant-nativeaot/CheatEngine.Mcp.Gateway.exe") -Destination $gateway -Force
@@ -149,6 +177,32 @@ try {
     if ($missing.Count -ne 0) { throw "Incomplete distribution in ${dist}; missing: $($missing -join ', ')" }
     $files = @(Get-ChildItem -LiteralPath $dist -Force)
     if ($files.Count -ne $expected.Count) { throw 'The distribution must contain exactly the single plugin DLL, gateway, instructions and notices.' }
-    Get-ChildItem -LiteralPath $dist | Select-Object Name, Length, @{ Name = 'SHA256'; Expression = { (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash } }
+    $sourceAfterBuild = Get-SourceSnapshot $repoRoot
+    $releaseEligible = $sourceBeforeBuild.clean -and $sourceAfterBuild.clean -and
+        $sourceBeforeBuild.sourceCommit -ceq $sourceAfterBuild.sourceCommit -and
+        $sourceBeforeBuild.dependencies.cheatEngineClient -ceq $sourceAfterBuild.dependencies.cheatEngineClient -and
+        $sourceBeforeBuild.dependencies.cheatEngineSdk -ceq $sourceAfterBuild.dependencies.cheatEngineSdk
+    $manifest = [ordered]@{
+        schema = 1
+        sourceCommit = $sourceAfterBuild.sourceCommit
+        dependencies = $sourceAfterBuild.dependencies
+        releaseEligibility = [ordered]@{
+            eligible = $releaseEligible
+            beforeBuild = $sourceBeforeBuild
+            afterBuild = $sourceAfterBuild
+        }
+        sourceFiles = @(
+            [ordered]@{ distributionPath = 'README.md'; sourcePath = 'srcs/CheatEngine.Mcp.Plugin/Distribution/README.md'; sha256 = Get-Sha256 (Join-Path $repoRoot 'srcs/CheatEngine.Mcp.Plugin/Distribution/README.md') }
+            [ordered]@{ distributionPath = 'LICENSE'; sourcePath = 'LICENSE'; sha256 = Get-Sha256 (Join-Path $repoRoot 'LICENSE') }
+            [ordered]@{ distributionPath = 'THIRD-PARTY-NOTICES.md'; sourcePath = 'THIRD-PARTY-NOTICES.md'; sha256 = Get-Sha256 (Join-Path $repoRoot 'THIRD-PARTY-NOTICES.md') }
+        )
+        files = @($expected | Sort-Object | ForEach-Object {
+            [ordered]@{ path = $_; sha256 = Get-Sha256 (Join-Path $dist $_) }
+        })
+    }
+    $manifestPath = "${dist}.release-manifest.json"
+    [IO.File]::WriteAllText($manifestPath, ($manifest | ConvertTo-Json -Depth 5), [Text.UTF8Encoding]::new($false))
+    Get-ChildItem -LiteralPath $dist | Select-Object Name, Length, @{ Name = 'SHA256'; Expression = { Get-Sha256 $_.FullName } }
+    [pscustomobject]@{ ReleaseManifest = $manifestPath; ReleaseManifestSha256 = Get-Sha256 $manifestPath }
 }
 finally { Pop-Location }

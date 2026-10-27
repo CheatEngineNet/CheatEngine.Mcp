@@ -1,7 +1,16 @@
 {
   "schema": "cheatengine-mcp-live-evidence/v1",
-  "boundary": "Reviewed live positive evidence only. A row is verified only when its receipt, any required cleanup receipt, and a fully passed/restored live summary are present.",
+  "boundary": "Reviewed native success oracles. A mapping is not a passing result: a row is verified only when its receipt, any required cleanup receipt, and a fully passed/restored live summary are present.",
   "tools": [
+    {
+      "name": "symbol_enable_sources",
+      "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveSymbolSourceQualification.cs",
+      "testMethod": "RunAsync",
+      "oracle": "Windows source only (kernel=false): exact owned DLL/PDB identity and hidden original PDB, absent PDB layout before enabling, then the four independently known field offsets and types afterward on A, B and restarted A with a new owned target. WFP readback and CE-local IPv4/IPv6 WSAEACCES probes bracket enabling; cleanup confirms process exit, independent filter/sublayer absence, restored PDB hash and restored user state. Client profile status remains Unknown/NotExecuted. A mapping without those passing receipts is unverified.",
+      "receipt": "live_symbol_sources_windows",
+      "cleanupReceipt": "symbol_source_containment_cleanup",
+      "scope": "reversible_workflow"
+    },
     {
       "name": "instance_list",
       "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/McpLiveQualificationTests.cs",
@@ -1356,7 +1365,7 @@
       "name": "debugger_attach",
       "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerQualification.cs",
       "testMethod": "VerifyAsync",
-      "oracle": "Windows debugger attaches to the owned PID and stops the exact published native TID. Context IP belongs to owned code or an independently enumerated OS module; stack pointer and width match context, 128 slots are scanned, and nonempty heuristic frames include the fixed native call return at CodeStart+45. Continue and detach are independently observed. This does not prove debugger event capture.",
+      "oracle": "Windows debugger attaches to the owned PID and stops the exact published native TID. Context IP belongs to owned code or an independently enumerated OS module; stack pointer and width match context, 128 slots are scanned, and nonempty heuristic frames include the fixed native call return at CodeStart+54. Continue and detach are independently observed. This does not prove debugger event capture.",
       "receipt": "all_tools_debugger_attach",
       "cleanupReceipt": "live_debugger_windows_cleanup",
       "scope": "reversible_workflow"
@@ -1365,7 +1374,7 @@
       "name": "debugger_break_thread",
       "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerQualification.cs",
       "testMethod": "VerifyAsync",
-      "oracle": "Windows debugger attaches to the owned PID and stops the exact published native TID. Context IP belongs to owned code or an independently enumerated OS module; stack pointer and width match context, 128 slots are scanned, and nonempty heuristic frames include the fixed native call return at CodeStart+45. Continue and detach are independently observed. This does not prove debugger event capture.",
+      "oracle": "Windows debugger attaches to the owned PID and stops the exact published native TID. Context IP belongs to owned code or an independently enumerated OS module; stack pointer and width match context, 128 slots are scanned, and nonempty heuristic frames include the fixed native call return at CodeStart+54. Continue and detach are independently observed. This does not prove debugger event capture.",
       "receipt": "all_tools_debugger_break_thread",
       "cleanupReceipt": "live_debugger_windows_cleanup",
       "scope": "reversible_workflow"
@@ -1374,7 +1383,7 @@
       "name": "debugger_get_context",
       "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerQualification.cs",
       "testMethod": "VerifyAsync",
-      "oracle": "Windows debugger attaches to the owned PID and stops the exact published native TID. Context IP belongs to owned code or an independently enumerated OS module; stack pointer and width match context, 128 slots are scanned, and nonempty heuristic frames include the fixed native call return at CodeStart+45. Continue and detach are independently observed. This does not prove debugger event capture.",
+      "oracle": "Windows debugger attaches to the owned PID and stops the exact published native TID. Context IP belongs to owned code or an independently enumerated OS module; stack pointer and width match context, 128 slots are scanned, and nonempty heuristic frames include the fixed native call return at CodeStart+54. Continue and detach are independently observed. This does not prove debugger event capture.",
       "receipt": "all_tools_debugger_get_context",
       "cleanupReceipt": "live_debugger_windows_cleanup",
       "scope": "reversible_workflow"
@@ -1383,7 +1392,7 @@
       "name": "debugger_get_stack_trace",
       "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerQualification.cs",
       "testMethod": "VerifyAsync",
-      "oracle": "Windows debugger attaches to the owned PID and stops the exact published native TID. Context IP is in owned code or an independently observed OS module; 128 scanned stack slots are aligned and each lies in [RSP,RSP+1024), heuristic frames are nonempty, and the fixed loop's Sleep-call return is CodeStart+45 (FF D0 at offsets 43..44). Continue and detach are independently observed.",
+      "oracle": "Windows debugger attaches to the owned PID and stops the exact published native TID. Context IP is in owned code or an independently observed OS module; 128 scanned stack slots are aligned and each lies in [RSP,RSP+1024), heuristic frames are nonempty, and the fixed loop's Sleep-call return is CodeStart+54 (FF D0 at offsets 52..53). Continue and detach are independently observed.",
       "receipt": "all_tools_debugger_get_stack_trace",
       "cleanupReceipt": "live_debugger_windows_cleanup",
       "scope": "reversible_workflow"
@@ -1392,7 +1401,7 @@
       "name": "debugger_continue",
       "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerQualification.cs",
       "testMethod": "VerifyAsync",
-      "oracle": "Windows debugger attaches to the owned PID and stops the exact published native TID. Context IP belongs to owned code or an independently enumerated OS module; stack pointer and width match context, 128 slots are scanned, and nonempty heuristic frames include the fixed native call return at CodeStart+45. Continue and detach are independently observed. This does not prove debugger event capture.",
+      "oracle": "Windows debugger attaches to the owned PID and stops the exact published native TID. Context IP belongs to owned code or an independently enumerated OS module; stack pointer and width match context, 128 slots are scanned, and nonempty heuristic frames include the fixed native call return at CodeStart+54. Continue and detach are independently observed. This does not prove debugger event capture.",
       "receipt": "all_tools_debugger_continue",
       "cleanupReceipt": "live_debugger_windows_cleanup",
       "scope": "reversible_workflow"
@@ -1401,7 +1410,7 @@
       "name": "debugger_detach",
       "sourceFile": "tests/CheatEngine.Mcp.Tests/LiveQualification/LiveDebuggerQualification.cs",
       "testMethod": "VerifyAsync",
-      "oracle": "Windows debugger attaches to the owned PID and stops the exact published native TID. Context IP belongs to owned code or an independently enumerated OS module; stack pointer and width match context, 128 slots are scanned, and nonempty heuristic frames include the fixed native call return at CodeStart+45. Continue and detach are independently observed. This does not prove debugger event capture.",
+      "oracle": "Windows debugger attaches to the owned PID and stops the exact published native TID. Context IP belongs to owned code or an independently enumerated OS module; stack pointer and width match context, 128 slots are scanned, and nonempty heuristic frames include the fixed native call return at CodeStart+54. Continue and detach are independently observed. This does not prove debugger event capture.",
       "receipt": "all_tools_debugger_detach",
       "cleanupReceipt": "live_debugger_windows_cleanup",
       "scope": "reversible_workflow"

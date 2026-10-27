@@ -20,7 +20,7 @@ namespace CheatEngine.Mcp.Tests.Tools.Structures;
 /// <summary>Direct production adapters over a fixed-Lua and process client double.</summary>
 public sealed class StructureInterchangeToolsTests : IDisposable
 {
-	private readonly McpFilePathsTests.Scratch _scratch = new();
+	private readonly McpFileScratch _scratch = new();
 	public void Dispose() => _scratch.Dispose();
 
 	[Fact]

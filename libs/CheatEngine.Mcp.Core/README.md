@@ -18,7 +18,8 @@ For installation, client configuration, and end-user workflows, start with the [
 
 Core references CheatEngine.Client and ModelContextProtocol.
 It centralizes the shared Client integration, while the Plugin supplies activation-specific Client hosting.
-It has no dependency on ASP.NET Core, the Cheat Engine SDK, a logging-provider implementation, a transport, a concrete primitive project, or the Cheat Engine UI.
+It has no direct SDK project reference; selected SDK value and inspection types arrive through Client.
+It has no dependency on ASP.NET Core, a logging-provider implementation, a transport, a concrete primitive project, or the Cheat Engine UI.
 
 Place code here when at least two product layers need it and it remains independent of a specific host and a specific tool domain.
 

@@ -4,6 +4,7 @@ using System.Runtime.Versioning;
 using System.Text.Json.Nodes;
 
 using CheatEngine.Mcp.Core.Contract;
+using CheatEngine.Mcp.LiveTarget;
 
 namespace CheatEngine.Mcp.Tests.LiveQualification;
 
@@ -102,6 +103,7 @@ internal static class LiveDebuggerQualification
 
 			JsonNode stack = await CallAsync(instance, CheatEngineToolNames.DebuggerGetStackTrace,
 				new Dictionary<string, object?> { ["depth"] = 128 });
+			sandbox.Record("debugger_stack_trace_observed", stack.DeepClone());
 			Assert.Equal(expectedStackPointer, Text(stack, "stackPointer"), ignoreCase: true);
 			Assert.Equal(expected64Bit ? 8 : 4, stack["pointerSize"]!.GetValue<int>());
 			Assert.Equal(128, stack["scannedSlots"]!.GetValue<int>());
@@ -125,9 +127,9 @@ internal static class LiveDebuggerQualification
 				// observed but never treated as an invariant of the production tool.
 				_ = IsAddressInModules(returnAddress, moduleRanges);
 			}
-			// The fixed loop's FF D0 call at offsets 43..44 returns exactly to offset 45.
+			// Match the return after the encoded Sleep call, including the loop's pause-handshake prefix.
 			Assert.Contains(frames, frame => frame is not null &&
-				ParseHex(Text(frame, "returnAddress")) == checked(loop.CodeStart + 45));
+				ParseHex(Text(frame, "returnAddress")) == checked(loop.CodeStart + DebuggerExecutionLoopEncoding.SleepReturnOffset));
 			sandbox.Record("all_tools_debugger_get_stack_trace", stack.DeepClone());
 
 			JsonNode continued = await CallAsync(instance, CheatEngineToolNames.DebuggerContinue);

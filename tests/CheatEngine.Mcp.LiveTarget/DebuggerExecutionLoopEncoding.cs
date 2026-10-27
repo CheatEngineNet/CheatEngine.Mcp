@@ -3,6 +3,8 @@ namespace CheatEngine.Mcp.LiveTarget;
 internal static class DebuggerExecutionLoopEncoding
 {
 	internal const int Length = 76;
+	internal const int SleepCallOffset = 52;
+	internal const int SleepReturnOffset = SleepCallOffset + 2;
 
 	internal static byte[] Encode(nint address, nint sleep)
 	{

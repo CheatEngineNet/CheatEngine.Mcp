@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 
 using CheatEngine.Mcp.Tests.Support;
@@ -7,6 +8,23 @@ namespace CheatEngine.Mcp.Tests.Contract;
 /// <summary>Keeps THIRD-PARTY-NOTICES.md in step with the packages that the plugin folder and the gateway ship.</summary>
 public sealed class ThirdPartyNoticesTests
 {
+	[Theory]
+	[InlineData("CheatEngine.Client", "CheatEngine.Client.Core")]
+	[InlineData("CheatEngine.SDK", "CheatEngine.SDK.Engine")]
+	public void ThirdPartyNotices_ShippedSourceDependencies_MatchBuiltSourceIdentity(string component, string assemblyName)
+	{
+		string? identity = Assembly.Load(assemblyName)
+			.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+		Assert.NotNull(identity);
+		string commit = identity.Split('+')[^1];
+		Assert.Matches("^[0-9a-f]{40}$", commit);
+
+		string notices = ReadNotices();
+		Assert.Contains($"| {component} | {commit} | MIT |", notices, StringComparison.Ordinal);
+		Assert.Contains($"https://github.com/CheatEngineNet/{component}/blob/{commit}/LICENSE", notices,
+			StringComparison.Ordinal);
+	}
+
 	[Theory]
 	[InlineData("CheatEngine.Mcp.Plugin")]
 	[InlineData("CheatEngine.Mcp.Gateway")]

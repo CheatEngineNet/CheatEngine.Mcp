@@ -70,8 +70,13 @@ public sealed class MemoryFileTools
 		(Address target, long epoch, Chunk first) = _dispatch.Run(CheatEngineToolNames.MemoryDumpToFile, token =>
 		{
 			ICheatEngineClient client = _dispatch.Client;
+			long observed = MemoryTargets.SelectionEpoch(client, token);
 			Address resolved = MemoryTargets.Resolve(client, expression, "address", token);
-			return (resolved, MemoryTargets.SelectionEpoch(client, token),
+			MemoryTargets.RequireSameTarget(client, observed, CheatEngineToolNames.MemoryDumpToFile, token);
+			int pointerBytes = MemoryTargets.PointerBytes(client, token);
+			MemoryTargets.RequireSameTarget(client, observed, CheatEngineToolNames.MemoryDumpToFile, token);
+			MemoryTargets.RequireRangeFitsTargetAddressSpace(resolved, size, pointerBytes);
+			return (resolved, observed,
 				ReadChunk(client, resolved, Math.Min(size, MemoryTargets.ChunkBytes), zeroFill, token));
 		}, cancellationToken);
 		Chunk chunk = first;
@@ -124,14 +129,15 @@ public sealed class MemoryFileTools
 		(Address target, long epoch) = _dispatch.Run(CheatEngineToolNames.MemoryLoadFromFile, token =>
 		{
 			ICheatEngineClient client = _dispatch.Client;
-			return (MemoryTargets.Resolve(client, expression, "address", token),
-				MemoryTargets.SelectionEpoch(client, token));
+			long observed = MemoryTargets.SelectionEpoch(client, token);
+			Address resolved = MemoryTargets.Resolve(client, expression, "address", token);
+			MemoryTargets.RequireSameTarget(client, observed, CheatEngineToolNames.MemoryLoadFromFile, token);
+			int pointerBytes = MemoryTargets.PointerBytes(client, token);
+			MemoryTargets.RequireSameTarget(client, observed, CheatEngineToolNames.MemoryLoadFromFile, token);
+			MemoryTargets.RequireRangeFitsTargetAddressSpace(resolved, checked((int) file.Length), pointerBytes,
+				"address");
+			return (resolved, observed);
 		}, cancellationToken);
-		if (target.ToUInt64() > ulong.MaxValue - (ulong) file.Length + 1)
-		{
-			throw CheatEngineToolException.InvalidArgument("address",
-				"the file would cross the end of the address space.");
-		}
 
 		long written = 0;
 		byte[] buffer = new byte[MemoryTargets.ChunkBytes];

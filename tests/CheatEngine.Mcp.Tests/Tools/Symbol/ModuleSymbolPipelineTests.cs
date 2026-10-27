@@ -19,7 +19,7 @@ namespace CheatEngine.Mcp.Tests.Tools.Symbol;
 /// <summary>The module and symbol tools composed and called through a real MCP server and client.</summary>
 public sealed class ModuleSymbolPipelineTests : IDisposable
 {
-	private readonly McpFilePathsTests.Scratch _scratch = new();
+	private readonly McpFileScratch _scratch = new();
 
 	public void Dispose()
 	{
@@ -157,7 +157,7 @@ public sealed class ModuleSymbolPipelineTests : IDisposable
 		}
 
 		internal static async Task<Activation> StartAsync(ModuleSymbolTarget target,
-			McpFilePathsTests.Scratch scratch)
+			McpFileScratch scratch)
 		{
 			ServiceCollection services = new();
 			services.AddSingleton(target.Client);

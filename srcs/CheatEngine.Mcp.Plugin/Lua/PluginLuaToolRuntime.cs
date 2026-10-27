@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text;
 using System.Text.Json.Serialization.Metadata;
 
@@ -51,19 +50,20 @@ internal static class PluginLuaToolRuntime
 			throw new InvalidOperationException("The disabled MCP status can only be reported during deactivation notification.");
 		}
 
-		LuaToolOperation operation = new("mcp_status",
+		PluginStatusLuaOperation operation = new("mcp_status",
 			LuaToolRuntime.BuildSource(StatusUpdateSource, ["MCP: " + state, details, existingOnly]));
-		if (!operation.TryExecuteInRuntime(out object? result, out CheatEngineFailure failure))
+		if (!operation.TryExecuteInRuntime(out bool result, out CheatEngineFailure failure))
 		{
 			failure.Throw();
 		}
 
-		return result is true;
+		return result;
 	}
 
 	internal static bool IsLifecycleCleanupOperation(string operation)
 	{
-		return operation is "mcp_job_stop" or "mcp_state_release_resource" or "mcp_state_release";
+		return operation is "mcp_job_stop" or "mcp_state_release_resource" or "mcp_state_release"
+			or CheatEngineToolNames.MonoDetach;
 	}
 
 	internal static LuaJsonResult<T> ExecuteLifecycleCleanup<T>(string operation, string source,
@@ -135,7 +135,7 @@ internal static class PluginLuaToolRuntime
 				operation, ToolHostEffect.Completed, false, CheatEngineToolException.InternalHint), exception);
 	}
 
-	private static bool TryAcquire(out LuaRuntimeOperation acquired, out CheatEngineFailure failure)
+	internal static bool TryAcquire(out LuaRuntimeOperation acquired, out CheatEngineFailure failure)
 	{
 		LuaAdmissionStatus admission = LuaRuntime.TryAcquireOperationWithOutcome(out acquired);
 		if (admission == LuaAdmissionStatus.Admitted)
@@ -165,7 +165,7 @@ internal static class PluginLuaToolRuntime
 	/// <param name="effect">Advanced to <see cref="CheatEngineHostEffect.Started" /> once the chunk compiled.</param>
 	/// <param name="failure">The compile or runtime failure.</param>
 	/// <returns><see langword="true" /> when the chunk returned normally.</returns>
-	private static bool TryRun(LuaState state, string operation, string source, ref CheatEngineHostEffect effect,
+	internal static bool TryRun(LuaState state, string operation, string source, ref CheatEngineHostEffect effect,
 		out CheatEngineFailure failure)
 	{
 		if (!state.TryEnsureStack(64))
@@ -190,50 +190,6 @@ internal static class PluginLuaToolRuntime
 
 		failure = default;
 		return true;
-	}
-
-	internal sealed record LuaToolOperation(string Operation, string Source) : ILuaOperation<object?>
-	{
-		public bool TryExecute(ILuaExecutionContext context, out object? result, out CheatEngineFailure failure)
-		{
-			context.ThrowIfExpired();
-			return TryExecuteInRuntime(out result, out failure);
-		}
-
-		internal bool TryExecuteInRuntime(out object? result, out CheatEngineFailure failure)
-		{
-			result = null;
-			CheatEngineHostEffect effect = CheatEngineHostEffect.NotStarted;
-			try
-			{
-				if (!TryAcquire(out LuaRuntimeOperation acquired, out failure))
-				{
-					return false;
-				}
-
-				using LuaRuntimeOperation operation = acquired;
-				LuaState state = operation.State;
-				using LuaFrame frame = new(state);
-				if (!TryRun(state, Operation, Source, ref effect, out failure))
-				{
-					return false;
-				}
-
-				effect = CheatEngineHostEffect.Completed;
-				result = new ResultReader().Read(state, -1, 0);
-				failure = default;
-				return true;
-			}
-			catch (Exception exception)
-			{
-				failure = new CheatEngineFailure(
-					exception is InvalidDataException
-						? CheatEngineFailureKind.ResultLimitExceeded
-						: CheatEngineFailureKind.BindingError,
-					"Lua.Execute", exception.Message, exception, effect);
-				return false;
-			}
-		}
 	}
 
 	/// <summary>
@@ -283,229 +239,4 @@ internal static class PluginLuaToolRuntime
 		}
 	}
 
-	private sealed class ResultReader
-	{
-		private readonly HashSet<nint> _tables = [];
-		private int _bytes;
-		private int _items;
-
-		public object? Read(LuaState state, int index, int depth)
-		{
-			if (++_items > PluginLuaJsonWriter.MaximumItems || depth > 16)
-			{
-				throw new InvalidDataException(
-					"Lua result exceeds the item/depth limit; the operation has already run.");
-			}
-
-			switch (state.TypeOf(index))
-			{
-				case LuaType.Nil:
-					return null;
-				case LuaType.Boolean:
-					return state.ToBoolean(index);
-				case LuaType.Number:
-					if (state.IsInteger(index) && state.TryReadInteger(index, out long integer))
-					{
-						return integer;
-					}
-
-					if (state.TryReadNumber(index, out double number) && double.IsFinite(number))
-					{
-						return number;
-					}
-
-					throw new InvalidDataException("Lua returned a non-finite number.");
-				case LuaType.String:
-					if (!state.TryReadUtf8(index, out ReadOnlySpan<byte> bytes))
-					{
-						throw new InvalidDataException("Lua string could not be read.");
-					}
-
-					_bytes = checked(_bytes + bytes.Length);
-					if (_bytes > PluginLuaJsonWriter.MaximumStringBytes)
-					{
-						throw new InvalidDataException("Lua result exceeds 4 MiB of strings.");
-					}
-
-					return Encoding.UTF8.GetString(bytes);
-				case LuaType.Table:
-					return ReadTable(state, index, depth);
-				default:
-					throw new InvalidDataException(
-						"Lua returned an opaque object; the tool must copy its documented fields.");
-			}
-		}
-
-		private object ReadTable(LuaState state, int index, int depth)
-		{
-			index = state.AbsoluteIndex(index);
-			nint identity = state.ToPointer(index);
-			if (!_tables.Add(identity))
-			{
-				throw new InvalidDataException("Lua returned a cyclic table.");
-			}
-
-			Dictionary<string, object?> values = new(StringComparer.Ordinal);
-			int numericKeys = 0;
-			state.PushNil();
-			while (true)
-			{
-				LuaStatus status = state.TryNext(index, out bool hasNext);
-				if (!status.IsOk)
-				{
-					throw new InvalidDataException(LuaError.FromStack(state, status).Message);
-				}
-
-				if (!hasNext)
-				{
-					break;
-				}
-
-				string key;
-				if (state.IsInteger(-2) && state.TryReadInteger(-2, out long integer))
-				{
-					key = integer.ToString(CultureInfo.InvariantCulture);
-					if (integer is > 0 and <= PluginLuaJsonWriter.MaximumItems)
-					{
-						numericKeys++;
-					}
-				}
-				else if (state.TypeOf(-2) == LuaType.String)
-				{
-					key = (string) Read(state, -2, depth + 1)!;
-				}
-				else
-				{
-					throw new InvalidDataException("Lua table keys must be strings or integers.");
-				}
-
-				if (!values.TryAdd(key, Read(state, -1, depth + 1)))
-				{
-					throw new InvalidDataException("Lua table keys collide after JSON conversion.");
-				}
-
-				state.Pop(1);
-			}
-
-			_tables.Remove(identity);
-			bool packed = values.TryGetValue("n", out object? count) && count is long length &&
-						  length is >= 0 and <= PluginLuaJsonWriter.MaximumItems && numericKeys == values.Count - 1;
-			int arrayLength = packed ? (int) (long) count! : values.Count;
-			// Fixed tool bodies use empty tables as lists. Object results always have named fields.
-			if (packed || (numericKeys == values.Count && Enumerable.Range(1, arrayLength)
-					.All(i => values.ContainsKey(i.ToString(CultureInfo.InvariantCulture)))))
-			{
-				object?[] array = new object?[arrayLength];
-				for (int i = 0; i < array.Length; i++)
-				{
-					values.TryGetValue((i + 1).ToString(CultureInfo.InvariantCulture), out array[i]);
-				}
-
-				return array;
-			}
-
-			return values;
-		}
-	}
-
-}
-
-/// <summary>Tracks one activation's synchronous fixed-Lua deactivation windows without process-wide mutable state.</summary>
-internal sealed class PluginLifecycleLuaScope
-{
-	private ActiveScope? _active;
-
-	internal IDisposable BeginResourceCleanup(ICheatEngineClient client)
-	{
-		return Begin(client, ScopeKind.ResourceCleanup,
-			"MCP resource cleanup requires the stopping activation's Cheat Engine main thread.");
-	}
-
-	internal IDisposable BeginDeactivationNotification(ICheatEngineClient client)
-	{
-		return Begin(client, ScopeKind.DeactivationNotification,
-			"MCP lifecycle notification requires the stopping activation's Cheat Engine main thread.");
-	}
-
-	internal bool IsResourceCleanup(ICheatEngineClient client)
-	{
-		return IsCurrent(client, ScopeKind.ResourceCleanup);
-	}
-
-	internal bool IsDeactivationNotification(ICheatEngineClient client)
-	{
-		return IsCurrent(client, ScopeKind.DeactivationNotification);
-	}
-
-	private Scope Begin(ICheatEngineClient client, ScopeKind kind, string error)
-	{
-		ArgumentNullException.ThrowIfNull(client);
-		if (!client.Stopping.IsCancellationRequested || !client.Dispatcher.IsMainThread)
-		{
-			throw new InvalidOperationException(error);
-		}
-
-		ActiveScope? previous = Volatile.Read(ref _active);
-		ActiveScope scope = new(client, kind, Environment.CurrentManagedThreadId, previous);
-		Volatile.Write(ref _active, scope);
-		return new Scope(this, scope);
-	}
-
-	private bool IsCurrent(ICheatEngineClient client, ScopeKind kind)
-	{
-		ActiveScope? scope = Volatile.Read(ref _active);
-		return scope is not null && scope.Kind == kind && ReferenceEquals(scope.Client, client)
-			&& scope.ThreadId == Environment.CurrentManagedThreadId
-			&& client.Stopping.IsCancellationRequested && client.Dispatcher.IsMainThread;
-	}
-
-	private void Exit(ActiveScope scope)
-	{
-		if (!ReferenceEquals(Volatile.Read(ref _active), scope))
-		{
-			throw new InvalidOperationException("MCP lifecycle Lua scopes must be disposed in reverse order.");
-		}
-
-		Volatile.Write(ref _active, scope.Previous);
-	}
-
-	private enum ScopeKind
-	{
-		ResourceCleanup,
-		DeactivationNotification
-	}
-
-	private sealed record ActiveScope(ICheatEngineClient Client, ScopeKind Kind, int ThreadId, ActiveScope? Previous);
-
-	private sealed class Scope(PluginLifecycleLuaScope owner, ActiveScope scope) : IDisposable
-	{
-		private int _disposed;
-
-		public void Dispose()
-		{
-			if (Interlocked.Exchange(ref _disposed, 1) == 0)
-			{
-				owner.Exit(scope);
-			}
-		}
-	}
-}
-
-/// <summary>Provides Core with fixed Lua execution through the active Plugin Client.</summary>
-internal sealed class PluginFixedLuaExecutor(ICheatEngineClient client,
-	PluginLifecycleLuaScope? lifecycleLuaScope = null)
-	: IFixedLuaExecutor
-{
-	public LuaJsonResult<T> Execute<T>(string operation, string source, JsonTypeInfo<T> resultType,
-		LuaJsonBufferPool buffers, LuaOpaqueValueHandling opaque, CancellationToken cancellationToken)
-	{
-		if (!cancellationToken.CanBeCanceled && lifecycleLuaScope?.IsResourceCleanup(client) == true
-			&& PluginLuaToolRuntime.IsLifecycleCleanupOperation(operation))
-		{
-			return PluginLuaToolRuntime.ExecuteLifecycleCleanup(operation, source, resultType, buffers, opaque);
-		}
-
-		return PluginLuaToolRuntime.ExecuteRaw(client, operation, source, resultType, buffers, opaque,
-			cancellationToken);
-	}
 }

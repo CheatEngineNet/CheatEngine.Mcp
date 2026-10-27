@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -11,7 +13,7 @@ namespace CheatEngine.Mcp.Hosting.Discovery;
 internal static class TokenSafeLogging
 {
 	/// <summary>The category prefixes that never log below <see cref="LogLevel.Information" />.</summary>
-	internal static readonly string[] GuardedCategories =
+	internal static readonly ImmutableArray<string> GuardedCategories =
 		["Microsoft.AspNetCore", "System.Net.Http", "ModelContextProtocol"];
 
 	extension(ILoggingBuilder logging)

@@ -42,7 +42,17 @@ public sealed class UtilTools
 
 		byte[] littleEndian = McpValueCodec.Encode(sourceType, value, pointerSize, "value");
 		byte[] presented = IsText(sourceType) ? littleEndian : Order(littleEndian, byteOrder);
-		string decoded = Decode(targetType, presented, byteOrder, pointerSize);
+		string decoded;
+		try
+		{
+			decoded = Decode(targetType, presented, byteOrder, pointerSize);
+		}
+		catch (DecoderFallbackException)
+		{
+			throw CheatEngineToolException.InvalidArgument("targetType",
+				"cannot decode the source bytes as valid text in the requested encoding.");
+		}
+
 		return new UtilConvertValueResult(sourceType, targetType, byteOrder, pointerSize, HexFormat.Bytes(presented),
 			decoded);
 	}

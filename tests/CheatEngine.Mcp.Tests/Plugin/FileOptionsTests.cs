@@ -15,7 +15,7 @@ namespace CheatEngine.Mcp.Tests.Plugin;
 [Collection(nameof(SerialTestGroup))]
 public sealed class FileOptionsTests : IDisposable
 {
-	private readonly McpFilePathsTests.Scratch _scratch = new();
+	private readonly McpFileScratch _scratch = new();
 
 	public void Dispose()
 	{

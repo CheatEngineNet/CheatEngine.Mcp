@@ -10,8 +10,31 @@ using ModelContextProtocol.Server;
 namespace CheatEngine.Mcp.Hosting.Gateway;
 
 /// <summary>The gateway's own <c>instance_list</c> tool: discovery of the verified local Cheat Engine instances.</summary>
-internal sealed class GatewayInstanceTool(InstanceRegistry registry, InstanceIdentityVerifier verifier)
+internal sealed class GatewayInstanceTool
 {
+	private readonly InstanceRegistry _registry;
+	private readonly InstanceIdentityVerifier _verifier;
+	private readonly TimeProvider _time;
+	private readonly TimeSpan _discoveryBudget;
+
+	public GatewayInstanceTool(InstanceRegistry registry, InstanceIdentityVerifier verifier)
+		: this(registry, verifier, TimeProvider.System, DiscoveryBudget)
+	{
+	}
+
+	internal GatewayInstanceTool(InstanceRegistry registry, InstanceIdentityVerifier verifier, TimeProvider time,
+		TimeSpan discoveryBudget)
+	{
+		ArgumentNullException.ThrowIfNull(registry);
+		ArgumentNullException.ThrowIfNull(verifier);
+		ArgumentNullException.ThrowIfNull(time);
+		ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(discoveryBudget, TimeSpan.Zero);
+		_registry = registry;
+		_verifier = verifier;
+		_time = time;
+		_discoveryBudget = discoveryBudget;
+	}
+
 	/// <summary>The tool name; the only tool that takes no <c>instanceId</c>.</summary>
 	internal const string Name = CheatEngineToolNames.InstanceList;
 
@@ -33,17 +56,17 @@ internal sealed class GatewayInstanceTool(InstanceRegistry registry, InstanceIde
 	{
 		InstanceListEntry?[] discovered = [];
 		bool discoveryIncomplete = false;
-		using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-		deadline.CancelAfter(DiscoveryBudget);
+		using CancellationTokenSource deadline = new(_discoveryBudget, _time);
+		using CancellationTokenSource operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, deadline.Token);
 		try
 		{
-			InstanceDescriptor[] instances = registry.ReadActive(deadline.Token).ToArray();
+			InstanceDescriptor[] instances = _registry.ReadActive(operation.Token).ToArray();
 			discovered = new InstanceListEntry?[instances.Length];
 			await Parallel.ForEachAsync(Enumerable.Range(0, instances.Length),
 				new ParallelOptions
 				{
 					MaxDegreeOfParallelism = MaximumParallelProbes,
-					CancellationToken = deadline.Token
+					CancellationToken = operation.Token
 				},
 				async (index, token) =>
 				{
@@ -94,7 +117,7 @@ internal sealed class GatewayInstanceTool(InstanceRegistry registry, InstanceIde
 	{
 		try
 		{
-			await verifier.VerifyAsync(instance, cancellationToken).ConfigureAwait(false);
+			await _verifier.VerifyAsync(instance, cancellationToken).ConfigureAwait(false);
 			return new InstanceListEntry(instance.InstanceId, instance.Name, instance.ProcessId,
 				instance.PluginVersion);
 		}

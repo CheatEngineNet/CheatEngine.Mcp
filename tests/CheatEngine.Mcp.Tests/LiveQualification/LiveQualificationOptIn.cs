@@ -23,6 +23,12 @@ internal static class LiveQualificationOptIn
 	internal const string SymbolFixtureOptInVariable = "CHEATENGINE_MCP_LIVE_SYMBOL_FIXTURE_QUALIFICATION";
 	internal const string SymbolFixtureAcknowledgement =
 		"I_AUTHORIZE_FIXED_NATIVE_DLL_AND_LOCAL_PDB_ON_PRIVATE_CE_AND_OWNED_TARGETS";
+	internal const string SymbolSourcesOptInVariable = "CHEATENGINE_MCP_LIVE_SYMBOL_SOURCES_QUALIFICATION";
+	internal const string SymbolSourcesAcknowledgement =
+		"I_AUTHORIZE_ISOLATED_WINDOWS_SYMBOL_SOURCE_NETWORK_PROBES_ON_PRIVATE_CE";
+	internal const string WfpIsolationOptInVariable = "CHEATENGINE_MCP_LIVE_WFP_ISOLATION_QUALIFICATION";
+	internal const string WfpIsolationAcknowledgement =
+		"I_AUTHORIZE_DYNAMIC_WFP_ISOLATION_FOR_PRIVATE_CE_SOURCE_QUALIFICATION";
 	internal const string InjectionOptInVariable = "CHEATENGINE_MCP_LIVE_MANAGED_INJECTION_QUALIFICATION";
 	internal const string InjectionAcknowledgement =
 		"I_AUTHORIZE_FIXED_MANAGED_INJECTION_ON_OWNED_FRAMEWORK_TARGETS";
@@ -90,6 +96,7 @@ internal static class LiveQualificationOptIn
 			"kernel-status" => LiveQualificationScenario.KernelStatus,
 			"execution" => LiveQualificationScenario.Execution,
 			"symbol-fixture" => LiveQualificationScenario.SymbolFixture,
+			"symbol-sources" => LiveQualificationScenario.SymbolSources,
 			"process-create" => LiveQualificationScenario.ProcessCreate,
 			"mono" => LiveQualificationScenario.Mono,
 			"performance" => LiveQualificationScenario.Performance,
@@ -107,6 +114,11 @@ internal static class LiveQualificationOptIn
 		if (scenario != LiveQualificationScenario.KernelStatus && kernelStatusOptIn is not null)
 		{
 			return Refuse($"{KernelStatusOptInVariable} is valid only in the kernel-status scenario.");
+		}
+		string? wfpIsolationOptIn = variables(WfpIsolationOptInVariable);
+		if (scenario != LiveQualificationScenario.SymbolSources && wfpIsolationOptIn is not null)
+		{
+			return Refuse($"{WfpIsolationOptInVariable} is valid only in the symbol-sources scenario.");
 		}
 		string? transitionDiagnostic = variables(DebuggerTransitionDiagnosticVariable);
 		if (transitionDiagnostic is not null && (transitionDiagnostic != "1" || scenario != LiveQualificationScenario.Debugger))
@@ -168,10 +180,17 @@ internal static class LiveQualificationOptIn
 		{
 			return Refuse($"{SymbolFixtureOptInVariable} must contain the exact acknowledgement {SymbolFixtureAcknowledgement}.");
 		}
-		if (compiler && compilerTempSettingsAreSafe is not null &&
+		if (scenario == LiveQualificationScenario.SymbolSources &&
+			(variables(SymbolFixtureOptInVariable) != SymbolFixtureAcknowledgement ||
+				variables(SymbolSourcesOptInVariable) != SymbolSourcesAcknowledgement ||
+				wfpIsolationOptIn != WfpIsolationAcknowledgement))
+		{
+			return Refuse($"{SymbolFixtureOptInVariable}, {SymbolSourcesOptInVariable}, and {WfpIsolationOptInVariable} must contain their exact acknowledgements.");
+		}
+		if ((compiler || scenario == LiveQualificationScenario.SymbolSources) && compilerTempSettingsAreSafe is not null &&
 			!compilerTempSettingsAreSafe())
 		{
-			return Refuse("Cheat Engine's Don't use tempdir setting is enabled; compiler qualification requires the owned TEMP directory.");
+			return Refuse("Cheat Engine's Don't use tempdir setting is enabled; compiler and symbol-source qualification require their owned temporary/cache directories.");
 		}
 		if (scenario == LiveQualificationScenario.Mono && variables(MonoOptInVariable) != MonoAcknowledgement)
 		{
@@ -183,7 +202,7 @@ internal static class LiveQualificationOptIn
 		{
 			return Refuse($"{TargetArchitectureVariable} must be x64 or x86.");
 		}
-		if ((scenario is LiveQualificationScenario.Execution or LiveQualificationScenario.SymbolFixture or LiveQualificationScenario.Debugger or LiveQualificationScenario.DebuggerBasic or LiveQualificationScenario.DebuggerEvents or LiveQualificationScenario.DebuggerExecution or LiveQualificationScenario.PluginLifecycleActive or LiveQualificationScenario.Mono) && architecture != "x64")
+		if ((scenario is LiveQualificationScenario.Execution or LiveQualificationScenario.SymbolFixture or LiveQualificationScenario.SymbolSources or LiveQualificationScenario.Debugger or LiveQualificationScenario.DebuggerBasic or LiveQualificationScenario.DebuggerEvents or LiveQualificationScenario.DebuggerExecution or LiveQualificationScenario.PluginLifecycleActive or LiveQualificationScenario.Mono) && architecture != "x64")
 		{
 			return Refuse("The fixed execution qualification supports only the owned x64 target.");
 		}
@@ -229,7 +248,9 @@ internal static class LiveQualificationOptIn
 				DispatchDiagnosticCase = dispatchCase,
 				DebuggerTransitionDiagnostic = transitionDiagnostic == "1",
 				FrozenInputManifestPath = frozenInputManifestPath is null ? null : Path.GetFullPath(frozenInputManifestPath),
-				FrozenInputManifestSha256 = frozenInputManifestSha256
+				FrozenInputManifestSha256 = frozenInputManifestSha256,
+				WfpIsolationAcknowledgement = scenario == LiveQualificationScenario.SymbolSources
+					? WfpIsolationAcknowledgement : null
 			}, null);
 	}
 

@@ -36,7 +36,7 @@ Each project's `README.md` states its role and dependencies, the [test project R
 | Tool | Why |
 |---|---|
 | Windows x64 | The plugin, the native Lua bridge and the live target are x64-only. |
-| .NET SDK 10.0.402, exactly | [`global.json`](global.json) pins it with `rollForward: disable` and `allowPrerelease: false`; `dotnet --version` in the repository root must print `10.0.402`. |
+| .NET SDK 10.0.403, exactly | [`global.json`](global.json) pins it with `rollForward: disable` and `allowPrerelease: false`; `dotnet --version` in the repository root must print `10.0.403`. |
 | PowerShell 7 (`pwsh`) | Runs [`eng/Publish.ps1`](eng/Publish.ps1). |
 | Visual Studio or the Visual Studio Build Tools with the C++ desktop workload and the Windows SDK | Required to publish the Windows x64 Native AOT gateway with the MSVC linker. |
 | A Lua 5.3 x64 DLL, such as Cheat Engine's `lua53-64.dll` | Only for the NativeLua tests. |
@@ -48,7 +48,7 @@ Any editor works, but see [Formatting](#formatting) before you commit from JetBr
 
 ## Build and test
 
-Run these from the repository root; they are the commands that the CI workflow, [`.github/workflows/build.yml`](.github/workflows/build.yml), runs on every pull request:
+Run these from the repository root for the local V+ baseline:
 
 ```powershell
 git submodule update --init --recursive
@@ -60,6 +60,8 @@ pwsh -NoProfile -File eng/Publish.ps1
 dotnet format style CheatEngine.Mcp.slnx --no-restore --severity warn --verify-no-changes
 dotnet format whitespace CheatEngine.Mcp.slnx --no-restore --verify-no-changes
 ```
+
+The [CI workflow](.github/workflows/build.yml) also runs the portable suite in Release, publishes both Debug and Release distributions, packages the release assets, and uploads the resulting artifacts.
 
 - Warnings are errors, code style is enforced in the build, and NuGet audit fails the restore on high and critical advisories.
 - `eng/Publish.ps1` publishes Release by default; pass `-Configuration Debug` for the Debug distribution; CI publishes both.
@@ -127,7 +129,8 @@ Remove-Item Env:CHEATENGINE_MCP_LIVE_QUALIFICATION
 - `CHEATENGINE_MCP_LIVE_QUALIFICATION_DISTRIBUTION_DIRECTORY` selects an absolute distribution path made with `eng/Publish.ps1 -OutputDirectory`; this avoids replacing a gateway executable currently used by an MCP client.
 - It backs up and restores Cheat Engine's user settings, and keeps reports and backups under `%LOCALAPPDATA%\CheatEngine.Mcp.LiveQualification\runs`, outside the checkout.
 - It stops when a stock autorun script such as `monoscript.lua` differs from the reviewed version; never update the expected hash without a review.
-- Kernel, hypervisor and code-execution tools are never exercised live.
+- The ordinary live smoke scenario keeps the kernel and target-code-execution gates disabled.
+  Additional scenarios have separate acknowledgements and prerequisites in [the runner contracts](docs/qualification/all-tools/runners.md); kernel/DBVM success qualification remains open.
 
 What the live scenario checks, and how the private copies and reports work, is in [Verification](README.md#verification).
 
@@ -154,16 +157,23 @@ Operator guidance is served as MCP resources and prompts; there is no separate s
 
 1. Set `Version` in `Directory.Build.props`, merge the change into `main`, and pass the required checks.
 2. From the clean tested checkout, build and package with `pwsh -NoProfile -File eng/Release.ps1`.
-   This invokes `eng/Publish.ps1`, including its native gateway smoke check, then verifies every ZIP entry against the distribution and generates checksums.
+   This invokes `eng/Publish.ps1`, including its native gateway smoke check, then verifies every ZIP entry against the distribution and generates checksums. The publish output also writes a sibling `artifacts/dist/release.release-manifest.json`; it is deliberately outside the five-file deployable layout and binds the binaries, deployment documents, source commit, and recorded Client and SDK commits. A manifest is release-eligible only when those identities and clean recorded source state remained stable for the complete build.
 3. Create and push the annotated `v<version>` tag at the binaries' source commit. The script validates that the plugin, product DLLs, gateway and remote tag agree; it never creates or moves tags.
 4. Upload a draft, review its notes and files, then publish:
 
 ```powershell
-pwsh -NoProfile -File eng/Release.ps1 -DistributionPath artifacts/dist/release -Upload
-pwsh -NoProfile -File eng/Release.ps1 -DistributionPath artifacts/dist/release -Upload -Publish
+# Build from the clean checkout and upload the just-verified distribution.
+pwsh -NoProfile -File eng/Release.ps1 -Upload
+pwsh -NoProfile -File eng/Release.ps1 -Upload -Publish
+
+# A separately produced distribution needs a reviewed manifest digest before upload.
+$manifest = 'artifacts/dist/release.release-manifest.json'
+$manifestSha256 = (Get-FileHash -LiteralPath $manifest -Algorithm SHA256).Hash
+pwsh -NoProfile -File eng/Release.ps1 -DistributionPath artifacts/dist/release -DistributionManifestPath $manifest -DistributionManifestSha256 $manifestSha256 -Upload
 ```
 
 Use `-NotesFile <path>` for reviewed release notes; existing notes are preserved when it is omitted.
+Prebuilt uploads are refused unless the checkout and recorded submodules are clean and the supplied manifest digest has been independently reviewed. Product version provenance alone is not sufficient.
 Prerelease status follows the version suffix. Upload alone leaves new releases as drafts and preserves an existing release's published status.
 `-WhatIf` performs no build, writes or GitHub changes.
 

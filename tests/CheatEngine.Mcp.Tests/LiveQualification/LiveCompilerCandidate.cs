@@ -13,6 +13,13 @@ namespace CheatEngine.Mcp.Tests.LiveQualification;
 internal static partial class LiveCompilerCandidate
 {
 	private static readonly TimeSpan GitTimeout = TimeSpan.FromSeconds(5);
+	internal static string PolicyPath(string repositoryRoot, LiveQualificationScenario scenario)
+	{
+		string policyName = scenario is LiveQualificationScenario.CompilerExtended or LiveQualificationScenario.CompilerInjection
+			? "compiler-extended-policy.md"
+			: "compiler-probe-policy.md";
+		return Path.Combine(repositoryRoot, "docs", "qualification", "all-tools", policyName);
+	}
 
 	internal static object Verify(LiveQualificationInputs inputs)
 	{
@@ -36,10 +43,7 @@ internal static partial class LiveCompilerCandidate
 			throw new InvalidOperationException("Compiler qualification requires a clean checkout or a fully verified frozen-input manifest.");
 		}
 
-		string policyName = inputs.Scenario is LiveQualificationScenario.CompilerExtended or LiveQualificationScenario.CompilerInjection
-			? "compiler-extended-policy.md"
-			: "compiler-probe-policy.md";
-		string policy = Path.Combine(inputs.RepositoryRoot, "docs", "qualification", "v2.0.0", policyName);
+		string policy = PolicyPath(inputs.RepositoryRoot, inputs.Scenario);
 		string distribution = LiveSandboxSession.DistributionDirectory(inputs.RepositoryRoot, "release");
 		string plugin = Path.Combine(distribution, "CheatEngine.Mcp.dll");
 		string gateway = Path.Combine(distribution, "CheatEngine.Mcp.Gateway.exe");
@@ -61,7 +65,7 @@ internal static partial class LiveCompilerCandidate
 			frozenInputManifestSha256 = frozenInputCount == 0 ? null : inputs.FrozenInputManifestSha256,
 			frozenInputCount,
 			productVersion = pluginVersion,
-			policy = policyName,
+			policy = Path.GetFileName(policy),
 			policySha256 = CheatEngineInstallation.Sha256(policy),
 			bridgeTemplateSha256 = LiveCompilerBridge.TemplateSha256,
 			windowsVersion = Environment.OSVersion.VersionString,

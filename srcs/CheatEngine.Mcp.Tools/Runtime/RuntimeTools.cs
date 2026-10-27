@@ -121,7 +121,7 @@ public sealed class RuntimeTools
 		Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[Description(
-		"Stop one retained job and discard its items. A managed job may report partial_effect while it is still ending; repeat only when the error says retryable.")]
+		"Stop one retained job and discard its items. MCP remembers up to 256 recent stops within their TTL for alreadyReleased retries; older or expired ids return not_found. A managed job may report partial_effect while it is still ending; repeat only when the error says retryable.")]
 	public JobStopResult StopJob(
 		[Description("The job id returned by a start tool.")]
 		string jobId,

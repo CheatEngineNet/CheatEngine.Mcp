@@ -186,8 +186,13 @@ public sealed class CodeTools
 			(Address target, long epoch) = _dispatch.Run(CheatEngineToolNames.CodeStartDissect, token =>
 			{
 				ICheatEngineClient client = _dispatch.Client;
-				return (MemoryTargets.Resolve(client, expression, "address", token),
-					MemoryTargets.SelectionEpoch(client, token));
+				long observed = MemoryTargets.SelectionEpoch(client, token);
+				Address resolved = MemoryTargets.Resolve(client, expression, "address", token);
+				MemoryTargets.RequireSameTarget(client, observed, CheatEngineToolNames.CodeStartDissect, token);
+				int pointerBytes = MemoryTargets.PointerBytes(client, token);
+				MemoryTargets.RequireSameTarget(client, observed, CheatEngineToolNames.CodeStartDissect, token);
+				MemoryTargets.RequireRangeFitsTargetAddressSpace(resolved, size, pointerBytes);
+				return (resolved, observed);
 			}, cancellationToken);
 			ManagedJob<CodeJobEvent> job = _jobs.StartManaged<CodeJobEvent>(JobKind, lifetime, 1,
 				(writer, token) => RunDissectAsync(writer, target, epoch, size, token));
@@ -231,8 +236,13 @@ public sealed class CodeTools
 		(Address target, long epoch) = _dispatch.Run(CheatEngineToolNames.CodeStartSearch, token =>
 		{
 			ICheatEngineClient client = _dispatch.Client;
-			return (MemoryTargets.Resolve(client, expression, "address", token),
-				MemoryTargets.SelectionEpoch(client, token));
+			long observed = MemoryTargets.SelectionEpoch(client, token);
+			Address resolved = MemoryTargets.Resolve(client, expression, "address", token);
+			MemoryTargets.RequireSameTarget(client, observed, CheatEngineToolNames.CodeStartSearch, token);
+			int pointerBytes = MemoryTargets.PointerBytes(client, token);
+			MemoryTargets.RequireSameTarget(client, observed, CheatEngineToolNames.CodeStartSearch, token);
+			MemoryTargets.RequireRangeFitsTargetAddressSpace(resolved, size, pointerBytes);
+			return (resolved, observed);
 		}, cancellationToken);
 		ManagedJob<CodeJobEvent> job = _jobs.StartManaged<CodeJobEvent>(JobKind, lifetime, buffer,
 			(writer, token) => RunSearchAsync(writer, target, epoch, size, textContains, token));

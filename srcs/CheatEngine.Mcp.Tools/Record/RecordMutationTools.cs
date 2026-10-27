@@ -234,7 +234,7 @@ public sealed class RecordMutationTools(ToolDispatch dispatch)
 		Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.MayPrompt)]
 	[Description(
-		"Delete 1 to 256 records by current id. Deleting a group can also remove or reparent its children according to Cheat Engine's address-list behavior. Deleting an active Auto Assembler record can execute its disable section and requires Mcp:EnableAutoAssembler. Script execution can block Cheat Engine or show a dialog. A failure after an earlier delete leaves those earlier deletions in effect.")]
+		"Delete 1 to 256 records by current id, including their children. The complete deletion subtrees are checked before the first delete, with at most 4096 distinct records and 64 levels per subtree. An active Auto Assembler record anywhere below a listed record requires Mcp:EnableAutoAssembler. Deletion does not run DISABLE: deactivate active scripts, including children, first or their patches remain without the records needed to undo them. OnDestroy callbacks can run during deletion. A failure after an earlier delete leaves those earlier deletions in effect.")]
 	public RecordDeleteResult Delete(
 		[Description("The distinct current record ids to delete, from 1 to 256 entries.")]
 		int[] ids,
@@ -247,11 +247,7 @@ public sealed class RecordMutationTools(ToolDispatch dispatch)
 		{
 			MemoryRecordSnapshot[] records =
 				[.. ids.Select(id => client.Tables.GetRecord(new MemoryRecordId(id), token))];
-			if (records.Any(static record =>
-					record.Content.VariableType is VariableType.AutoAssembler && record.State.IsActive))
-			{
-				dispatch.Features.Require(McpFeature.AutoAssembler, CheatEngineToolNames.RecordDelete);
-			}
+			CheckDeletionSubtrees(records, token);
 
 			foreach (MemoryRecordSnapshot record in records)
 			{
@@ -260,6 +256,45 @@ public sealed class RecordMutationTools(ToolDispatch dispatch)
 
 			return new RecordDeleteResult(records.Length);
 		}, cancellationToken);
+	}
+
+	private void CheckDeletionSubtrees(MemoryRecordSnapshot[] records, CancellationToken cancellationToken)
+	{
+		HashSet<MemoryRecordId> checkedIds = [];
+		foreach (MemoryRecordSnapshot record in records)
+		{
+			MemoryRecordHierarchySnapshot tree = record.State.ChildCount > 0
+				? dispatch.Client.Tables.GetHierarchy(record.Id,
+					new MemoryRecordHierarchyRequest(MaximumReachedRecords, RecordArguments.MaximumHierarchyDepth),
+					cancellationToken)
+				: new MemoryRecordHierarchySnapshot(record, []);
+			Stack<MemoryRecordHierarchySnapshot> pending = new();
+			pending.Push(tree);
+			while (pending.TryPop(out MemoryRecordHierarchySnapshot current))
+			{
+				cancellationToken.ThrowIfCancellationRequested();
+				if (!checkedIds.Add(current.Record.Id))
+				{
+					continue;
+				}
+
+				if (checkedIds.Count > MaximumReachedRecords)
+				{
+					throw CheatEngineToolException.LimitExceeded("ids",
+						$"must reach at most {MaximumReachedRecords} distinct records before deletion.");
+				}
+
+				if (current.Record.Content.VariableType is VariableType.AutoAssembler && current.Record.State.IsActive)
+				{
+					dispatch.Features.Require(McpFeature.AutoAssembler, CheatEngineToolNames.RecordDelete);
+				}
+
+				foreach (MemoryRecordHierarchySnapshot child in current.Children)
+				{
+					pending.Push(child);
+				}
+			}
+		}
 	}
 
 	/// <summary>Moves a record below a parent or verifies that it is already at the root.</summary>

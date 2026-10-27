@@ -664,6 +664,25 @@ public sealed partial class NativeLuaToolRuntimeTests
 		Assert.Equal("stale", ReadGlobal("restoredName"));
 	}
 
+	[Fact]
+	public void MonoV2_ListFields_EnumerationFailureRestoresTheDisplacedCacheEntry()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(MonoAttachedStubs);
+		InstallStubs("""
+		             monocache = {fields = {[4096] = {{field = 1, name = 'stale', offset = 0, flags = 0, isStatic = false}}}}
+		             mono_class_enumFields = function() error('field enumeration failed') end
+		             """);
+
+		Exception exception = Assert.ThrowsAny<Exception>(() => ReadJson(
+			LuaToolRuntime.BuildSource(MonoLuaScripts.Fields, 100, new object?[] { "4096", false, 512 }),
+			MonoJsonContext.Default.MonoFieldList));
+		InstallStubs("restoredName = monocache.fields[4096][1].name");
+
+		Assert.Contains("field enumeration failed", exception.Message, StringComparison.Ordinal);
+		Assert.Equal("stale", ReadGlobal("restoredName"));
+	}
+
 	[Theory]
 	[InlineData(null, 0, 100, "256,512,768,1024,1280", 5, null)]
 	// Namespace-qualified and ASCII case-insensitive: Game.Player, PlayerStats and Game.PLAYER.Health match.

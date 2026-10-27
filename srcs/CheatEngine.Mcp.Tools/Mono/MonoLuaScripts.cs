@@ -268,9 +268,10 @@ internal static class MonoLuaScripts
 	                                   local saved = cache()
 	                                   local previous = saved and saved[class] or nil
 	                                   if saved then saved[class] = nil end
-	                                   local fields = mono_class_enumFields(class, includeParents)
+	                                   local called, fields = pcall(mono_class_enumFields, class, includeParents)
 	                                   local restored = cache()
 	                                   if restored then restored[class] = previous end
+	                                   if not called then error(fields, 0) end
 	                                   return fields
 	                                 end
 	                                 """ + "\n";

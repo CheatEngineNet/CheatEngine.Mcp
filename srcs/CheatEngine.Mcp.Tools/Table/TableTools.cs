@@ -71,7 +71,7 @@ public sealed class TableTools
 		Destructive = true, Idempotent = false, OpenWorld = true, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.MayPrompt)]
 	[Description(
-		"Save the current table through CheatEngine.Client to a .CT, .XML or .CETRAINER path under CheatEngineClient:AllowedTableRoots. overwrite must be true when a destination file already exists. A native save failure can leave a partially written destination.")]
+		"Save the current table through CheatEngine.Client to a .CT, .XML or .CETRAINER path under CheatEngineClient:AllowedTableRoots. MCP reserves an anchored temporary table in that root and publishes it atomically only after Cheat Engine saves it. overwrite must be true when a destination file already exists.")]
 	public TableSaveResult Save(
 		[Description("The absolute destination table path inside CheatEngineClient:AllowedTableRoots.")]
 		string path,
@@ -79,19 +79,35 @@ public sealed class TableTools
 		bool overwrite = false,
 		CancellationToken cancellationToken = default)
 	{
-		string fullPath = RequireAllowedTablePath(path, CheatEngineToolNames.TableSave);
-		TrustedTableFile trusted = new(fullPath);
+		(string fullPath, string root) = RequireAllowedTableDestination(path, CheatEngineToolNames.TableSave);
+		using McpFileWrite write = BeginExternalWrite(fullPath, root, overwrite);
 		return _dispatch.Run(CheatEngineToolNames.TableSave, token =>
 		{
-			bool existed = File.Exists(trusted.FullPath);
-			if (existed && !overwrite)
+			string temporary = write.PrepareForExternalWrite();
+			try
 			{
-				throw CheatEngineToolException.InvalidArgument("overwrite",
-					"must be true because a table file already exists at path.");
+				_dispatch.Client.Tables.SaveTable(new TableSaveRequest(new TrustedTableFile(temporary)), token);
+			}
+			catch (Exception exception)
+			{
+				if (!write.TryAbort())
+				{
+					throw ExternalSaveCleanupFailure(exception);
+				}
+
+				throw;
 			}
 
-			_dispatch.Client.Tables.SaveTable(new TableSaveRequest(trusted), token);
-			return new TableSaveResult(trusted.FullPath, existed);
+			try
+			{
+				write.Commit();
+			}
+			catch (IOException exception)
+			{
+				throw PublishFailure(exception, write.TryAbort());
+			}
+
+			return new TableSaveResult(write.FullPath, write.DestinationExisted);
 		}, cancellationToken);
 	}
 
@@ -208,6 +224,55 @@ public sealed class TableTools
 		}
 
 		return fullPath;
+	}
+
+	private (string FullPath, string Root) RequireAllowedTableDestination(string? path, string operation)
+	{
+		string fullPath = RequireAllowedTablePath(path, operation);
+		string? root = AllowedTableRoots(operation)
+			.Where(root => IsUnder(fullPath, root))
+			.OrderByDescending(static root => root.Length)
+			.FirstOrDefault();
+		return root is null
+			? throw new InvalidOperationException("The admitted table path did not retain an allowed root.")
+			: (fullPath, root);
+	}
+
+	private static CheatEngineToolException PublishFailure(IOException exception, bool cleanupConfirmed)
+	{
+		ToolHostEffect effect = cleanupConfirmed ? ToolHostEffect.Started : ToolHostEffect.CleanupUnconfirmed;
+		string hint = cleanupConfirmed
+			? "Cheat Engine saved a protected temporary table, but MCP did not replace the destination; inspect the table root before retrying."
+			: "Cheat Engine saved a protected temporary table, but MCP could not confirm its cleanup; inspect the table root before retrying.";
+		return new CheatEngineToolException(new ToolError(ToolErrorKind.PartialEffect,
+			"Cheat Engine saved a protected temporary table, but it could not be atomically published to the requested destination.",
+			CheatEngineToolNames.TableSave, effect, false, hint), exception);
+	}
+
+	private static CheatEngineToolException ExternalSaveCleanupFailure(Exception exception)
+	{
+		return new CheatEngineToolException(new ToolError(ToolErrorKind.PartialEffect,
+			"Cheat Engine failed while saving a protected temporary table, and MCP could not confirm its cleanup.",
+			CheatEngineToolNames.TableSave, ToolHostEffect.CleanupUnconfirmed, false,
+			"Inspect the configured table root for MCP's protected temporary table before retrying; do not overwrite or delete unrelated files."),
+			exception);
+	}
+
+	private McpFileWrite BeginExternalWrite(string path, string root, bool overwrite)
+	{
+		try
+		{
+			return _files.BeginWriteUnderRoot(path, root, CheatEngineToolNames.TableSave, overwrite,
+				preserveDestinationExtension: true);
+		}
+		catch (IOException exception)
+		{
+			throw new CheatEngineToolException(new ToolError(ToolErrorKind.InvalidState,
+				"The destination table could not be reserved.", CheatEngineToolNames.TableSave,
+				ToolHostEffect.NotStarted, false,
+				"Check that the table root is writable and the destination is not held by another program, then repeat the call."),
+				exception);
+		}
 	}
 
 	private string[] AllowedTableRoots(string operation)

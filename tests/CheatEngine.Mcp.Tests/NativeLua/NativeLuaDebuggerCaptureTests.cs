@@ -58,6 +58,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 	                                        debug_setBreakpoint = function(address, size, trigger, callback)
 	                                            breakpointCalls = breakpointCalls + 1
 	                                            breakpointAddress = address
+	                                            breakpointSize = size
 	                                            table.insert(breakpointAddresses, address)
 	                                            breakpointTrigger = trigger
 	                                            if callback ~= nil then captureCallback = callback end

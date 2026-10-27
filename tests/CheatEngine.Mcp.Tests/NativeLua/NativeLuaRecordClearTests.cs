@@ -337,4 +337,71 @@ public sealed partial class NativeLuaToolRuntimeTests
 			(exception.Error.Kind, exception.Error.HostEffect));
 		Assert.Equal((1L, 1L), (ReadGlobal("windowsCalls"), ReadGlobal("kernelCalls")));
 	}
+
+	[Theory]
+	[InlineData(true, false)]
+	[InlineData(false, true)]
+	[InlineData(true, true)]
+	public void SymbolEnableSources_MissingRequestedApi_RefusesBeforeAnySourceIsEnabled(bool windows, bool kernel)
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs("""
+		             windowsCalls = 0
+		             kernelCalls = 0
+		             enableWindowsSymbols = function() windowsCalls = windowsCalls + 1 end
+		             enableKernelSymbols = function() kernelCalls = kernelCalls + 1 end
+		             """);
+		InstallStubs(kernel ? "enableKernelSymbols = nil" : "enableWindowsSymbols = nil");
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			ModuleSymbolTools(CreateNativeDispatch(new McpFeatureOptions { EnableKernelAccess = true }))
+				.EnableSources(windows, kernel, Token));
+
+		Assert.Equal((ToolErrorKind.Unsupported, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Equal((0L, 0L), (ReadGlobal("windowsCalls"), ReadGlobal("kernelCalls")));
+	}
+
+	[Fact]
+	public void SymbolEnableSources_KernelOnlyFailure_ReportsUnknownEffectWithoutClaimingWindowsWasEnabled()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs("""
+		             windowsCalls = 0
+		             kernelCalls = 0
+		             enableWindowsSymbols = function() windowsCalls = windowsCalls + 1 end
+		             enableKernelSymbols = function() kernelCalls = kernelCalls + 1; error('symbol loader refused') end
+		             """);
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			ModuleSymbolTools(CreateNativeDispatch(new McpFeatureOptions { EnableKernelAccess = true }))
+				.EnableSources(false, true, Token));
+
+		Assert.Equal((ToolErrorKind.HostRefused, ToolHostEffect.Unknown),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.DoesNotContain("Windows", exception.Error.Message, StringComparison.Ordinal);
+		Assert.Equal((0L, 1L), (ReadGlobal("windowsCalls"), ReadGlobal("kernelCalls")));
+	}
+
+	[Theory]
+	[InlineData(true, false)]
+	[InlineData(false, true)]
+	public void SymbolEnableSources_UnrequestedApiMissing_EnablesOnlyTheRequestedSource(bool windows, bool kernel)
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs("""
+		             sourceCalls = 0
+		             enableWindowsSymbols = nil
+		             enableKernelSymbols = nil
+		             """);
+		InstallStubs(windows
+			? "enableWindowsSymbols = function() sourceCalls = sourceCalls + 1 end"
+			: "enableKernelSymbols = function() sourceCalls = sourceCalls + 1 end");
+
+		SymbolSourcesEnabled result = ModuleSymbolTools(CreateNativeDispatch(new McpFeatureOptions { EnableKernelAccess = true }))
+			.EnableSources(windows, kernel, Token);
+
+		Assert.Equal(new SymbolSourcesEnabled(windows, kernel, windows), result);
+		Assert.Equal(1L, ReadGlobal("sourceCalls"));
+	}
 }

@@ -19,7 +19,8 @@ namespace CheatEngine.Mcp.Core.Jobs;
 ///         Ids: a malformed id or a kind mismatch is <c>invalid_argument</c>; an unknown id, an expired job, a stopped job
 ///         (for a poll) or a job of an earlier activation is <c>not_found</c>, never a success. Stopping a job that
 ///         already
-///         ended, or was already stopped within its TTL, succeeds with <see cref="JobStopResult.AlreadyReleased" />.
+///         ended, or is among the bounded recent stops within its TTL, succeeds with
+///         <see cref="JobStopResult.AlreadyReleased" />.
 ///     </para>
 ///     <para>
 ///         TTL: <see cref="McpExecutionOptions.JobDefaultTtlSeconds" /> by default, at most
@@ -52,6 +53,8 @@ public sealed class JobRegistry : IDisposable
 	private readonly McpExecutionOptions _options;
 	private readonly TargetResources _resources;
 	private readonly Dictionary<string, DateTimeOffset> _stopped = new(StringComparer.Ordinal);
+	private readonly LinkedList<string> _stoppedOrder = [];
+	private readonly Dictionary<string, LinkedListNode<string>> _stoppedOrderNodes = new(StringComparer.Ordinal);
 	private readonly TimeProvider _time;
 	private bool _disposed;
 	private int _reserved;
@@ -342,7 +345,7 @@ public sealed class JobRegistry : IDisposable
 	/// <summary>
 	///     Stops a job and discards its items; call it outside a dispatch. A Lua job stops in one dispatch; a managed job
 	///     is asked to stop, and, off Cheat Engine's main thread, the call waits up to one second for its work to end.
-	///     Stopping a job that already ended, or was already stopped within its TTL, succeeds with
+	///     Stopping a job that already ended, or is among the bounded recent stops within its TTL, succeeds with
 	///     <see cref="JobStopResult.AlreadyReleased" />.
 	/// </summary>
 	/// <param name="jobId">The job id.</param>
@@ -549,13 +552,32 @@ public sealed class JobRegistry : IDisposable
 				_jobs.Remove(job.Id);
 			}
 
-			if (tombstone && _stopped.Count < MaximumTombstones)
+			if (tombstone)
 			{
-				_stopped[job.Id] = job.ExpiresUtc;
+				RecordTombstone(job.Id, job.ExpiresUtc);
 			}
 		}
 
 		_resources.Forget(job);
+	}
+
+	/// <summary>Keeps the most recently stopped jobs retryable while bounding retained tombstone memory.</summary>
+	private void RecordTombstone(string jobId, DateTimeOffset expiresUtc)
+	{
+		if (!_stopped.ContainsKey(jobId))
+		{
+			if (_stopped.Count >= MaximumTombstones)
+			{
+				LinkedListNode<string> oldest = _stoppedOrder.First!;
+				_stopped.Remove(oldest.Value);
+				_stoppedOrderNodes.Remove(oldest.Value);
+				_stoppedOrder.RemoveFirst();
+			}
+
+			_stoppedOrderNodes.Add(jobId, _stoppedOrder.AddLast(jobId));
+		}
+
+		_stopped[jobId] = expiresUtc;
 	}
 
 	private void OnManagedJobEnded(McpJob job)
@@ -577,6 +599,10 @@ public sealed class JobRegistry : IDisposable
 						 .ToArray())
 			{
 				_stopped.Remove(tombstone.Key);
+				if (_stoppedOrderNodes.Remove(tombstone.Key, out LinkedListNode<string>? node))
+				{
+					_stoppedOrder.Remove(node);
+				}
 			}
 
 			foreach (McpJob job in _jobs.Values)

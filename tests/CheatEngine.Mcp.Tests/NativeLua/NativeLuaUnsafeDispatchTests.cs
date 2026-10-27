@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 
 using CheatEngine.Client;
+using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Lua;
 using CheatEngine.Client.Results;
 using CheatEngine.Mcp.Core.Contract;
@@ -33,7 +34,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 		});
 		LuaTools tools = new(CreateUnsafeDispatch(CreateFixedLuaClient(static () =>
 		{
-		})), unsafeLua);
+		}), stopping: TestContext.Current.CancellationToken), unsafeLua);
 
 		LuaExecuteResult completed = tools.Execute("return 7", cancellationToken: CancellationToken.None);
 		LuaExecuteResult notApplied = tools.Execute("return +", cancellationToken: CancellationToken.None);
@@ -68,7 +69,8 @@ public sealed partial class NativeLuaToolRuntimeTests
 			arguments[1] = default(CheatEngineFailure);
 			return true;
 		});
-		ToolDispatch dispatch = CreateUnsafeDispatch(CreateFixedLuaClient(() => fixedLuaCalls++));
+		ToolDispatch dispatch = CreateUnsafeDispatch(CreateFixedLuaClient(() => fixedLuaCalls++),
+			stopping: TestContext.Current.CancellationToken);
 
 		LuaUnsafeExecution<TestLuaExecuteOutcome> copied = dispatch.RunUnsafeLua("unsafe_bridge", unsafeLua,
 			"return 7, print, {visible = 'kept', hidden = print}", null,
@@ -103,6 +105,35 @@ public sealed partial class NativeLuaToolRuntimeTests
 	}
 
 	[Fact]
+	public void RunUnsafeLua_CallerCancelsAfterStageA_StillRunsStageBCleanup()
+	{
+		using RuntimeScope scope = CreateScope();
+		using CancellationTokenSource caller = new();
+		using CancellationTokenSource stopping = new();
+		int fixedLuaCalls = 0;
+		IUnsafeLuaClient unsafeLua = ClientTestDouble.Create<IUnsafeLuaClient>((method, arguments) =>
+		{
+			Assert.Equal(nameof(IUnsafeLuaClient.TryExecute), method.Name);
+			RunStageA(Assert.IsType<LuaScript>(arguments![0]).Source);
+			caller.Cancel();
+			arguments[1] = default(CheatEngineFailure);
+			return true;
+		});
+		ToolDispatch dispatch = CreateUnsafeDispatch(CreateFixedLuaClient(() => fixedLuaCalls++, token =>
+			{
+				Assert.Equal(stopping.Token, token);
+				Assert.NotEqual(caller.Token, token);
+			}), stopping: stopping.Token);
+
+		LuaUnsafeExecution<TestLuaExecuteOutcome> copied = dispatch.RunUnsafeLua("unsafe_bridge", unsafeLua,
+			"return 'cleared despite cancellation'", null, TestJsonContext.Default.LuaExecuteOutcome, caller.Token);
+
+		Assert.True(copied.Result.Ok, copied.Result.Error);
+		Assert.Equal(1, fixedLuaCalls);
+		Assert.Null(ReadGlobal(LuaUnsafeScriptWrapper.ResultGlobal));
+	}
+
+	[Fact]
 	public void RunUnsafeLua_DisabledCapability_RefusesBeforeEitherLuaStage()
 	{
 		int unsafeCalls = 0;
@@ -117,7 +148,8 @@ public sealed partial class NativeLuaToolRuntimeTests
 			fixedLuaCalls++;
 			throw new XunitException("Unsafe Lua must be refused before the fixed result reader runs.");
 		});
-		ToolDispatch dispatch = CreateUnsafeDispatch(fixedLua, new McpFeatureOptions { EnableUnsafeLua = false });
+		ToolDispatch dispatch = CreateUnsafeDispatch(fixedLua, new McpFeatureOptions { EnableUnsafeLua = false },
+			TestContext.Current.CancellationToken);
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
 			dispatch.RunUnsafeLua("unsafe_bridge", unsafeLua, "return 1", null,
@@ -130,11 +162,33 @@ public sealed partial class NativeLuaToolRuntimeTests
 	}
 
 	private static ToolDispatch CreateUnsafeDispatch(ILuaClient? lua,
-		McpFeatureOptions? features = null)
+		McpFeatureOptions? features = null, CancellationToken stopping = default)
 	{
-		ICheatEngineClient client = lua is null
-			? ClientTestDouble.Client()
-			: ClientTestDouble.Client((nameof(ICheatEngineClient.Lua), lua));
+		ICheatEngineClient client;
+		if (lua is null || !stopping.CanBeCanceled)
+		{
+			client = lua is null
+				? ClientTestDouble.Client()
+				: ClientTestDouble.Client((nameof(ICheatEngineClient.Lua), lua));
+		}
+		else
+		{
+			ICheatEngineDispatcher dispatcher = ClientTestDouble.Create<ICheatEngineDispatcher>((method, arguments) =>
+			{
+				if (method.Name == "get_IsMainThread")
+				{
+					return true;
+				}
+
+				if (method.Name.StartsWith("Invoke", StringComparison.Ordinal) && arguments?[0] is Delegate callback)
+				{
+					return callback.DynamicInvoke();
+				}
+
+				throw new NotSupportedException($"No dispatcher behavior was configured for {method.Name}.");
+			});
+			client = ClientTestDouble.Client(dispatcher, stopping, (nameof(ICheatEngineClient.Lua), lua));
+		}
 		IOptions<McpExecutionOptions> execution = Options.Create(new McpExecutionOptions());
 		return new ToolDispatch(client,
 			new McpFeatureGate(Options.Create(features ?? new McpFeatureOptions { EnableUnsafeLua = true })),
@@ -142,11 +196,14 @@ public sealed partial class NativeLuaToolRuntimeTests
 			new PluginFixedLuaExecutor(client));
 	}
 
-	private static ILuaClient CreateFixedLuaClient(Action fixedLuaExecuted)
+	private static ILuaClient CreateFixedLuaClient(Action fixedLuaExecuted, Action<CancellationToken>? inspectToken = null)
 	{
 		return ClientTestDouble.Create<ILuaClient>((method, arguments) =>
 		{
 			Assert.Equal(nameof(ILuaClient.Execute), method.Name);
+			CancellationToken cancellationToken = Assert.IsType<CancellationToken>(arguments![1]);
+			inspectToken?.Invoke(cancellationToken);
+			cancellationToken.ThrowIfCancellationRequested();
 			fixedLuaExecuted();
 			Type resultType = method.GetGenericArguments()[1];
 			MethodInfo tryExecute = typeof(ILuaOperation<>).MakeGenericType(resultType)

@@ -9,3 +9,6 @@
 *.png binary
 *.ico binary
 *.snk binary
+
+# Preserve upstream runtime notice text, including its original trailing spaces.
+THIRD-PARTY-NOTICES.md whitespace=-blank-at-eol

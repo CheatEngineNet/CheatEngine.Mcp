@@ -329,3 +329,7 @@ dotnet_diagnostic.IDE0005.severity = suggestion
 [tests/**.cs]
 # Preserve behavior-oriented MSTest names: Subject_Condition_Outcome.
 dotnet_diagnostic.CA1707.severity = none
+
+[THIRD-PARTY-NOTICES.md]
+# Runtime component notices are reproduced verbatim from the pinned packs.
+trim_trailing_whitespace = false

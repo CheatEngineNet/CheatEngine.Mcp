@@ -41,6 +41,11 @@ public sealed class McpLiveQualificationTests(LiveQualificationFixture fixture)
 			await LiveNativeSymbolFixtureScenario.RunAsync(inputs);
 			return;
 		}
+		if (inputs.Scenario == LiveQualificationScenario.SymbolSources)
+		{
+			await LiveSymbolSourceScenario.RunAsync(inputs);
+			return;
+		}
 		if (inputs.Scenario == LiveQualificationScenario.ProcessCreate)
 		{
 			await LiveProcessCreateScenario.RunAsync(inputs);

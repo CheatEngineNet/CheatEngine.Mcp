@@ -5,6 +5,7 @@ using System.Text;
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Files;
 using CheatEngine.Mcp.Tests.Core;
+using CheatEngine.Mcp.Tests.Support;
 using CheatEngine.Mcp.Tests.Tools.Modules;
 using CheatEngine.Mcp.Tools.Il2Cpp;
 
@@ -13,7 +14,7 @@ namespace CheatEngine.Mcp.Tests.Tools.Il2Cpp;
 /// <summary>Dataset lookup, source identity and explicit lifecycle behavior.</summary>
 public sealed class Il2CppDumpStoreTests : IDisposable
 {
-	private readonly McpFilePathsTests.Scratch _scratch = new();
+	private readonly McpFileScratch _scratch = new();
 	private static CancellationToken Token => TestContext.Current.CancellationToken;
 
 	public void Dispose() => _scratch.Dispose();

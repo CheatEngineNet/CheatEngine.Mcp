@@ -14,20 +14,44 @@ public sealed partial class NativeLuaToolRuntimeTests
 
 	// DBVM's watch API, whose log hands each queued batch over once, as DBVM empties its log per full retrieval.
 	private const string DbvmWatchStubs = """
-	                                      retrieveCalls = 0
-	                                      batches = {}
-	                                      dbvm_initialized = function() return true end
-	                                      dbvm_watch_reads = function() return 5 end
-	                                      dbvm_watch_writes = function() return 5 end
-	                                      dbvm_watch_executes = function() return 5 end
-	                                      dbvm_watch_disable = function() return true end
-	                                      dbvm_watch_retrievelog = function(_)
-	                                      	retrieveCalls = retrieveCalls + 1
-	                                      	local batch = table.remove(batches, 1)
-	                                      	if batch == 'fail' then return nil, 'inactive id' end
-	                                      	return batch or {}
-	                                      end
-	                                      """;
+		retrieveCalls = 0
+		watchCreates = 0
+		batches = {}
+		dbvm_initialized = function() return true end
+		dbvm_watch_reads = function()
+			watchCreates = watchCreates + 1
+			return 5
+		end
+		dbvm_watch_writes = function()
+			watchCreates = watchCreates + 1
+			return 5
+		end
+		dbvm_watch_executes = function()
+			watchCreates = watchCreates + 1
+			return 5
+		end
+		watchActive = true
+		disableMode = 'inactive'
+		disableCalls = 0
+		dbvm_watch_disable = function(_)
+			disableCalls = disableCalls + 1
+			if disableMode ~= 'noop' then watchActive = false end
+			if disableMode == 'disable-throw' then error('disable refused after effect') end
+		end
+		dbvm_watch_retrievelog = function(_)
+			retrieveCalls = retrieveCalls + 1
+			if disableMode == 'throw' then error('retrieve refused') end
+			if not watchActive then
+				if disableMode == 'invalid' then return nil, 'invalid id' end
+				if disableMode == 'unknown' then return nil, 'unknown id' end
+				if disableMode == 'void' then return nil end
+				return nil, 'inactive id'
+			end
+			local batch = table.remove(batches, 1)
+			if batch == 'fail' then return nil, 'inactive id' end
+			return batch or {}
+		end
+		""";
 
 	[Fact]
 	public void KernelStatus_ReportsBooleanStatesAndOmitsUnavailableOrInvalidAnswers()
@@ -65,7 +89,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 		             dbvm_watch_reads = function() watchCalls = watchCalls + 1; return 1 end
 		             dbvm_watch_writes = function() watchCalls = watchCalls + 1; return 1 end
 		             dbvm_watch_executes = function() watchCalls = watchCalls + 1; return 1 end
-		             dbvm_watch_disable = function() return true end
+		             dbvm_watch_disable = function() end
 		             """);
 		ToolDispatch dispatch = CreateNativeDispatch(new McpFeatureOptions());
 
@@ -143,6 +167,130 @@ public sealed partial class NativeLuaToolRuntimeTests
 		ReadKernel(LuaJobKernelScripts.Stop, StateJsonContext.Default.LuaJobStop, OwnNamespace, WatchJobId);
 		LuaKernelWatchDrain removed = DrainWatch(dispatch);
 		Assert.Equal((false, 0L, 0L), (removed.Found, removed.Retrieved, ReadGlobal("retrieveCalls")));
+	}
+
+	[Fact]
+	public void KernelV2_StartWatch_RequiresTheRetrieveLogApiBeforeCreatingAJob()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(JobHostStubs + "\n" + DbvmWatchStubs + "\ndbvm_watch_retrievelog = nil");
+		ToolDispatch dispatch = CreateNativeDispatch(new McpFeatureOptions());
+
+		CheatEngineToolException unsupported = Assert.Throws<CheatEngineToolException>(() => dispatch.RunLua(
+			"kernel_start_watch", KernelScripts.StartWatch, KernelJsonContext.Default.LuaKernelWatchArmed, Token,
+			OwnNamespace, WatchJobId, 2, 3_000, 0, 0x1000UL, 1, 0, 1));
+
+		Assert.Equal((ToolErrorKind.Unsupported, ToolHostEffect.NotStarted),
+			(unsupported.Error.Kind, unsupported.Error.HostEffect));
+		Assert.Equal(0L, ReadGlobal("watchCreates"));
+		Assert.Empty(ReadKernel(LuaJobKernelScripts.StateSnapshot, StateJsonContext.Default.LuaStateSnapshot,
+			OwnNamespace).Entries);
+	}
+
+	[Theory]
+	[InlineData("inactive", true, false)]
+	[InlineData("noop", false, true)]
+	[InlineData("invalid", false, false)]
+	[InlineData("unknown", false, false)]
+	[InlineData("void", false, false)]
+	[InlineData("throw", false, false)]
+	[InlineData("disable-throw", false, false)]
+	public void KernelV2_StopWatch_RequiresTheExactInactiveIdConfirmationAfterVoidDisable(string mode,
+		bool released, bool remainsActive)
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(JobHostStubs + "\n" + DbvmWatchStubs);
+		ToolDispatch dispatch = CreateNativeDispatch(new McpFeatureOptions());
+		StartWatch(dispatch, 8);
+		InstallStubs($"disableMode = '{mode}'");
+
+		LuaJobStop stopped = ReadKernel(LuaJobKernelScripts.Stop, StateJsonContext.Default.LuaJobStop, OwnNamespace,
+			WatchJobId);
+
+		Assert.Equal((true, true, released), (stopped.Found, stopped.WasRunning, stopped.Released));
+		Assert.Equal(1L, ReadGlobal("disableCalls"));
+		Assert.Equal(remainsActive, ReadGlobal("watchActive"));
+		LuaStateSnapshot snapshot = ReadKernel(LuaJobKernelScripts.StateSnapshot,
+			StateJsonContext.Default.LuaStateSnapshot, OwnNamespace);
+		if (released)
+		{
+			Assert.Null(stopped.CleanupError);
+			Assert.Empty(snapshot.Entries);
+		}
+		else
+		{
+			Assert.Contains("cleanup could not be confirmed", stopped.CleanupError ?? string.Empty,
+				StringComparison.Ordinal);
+			LuaStateEntry retained = Assert.Single(snapshot.Entries);
+			Assert.Equal((WatchJobId, "kernelwatch", "stopped", true),
+				(retained.Id, retained.Kind, retained.State, retained.HoldsHostState));
+			Assert.Contains("cleanup could not be confirmed", retained.CleanupError ?? string.Empty,
+				StringComparison.Ordinal);
+		}
+	}
+
+	[Theory]
+	[InlineData(true)]
+	[InlineData(false)]
+	public void KernelV2_WritePhysical_RequiresAnExplicitTrueAcknowledgement(bool accepted)
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs($"""
+		             dbvm_initialized = function() return true end
+		             dbvm_writePhysicalMemory = function(_, _) return {accepted.ToString().ToLowerInvariant()} end
+		             """);
+		ToolDispatch dispatch = CreateNativeDispatch(new McpFeatureOptions());
+
+		if (accepted)
+		{
+			Assert.Equal(new KernelPhysicalWrite("1000", 1), dispatch.RunLua("kernel_write_physical",
+				KernelScripts.WritePhysical, KernelJsonContext.Default.KernelPhysicalWrite, Token, 0x1000UL,
+				new byte[] { 0xAA }));
+		}
+		else
+		{
+			CheatEngineToolException refused = Assert.Throws<CheatEngineToolException>(() => dispatch.RunLua(
+				"kernel_write_physical", KernelScripts.WritePhysical, KernelJsonContext.Default.KernelPhysicalWrite, Token,
+				0x1000UL, new byte[] { 0xAA }));
+			Assert.Equal((ToolErrorKind.HostRefused, ToolHostEffect.Unknown),
+				(refused.Error.Kind, refused.Error.HostEffect));
+		}
+	}
+
+	[Theory]
+	[InlineData("nil")]
+	[InlineData("1")]
+	[InlineData("'true'")]
+	public void KernelV2_WritePhysical_NonBooleanAcknowledgementIsHostRefusedWithUnknownEffect(string result)
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs($"dbvm_initialized = function() return true end; dbvm_writePhysicalMemory = function(_, _) return {result} end");
+		ToolDispatch dispatch = CreateNativeDispatch(new McpFeatureOptions());
+
+		CheatEngineToolException refused = Assert.Throws<CheatEngineToolException>(() => dispatch.RunLua(
+			"kernel_write_physical", KernelScripts.WritePhysical, KernelJsonContext.Default.KernelPhysicalWrite, Token,
+			0x1000UL, new byte[] { 0xAA }));
+
+		Assert.Equal((ToolErrorKind.HostRefused, ToolHostEffect.Unknown),
+			(refused.Error.Kind, refused.Error.HostEffect));
+	}
+
+	[Fact]
+	public void KernelV2_WritePhysical_ErrorAcknowledgementIsHostRefusedWithUnknownEffect()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs("""
+		             dbvm_initialized = function() return true end
+		             dbvm_writePhysicalMemory = function(_, _) error('write rejected') end
+		             """);
+		ToolDispatch dispatch = CreateNativeDispatch(new McpFeatureOptions());
+
+		CheatEngineToolException refused = Assert.Throws<CheatEngineToolException>(() => dispatch.RunLua(
+			"kernel_write_physical", KernelScripts.WritePhysical, KernelJsonContext.Default.KernelPhysicalWrite, Token,
+			0x1000UL, new byte[] { 0xAA }));
+
+		Assert.Equal((ToolErrorKind.HostRefused, ToolHostEffect.Unknown),
+			(refused.Error.Kind, refused.Error.HostEffect));
 	}
 
 	[Fact]

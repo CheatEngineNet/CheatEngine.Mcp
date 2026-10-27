@@ -145,7 +145,12 @@ public sealed class KernelToolsTests
 	[InlineData(4097, 0, 1, ToolErrorKind.LimitExceeded)]
 	[InlineData(1, 0, 0, ToolErrorKind.InvalidArgument)]
 	[InlineData(1, 0, 4097, ToolErrorKind.LimitExceeded)]
+	[InlineData(1, 4, 1, ToolErrorKind.InvalidArgument)]
+	[InlineData(1, 8, 1, ToolErrorKind.InvalidArgument)]
 	[InlineData(1, 16, 1, ToolErrorKind.InvalidArgument)]
+	[InlineData(1, 32, 1, ToolErrorKind.InvalidArgument)]
+	[InlineData(1, 64, 1, ToolErrorKind.InvalidArgument)]
+	[InlineData(1, 128, 1, ToolErrorKind.InvalidArgument)]
 	public void StartWatch_UnboundedOrInvalidArguments_RefuseBeforeLua(int byteSize, int options,
 		int internalEntries, ToolErrorKind expected)
 	{
@@ -212,6 +217,27 @@ public sealed class KernelToolsTests
 		Assert.StartsWith("bufferLimit:", exception.Error.Message, StringComparison.Ordinal);
 		Assert.Equal(0, harness.Dispatches);
 		Assert.Equal(0, harness.Jobs.Count);
+	}
+
+	[Theory]
+	[InlineData(0)]
+	[InlineData(1)]
+	[InlineData(2)]
+	[InlineData(3)]
+	public void StartWatch_RegisterOnlyOptions_AreAdmitted(int options)
+	{
+		StateTestHarness harness = new();
+		harness.Answer<LuaKernelWatchArmed>(static _ => new LuaKernelWatchArmed(3));
+
+		KernelWatchStart started = new KernelTools(harness.Dispatch, harness.Jobs).StartWatch(
+			KernelWatchAccess.Write, "2000", options: options, cancellationToken: Token);
+
+		Assert.Equal(("2000", KernelWatchAccess.Write, 1),
+			(started.PhysicalAddress, started.Access, started.ByteSize));
+		(string operation, string source) = Assert.Single(harness.LuaCalls);
+		Assert.Equal(CheatEngineToolNames.KernelStartWatch, operation);
+		Assert.Contains($"[8] = {options}, [9] = ", source[..source.IndexOf('\n')], StringComparison.Ordinal);
+		Assert.Equal(1, harness.Jobs.Count);
 	}
 
 	[Fact]

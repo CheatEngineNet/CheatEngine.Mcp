@@ -1003,6 +1003,82 @@ public sealed partial class RecordToolsTests
 	}
 
 	[Fact]
+	public void Delete_GroupContainingNestedActiveAutoAssemblerWithoutGate_RefusesBeforeDeletingAnyRecord()
+	{
+		RecordTarget target = new(new McpFeatureOptions { EnableAutoAssembler = false });
+		MemoryRecordSnapshot group = Parent(8, "Group", VariableType.Dword);
+		MemoryRecordSnapshot patch = new(new MemoryRecordId(12), 2,
+			new MemoryRecordContentSnapshot("Patch", "0", string.Empty, VariableType.AutoAssembler),
+			new MemoryRecordStateSnapshot(null, true));
+		target.Records.AddRange([Snapshot(4, 0, "Health"), group, patch]);
+		target.Hierarchy = new MemoryRecordHierarchySnapshot(group,
+		[
+			new MemoryRecordHierarchySnapshot(Snapshot(9, 1, "Value"), []),
+			new MemoryRecordHierarchySnapshot(Parent(10, "Nested", VariableType.Dword),
+			[
+				new MemoryRecordHierarchySnapshot(patch, []),
+				new MemoryRecordHierarchySnapshot(Snapshot(13, 3, "Ammo"), [])
+			])
+		]);
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			new RecordMutationTools(target.Dispatch).Delete([4, 8], Token));
+
+		Assert.Equal((ToolErrorKind.CapabilityDisabled, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Empty(target.Deleted);
+		Assert.Equal([4, 8, 12], target.Records.Select(static record => record.Id.Value));
+		Assert.True(target.Records.Single(static record => record.Id.Value == 12).State.IsActive);
+		Assert.Equal(8, target.HierarchyRoot);
+		Assert.Equal((RecordMutationTools.MaximumReachedRecords, RecordArguments.MaximumHierarchyDepth),
+			(target.HierarchyRequest.MaximumItems, target.HierarchyRequest.MaximumDepth));
+	}
+
+	[Theory]
+	[InlineData(false, false)]
+	[InlineData(true, true)]
+	public void Delete_GroupWithInactiveOrPermittedAutoAssembler_UsesTypedDelete(bool enabled, bool active)
+	{
+		RecordTarget target = new(new McpFeatureOptions { EnableAutoAssembler = enabled });
+		MemoryRecordSnapshot group = Parent(8, "Group", VariableType.Dword);
+		target.Records.Add(group);
+		target.Hierarchy = new MemoryRecordHierarchySnapshot(group,
+		[
+			new MemoryRecordHierarchySnapshot(new MemoryRecordSnapshot(new MemoryRecordId(12), 1,
+				new MemoryRecordContentSnapshot("Patch", "0", string.Empty, VariableType.AutoAssembler),
+				new MemoryRecordStateSnapshot(null, active)), []),
+			new MemoryRecordHierarchySnapshot(Snapshot(13, 2, "Ammo"), [])
+		]);
+
+		RecordDeleteResult result = new RecordMutationTools(target.Dispatch).Delete([8], Token);
+
+		Assert.Equal(1, result.Deleted);
+		Assert.Equal([8], target.Deleted);
+		Assert.Equal(["Tables.GetRecord", "Tables.GetHierarchy", "Tables.Delete"], target.Calls);
+	}
+
+	[Fact]
+	public void Delete_CombinedSubtreesExceedTheRecordBudget_RefusesBeforeDeletingAnyRecord()
+	{
+		RecordTarget target = new();
+		MemoryRecordSnapshot group = Parent(8, "Group", VariableType.Dword);
+		target.Records.AddRange([group, Snapshot(4, 0, "Other")]);
+		target.Hierarchy = new MemoryRecordHierarchySnapshot(group,
+		[
+			.. Enumerable.Range(100, RecordMutationTools.MaximumReachedRecords - 1)
+				.Select(static id => new MemoryRecordHierarchySnapshot(Snapshot(id, 0, "Child"), []))
+		]);
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			new RecordMutationTools(target.Dispatch).Delete([8, 4], Token));
+
+		Assert.Equal((ToolErrorKind.LimitExceeded, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Empty(target.Deleted);
+		Assert.Equal(2, target.Records.Count);
+	}
+
+	[Fact]
 	public void SetScript_AutoAssemblerWithoutGate_RefusesBeforeAnyDispatch()
 	{
 		RecordTarget target = new(new McpFeatureOptions { EnableAutoAssembler = false });

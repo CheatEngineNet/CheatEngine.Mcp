@@ -46,7 +46,7 @@
       "uri": "cheatengine://docs/cheat-tables",
       "description": "Address-list records: types, writing-safe creation, pointer chains and \u002Boffset fields, freezing, script records, groups and deletes, loading and saving cheat tables with their switch checks, and robust tables.",
       "mimeType": "text/markdown",
-      "size": 24529
+      "size": 24734
     },
     {
       "name": "doc_code_analysis",
@@ -126,7 +126,7 @@
       "uri": "cheatengine://docs/kernel",
       "description": "The DBK driver and DBVM hypervisor tools: why they are usually unavailable, the kernel access switch and its gaps, loading DBVM, physical memory, page watches, hazards and recovery.",
       "mimeType": "text/markdown",
-      "size": 20314
+      "size": 20650
     },
     {
       "name": "doc_lua",

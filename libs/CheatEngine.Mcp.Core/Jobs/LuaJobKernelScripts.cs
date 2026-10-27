@@ -152,12 +152,28 @@ public static class LuaJobKernelScripts
 	                             	return root
 	                             end
 
+	                             -- Empty stores hold no job, resource or recovery information. They can result from a
+	                             -- fully released activation, so prune them before admitting another activation rather
+	                             -- than making a long-lived Cheat Engine process exhaust its bounded namespace table.
+	                             local function statePruneEmptyNamespaces(root)
+	                                 for name, store in pairs(root.namespaces) do
+	                                     if store.jobCount == 0 and store.resourceCount == 0 then
+	                                         root.namespaces[name] = nil
+	                                         root.namespaceCount = root.namespaceCount - 1
+	                                     end
+	                                 end
+	                             end
+
 	                             local function stateStore(namespace, create)
 	                             	stateCheckNamespace(namespace)
 	                             	local root = stateRoot(create)
 	                             	if root == nil then return nil end
 	                             	local store = root.namespaces[namespace]
 	                             	if store == nil and create then
+	                                     statePruneEmptyNamespaces(root)
+	                                     store = root.namespaces[namespace]
+	                                 end
+	                                 if store == nil and create then
 	                             		assert(root.namespaceCount < stateMaximumNamespaces, 'At most ' .. stateMaximumNamespaces
 	                             			.. ' plugin activations may keep MCP state; release or acknowledge their orphans first')
 	                             		store = {jobs = {}, jobCount = 0, resources = {}, resourceCount = 0, order = 0}

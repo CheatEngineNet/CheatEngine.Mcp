@@ -289,7 +289,7 @@ public sealed class ExecToolsTests
 	public void InjectDotNet_PlainNamesAndPath_ReachTheFixedBodyUnchangedWithoutATimeout(string className,
 		string methodName, string parameter)
 	{
-		using McpFilePathsTests.Scratch scratch = new();
+		using McpFileScratch scratch = new();
 		string assembly = Path.Combine(scratch.CreateFolder("Mod Loader (x64) \u00E9"), "My.Mod-1.0.dll");
 		File.WriteAllBytes(assembly, [0x4D, 0x5A]);
 		RecordingFixedLua lua = new();

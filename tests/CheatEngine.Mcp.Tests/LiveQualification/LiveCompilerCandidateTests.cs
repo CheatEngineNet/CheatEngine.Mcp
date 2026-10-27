@@ -2,12 +2,27 @@ using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text.Json;
 
+using CheatEngine.Mcp.Tests.Support;
+
 namespace CheatEngine.Mcp.Tests.LiveQualification;
 
 [SupportedOSPlatform("windows")]
 public sealed class LiveCompilerCandidateTests
 {
 	private const string Commit = "1f987742b7fcd7760057a19508ddacbf2aad4bd8";
+
+	[Theory]
+	[InlineData(nameof(LiveQualificationScenario.Compiler), "compiler-probe-policy.md")]
+	[InlineData(nameof(LiveQualificationScenario.CompilerExtended), "compiler-extended-policy.md")]
+	[InlineData(nameof(LiveQualificationScenario.CompilerInjection), "compiler-extended-policy.md")]
+	public void PolicyPath_CompilerScenario_UsesMaintainedAllToolsPolicyDirectory(string scenario,
+		string expectedFile)
+	{
+		string path = LiveCompilerCandidate.PolicyPath(RepositoryPaths.Root, Enum.Parse<LiveQualificationScenario>(scenario));
+
+		Assert.Equal(Path.Combine(RepositoryPaths.Root, "docs", "qualification", "all-tools", expectedFile), path);
+		Assert.True(File.Exists(path));
+	}
 
 	[Fact]
 	public void VerifyFrozenInputManifest_AcceptsPinnedSourceSubmoduleAndBinaryInputs()

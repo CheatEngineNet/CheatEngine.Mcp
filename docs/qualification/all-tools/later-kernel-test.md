@@ -1,5 +1,11 @@
 # Later kernel qualification on this PC
 
+**Deferred for 2.0 by the maintainer on 2026-10-27.** The six unqualified DBK/DBVM operations
+below are an accepted release qualification limitation and do not block 2.0. This plan is
+retained for future work; do not attempt it without a new maintainer request and suitable
+prerequisites. No native case is marked passed by this deferral. See the
+[active checklist](../../../TODO.md#accepted-qualification-limits-for-20).
+
 Status: **partial; six DBK/DBVM operations remain unqualified**. The latest read-only `kernel_get_status`
 case passed on exact final bundle 06 in session `20261020T221714Z-226c` (summary SHA-256
 `AD45BDDAE9D2E029FF2A68F3B31F845290A4DE12658B0E51366F93E593F7269C`; receipt SHA-256
@@ -21,6 +27,13 @@ On 2026-10-20 the user ruled out a VM for kernel work. The read-only host invent
 DBK/DBVM suitability. No driver, service, boot, firmware, VBS or virtualization setting was changed.
 `kernel_initialize_dbvm`, `kernel_translate_address`, `kernel_read_physical`, `kernel_write_physical`,
 `kernel_start_watch` and `kernel_poll_watch` remain unqualified pending the safe prerequisites below.
+
+The 2026-10-27 read-only refresh still reports `HypervisorPresent=true`, VBS status `2` with memory integrity
+running, and no matching DBK/DBVM driver in the service inventory. The host is Windows 11 build 26300 on a Ryzen 9
+9950X3D; installed CE is `7.7.1.10828`, SHA-256
+`CF6CCC664A90C23531EC20F5C41458CFDC1D04679D6D05ED94C06BCECF95544F`.
+This inventory does not query native DBVM state or establish compatibility. No kernel operation was attempted.
+The raw refresh is retained in `artifacts/kernel-source-20261027/host-prerequisites.json`.
 
 ## Admission before arranging the run
 
@@ -59,7 +72,7 @@ and fixture receipts as oracles rather than accepting a tool's requested-state e
 | `kernel_translate_address` | Translate only the fixture's resident page; verify the requested virtual address and page offset, then corroborate its known content through the bounded physical read. | Refresh translation immediately before each physical access; abort if identity, lifetime or mapping changed. |
 | `kernel_read_physical` | Read a small owned range and compare every byte with the fixture and independent virtual-memory read. | No unrelated physical ranges. This case requires confirmed DBVM availability. |
 | `kernel_write_physical` | Save the exact owned bytes, apply one distinct fixed value, and verify it through the fixture and independent virtual read. | Restore saved bytes once under the same ownership/mapping checks, then verify both reads. An uncertain write requires observation before any further mutation. |
-| `kernel_start_watch` | Arm one short, bounded write watch on the owned range; ask the fixture to perform one known write from its published instruction/thread. | Record the exact job identity and watch bounds. Require explicit cancellation/expiry and no remaining native watch or managed job. |
+| `kernel_start_watch` | Arm one short, bounded write watch on the owned range; ask the fixture to perform one known write from its published instruction/thread. | Record the exact job identity and watch bounds. Require explicit cancellation/expiry and no remaining native watch or managed job. CE's disable API is void; require the same watch ID's log query to return the documented inactive result before accepting cleanup. |
 | `kernel_poll_watch` | Drain the native DBVM log once, then verify the non-consuming managed page and match the fixture's address/thread/instruction where supplied. Verify continuation through `afterSequence`/`nextAfterSequence` separately. | A missing/empty event is inconclusive. Do not infer watch removal from an empty poll or managed job absence alone. |
 
 The initial proposed watch case uses write access, zero optional flags and a small entry limit. Read and

@@ -219,8 +219,8 @@ public sealed partial class ToolDispatch
 	///     Executes an explicitly enabled caller-authored Lua chunk and reads its packed result through a fixed, typed
 	///     second stage.  The source is never treated as a fixed script: it is passed to Lua's text-only loader by the
 	///     first stage, which records a per-call result token.  The second stage always runs after the first stage was
-	///     admitted, including when the first stage fails, so it clears a stale result global before this method reports
-	///     the original failure.
+	///     admitted, including when the first stage fails or the request is cancelled afterward, so it clears a stale
+	///     result global before this method reports the original failure.
 	/// </summary>
 	/// <typeparam name="T">The source-generated shape returned by the fixed result reader.</typeparam>
 	/// <param name="operation">The public operation name used in errors and dispatch statistics.</param>
@@ -319,10 +319,12 @@ public sealed partial class ToolDispatch
 		Exception? secondException = null;
 		try
 		{
+			// Stage A has been admitted, so clear its token-scoped global even when the request was cancelled meanwhile.
+			// The fixed read-and-clear script keeps the activation stop token and the same Lua runtime budget.
 			LuaCopiedResult<T> result = LuaToolRuntime.ExecuteSourceWithCopy(_fixedLua, operation,
 				LuaToolRuntime.BuildSource(LuaUnsafeScriptWrapper.ReadResult, _budgetMilliseconds, [wrapped.Token]),
 				resultType,
-				_buffers, LuaOpaqueValueHandling.Drop, cancellationToken);
+				_buffers, LuaOpaqueValueHandling.Drop, Client.Stopping);
 			copied = new LuaUnsafeExecution<T>(result.Value, result.DroppedOpaqueCount);
 		}
 		catch (Exception exception)

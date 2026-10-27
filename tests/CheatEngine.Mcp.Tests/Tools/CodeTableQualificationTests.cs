@@ -19,7 +19,7 @@ namespace CheatEngine.Mcp.Tests.Tools;
 /// <summary>Managed dispatch qualification for the table-save and code-view adapters.</summary>
 public sealed class CodeTableQualificationTests : IDisposable
 {
-	private readonly McpFilePathsTests.Scratch _scratch = new();
+	private readonly McpFileScratch _scratch = new();
 
 	public void Dispose() => _scratch.Dispose();
 
@@ -67,7 +67,7 @@ public sealed class CodeTableQualificationTests : IDisposable
 	}
 
 	[Fact]
-	public void TableSave_AllowedDestination_ForwardsTheTrustedPathAndReportsTheCreatedFile()
+	public void TableSave_AllowedDestination_WritesAnExtensionPreservingTemporaryFileAndPublishesItAtomically()
 	{
 		string root = _scratch.CreateFolder("tables");
 		string destination = Path.Combine(root, "saved.ct");
@@ -78,7 +78,10 @@ public sealed class CodeTableQualificationTests : IDisposable
 			PropertyInfo fileProperty = arguments![0]!.GetType().GetProperties()
 				.Single(static property => property.PropertyType == typeof(TrustedTableFile));
 			TrustedTableFile file = Assert.IsType<TrustedTableFile>(fileProperty.GetValue(arguments[0]));
-			Assert.Equal(destination, file.FullPath);
+			Assert.NotEqual(destination, file.FullPath);
+			Assert.Equal(Path.GetDirectoryName(destination), Path.GetDirectoryName(file.FullPath));
+			Assert.Equal(".ct", Path.GetExtension(file.FullPath));
+			Assert.False(File.Exists(destination));
 			File.WriteAllText(file.FullPath, "<CheatTable />");
 			return null;
 		});
@@ -97,6 +100,156 @@ public sealed class CodeTableQualificationTests : IDisposable
 		Assert.Equal(new TableSaveResult(destination, false), result);
 		Assert.Equal("<CheatTable />", File.ReadAllText(destination));
 		Assert.Equal(1, dispatcher.Calls);
+	}
+
+	[Fact]
+	public void TableSave_ExistingDestinationWithoutOverwrite_RefusesBeforeTheClientCanReplaceIt()
+	{
+		string root = _scratch.CreateFolder("tables");
+		string destination = Path.Combine(root, "saved.ct");
+		File.WriteAllText(destination, "old");
+		RecordingDispatcher dispatcher = new();
+		ITableClient tables = ClientTestDouble.Create<ITableClient>((method, _) =>
+			throw new Xunit.Sdk.XunitException($"Unexpected table call {method.Name}."));
+		TableTools tools = CreateTableTools(dispatcher, tables, root);
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			tools.Save(destination, cancellationToken: TestContext.Current.CancellationToken));
+
+		Assert.Equal((ToolErrorKind.InvalidArgument, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Contains("already exists", exception.Error.Message, StringComparison.Ordinal);
+		Assert.Equal("old", File.ReadAllText(destination));
+		Assert.Equal(0, dispatcher.Calls);
+	}
+
+	[Fact]
+	public void TableSave_ConcurrentDestinationCreatorWithoutOverwrite_PreservesTheCompetingBytes()
+	{
+		string root = _scratch.CreateFolder("tables");
+		string destination = Path.Combine(root, "saved.ct");
+		RecordingDispatcher dispatcher = new();
+		ITableClient tables = ClientTestDouble.Create<ITableClient>((method, arguments) =>
+		{
+			Assert.Equal(nameof(ITableClient.SaveTable), method.Name);
+			TrustedTableFile file = Assert.IsType<TableSaveRequest>(arguments![0]).File;
+			File.WriteAllText(destination, "concurrent");
+			File.WriteAllText(file.FullPath, "candidate");
+			return null;
+		});
+		TableTools tools = CreateTableTools(dispatcher, tables, root);
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() => tools.Save(destination,
+			cancellationToken: TestContext.Current.CancellationToken));
+
+		Assert.Equal((ToolErrorKind.PartialEffect, ToolHostEffect.Started),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Equal("concurrent", File.ReadAllText(destination));
+		Assert.Empty(Directory.GetFiles(root, ".*.partial*"));
+		Assert.Equal(1, dispatcher.Calls);
+	}
+
+	[Fact]
+	public void TableSave_ExistingDestinationWithOverwrite_ReplacesOnlyAfterTheTemporarySaveSucceeds()
+	{
+		string root = _scratch.CreateFolder("tables");
+		string destination = Path.Combine(root, "saved.ct");
+		File.WriteAllText(destination, "old");
+		RecordingDispatcher dispatcher = new();
+		ITableClient tables = ClientTestDouble.Create<ITableClient>((method, arguments) =>
+		{
+			Assert.Equal(nameof(ITableClient.SaveTable), method.Name);
+			TrustedTableFile file = Assert.IsType<TableSaveRequest>(arguments![0]).File;
+			Assert.NotEqual(destination, file.FullPath);
+			Assert.Equal("old", File.ReadAllText(destination));
+			File.WriteAllText(file.FullPath, "new");
+			return null;
+		});
+		TableTools tools = CreateTableTools(dispatcher, tables, root);
+
+		TableSaveResult result = tools.Save(destination, overwrite: true,
+			cancellationToken: TestContext.Current.CancellationToken);
+
+		Assert.Equal(new TableSaveResult(destination, true), result);
+		Assert.Equal("new", File.ReadAllText(destination));
+		Assert.Equal(1, dispatcher.Calls);
+	}
+
+	[Fact]
+	public void TableSave_ClientFailure_RemovesTheProtectedTemporaryFileAndPreservesTheDestination()
+	{
+		string root = _scratch.CreateFolder("tables");
+		string destination = Path.Combine(root, "saved.ct");
+		File.WriteAllText(destination, "old");
+		RecordingDispatcher dispatcher = new();
+		CheatEngineToolException expected = CheatEngineToolException.InvalidState("native table save failed",
+			effect: ToolHostEffect.Started);
+		ITableClient tables = ClientTestDouble.Create<ITableClient>((method, arguments) =>
+		{
+			Assert.Equal(nameof(ITableClient.SaveTable), method.Name);
+			TrustedTableFile file = Assert.IsType<TableSaveRequest>(arguments![0]).File;
+			File.WriteAllText(file.FullPath, "incomplete");
+			throw expected;
+		});
+		TableTools tools = CreateTableTools(dispatcher, tables, root);
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() => tools.Save(destination,
+			overwrite: true, cancellationToken: TestContext.Current.CancellationToken));
+
+		Assert.Same(expected, exception);
+		Assert.Equal("old", File.ReadAllText(destination));
+		Assert.Empty(Directory.GetFiles(root, ".*.partial*"));
+		Assert.Equal(1, dispatcher.Calls);
+	}
+
+	[Fact]
+	public void TableSave_ClientFailureWithLockedTemporary_ReportsUnconfirmedCleanupAndPreservesTheDestination()
+	{
+		string root = _scratch.CreateFolder("tables");
+		string destination = Path.Combine(root, "saved.ct");
+		File.WriteAllText(destination, "old");
+		FileStream? temporaryHandle = null;
+		RecordingDispatcher dispatcher = new();
+		ITableClient tables = ClientTestDouble.Create<ITableClient>((method, arguments) =>
+		{
+			Assert.Equal(nameof(ITableClient.SaveTable), method.Name);
+			TrustedTableFile file = Assert.IsType<TableSaveRequest>(arguments![0]).File;
+			File.WriteAllText(file.FullPath, "incomplete");
+			temporaryHandle = File.Open(file.FullPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+			throw new IOException("save failed while retaining the temporary table");
+		});
+		TableTools tools = CreateTableTools(dispatcher, tables, root);
+
+		try
+		{
+			CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() => tools.Save(destination,
+				overwrite: true, cancellationToken: TestContext.Current.CancellationToken));
+
+			Assert.Equal((ToolErrorKind.PartialEffect, ToolHostEffect.CleanupUnconfirmed),
+				(exception.Error.Kind, exception.Error.HostEffect));
+			string hint = Assert.IsType<string>(exception.Error.Hint);
+			Assert.Contains("protected temporary table", hint, StringComparison.Ordinal);
+			Assert.Equal("old", File.ReadAllText(destination));
+			Assert.Single(Directory.GetFiles(root, ".*.partial*"));
+			Assert.Equal(1, dispatcher.Calls);
+		}
+		finally
+		{
+			temporaryHandle?.Dispose();
+		}
+	}
+
+	private TableTools CreateTableTools(RecordingDispatcher dispatcher, ITableClient tables, string root)
+	{
+		IOptions<McpExecutionOptions> execution = Options.Create(new McpExecutionOptions());
+		ToolDispatch dispatch = new(ClientTestDouble.Client(dispatcher.Dispatcher, CancellationToken.None,
+			(nameof(ICheatEngineClient.Tables), tables)), new McpFeatureGate(Options.Create(new McpFeatureOptions())),
+			execution, new DispatchStatistics(execution), TimeProvider.System, new RecordingLogger<ToolDispatch>());
+		CheatEngineClientOptions options = new();
+		options.AllowedTableRoots.Add(root);
+		return new TableTools(dispatch,
+			new McpFilePaths(new McpFileOptions(), _scratch.CreateFolder("registry"), _scratch.CreateFolder("data")),
+			Options.Create(options));
 	}
 
 	[Fact]

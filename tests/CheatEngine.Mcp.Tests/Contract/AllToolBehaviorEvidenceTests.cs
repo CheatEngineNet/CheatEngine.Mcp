@@ -32,7 +32,11 @@ public sealed class AllToolBehaviorEvidenceTests
 	{
 		Assert.True(Evidence.TryGetValue(toolName, out JsonElement tool),
 			$"{toolName} needs a reviewed positive adapter case in behavior-evidence.json.");
-		JsonElement[] adapters = tool.GetProperty("cases").EnumerateArray()
+		JsonElement[] cases = tool.GetProperty("cases").EnumerateArray().ToArray();
+		Assert.Equal(cases.Length, cases.Select(static entry =>
+			(entry.GetProperty("suite").GetString(), entry.GetProperty("scope").GetString(),
+				entry.GetProperty("testMethod").GetString())).Distinct().Count());
+		JsonElement[] adapters = cases
 			.Where(static entry => entry.GetProperty("scope").GetString() == "adapter").ToArray();
 		Assert.NotEmpty(adapters);
 		foreach (JsonElement entry in adapters)

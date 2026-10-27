@@ -7,14 +7,23 @@ internal static class TestDirectory
 
 	private static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(250);
 
-	/// <summary>
-	///     Deletes the directory tree, retrying for about five seconds while an exiting process, such as the gateway
-	///     executable, still holds a file in it; a tree that stays locked is left in the temp folder rather than
-	///     failing the test it served. A missing tree is already clean.
-	/// </summary>
+	/// <summary>Deletes a test directory, leaving a persistently locked tree in place after bounded retries.</summary>
 	/// <param name="path">The test's own temporary directory.</param>
 	/// <returns>A task that completes once the tree is gone or the attempts are spent.</returns>
-	internal static async Task DeleteAsync(string path)
+	internal static Task DeleteAsync(string path)
+	{
+		return DeleteCoreAsync(path, throwOnPersistentFailure: false);
+	}
+
+	/// <summary>Deletes a test directory, throwing when a lock remains after bounded retries.</summary>
+	/// <param name="path">The test's own temporary directory.</param>
+	/// <returns>A task that completes only after the tree is gone.</returns>
+	internal static Task DeleteStrictAsync(string path)
+	{
+		return DeleteCoreAsync(path, throwOnPersistentFailure: true);
+	}
+
+	private static async Task DeleteCoreAsync(string path, bool throwOnPersistentFailure)
 	{
 		ArgumentNullException.ThrowIfNull(path);
 		for (int attempt = 1; Directory.Exists(path); attempt++)
@@ -30,7 +39,8 @@ internal static class TestDirectory
 				// The cleanup must not observe the test's cancellation: it runs after the test body.
 				await Task.Delay(RetryDelay, CancellationToken.None);
 			}
-			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException &&
+													 !throwOnPersistentFailure)
 			{
 				// Still locked after every attempt: the tree stays in the temp folder.
 				return;

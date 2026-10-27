@@ -15,6 +15,9 @@ public sealed class DebuggerExecutionLoopBytesTests
 		Assert.Equal((byte) 0xF0, code[18]);      // capture: lock inc [rip+hits]
 		Assert.Equal((byte) 0x90, code[32]);      // run-to/step: published NOP
 		Assert.Equal((byte) 0xC3, code[75]);
+		Assert.Equal(52, DebuggerExecutionLoopEncoding.SleepCallOffset);
+		Assert.Equal(54, DebuggerExecutionLoopEncoding.SleepReturnOffset);
+		Assert.Equal(new byte[] { 0xFF, 0xD0, 0x48, 0x83, 0xC4, 0x28 }, code[52..58]);
 		Assert.Equal(start + 0x100, start + 7 + BinaryPrimitives.ReadInt32LittleEndian(code.AsSpan(2, 4)));
 		Assert.Equal(start + 0x10C, start + 16 + BinaryPrimitives.ReadInt32LittleEndian(code.AsSpan(11, 4)));
 		Assert.Equal(start + 0x104, start + 25 + BinaryPrimitives.ReadInt32LittleEndian(code.AsSpan(21, 4)));

@@ -132,6 +132,36 @@ public sealed partial class NativeLuaToolRuntimeTests
 	}
 
 	[Fact]
+	public void DebuggerAdapter_PageExceptionBreakpoint_UsesCheatEnginesPageExceptionMethod()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(JobHostStubs + "\n" + """
+		             bptExecute, bptAccess, bptWrite, bpmDebugRegister, bpmInt3, bpmException = 1, 2, 3, 4, 5, 6
+		             debug_isDebugging = function() return true end
+		             getOpenedProcessID = function() return 77 end
+		             getAddressSafe = function(_) return 0x401000 end
+		             breakpointAddresses = {}
+		             debug_getBreakpointList = function() return breakpointAddresses end
+		             debug_setBreakpoint = function(address, size, trigger, method, callback)
+		                 observedBreakpoint = {address, size, trigger, method, callback}
+		                 table.insert(breakpointAddresses, address)
+		                 return true, {ID = 88, PID = 77, DTID = 9}
+		             end
+		             debug_removeBreakpointByID = function(_) table.remove(breakpointAddresses); return true end
+		             targetIs64Bit = function() return true end
+		             """);
+		using DebuggerToolHarness harness = CreateDebuggerTools();
+
+		DebuggerBreakpointSet set = harness.Tools.SetBreakpoint("401000", DebuggerBreakpointTrigger.Execute, 1,
+			DebuggerBreakpointMethod.PageException, cancellationToken: Token);
+
+		object?[] breakpointArguments = (object?[]) ReadGlobal("observedBreakpoint")!;
+		Assert.Equal([0x401000L, 1L, 1L, 6L], breakpointArguments.Take(4));
+		Assert.Equal((DebuggerBreakpointTrigger.Execute, 1, DebuggerBreakpointMethod.PageException),
+			(set.Trigger, set.Size, set.Method));
+	}
+
+	[Fact]
 	public void DebuggerAdapter_BreakpointAcceptedWithoutId_RetainsLedgerEntryForManualRecovery()
 	{
 		using RuntimeScope scope = CreateScope();
@@ -367,6 +397,21 @@ public sealed partial class NativeLuaToolRuntimeTests
 		Assert.Equal("401000", Assert.Single(capturePage.Hits).Context.Ip);
 		Assert.Equal("1", Assert.Single(tracePage.Steps).Registers["RAX"]);
 		Assert.Equal(3L, ReadGlobal("lastContinue"));
+	}
+
+	[Fact]
+	public void DebuggerAdapter_WriteCapture_UsesCheatEnginesWriteTriggerAndRequestedSize()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(JobHostStubs + "\n" + CaptureHostStubs);
+		using DebuggerToolHarness harness = CreateDebuggerTools();
+
+		DebuggerJobStarted capture = harness.Tools.StartCapture("401000", DebuggerBreakpointTrigger.Write, 4,
+			maximumHits: 4, lifetimeSeconds: 10, cancellationToken: Token);
+
+		Assert.Equal((77, "401000", 10), (capture.ProcessId, capture.Address, capture.LifetimeSeconds));
+		Assert.Equal((1L, 0x401000L, 3L, 4L),
+			(ReadGlobal("breakpointCalls"), ReadGlobal("breakpointAddress"), ReadGlobal("breakpointTrigger"), ReadGlobal("breakpointSize")));
 	}
 
 	[Fact]

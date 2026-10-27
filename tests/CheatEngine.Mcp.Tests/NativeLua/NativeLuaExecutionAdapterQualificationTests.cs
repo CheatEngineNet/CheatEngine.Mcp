@@ -70,7 +70,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 	public void ExecutionAdapter_CompileCSharp_ExportsTheNativeCompilerArtifact()
 	{
 		using RuntimeScope scope = CreateScope();
-		using McpFilePathsTests.Scratch scratch = new();
+		using McpFileScratch scratch = new();
 		string generated = Path.Combine(scratch.Root, "ce-generated.dll");
 		string output = Path.Combine(scratch.Root, "exported.dll");
 		byte[] bytes = [0x4D, 0x5A, 0x90, 0x00];
@@ -129,7 +129,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 	public void ExecutionAdapter_InjectLibrary_HoldsTheApprovedArtifactAndForwardsTheWaitFlag()
 	{
 		using RuntimeScope scope = CreateScope();
-		using McpFilePathsTests.Scratch scratch = new();
+		using McpFileScratch scratch = new();
 		string library = Path.Combine(scratch.Root, "fixture.dll");
 		File.WriteAllBytes(library, [0x4D, 0x5A]);
 		InstallStubs("""
@@ -152,7 +152,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 	public void ExecutionAdapter_InjectDotNet_HoldsTheApprovedAssemblyAndForwardsEveryArgument()
 	{
 		using RuntimeScope scope = CreateScope();
-		using McpFilePathsTests.Scratch scratch = new();
+		using McpFileScratch scratch = new();
 		string assembly = Path.Combine(scratch.Root, "fixture.dll");
 		File.WriteAllBytes(assembly, [0x4D, 0x5A]);
 		InstallStubs("""

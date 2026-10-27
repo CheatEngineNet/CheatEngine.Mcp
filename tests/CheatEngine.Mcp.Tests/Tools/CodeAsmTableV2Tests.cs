@@ -32,7 +32,7 @@ namespace CheatEngine.Mcp.Tests.Tools;
 /// <summary>Focused contract tests for the v2 Code, Asm and Table containers.</summary>
 public sealed class CodeAsmTableV2Tests : IDisposable
 {
-	private readonly McpFilePathsTests.Scratch _scratch = new();
+	private readonly McpFileScratch _scratch = new();
 	private static CancellationToken Token => TestContext.Current.CancellationToken;
 
 	public void Dispose()

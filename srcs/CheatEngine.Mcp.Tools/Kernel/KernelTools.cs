@@ -77,14 +77,14 @@ public sealed class KernelTools
 			KernelScripts.DbvmCrashWarning, reason);
 	}
 
-	/// <summary>Translates one selected-target virtual address to its current physical address through DBK.</summary>
+	/// <summary>Translates one selected-target virtual address through DBK or a running DBVM.</summary>
 	[McpServerTool(Name = CheatEngineToolNames.KernelTranslateAddress, Title = "Translate virtual address",
 		ReadOnly = true,
 		Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.Short)]
 	[RequiresFeature(McpFeature.KernelAccess)]
 	[Description(
-		"Translate one virtual address in the selected target to its current physical address through DBK. The virtual expression is resolved with Client before the fixed DBK call. Translate one page at a time immediately before access: physical mappings can change or cease to be resident.")]
+		"Translate one virtual address in the selected target to its current physical address through DBK or a running DBVM. The virtual expression is resolved with Client before the fixed Cheat Engine call. Translate one page at a time immediately before access: physical mappings can change or cease to be resident.")]
 	public KernelAddressTranslation TranslateAddress(
 		[Description("Virtual target address or Cheat Engine expression.")]
 		string address,
@@ -154,8 +154,8 @@ public sealed class KernelTools
 		"page: (physicalAddress & 0xFFF) + byteSize may not exceed 4096, because DBVM silently shortens a range " +
 		"that crosses a page boundary. The watch observes every process and kernel access to the physical page. " +
 		"Poll it with kernel_poll_watch; runtime_stop_job(jobId), TTL expiry and plugin shutdown run its Lua cleanup " +
-		"hook to disable the DBVM watch. options may use only bits 0 to 3, because options 5 and above can create " +
-		"unbounded DBVM logs or change execution.")]
+		"hook to disable the DBVM watch. options may use only bits 0 to 1; the higher capture, stack, and execution " +
+		"bits either allocate data that this tool does not return or change DBVM execution.")]
 	public KernelWatchStart StartWatch(
 		[Description("read, write or execute. A read watch also reports writes, as Cheat Engine documents.")]
 		KernelWatchAccess access,
@@ -163,7 +163,7 @@ public sealed class KernelTools
 		string physicalAddress,
 		[Description("Watched byte size, 1 to 4096, without crossing a 4 KiB physical page boundary.")]
 		int byteSize = 1,
-		[Description("DBVM watch option bits 0 to 3 only.")]
+		[Description("DBVM watch option bits 0 to 1 only.")]
 		int options = 0,
 		[Description("Maximum entries DBVM retains internally, 1 to 4096.")]
 		int internalEntryCount = 1024,
@@ -186,9 +186,9 @@ public sealed class KernelTools
 		KernelSupport.PhysicalRange(address, byteSize, "physicalAddress");
 		KernelSupport.WithinPhysicalPage(address, byteSize, "byteSize");
 		KernelSupport.Range(internalEntryCount, 1, KernelSupport.MaximumWatchEntries, "internalEntryCount");
-		if ((options & ~0x0F) != 0)
+		if ((options & ~0x03) != 0)
 		{
-			throw CheatEngineToolException.InvalidArgument("options", "may use only DBVM bits 0 through 3.");
+			throw CheatEngineToolException.InvalidArgument("options", "may use only DBVM bits 0 through 1.");
 		}
 
 		TimeSpan lifetime = _jobs.ResolveTimeToLive(lifetimeSeconds);

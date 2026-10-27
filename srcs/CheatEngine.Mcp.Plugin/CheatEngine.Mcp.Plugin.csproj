@@ -14,13 +14,7 @@
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
-    <!--
-      Measured: the ASP.NET Core 10 shared-framework assemblies carry no IsAotCompatible/IsTrimmable metadata, so the
-      reference checks report IL3058/IL2125 for them alone. This project's own code stays analyzed (CEMCP005); the
-      plugin itself is never published as Native AOT (CEMCP006).
-    -->
-    <VerifyReferenceAotCompatibility>false</VerifyReferenceAotCompatibility>
-    <VerifyReferenceTrimCompatibility>false</VerifyReferenceTrimCompatibility>
+    <CeMcpUseAspNetCoreReferenceCompatibilityException>true</CeMcpUseAspNetCoreReferenceCompatibilityException>
     <!-- The HTTP adapter deliberately opts into the Client's experimental typed APIs. -->
     <NoWarn>$(NoWarn);CECLIENT5001;CECLIENT5002;CECLIENT5003;CECLIENT5004</NoWarn>
   </PropertyGroup>

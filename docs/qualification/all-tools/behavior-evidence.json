@@ -656,6 +656,16 @@
           "requiredCases": [
             "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_BreakpointLifecycle_TracksThenReleasesTheKnownOwnedBreakpoint"
           ]
+        },
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_PageExceptionBreakpoint_UsesCheatEnginesPageExceptionMethod",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaDebuggerAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "The public adapter calls debug_setBreakpoint with address 0x401000, size 1, bptExecute=1 and bpmException=6; returned trigger/size/method match.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_PageExceptionBreakpoint_UsesCheatEnginesPageExceptionMethod"
+          ]
         }
       ],
       "remaining": "Native success, side effects and cleanup on the exact product bundle remain unverified."
@@ -703,6 +713,16 @@
           "oracle": "Known target/address/TTL, capture hit at 401000, trace RAX=1, run-to continuation and ledger/job cleanup.",
           "requiredCases": [
             "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_CaptureTraceAndRunTo_CreateBoundedJobsWithKnownReceipts"
+          ]
+        },
+        {
+          "suite": "nativeLua",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_WriteCapture_UsesCheatEnginesWriteTriggerAndRequestedSize",
+          "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaDebuggerAdapterQualificationTests.cs",
+          "scope": "adapter",
+          "oracle": "The public adapter arms one capture at 0x401000 with size 4 and bptWrite=3; its returned PID/address/lifetime match.",
+          "requiredCases": [
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.DebuggerAdapter_WriteCapture_UsesCheatEnginesWriteTriggerAndRequestedSize"
           ]
         }
       ],
@@ -1471,7 +1491,7 @@
           "testMethod": "CheatEngine.Mcp.Tests.Tools.Memory.MemoryReadToolsTests.Hash_ChunkedRange_MatchesTheManagedDigest",
           "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Memory/MemoryReadToolsTests.cs",
           "scope": "adapter",
-          "oracle": "Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(memory)), sha256.Hash);",
+          "oracle": "Hash reads a multi-chunk range and returns independently computed SHA-256, MD5 and SHA-1 digests; SHA-1 address/size/algorithm and six read dispatches are asserted.",
           "requiredCases": [
             "CheatEngine.Mcp.Tests.Tools.Memory.MemoryReadToolsTests.Hash_ChunkedRange_MatchesTheManagedDigest"
           ]
@@ -2424,12 +2444,14 @@
       "cases": [
         {
           "suite": "portable",
-          "testMethod": "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.ListAndFind_DescribeTheWholeListWithNestedRecords",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.Find_TypeOnlyAScriptOrTableGivesARecord_SearchesTheStoredType",
           "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/Record/RecordToolsTests.cs",
           "scope": "adapter",
-          "oracle": "Assert.Equal([6, 7], page.Records.Select(static record => record.Id).ToArray());",
+          "oracle": "Find invokes the stored-type search; asserts forwarded VariableType, Total=1, Truncated=false and the exact returned record ID/type.",
           "requiredCases": [
-            "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.ListAndFind_DescribeTheWholeListWithNestedRecords"
+            "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.Find_TypeOnlyAScriptOrTableGivesARecord_SearchesTheStoredType(variableType: WideString)",
+            "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.Find_TypeOnlyAScriptOrTableGivesARecord_SearchesTheStoredType(variableType: All)",
+            "CheatEngine.Mcp.Tests.Tools.Record.RecordToolsTests.Find_TypeOnlyAScriptOrTableGivesARecord_SearchesTheStoredType(variableType: Pointer)"
           ]
         }
       ],
@@ -2836,13 +2858,15 @@
       "cases": [
         {
           "suite": "nativeLua",
-          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.SpeedhackV2_SetSpeedOne_AtNormalSpeed_ChangesNothingAndNeverHooks",
+          "testMethod": "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.SpeedhackV2_GetState_ReportsConfigurationAndSymbolWithoutChangingEither",
           "sourceFile": "tests/CheatEngine.Mcp.Tests/NativeLua/NativeLuaSpeedhackToolsTests.cs",
           "scope": "adapter",
-          "oracle": "Assert.Equal(expectedState, tools.GetState(Token));",
+          "oracle": "GetState returns the exact configured multiplier and absent/present symbol state for normal and non-default speeds; it leaves target wantedSpeed, hooks, set calls and owned resources unchanged.",
           "requiredCases": [
-            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.SpeedhackV2_SetSpeedOne_AtNormalSpeed_ChangesNothingAndNeverHooks(symbolBefore: False)",
-            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.SpeedhackV2_SetSpeedOne_AtNormalSpeed_ChangesNothingAndNeverHooks(symbolBefore: True)"
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.SpeedhackV2_GetState_ReportsConfigurationAndSymbolWithoutChangingEither(configuredSpeed: 1, symbolPresent: False)",
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.SpeedhackV2_GetState_ReportsConfigurationAndSymbolWithoutChangingEither(configuredSpeed: 1, symbolPresent: True)",
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.SpeedhackV2_GetState_ReportsConfigurationAndSymbolWithoutChangingEither(configuredSpeed: 2,5, symbolPresent: False)",
+            "CheatEngine.Mcp.Tests.NativeLua.NativeLuaToolRuntimeTests.SpeedhackV2_GetState_ReportsConfigurationAndSymbolWithoutChangingEither(configuredSpeed: 2,5, symbolPresent: True)"
           ]
         }
       ],
@@ -3337,22 +3361,12 @@
       "cases": [
         {
           "suite": "portable",
-          "testMethod": "CheatEngine.Mcp.Tests.Tools.CodeTableQualificationTests.TableSave_AllowedDestination_ForwardsTheTrustedPathAndReportsTheCreatedFile",
+          "testMethod": "CheatEngine.Mcp.Tests.Tools.CodeTableQualificationTests.TableSave_AllowedDestination_WritesAnExtensionPreservingTemporaryFileAndPublishesItAtomically",
           "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CodeTableQualificationTests.cs",
           "scope": "adapter",
           "oracle": "Assert.Equal(new TableSaveResult(destination, false), result); Assert.Equal(\"<CheatTable />\", File.ReadAllText(destination));",
           "requiredCases": [
-            "CheatEngine.Mcp.Tests.Tools.CodeTableQualificationTests.TableSave_AllowedDestination_ForwardsTheTrustedPathAndReportsTheCreatedFile"
-          ]
-        },
-        {
-          "suite": "portable",
-          "testMethod": "CheatEngine.Mcp.Tests.Tools.CodeTableQualificationTests.TableSave_AllowedDestination_ForwardsTheTrustedPathAndReportsTheCreatedFile",
-          "sourceFile": "tests/CheatEngine.Mcp.Tests/Tools/CodeTableQualificationTests.cs",
-          "scope": "adapter",
-          "oracle": "Trusted destination and independently created file",
-          "requiredCases": [
-            "CheatEngine.Mcp.Tests.Tools.CodeTableQualificationTests.TableSave_AllowedDestination_ForwardsTheTrustedPathAndReportsTheCreatedFile"
+            "CheatEngine.Mcp.Tests.Tools.CodeTableQualificationTests.TableSave_AllowedDestination_WritesAnExtensionPreservingTemporaryFileAndPublishesItAtomically"
           ]
         }
       ],

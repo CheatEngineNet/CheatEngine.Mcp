@@ -7,6 +7,7 @@ using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Results;
 using CheatEngine.Mcp.Plugin;
 using CheatEngine.Mcp.Tests.Support;
+using CheatEngine.SDK.Lua.Interop.Api;
 
 namespace CheatEngine.Mcp.Tests.NativeLua;
 
@@ -127,6 +128,48 @@ public sealed partial class NativeLuaToolRuntimeTests
 		Assert.Equal(0L, ReadGlobal("addedMenus"));
 	}
 
+	[Theory]
+	[InlineData("return true", true)]
+	[InlineData("return false", false)]
+	[InlineData("return 1", false)]
+	[InlineData("return 'enabled'", false)]
+	[InlineData("return {}", false)]
+	public void PluginStatusLuaOperation_Result_IsTrueOnlyForLuaBooleanTrue(string source, bool expected)
+	{
+		using RuntimeScope scope = CreateScope();
+		PluginStatusLuaOperation operation = new("status_result", source);
+		int initialTop = StatusStackDepth();
+
+		Assert.True(operation.TryExecute(ActiveContext.Instance, out bool result, out CheatEngineFailure failure),
+			failure.Message);
+		Assert.Equal(expected, result);
+		Assert.Equal(initialTop, StatusStackDepth());
+	}
+
+	[Theory]
+	[InlineData("[", CheatEngineHostEffect.NotStarted)]
+	[InlineData("error('status failed')", CheatEngineHostEffect.Started)]
+	public void PluginStatusLuaOperation_LuaFailure_PreservesHostEffectAndStack(string source,
+		CheatEngineHostEffect expectedEffect)
+	{
+		using RuntimeScope scope = CreateScope();
+		int initialTop = StatusStackDepth();
+		PluginStatusLuaOperation operation = new("status_failure", source);
+
+		bool succeeded = operation.TryExecute(ActiveContext.Instance, out bool result, out CheatEngineFailure failure);
+
+		Assert.False(succeeded);
+		Assert.False(result);
+		Assert.Equal(CheatEngineFailureKind.LuaError, failure.Kind);
+		Assert.Equal(expectedEffect, failure.HostEffect);
+		Assert.Equal(initialTop, StatusStackDepth());
+	}
+
+	private static unsafe int StatusStackDepth()
+	{
+		return LuaApi.lua_gettop(s_state);
+	}
+
 	private static void InstallStatusMenu()
 	{
 		InstallStubs("""
@@ -144,7 +187,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 
 	private static string ReadStatusCaption()
 	{
-		PluginLuaToolRuntime.LuaToolOperation operation = new("status_caption", "return statusItem.Caption");
+		NativeLuaProbeOperation operation = new("status_caption", "return statusItem.Caption");
 		Assert.True(operation.TryExecute(ActiveContext.Instance, out object? result, out CheatEngineFailure failure),
 			failure.Message);
 		return Assert.IsType<string>(result);

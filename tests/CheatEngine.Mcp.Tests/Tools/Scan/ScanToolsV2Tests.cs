@@ -53,6 +53,29 @@ public sealed class ScanToolsV2Tests
 		Assert.NotNull(missing.Error.Hint);
 	}
 
+	[Theory]
+	[InlineData(CheatEngineHostEffect.Unknown, ToolHostEffect.Unknown)]
+	[InlineData(CheatEngineHostEffect.NotStarted, ToolHostEffect.NotStarted)]
+	[InlineData(CheatEngineHostEffect.Started, ToolHostEffect.Started)]
+	[InlineData(CheatEngineHostEffect.Completed, ToolHostEffect.Completed)]
+	[InlineData(CheatEngineHostEffect.CleanupUnconfirmed, ToolHostEffect.CleanupUnconfirmed)]
+	[InlineData(CheatEngineHostEffect.NotApplied, ToolHostEffect.NotApplied)]
+	public void IndependentSession_DeletePreservesTheReleaseHostEffect(CheatEngineHostEffect clientEffect,
+		ToolHostEffect expectedEffect)
+	{
+		SessionProbe probe = new(new Address(0x1111), "value", releaseOutcomes:
+		[
+			new LeaseReleaseOutcome(LeaseReleaseKind.CleanupUnavailable, clientEffect)
+		]);
+		using ScanTools tools = CreateTools([probe]);
+		tools.First("alpha", value: "10", cancellationToken: Token);
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() => tools.Delete("alpha", Token));
+
+		Assert.Equal(expectedEffect, exception.Error.HostEffect);
+		Assert.Equal("ResultsReady", tools.GetStatus("alpha", Token).State);
+	}
+
 	[Fact]
 	public void IndependentResults_AddressesAreUppercaseHexadecimalWithoutPrefix()
 	{
@@ -209,7 +232,7 @@ public sealed class ScanToolsV2Tests
 		CheatEngineToolException failed =
 			Assert.Throws<CheatEngineToolException>(() => tools.Delete("alpha", Token));
 
-		Assert.Equal((ToolErrorKind.PartialEffect, ToolHostEffect.Unknown, true),
+		Assert.Equal((ToolErrorKind.PartialEffect, ToolHostEffect.Completed, true),
 			(failed.Error.Kind, failed.Error.HostEffect, failed.Error.Retryable));
 		Assert.Equal("alpha", tools.GetStatus("alpha", Token).ScannerName);
 		Assert.Throws<CheatEngineToolException>(() => resources.EnsureCanChangeTarget(
@@ -463,15 +486,22 @@ public sealed class ScanToolsV2Tests
 
 	private sealed class SessionProbe
 	{
-		private readonly Queue<LeaseReleaseKind> _outcomes;
+		private readonly Queue<LeaseReleaseOutcome> _outcomes;
 		private bool _manualRecovery;
 		private bool _released;
 
-		public SessionProbe(Address address, string value, IEnumerable<LeaseReleaseKind>? outcomes = null)
+		public SessionProbe(Address address, string value, IEnumerable<LeaseReleaseKind>? outcomes = null,
+			IEnumerable<LeaseReleaseOutcome>? releaseOutcomes = null)
 		{
 			Address = address;
 			Value = value;
-			_outcomes = new Queue<LeaseReleaseKind>(outcomes ?? [LeaseReleaseKind.Released]);
+			if (outcomes is not null && releaseOutcomes is not null)
+			{
+				throw new ArgumentException("Choose either release kinds or release outcomes.");
+			}
+
+			_outcomes = new Queue<LeaseReleaseOutcome>(releaseOutcomes ?? (outcomes ?? [LeaseReleaseKind.Released])
+				.Select(static kind => new LeaseReleaseOutcome(kind, CheatEngineHostEffect.Completed)));
 			Session = ClientTestDouble.Create<IValueScanSession>(Handle);
 		}
 
@@ -594,8 +624,9 @@ public sealed class ScanToolsV2Tests
 		private LeaseReleaseOutcome Release()
 		{
 			ReleaseCalls++;
-			LeaseReleaseKind kind = _outcomes.Count > 0 ? _outcomes.Dequeue() : LeaseReleaseKind.Released;
-			LeaseReleaseOutcome outcome = new(kind, CheatEngineHostEffect.Completed);
+			LeaseReleaseOutcome outcome = _outcomes.Count > 0
+				? _outcomes.Dequeue()
+				: new LeaseReleaseOutcome(LeaseReleaseKind.Released, CheatEngineHostEffect.Completed);
 			_released = !outcome.IsRetryable;
 			_manualRecovery = outcome.RequiresManualRecovery;
 			return outcome;

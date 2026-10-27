@@ -7574,7 +7574,7 @@
   {
     "name": "kernel_start_watch",
     "title": "Start DBVM watch",
-    "description": "Start a DBVM physical-page watch as a bounded job. The watched range must stay inside one 4 KiB physical page: (physicalAddress \u0026 0xFFF) \u002B byteSize may not exceed 4096, because DBVM silently shortens a range that crosses a page boundary. The watch observes every process and kernel access to the physical page. Poll it with kernel_poll_watch; runtime_stop_job(jobId), TTL expiry and plugin shutdown run its Lua cleanup hook to disable the DBVM watch. options may use only bits 0 to 3, because options 5 and above can create unbounded DBVM logs or change execution.",
+    "description": "Start a DBVM physical-page watch as a bounded job. The watched range must stay inside one 4 KiB physical page: (physicalAddress \u0026 0xFFF) \u002B byteSize may not exceed 4096, because DBVM silently shortens a range that crosses a page boundary. The watch observes every process and kernel access to the physical page. Poll it with kernel_poll_watch; runtime_stop_job(jobId), TTL expiry and plugin shutdown run its Lua cleanup hook to disable the DBVM watch. options may use only bits 0 to 1; the higher capture, stack, and execution bits either allocate data that this tool does not return or change DBVM execution.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -7601,7 +7601,7 @@
           "default": 1
         },
         "options": {
-          "description": "DBVM watch option bits 0 to 3 only.",
+          "description": "DBVM watch option bits 0 to 1 only.",
           "type": "integer",
           "default": 0
         },
@@ -7676,7 +7676,7 @@
   {
     "name": "kernel_translate_address",
     "title": "Translate virtual address",
-    "description": "Translate one virtual address in the selected target to its current physical address through DBK. The virtual expression is resolved with Client before the fixed DBK call. Translate one page at a time immediately before access: physical mappings can change or cease to be resident.",
+    "description": "Translate one virtual address in the selected target to its current physical address through DBK or a running DBVM. The virtual expression is resolved with Client before the fixed Cheat Engine call. Translate one page at a time immediately before access: physical mappings can change or cease to be resident.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -15282,7 +15282,7 @@
   {
     "name": "record_clear",
     "title": "Clear address list",
-    "description": "Delete every Cheat Engine address-list record and return the number removed, including nested child records. Refuses lists above 100000 records before changing them. Active scripts may run their disable sections during clear, which can block Cheat Engine or show a dialog.",
+    "description": "Delete every Cheat Engine address-list record and return the number removed, including nested child records. Refuses lists above 100000 records before changing them. An active Auto Assembler record anywhere in the list requires Mcp:EnableAutoAssembler. Deletion does not run DISABLE: deactivate active scripts first or their patches remain without the records needed to undo them. OnDestroy callbacks can run during clear.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -15553,7 +15553,7 @@
   {
     "name": "record_delete",
     "title": "Delete address-list records",
-    "description": "Delete 1 to 256 records by current id. Deleting a group can also remove or reparent its children according to Cheat Engine\u0027s address-list behavior. Deleting an active Auto Assembler record can execute its disable section and requires Mcp:EnableAutoAssembler. Script execution can block Cheat Engine or show a dialog. A failure after an earlier delete leaves those earlier deletions in effect.",
+    "description": "Delete 1 to 256 records by current id, including their children. The complete deletion subtrees are checked before the first delete, with at most 4096 distinct records and 64 levels per subtree. An active Auto Assembler record anywhere below a listed record requires Mcp:EnableAutoAssembler. Deletion does not run DISABLE: deactivate active scripts, including children, first or their patches remain without the records needed to undo them. OnDestroy callbacks can run during deletion. A failure after an earlier delete leaves those earlier deletions in effect.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -18605,7 +18605,7 @@
   {
     "name": "runtime_stop_job",
     "title": "Stop a job",
-    "description": "Stop one retained job and discard its items. A managed job may report partial_effect while it is still ending; repeat only when the error says retryable.",
+    "description": "Stop one retained job and discard its items. MCP remembers up to 256 recent stops within their TTL for alreadyReleased retries; older or expired ids return not_found. A managed job may report partial_effect while it is still ending; repeat only when the error says retryable.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -22530,7 +22530,7 @@
   {
     "name": "table_save",
     "title": "Save cheat table",
-    "description": "Save the current table through CheatEngine.Client to a .CT, .XML or .CETRAINER path under CheatEngineClient:AllowedTableRoots. overwrite must be true when a destination file already exists. A native save failure can leave a partially written destination.",
+    "description": "Save the current table through CheatEngine.Client to a .CT, .XML or .CETRAINER path under CheatEngineClient:AllowedTableRoots. MCP reserves an anchored temporary table in that root and publishes it atomically only after Cheat Engine saves it. overwrite must be true when a destination file already exists.",
     "inputSchema": {
       "type": "object",
       "properties": {

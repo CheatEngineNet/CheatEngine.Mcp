@@ -70,7 +70,7 @@ public sealed class RecordClearTools(ToolDispatch dispatch)
 		Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
 	[McpMeta(McpDispatchClass.MetaKey, McpDispatchClass.MayPrompt)]
 	[Description(
-		"Delete every Cheat Engine address-list record and return the number removed, including nested child records. Refuses lists above 100000 records before changing them. Active scripts may run their disable sections during clear, which can block Cheat Engine or show a dialog.")]
+		"Delete every Cheat Engine address-list record and return the number removed, including nested child records. Refuses lists above 100000 records before changing them. An active Auto Assembler record anywhere in the list requires Mcp:EnableAutoAssembler. Deletion does not run DISABLE: deactivate active scripts first or their patches remain without the records needed to undo them. OnDestroy callbacks can run during clear.")]
 	public RecordClearResult Clear(CancellationToken cancellationToken = default)
 	{
 		return dispatch.RunLua(CheatEngineToolNames.RecordClear, ClearScript,

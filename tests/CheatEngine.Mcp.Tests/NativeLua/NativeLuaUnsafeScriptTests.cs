@@ -214,7 +214,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 
 	private static object? EvaluateLua(string expression)
 	{
-		PluginLuaToolRuntime.LuaToolOperation operation = new("evaluate", "return " + expression);
+		NativeLuaProbeOperation operation = new("evaluate", "return " + expression);
 		Assert.True(operation.TryExecute(ActiveContext.Instance, out object? result, out CheatEngineFailure failure),
 			failure.Message);
 		return result;

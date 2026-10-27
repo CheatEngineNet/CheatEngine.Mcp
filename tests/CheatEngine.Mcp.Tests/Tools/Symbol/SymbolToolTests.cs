@@ -22,7 +22,7 @@ namespace CheatEngine.Mcp.Tests.Tools.Symbol;
 /// </summary>
 public sealed class SymbolToolTests : IDisposable
 {
-	private readonly McpFilePathsTests.Scratch _scratch = new();
+	private readonly McpFileScratch _scratch = new();
 	private static CancellationToken Token => TestContext.Current.CancellationToken;
 
 	public static TheoryData<string[], ToolErrorKind, string> RefusedExpressions => new()

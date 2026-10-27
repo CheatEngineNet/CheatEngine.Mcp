@@ -162,9 +162,14 @@ public sealed class MemoryReadTools
 			CheatEngineToolNames.MemoryCompare, token =>
 			{
 				ICheatEngineClient client = _dispatch.Client;
+				long observed = MemoryTargets.SelectionEpoch(client, token);
 				Address resolvedA = MemoryTargets.Resolve(client, first, "addressA", token);
 				Address resolvedB = MemoryTargets.Resolve(client, second, "addressB", token);
-				long observed = MemoryTargets.SelectionEpoch(client, token);
+				MemoryTargets.RequireSameTarget(client, observed, CheatEngineToolNames.MemoryCompare, token);
+				int pointerBytes = MemoryTargets.PointerBytes(client, token);
+				MemoryTargets.RequireSameTarget(client, observed, CheatEngineToolNames.MemoryCompare, token);
+				MemoryTargets.RequireRangeFitsTargetAddressSpace(resolvedA, size, pointerBytes);
+				MemoryTargets.RequireRangeFitsTargetAddressSpace(resolvedB, size, pointerBytes);
 				int length = Math.Min(size, MemoryTargets.ChunkBytes);
 				return (resolvedA, resolvedB, observed, ReadArray(client, resolvedA, length, token),
 					ReadArray(client, resolvedB, length, token));
@@ -221,8 +226,13 @@ public sealed class MemoryReadTools
 		(Address target, long epoch, byte[] chunk) = _dispatch.Run(CheatEngineToolNames.MemoryHash, token =>
 		{
 			ICheatEngineClient client = _dispatch.Client;
+			long observed = MemoryTargets.SelectionEpoch(client, token);
 			Address resolved = MemoryTargets.Resolve(client, expression, "address", token);
-			return (resolved, MemoryTargets.SelectionEpoch(client, token),
+			MemoryTargets.RequireSameTarget(client, observed, CheatEngineToolNames.MemoryHash, token);
+			int pointerBytes = MemoryTargets.PointerBytes(client, token);
+			MemoryTargets.RequireSameTarget(client, observed, CheatEngineToolNames.MemoryHash, token);
+			MemoryTargets.RequireRangeFitsTargetAddressSpace(resolved, size, pointerBytes);
+			return (resolved, observed,
 				ReadArray(client, resolved, Math.Min(size, MemoryTargets.ChunkBytes), token));
 		}, cancellationToken);
 		int offset = 0;

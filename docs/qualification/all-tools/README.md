@@ -23,13 +23,25 @@ and the six DBK/DBVM-dependent operations listed in [the current checklist](../.
 Later source changes and the separately qualified active-lifecycle scenario do not inherit
 bundle 06's catalog-wide result.
 
+## Accepted 2.0 qualification limit
+
+On 2026-10-27 the maintainer deferred native qualification of the six DBK/DBVM operations
+in the [kernel plan](later-kernel-test.md). They remain unqualified and are excluded from
+the release-blocking native cases for 2.0 because a suitable environment is unavailable.
+The deferral leaves their capability gates and historical results intact. Keep the
+whole-catalog `nativeQualificationComplete=false`; an accepted release limitation is
+separate from evidence that a native operation passed. `symbol_enable_sources` remains
+open independently, along with the other [release gates](../../../TODO.md).
+
 ## Where to find the evidence
 
 | Record | Purpose |
 |---|---|
 | [Current checklist](../../../TODO.md) | One list of remaining requirements and the prerequisites for resuming them |
+| [Automated double audit](test-audit.md) | All 207 tools mapped to executed tests, assertion review and repaired evidence gaps |
 | [Runner contracts](runners.md) | Maintained scenario boundaries and evidence requirements |
 | [Kernel qualification plan](later-kernel-test.md) | Suitability, independent oracles and recovery prerequisites |
+| [Symbol-source qualification plan](symbol-source-test.md) | Network isolation and independent symbol readback prerequisites |
 | [Test project guide](../../../tests/CheatEngine.Mcp.Tests/README.md) | Portable, NativeLua and explicit live test execution |
 
 Old checkpoint documents and release drafts were removed from the active tree. Their local

@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Features;
 using CheatEngine.Mcp.Tests.Support;
@@ -92,6 +94,26 @@ public sealed partial class NativeLuaToolRuntimeTests
 	}
 
 	[Theory]
+	[InlineData(1, false)]
+	[InlineData(2.5, false)]
+	[InlineData(1, true)]
+	[InlineData(2.5, true)]
+	public void SpeedhackV2_GetState_ReportsConfigurationAndSymbolWithoutChangingEither(double configuredSpeed, bool symbolPresent)
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(SpeedhackStubs + $"\nconfiguredSpeed = {configuredSpeed.ToString(CultureInfo.InvariantCulture)}; "
+			+ $"speedhackSymbol = {(symbolPresent ? "0x7FF6A0000000" : "nil")}; wantedSpeed = 9");
+		TargetResources resources = new();
+		SpeedhackTools tools = new(CreateNativeDispatch(new McpFeatureOptions()), resources);
+
+		SpeedhackState state = tools.GetState(Token);
+
+		Assert.Equal(new SpeedhackState(configuredSpeed, symbolPresent), state);
+		Assert.Equal((0L, 0L, 9L), (ReadGlobal("setCalls"), ReadGlobal("hookAttempts"), ReadGlobal("wantedSpeed")));
+		Assert.Empty(resources.List());
+	}
+
+	[Theory]
 	[InlineData(false, false)]
 	[InlineData(true, false)]
 	[InlineData(false, true)]
@@ -183,6 +205,50 @@ public sealed partial class NativeLuaToolRuntimeTests
 		Assert.NotNull(changed.ResourceId);
 		Assert.Single(resources.List());
 		Assert.Equal((1L, 1L), (ReadGlobal("setCalls"), ReadGlobal("hookAttempts")));
+	}
+
+	[Fact]
+	public void SpeedhackV2_ResourceCapacityRefusesBeforeChangingSpeed()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(JobHostStubs + "\n" + SpeedhackStubs);
+		ToolDispatch dispatch = CreateNativeDispatch(new McpFeatureOptions());
+		TargetResources resources = new(new McpStateLedger(dispatch, TimeProvider.System));
+		for (int index = 1; index <= 256; index++)
+		{
+			Record(resources.Namespace, $"pause-{resources.Namespace}-{index}", "pause");
+		}
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			new SpeedhackTools(dispatch, resources).SetSpeed(2, Token));
+
+		Assert.Equal((ToolErrorKind.LimitExceeded, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Equal((0L, 0L), (ReadGlobal("setCalls"), ReadGlobal("hookAttempts")));
+	}
+
+	[Fact]
+	public void SpeedhackV2_ErrorAfterChangingSpeed_RetainsTheReservedRestoreAction()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(JobHostStubs + "\n" + SpeedhackStubs + """
+
+			                              local set = speedhack_setSpeed
+			                              speedhack_setSpeed = function(speed)
+			                                set(speed)
+			                                if speed == 2 then error('set speed failed after changing the target') end
+			                              end
+			                              """);
+		ToolDispatch dispatch = CreateNativeDispatch(new McpFeatureOptions());
+		TargetResources resources = new(new McpStateLedger(dispatch, TimeProvider.System));
+		SpeedhackTools tools = new(dispatch, resources);
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() => tools.SetSpeed(2, Token));
+		ReleaseAllResult release = resources.ReleaseAll(Token);
+
+		Assert.Equal(ToolHostEffect.Started, exception.Error.HostEffect);
+		Assert.True(release.IsComplete);
+		Assert.Equal((2L, 1L, 1L), (ReadGlobal("setCalls"), ReadGlobal("requestedSpeed"), ReadGlobal("wantedSpeed")));
 	}
 
 	[Fact]

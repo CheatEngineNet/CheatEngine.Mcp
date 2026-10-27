@@ -3,6 +3,7 @@ using System.Text.Json;
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Files;
 using CheatEngine.Mcp.Tests.Core;
+using CheatEngine.Mcp.Tests.Support;
 using CheatEngine.Mcp.Tools.Pointer;
 
 namespace CheatEngine.Mcp.Tests.Tools.Pointer;
@@ -10,7 +11,7 @@ namespace CheatEngine.Mcp.Tests.Tools.Pointer;
 /// <summary>File policy, atomic publication and activation-independent pointer persistence.</summary>
 public sealed class PointerFileToolTests : IDisposable
 {
-	private readonly McpFilePathsTests.Scratch _scratch = new();
+	private readonly McpFileScratch _scratch = new();
 
 	[Fact]
 	public void SaveAndLoadMap_UsesAllowedRootAndReportsUnknownImportCompleteness()

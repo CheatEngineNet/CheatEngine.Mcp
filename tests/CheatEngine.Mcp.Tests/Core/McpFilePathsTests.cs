@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Files;
 using CheatEngine.Mcp.Tests.Support;
@@ -11,7 +9,7 @@ namespace CheatEngine.Mcp.Tests.Core;
 public sealed class McpFilePathsTests : IDisposable
 {
 	private const string Tool = "test_tool";
-	private readonly Scratch _scratch = new();
+	private readonly McpFileScratch _scratch = new();
 
 	public void Dispose()
 	{
@@ -297,6 +295,24 @@ public sealed class McpFilePathsTests : IDisposable
 	}
 
 	[Fact]
+	public void BeginWrite_UncommittedDispose_RemovesTheTemporaryFile()
+	{
+		string root = _scratch.CreateFolder("uncommitted-write-root");
+		string path = Path.Combine(root, "saved.bin");
+		McpFilePaths paths = Create(root);
+		string temporary;
+
+		using (McpFileWrite write = paths.BeginWrite(path, Tool, false))
+		{
+			temporary = write.TemporaryPath;
+			Assert.True(File.Exists(temporary));
+		}
+
+		Assert.False(File.Exists(temporary));
+		Assert.False(File.Exists(path));
+	}
+
+	[Fact]
 	public void BeginWrite_ExternalWriterAbort_ReportsConfirmedTemporaryCleanup()
 	{
 		string root = _scratch.CreateFolder("external-abort-root");
@@ -328,6 +344,49 @@ public sealed class McpFilePathsTests : IDisposable
 			Assert.False(File.Exists(path));
 			Assert.StartsWith(".", Path.GetFileName(temporary));
 			Assert.EndsWith(".partial", Path.GetFileName(temporary));
+			File.WriteAllBytes(temporary, [1, 2, 3]);
+			write.Commit();
+		}
+
+		Assert.Equal([1, 2, 3], File.ReadAllBytes(path));
+	}
+
+	[Fact]
+	public void BeginWriteUnderRoot_SeparateApprovedRoot_PreservesTheDestinationExtensionAndCommitsAtomically()
+	{
+		string root = _scratch.CreateFolder("table-root");
+		string path = Path.Combine(root, "saved.cetrainer");
+		McpFilePaths paths = new(new McpFileOptions(), _scratch.CreateFolder("registry"), _scratch.CreateFolder("data"));
+
+		using (McpFileWrite write = paths.BeginWriteUnderRoot(path, root, Tool, false,
+			preserveDestinationExtension: true))
+		{
+			Assert.False(write.DestinationExisted);
+			string temporary = write.PrepareForExternalWrite();
+			Assert.Equal(".cetrainer", Path.GetExtension(temporary));
+			Assert.False(File.Exists(path));
+			File.WriteAllBytes(temporary, [1, 2, 3]);
+			write.Commit();
+		}
+
+		Assert.Equal([1, 2, 3], File.ReadAllBytes(path));
+	}
+
+	[Fact]
+	public void BeginWriteUnderRoot_HeldDirectoryChain_PreventsAnApprovedRootAncestorSwap()
+	{
+		string ancestor = _scratch.CreateFolder("table-write-ancestor");
+		string root = _scratch.CreateFolder("table-write-ancestor\\root");
+		string parent = _scratch.CreateFolder("table-write-ancestor\\root\\nested");
+		string path = Path.Combine(parent, "saved.ct");
+		McpFilePaths paths = new(new McpFileOptions(), _scratch.CreateFolder("registry"), _scratch.CreateFolder("data"));
+
+		using (McpFileWrite write = paths.BeginWriteUnderRoot(path, root, Tool, false,
+			preserveDestinationExtension: true))
+		{
+			Assert.Throws<IOException>(() => Directory.Move(ancestor, ancestor + "-moved"));
+			string temporary = write.PrepareForExternalWrite();
+			Assert.Equal(".ct", Path.GetExtension(temporary));
 			File.WriteAllBytes(temporary, [1, 2, 3]);
 			write.Commit();
 		}
@@ -517,76 +576,5 @@ public sealed class McpFilePathsTests : IDisposable
 		{
 			_ = action();
 		});
-	}
-
-	/// <summary>
-	///     A folder on a local fixed drive whose path has no short-name segment (a <c>RUNNER~1</c> temp folder would be
-	///     refused as an 8.3 alias), holding the protected directories and the files a test creates.
-	/// </summary>
-	internal sealed class Scratch : IDisposable
-	{
-		internal Scratch()
-		{
-			string temp = Path.GetFullPath(Path.GetTempPath());
-			string parent = temp.Contains('~', StringComparison.Ordinal)
-				? Path.Combine(RepositoryPaths.Root, "artifacts", "test-scratch")
-				: temp;
-			Root = Path.Combine(parent, $"CheatEngine.Mcp.FilePaths-{Guid.NewGuid():N}");
-			Directory.CreateDirectory(Root);
-		}
-
-		internal string Root
-		{
-			get;
-		}
-
-		private List<string> Junctions
-		{
-			get;
-		} = [];
-
-		public void Dispose()
-		{
-			// A recursive deletion refuses junctions; removing one alone never touches its target.
-			foreach (string link in Junctions)
-			{
-				Directory.Delete(link, false);
-			}
-
-			if (Directory.Exists(Root))
-			{
-				Directory.Delete(Root, true);
-			}
-		}
-
-		internal string CreateFolder(string relative)
-		{
-			return Directory.CreateDirectory(Path.Combine(Root, relative)).FullName;
-		}
-
-		/// <summary>Creates a directory junction, which needs no privilege, unlike a symbolic link.</summary>
-		internal string CreateJunction(string relative, string target)
-		{
-			string link = Path.Combine(Root, relative);
-			ProcessStartInfo start = new("cmd.exe")
-			{
-				UseShellExecute = false,
-				CreateNoWindow = true,
-				RedirectStandardOutput = true,
-				RedirectStandardError = true
-			};
-			foreach (string argument in (string[]) ["/d", "/c", "mklink", "/J", link, target])
-			{
-				start.ArgumentList.Add(argument);
-			}
-
-			using Process process = Process.Start(start)!;
-			string output = process.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();
-			process.WaitForExit();
-			Assert.True(process.ExitCode == 0 && Directory.Exists(link), output);
-			Assert.True((File.GetAttributes(link) & FileAttributes.ReparsePoint) != 0);
-			Junctions.Add(link);
-			return link;
-		}
 	}
 }

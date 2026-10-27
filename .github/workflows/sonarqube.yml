@@ -11,6 +11,8 @@ jobs:
   build:
     name: Build and analyze
     runs-on: windows-latest
+    env:
+      SONAR_SCANNER_VERSION: "12.0.0"
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -19,7 +21,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v6.0.0
         with:
-          dotnet-version: "10.0.402"
+          dotnet-version: "10.0.403"
       - name: Cache SonarQube Cloud packages
         uses: actions/cache@v6.1.0
         with:
@@ -31,13 +33,12 @@ jobs:
         uses: actions/cache@v6.1.0
         with:
           path: .\.sonar\scanner
-          key: ${{ runner.os }}-sonar-scanner
-          restore-keys: ${{ runner.os }}-sonar-scanner
+          key: ${{ runner.os }}-sonar-scanner-${{ env.SONAR_SCANNER_VERSION }}
       - name: Install SonarQube Cloud scanner
         shell: pwsh
         run: |
           New-Item -Path .\.sonar\scanner -ItemType Directory -Force
-          dotnet tool update dotnet-sonarscanner --tool-path .\.sonar\scanner
+          dotnet tool update dotnet-sonarscanner --version "$env:SONAR_SCANNER_VERSION" --tool-path .\.sonar\scanner
       - name: Build and analyze
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

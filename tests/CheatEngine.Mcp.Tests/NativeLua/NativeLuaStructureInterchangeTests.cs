@@ -3,6 +3,7 @@ using System.Text.Json;
 using CheatEngine.Client.Processes;
 using CheatEngine.Mcp.Core.Files;
 using CheatEngine.Mcp.Tests.Core;
+using CheatEngine.Mcp.Tests.Support;
 using CheatEngine.Mcp.Tests.Tools.Structures;
 using CheatEngine.Mcp.Tools.Structures;
 using CheatEngine.SDK.Engine.Inspection;
@@ -74,7 +75,7 @@ end
 	public void StructureInterchange_ProductionAdapters_RoundTripCyclicLayoutsLosslessly()
 	{
 		using RuntimeScope scope = CreateScope();
-		using McpFilePathsTests.Scratch scratch = new();
+		using McpFileScratch scratch = new();
 		InstallStubs(InterchangeHostStubs);
 		InstallStubs("""
 local a = define('RoundA', {{4, 'health', 2, 'dtSignedInteger'}, {16, 'bytes', 8, nil, 12}})

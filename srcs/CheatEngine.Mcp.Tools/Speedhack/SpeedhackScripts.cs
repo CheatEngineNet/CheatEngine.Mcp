@@ -127,14 +127,8 @@ internal static class SpeedhackScripts
 		end
 		local before, _, refused = speedhackSymbol('not_started')
 		if refused then return refused end
-		speedhack_setSpeed(a[1])
-		local speed = speedhack_getSpeed()
-		if type(speed) ~= 'number' or speed ~= speed or speed == math.huge or speed == -math.huge then
-			return mcp.err('host_refused', 'Cheat Engine did not return a finite speed after changing it.', 'started')
-		end
-		local after, _, probeRefused = speedhackSymbol('started')
-		if probeRefused then after = nil end
-		resourceRecord(a[3], a[2], 'speedhack', { name = 'speedhack', detail = 'Restores the configured speed to 1.' }, function()
+		local reserved, reserveFailure = pcall(resourceRecord, a[3], a[2], 'speedhack',
+			{ name = 'speedhack', detail = 'Restores the configured speed to 1.' }, function()
 			-- Opening another process unticks Enable Speedhack without restoring this one; ticking it again would
 			-- hook the newly opened process instead, so the restore needs manual recovery then.
 			assert(getOpenedProcessID() == pid, 'The sped-up process is no longer the opened process')
@@ -154,6 +148,18 @@ internal static class SpeedhackScripts
 				'Cheat Engine did not return a finite speed while restoring speedhack')
 			assert(math.abs(restored - 1) <= 0.000001, 'Cheat Engine did not restore speedhack to 1')
 		end)
+		if not reserved then
+			return mcp.err('limit_exceeded', 'MCP could not reserve a speedhack restore action before changing speed: '
+				.. tostring(reserveFailure):sub(1, 512), 'not_started',
+				'Release or restore retained MCP resources, then try again.')
+		end
+		speedhack_setSpeed(a[1])
+		local speed = speedhack_getSpeed()
+		if type(speed) ~= 'number' or speed ~= speed or speed == math.huge or speed == -math.huge then
+			return mcp.err('host_refused', 'Cheat Engine did not return a finite speed after changing it.', 'started')
+		end
+		local after, _, probeRefused = speedhackSymbol('started')
+		if probeRefused then after = nil end
 		return { speed = speed, hooksInstalled = after, firstActivation = not before }
 		""";
 }

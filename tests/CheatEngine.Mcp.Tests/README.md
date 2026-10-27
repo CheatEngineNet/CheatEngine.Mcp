@@ -94,11 +94,19 @@ each tool's operation and cleanup receipts must belong to the same passing sessi
 
 Tests that need serial access share the named serial collections in `Support/` and `LiveQualification/`.
 Prefer these existing fixtures and the Client contract doubles over mocks of Cheat Engine internals.
+`Support/McpFileScratch.cs` owns the shared fixed-drive file fixture, and `Support/NativeLuaProbeOperation.cs` owns arbitrary Lua probes used only by tests.
+The `LiveSandboxSession` partial files group startup, hosts, targets, distribution, evidence, cleanup, safety, and driver generation while retaining one session owner.
 
 ## Contract snapshots
 
 `Contract/Golden/` contains reviewed snapshots of observable MCP behavior, including tool, resource, prompt, initialization, and packaged-plugin output.
 The test suite compares output to those files by default.
+
+`AllToolBehaviorEvidenceTests` requires a positive adapter mapping for every production backend tool,
+checks the referenced test methods and rejects duplicate evidence identities. Catalog-derived
+`AllToolGatewayQualificationTests` exercise routing and admission for every backend tool, plus
+gateway discovery. See the [double audit](../../docs/qualification/all-tools/test-audit.md) for
+per-tool outcomes and the distinction from native-host qualification.
 
 Regenerate a snapshot only for an intended, reviewed contract change:
 

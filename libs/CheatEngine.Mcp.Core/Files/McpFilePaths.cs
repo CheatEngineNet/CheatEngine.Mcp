@@ -151,18 +151,61 @@ public sealed class McpFilePaths
 	{
 		string full = RequireWrite(path, operation, parameter);
 		string root = _roots.First(root => full.StartsWith(root, StringComparison.OrdinalIgnoreCase));
+		return BeginWriteBelowRoot(full, root, operation, overwrite, parameter, false);
+	}
+
+	/// <summary>
+	///     Starts a write below one separately configured trusted root. This preserves a component-specific root policy
+	///     while retaining the same anchored directory chain, no-reparse checks and atomic commit as <see cref="BeginWrite"/>.
+	/// </summary>
+	/// <param name="path">The requested destination under <paramref name="allowedRoot"/>.</param>
+	/// <param name="allowedRoot">An existing component-specific root already authorized by that component.</param>
+	/// <param name="operation">The public operation reported in validation failures.</param>
+	/// <param name="overwrite">Whether commit may replace an existing destination.</param>
+	/// <param name="parameter">The caller parameter that carried <paramref name="path"/>.</param>
+	/// <param name="preserveDestinationExtension">Whether an external writer needs the temporary filename to retain the destination extension.</param>
+	/// <returns>An anchored temporary write and atomic commit operation.</returns>
+	public McpFileWrite BeginWriteUnderRoot(string? path, string? allowedRoot, string operation, bool overwrite,
+		string parameter = "path", bool preserveDestinationExtension = false)
+	{
+		string full = RequireRead(path, operation, parameter);
+		if (Directory.Exists(full))
+		{
+			throw Refuse(operation, parameter, "names a directory, not a file.", null);
+		}
+
+		string root = RequireRead(allowedRoot, operation, "allowedRoot");
+		if (!Directory.Exists(root))
+		{
+			throw Refuse(operation, "allowedRoot", "names a folder that does not exist.", null);
+		}
+
+		root = McpPathRules.WithSeparator(root);
+		if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+		{
+			throw Refuse(operation, parameter, "is not inside the approved root.", null);
+		}
+
+		return BeginWriteBelowRoot(full, root, operation, overwrite, parameter, preserveDestinationExtension);
+	}
+
+	private static McpFileWrite BeginWriteBelowRoot(string full, string root, string operation, bool overwrite,
+		string parameter, bool preserveDestinationExtension)
+	{
 		string relative = full[root.Length..];
 		string[] segments = relative.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
 		string name = segments[^1];
 		List<SafeFileHandle> directories = OpenWriteDirectories(root, segments.AsSpan(..^1), operation, parameter);
 		try
 		{
-			if (!overwrite && WindowsAnchoredFiles.EntryExists(directories[^1], name))
+			bool destinationExisted = WindowsAnchoredFiles.EntryExists(directories[^1], name);
+			if (!overwrite && destinationExisted)
 			{
 				throw Refuse(operation, parameter, "already exists; set overwrite to replace it.", null);
 			}
 
-			return new McpFileWrite(full, directories, name, overwrite);
+			return new McpFileWrite(full, directories, name, overwrite, destinationExisted,
+				preserveDestinationExtension);
 		}
 		catch (WindowsFileException exception) when (exception.Status ==
 													 WindowsAnchoredFiles.StatusReparsePointEncountered)

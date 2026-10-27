@@ -9,7 +9,7 @@ Existing binary assets are immutable; a changed binary needs a new version. Only
 .EXAMPLE
 pwsh -NoProfile -File eng/Release.ps1
 .EXAMPLE
-pwsh -NoProfile -File eng/Release.ps1 -DistributionPath artifacts/dist/release -Upload -Publish
+pwsh -NoProfile -File eng/Release.ps1 -Upload -Publish
 #>
 [CmdletBinding(SupportsShouldProcess)]
 param(
@@ -18,6 +18,9 @@ param(
     [ValidatePattern('^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$')]
     [string] $Repository = 'CheatEngineNet/CheatEngine.Mcp',
     [string] $NotesFile,
+    [string] $DistributionManifestPath,
+    [ValidatePattern('^[0-9A-Fa-f]{64}$')]
+    [string] $DistributionManifestSha256,
     [switch] $Upload,
     [switch] $Publish
 )
@@ -59,10 +62,40 @@ function Test-Archive([string] $Path) {
     finally { $archive.Dispose() }
 }
 
-function Assert-UploadedAsset($Asset, [string] $Path) {
-    $hash = 'sha256:' + (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
-    if ($Asset.state -ne 'uploaded' -or $Asset.size -ne (Get-Item -LiteralPath $Path).Length -or
-        $Asset.digest -ne $hash) { throw "GitHub asset does not match the local file: $($Asset.name)" }
+function New-ReleaseFileSnapshot([string] $Path) {
+    $stream = [IO.File]::Open($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+    try {
+        $hash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($stream)).ToLowerInvariant()
+        $stream.Position = 0
+        return [pscustomobject]@{ Path = $Path; Name = [IO.Path]::GetFileName($Path); Length = $stream.Length; Hash = $hash; Stream = $stream }
+    }
+    catch { $stream.Dispose(); throw }
+}
+
+function Assert-ReleaseFileSnapshot($Snapshot) {
+    if ($Snapshot.Stream.Length -ne $Snapshot.Length) { throw "Release input changed after it was frozen: $($Snapshot.Name)" }
+    $Snapshot.Stream.Position = 0
+    $hash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($Snapshot.Stream)).ToLowerInvariant()
+    $Snapshot.Stream.Position = 0
+    if ($hash -cne $Snapshot.Hash) { throw "Release input changed after it was frozen: $($Snapshot.Name)" }
+}
+
+function Assert-ChecksumSnapshot($ZipSnapshot, $ChecksumsSnapshot) {
+    Assert-ReleaseFileSnapshot $ZipSnapshot
+    Assert-ReleaseFileSnapshot $ChecksumsSnapshot
+    $reader = [IO.StreamReader]::new($ChecksumsSnapshot.Stream, [Text.UTF8Encoding]::new($false), $true, 1024, $true)
+    try { $text = $reader.ReadToEnd() }
+    finally { $reader.Dispose(); $ChecksumsSnapshot.Stream.Position = 0 }
+    if ($text -cne "$($ZipSnapshot.Hash)  $($ZipSnapshot.Name)`n") {
+        throw 'SHA256SUMS.txt does not match the frozen ZIP input.'
+    }
+}
+
+function Assert-UploadedAsset($Asset, $Snapshot) {
+    Assert-ReleaseFileSnapshot $Snapshot
+    $hash = 'sha256:' + $Snapshot.Hash
+    if ($Asset.state -ne 'uploaded' -or $Asset.size -ne $Snapshot.Length -or
+        $Asset.digest -ne $hash) { throw "GitHub asset does not match the frozen local file: $($Snapshot.Name)" }
 }
 
 function Assert-CosturaResourceInventory([string] $Path) {
@@ -95,28 +128,117 @@ function Assert-CosturaResourceInventory([string] $Path) {
     finally { $stream.Dispose() }
 }
 
+function Get-GitCommit([string] $Directory) {
+    $commit = @(git -C $Directory rev-parse HEAD)
+    if ($LASTEXITCODE -ne 0 -or $commit.Count -ne 1 -or $commit[0] -notmatch '^[0-9a-f]{40}$') {
+        throw "Could not determine the Git commit for $Directory."
+    }
+    return $commit[0]
+}
+
+function Assert-CleanSourceTree {
+    $status = @(git status --porcelain --ignore-submodules=none)
+    if ($LASTEXITCODE -ne 0) { throw 'git status failed; cannot confirm a clean checkout.' }
+    if ($status.Count) { throw 'A GitHub release requires a clean checkout and clean recorded submodules.' }
+}
+
+function Get-Sha256([string] $Path) {
+    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToUpperInvariant()
+}
+
+function Assert-DistributionManifest([string] $Path, [string] $ExpectedSha256, [string] $ExpectedSourceCommit,
+    [Collections.Generic.Dictionary[string, object]] $DistributionInventory) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw 'The distribution provenance manifest is missing.' }
+    if ((Get-Sha256 $Path) -cne $ExpectedSha256.ToUpperInvariant()) {
+        throw 'The distribution provenance manifest digest does not match the reviewed value.'
+    }
+    try { $manifest = Get-Content -Raw -LiteralPath $Path | ConvertFrom-Json -ErrorAction Stop }
+    catch { throw 'The distribution provenance manifest is not valid JSON.' }
+    if ($manifest.schema -ne 1 -or $manifest.sourceCommit -cne $ExpectedSourceCommit) {
+        throw 'The distribution provenance manifest does not match the binaries source commit.'
+    }
+    $currentCommit = Get-GitCommit $repoRoot
+    if ($currentCommit -cne $ExpectedSourceCommit) {
+        throw 'The local checkout does not match the binaries source commit.'
+    }
+    $dependencies = $manifest.dependencies
+    if ($null -eq $dependencies -or
+        $dependencies.cheatEngineClient -cne (Get-GitCommit (Join-Path $repoRoot 'externals/CheatEngine.Client')) -or
+        $dependencies.cheatEngineSdk -cne (Get-GitCommit (Join-Path $repoRoot 'externals/CheatEngine.SDK'))) {
+        throw 'The distribution provenance manifest does not match the checked-out Client and SDK commits.'
+    }
+    $eligibility = $manifest.releaseEligibility
+    if ($null -eq $eligibility -or $eligibility.eligible -ne $true -or
+        $eligibility.beforeBuild.clean -ne $true -or $eligibility.afterBuild.clean -ne $true -or
+        $eligibility.beforeBuild.sourceCommit -cne $ExpectedSourceCommit -or $eligibility.afterBuild.sourceCommit -cne $ExpectedSourceCommit -or
+        $eligibility.beforeBuild.dependencies.cheatEngineClient -cne $dependencies.cheatEngineClient -or
+        $eligibility.afterBuild.dependencies.cheatEngineClient -cne $dependencies.cheatEngineClient -or
+        $eligibility.beforeBuild.dependencies.cheatEngineSdk -cne $dependencies.cheatEngineSdk -or
+        $eligibility.afterBuild.dependencies.cheatEngineSdk -cne $dependencies.cheatEngineSdk) {
+        throw 'The distribution provenance manifest was not built from one clean, stable source and dependency snapshot.'
+    }
+    $expectedSourceFiles = @{
+        'README.md' = 'srcs/CheatEngine.Mcp.Plugin/Distribution/README.md'
+        'LICENSE' = 'LICENSE'
+        'THIRD-PARTY-NOTICES.md' = 'THIRD-PARTY-NOTICES.md'
+    }
+    $sourceFiles = @($manifest.sourceFiles)
+    if ($sourceFiles.Count -ne $expectedSourceFiles.Count) { throw 'The distribution provenance manifest has an incomplete source-file inventory.' }
+    foreach ($distributionPath in $expectedSourceFiles.Keys) {
+        $entry = @($sourceFiles | Where-Object { $_.distributionPath -ceq $distributionPath })
+        if ($entry.Count -ne 1 -or $entry[0].sourcePath -cne $expectedSourceFiles[$distributionPath] -or
+            $entry[0].sha256 -cne (Get-Sha256 (Join-Path $repoRoot $expectedSourceFiles[$distributionPath])) -or
+            $entry[0].sha256 -cne $DistributionInventory[$distributionPath].Hash) {
+            throw "The distribution provenance manifest does not bind $distributionPath to the checked-out source."
+        }
+    }
+    $files = @($manifest.files)
+    if ($files.Count -ne $DistributionInventory.Count) { throw 'The distribution provenance manifest has an incomplete file inventory.' }
+    foreach ($pathName in $DistributionInventory.Keys) {
+        $entry = @($files | Where-Object { $_.path -ceq $pathName })
+        if ($entry.Count -ne 1 -or $entry[0].sha256 -cne $DistributionInventory[$pathName].Hash) {
+            throw "The distribution provenance manifest does not match $pathName."
+        }
+    }
+}
+
+function Assert-ReleaseAdmission {
+    Assert-CleanSourceTree
+    Assert-DistributionManifest $DistributionManifestPath $DistributionManifestSha256 $sourceCommit $inventory
+    $ref = (Invoke-GitHub @('api', "repos/$Repository/git/ref/tags/$tag")) | ConvertFrom-Json
+    for ($depth = 0; $ref.object.type -eq 'tag' -and $depth -lt 4; $depth++) {
+        $ref = (Invoke-GitHub @('api', "repos/$Repository/git/tags/$($ref.object.sha)")) | ConvertFrom-Json
+    }
+    if ($ref.object.type -ne 'commit' -or $ref.object.sha -ne $sourceCommit) {
+        throw 'The remote tag does not point to the binaries source commit; tags are never created or moved here.'
+    }
+}
+
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 Push-Location $repoRoot
 try {
     if (-not $PSCmdlet.ShouldProcess($repoRoot, 'Prepare release assets and perform the requested GitHub operations')) {
         return
     }
-    if (-not $DistributionPath) {
-        if ($Upload -or $Publish) {
-            $status = @(git status --porcelain)
-            if ($LASTEXITCODE -ne 0) { throw 'git status failed; cannot confirm a clean checkout.' }
-            if ($status.Count) {
-                throw 'Building a GitHub release requires a clean checkout; commit or preserve local changes first.'
-            }
+    $prebuiltDistribution = [bool] $DistributionPath
+    if ($Upload -or $Publish) {
+        if ($prebuiltDistribution -and ([string]::IsNullOrWhiteSpace($DistributionManifestPath) -or
+                [string]::IsNullOrWhiteSpace($DistributionManifestSha256))) {
+            throw 'A prebuilt distribution upload requires DistributionManifestPath and its independently reviewed DistributionManifestSha256.'
         }
+        Assert-CleanSourceTree
+    }
+    if (-not $DistributionPath) {
         & (Join-Path $PSScriptRoot 'Publish.ps1') -Configuration Release
         $DistributionPath = Join-Path $repoRoot 'artifacts/dist/release'
+        $DistributionManifestPath = "${DistributionPath}.release-manifest.json"
+        $DistributionManifestSha256 = Get-Sha256 $DistributionManifestPath
     }
     $dist = (Resolve-Path -LiteralPath $DistributionPath).Path
     $dll = Join-Path $dist 'CheatEngine.Mcp.dll'
     $gateway = Join-Path $dist 'CheatEngine.Mcp.Gateway.exe'
     $expectedRoot = @('CheatEngine.Mcp.dll', 'CheatEngine.Mcp.Gateway.exe', 'README.md', 'LICENSE', 'THIRD-PARTY-NOTICES.md')
-    $unexpected = @(Get-ChildItem -LiteralPath $dist -Force | Where-Object { $_.PSIsContainer -or $_.Name -notin $expectedRoot })
+    $unexpected = @(Get-ChildItem -LiteralPath $dist -Force | Where-Object { $_.PSIsContainer -or $_.Name -cnotin $expectedRoot })
     if ($unexpected.Count) { throw "Unexpected distribution entries: $($unexpected.Name -join ', ')" }
     foreach ($path in @($dll, $gateway, (Join-Path $dist 'README.md'), (Join-Path $dist 'LICENSE'), (Join-Path $dist 'THIRD-PARTY-NOTICES.md'))) {
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Incomplete distribution: $path" }
@@ -142,13 +264,7 @@ try {
         $inventory.Add($relative, @{ Path = $file.FullName; Hash = (Get-FileHash -LiteralPath $file.FullName).Hash })
     }
     if ($Upload -or $Publish) {
-        $ref = (Invoke-GitHub @('api', "repos/$Repository/git/ref/tags/$tag")) | ConvertFrom-Json
-        for ($depth = 0; $ref.object.type -eq 'tag' -and $depth -lt 4; $depth++) {
-            $ref = (Invoke-GitHub @('api', "repos/$Repository/git/tags/$($ref.object.sha)")) | ConvertFrom-Json
-        }
-        if ($ref.object.type -ne 'commit' -or $ref.object.sha -ne $sourceCommit) {
-            throw 'The remote tag does not point to the binaries source commit; tags are never created or moved here.'
-        }
+        Assert-ReleaseAdmission
     }
     if (-not $OutputDirectory) { $OutputDirectory = Join-Path $repoRoot "artifacts/releases/$version" }
     $output = [IO.Path]::GetFullPath($OutputDirectory)
@@ -206,8 +322,19 @@ try {
     Get-ChildItem -LiteralPath $output | Select-Object Name, Length
     if (-not ($Upload -or $Publish)) { return }
 
+    $releaseInputs = [Collections.Generic.List[object]]::new()
+    try {
+        $zipInput = New-ReleaseFileSnapshot $zip
+        $releaseInputs.Add($zipInput)
+        $checksumsInput = New-ReleaseFileSnapshot $checksums
+        $releaseInputs.Add($checksumsInput)
+        Test-Archive $zipInput.Path
+        Assert-ChecksumSnapshot $zipInput $checksumsInput
+        Assert-ReleaseAdmission
+
     $release = Get-Release
     if ($null -eq $release) {
+        Assert-ReleaseAdmission
         $arguments = @('release', 'create', $tag, '--repo', $Repository, '--verify-tag', '--draft',
             '--latest=false', '--title', "CheatEngine.Mcp $version")
         if ($version.Contains('-')) { $arguments += '--prerelease' }
@@ -224,42 +351,47 @@ try {
     }
     # Refuse changed binaries before any upload or deletion. Existing releases retain their validated payload.
     $existing = @($release.assets | Where-Object { $_.name -eq $zipName })
-    if ($existing.Count) { Assert-UploadedAsset $existing[0] $zip }
+    if ($existing.Count) { Assert-UploadedAsset $existing[0] $zipInput }
     $foreign = @($release.assets | Where-Object { $_.name -notin (@($zipName, 'SHA256SUMS.txt') + $obsolete) })
     if ($foreign.Count) { throw 'Release contains unrecognized assets; preserve them and review the layout manually.' }
-    foreach ($path in @($zip, $checksums)) {
-        $name = [IO.Path]::GetFileName($path)
+    foreach ($releaseInput in $releaseInputs) {
+        Assert-ReleaseAdmission
+        $name = $releaseInput.Name
         $asset = @($release.assets | Where-Object { $_.name -eq $name })
         $matches = $false
         if ($asset.Count) {
-            try { Assert-UploadedAsset $asset[0] $path; $matches = $true }
+            try { Assert-UploadedAsset $asset[0] $releaseInput; $matches = $true }
             catch { if ($name -ne 'SHA256SUMS.txt') { throw } }
         }
         if (-not $matches) {
-            $arguments = @('release', 'upload', $tag, $path, '--repo', $Repository)
+            $arguments = @('release', 'upload', $tag, $releaseInput.Path, '--repo', $Repository)
             if ($asset.Count) { $arguments += '--clobber' } # Only a checksum replacement reaches this path.
             Invoke-GitHub $arguments | Out-Host
         }
     }
     $release = Get-Release
-    foreach ($path in @($zip, $checksums)) {
-        $name = [IO.Path]::GetFileName($path)
+    foreach ($releaseInput in $releaseInputs) {
+        $name = $releaseInput.Name
         $asset = @($release.assets | Where-Object { $_.name -eq $name })
         if ($asset.Count -ne 1) { throw "Missing or duplicate GitHub asset: $name" }
-        Assert-UploadedAsset $asset[0] $path
+        Assert-UploadedAsset $asset[0] $releaseInput
     }
     $zipAsset = @($release.assets | Where-Object { $_.name -eq $zipName })[0]
+    Assert-ReleaseAdmission
     Invoke-GitHub @('api', '--method', 'PATCH', "repos/$Repository/releases/assets/$($zipAsset.id)",
         '-f', 'label=Windows x64: single plugin DLL, gateway and instructions') | Out-Null
     # Delete only the named obsolete assets, after both standard assets have been verified on GitHub.
     foreach ($asset in @($release.assets | Where-Object { $_.name -in $obsolete })) {
+        Assert-ReleaseAdmission
         Invoke-GitHub @('api', '--method', 'DELETE', "repos/$Repository/releases/assets/$($asset.id)") | Out-Null
     }
     if ($NotesFile -and $null -ne $release) {
+        Assert-ReleaseAdmission
         Invoke-GitHub @('release', 'edit', $tag, '--repo', $Repository, '--notes-file',
             (Resolve-Path -LiteralPath $NotesFile).Path) | Out-Host
     }
     if ($Publish) {
+        Assert-ReleaseAdmission
         $prerelease = $version.Contains('-').ToString().ToLowerInvariant()
         $latest = (-not $version.Contains('-')).ToString().ToLowerInvariant()
         Invoke-GitHub @('release', 'edit', $tag, '--repo', $Repository, '--draft=false',
@@ -268,5 +400,9 @@ try {
     $release = Get-Release
     if ($release.assets.Count -ne 2) { throw 'Final release does not have exactly the ZIP and checksum assets.' }
     Write-Host "Verified release: $($release.html_url) (draft=$($release.draft))"
+    }
+    finally {
+        foreach ($releaseInput in $releaseInputs) { $releaseInput.Stream.Dispose() }
+    }
 }
 finally { Pop-Location }

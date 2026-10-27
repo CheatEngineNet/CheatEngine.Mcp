@@ -340,11 +340,11 @@
         "type": "Project",
         "dependencies": {
           "CheatEngine.Client": "[1.1.0, )",
-          "CheatEngine.Mcp.Core": "[2.0.0-beta.4, )",
-          "CheatEngine.Mcp.Hosting": "[2.0.0-beta.4, )",
-          "CheatEngine.Mcp.Prompts": "[2.0.0-beta.4, )",
-          "CheatEngine.Mcp.Resources": "[2.0.0-beta.4, )",
-          "CheatEngine.Mcp.Tools": "[2.0.0-beta.4, )",
+          "CheatEngine.Mcp.Core": "[2.0.0, )",
+          "CheatEngine.Mcp.Hosting": "[2.0.0, )",
+          "CheatEngine.Mcp.Prompts": "[2.0.0, )",
+          "CheatEngine.Mcp.Resources": "[2.0.0, )",
+          "CheatEngine.Mcp.Tools": "[2.0.0, )",
           "CheatEngine.SDK.Engine": "[1.0.0, )",
           "CheatEngine.SDK.Hosting": "[1.0.0, )",
           "ModelContextProtocol.AspNetCore": "[2.2.0, )"
@@ -360,37 +360,37 @@
       "cheatengine.mcp.gateway": {
         "type": "Project",
         "dependencies": {
-          "CheatEngine.Mcp.Hosting": "[2.0.0-beta.4, )",
-          "CheatEngine.Mcp.Prompts": "[2.0.0-beta.4, )",
-          "CheatEngine.Mcp.Resources": "[2.0.0-beta.4, )",
-          "CheatEngine.Mcp.Tools": "[2.0.0-beta.4, )"
+          "CheatEngine.Mcp.Hosting": "[2.0.0, )",
+          "CheatEngine.Mcp.Prompts": "[2.0.0, )",
+          "CheatEngine.Mcp.Resources": "[2.0.0, )",
+          "CheatEngine.Mcp.Tools": "[2.0.0, )"
         }
       },
       "cheatengine.mcp.hosting": {
         "type": "Project",
         "dependencies": {
-          "CheatEngine.Mcp.Core": "[2.0.0-beta.4, )",
+          "CheatEngine.Mcp.Core": "[2.0.0, )",
           "ModelContextProtocol.AspNetCore": "[2.2.0, )"
         }
       },
       "cheatengine.mcp.prompts": {
         "type": "Project",
         "dependencies": {
-          "CheatEngine.Mcp.Core": "[2.0.0-beta.4, )",
-          "CheatEngine.Mcp.Resources": "[2.0.0-beta.4, )"
+          "CheatEngine.Mcp.Core": "[2.0.0, )",
+          "CheatEngine.Mcp.Resources": "[2.0.0, )"
         }
       },
       "cheatengine.mcp.resources": {
         "type": "Project",
         "dependencies": {
-          "CheatEngine.Mcp.Core": "[2.0.0-beta.4, )",
-          "CheatEngine.Mcp.Tools": "[2.0.0-beta.4, )"
+          "CheatEngine.Mcp.Core": "[2.0.0, )",
+          "CheatEngine.Mcp.Tools": "[2.0.0, )"
         }
       },
       "cheatengine.mcp.tools": {
         "type": "Project",
         "dependencies": {
-          "CheatEngine.Mcp.Core": "[2.0.0-beta.4, )"
+          "CheatEngine.Mcp.Core": "[2.0.0, )"
         }
       },
       "cheatengine.sdk.abi": {

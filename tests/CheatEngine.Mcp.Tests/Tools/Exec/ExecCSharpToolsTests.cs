@@ -22,7 +22,7 @@ public sealed class ExecCSharpToolsTests
 	[Fact]
 	public void CompileCSharp_DisabledTargetExecution_RefusesBeforeFilesOrDispatch()
 	{
-		using McpFilePathsTests.Scratch scratch = new();
+		using McpFileScratch scratch = new();
 		Harness harness = new(new McpFeatureOptions { EnableTargetCodeExecution = false });
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() => harness.Tools(scratch)
@@ -38,7 +38,7 @@ public sealed class ExecCSharpToolsTests
 	[InlineData(131_073)]
 	public void CompileCSharp_SourceOutsideBound_RefusesBeforeFilesOrDispatch(int length)
 	{
-		using McpFilePathsTests.Scratch scratch = new();
+		using McpFileScratch scratch = new();
 		Harness harness = new();
 		string source = length == 0 ? "" : new string('x', length);
 
@@ -53,7 +53,7 @@ public sealed class ExecCSharpToolsTests
 	[Fact]
 	public void CompileCSharp_MoreThanThirtyTwoReferences_RefusesBeforeFilesOrDispatch()
 	{
-		using McpFilePathsTests.Scratch scratch = new();
+		using McpFileScratch scratch = new();
 		Harness harness = new();
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() => harness.Tools(scratch)
@@ -68,7 +68,7 @@ public sealed class ExecCSharpToolsTests
 	[Fact]
 	public void CompileCSharp_HeldReferenceCannotChangeAndGeneratedAssemblyIsAtomicallyExported()
 	{
-		using McpFilePathsTests.Scratch scratch = new();
+		using McpFileScratch scratch = new();
 		string input = Path.Combine(scratch.Root, "reference.dll");
 		string generated = Path.Combine(scratch.Root, "ce-generated.dll");
 		string output = Path.Combine(scratch.Root, "exported.dll");
@@ -92,7 +92,7 @@ public sealed class ExecCSharpToolsTests
 	[Fact]
 	public void CompileCSharp_MissingGeneratedAssembly_ReportsPartialEffectWithoutPublishingOutput()
 	{
-		using McpFilePathsTests.Scratch scratch = new();
+		using McpFileScratch scratch = new();
 		string output = Path.Combine(scratch.Root, "exported.dll");
 		Harness harness = new(executor: new CompilerLua(Path.Combine(scratch.Root, "expired.dll")));
 
@@ -110,7 +110,7 @@ public sealed class ExecCSharpToolsTests
 	[InlineData("Could not load file or assembly 'System.CodeDom'")]
 	public void CompileCSharp_CompilerDiagnostic_ReportsBoundedDetailsWithoutInventedCodeOrSeverity(string diagnostic)
 	{
-		using McpFilePathsTests.Scratch scratch = new();
+		using McpFileScratch scratch = new();
 		Harness harness = new(executor: new OutcomeLua(new ExecCSharpCompilerOutput(null, diagnostic, false)));
 
 		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() => harness.Tools(scratch)
@@ -127,7 +127,7 @@ public sealed class ExecCSharpToolsTests
 	[Fact]
 	public void CompileCSharp_CompilerFailureWithUnremovableReservedOutput_ReportsCleanupUnconfirmed()
 	{
-		using McpFilePathsTests.Scratch scratch = new();
+		using McpFileScratch scratch = new();
 		string? partial = null;
 		Harness harness = new(executor: new OutcomeLua(new ExecCSharpCompilerOutput(null, "diagnostic"), () =>
 		{
@@ -156,7 +156,7 @@ public sealed class ExecCSharpToolsTests
 	[Fact]
 	public void CompileCSharp_GeneratedAssemblyBeyondExportCap_ReportsPartialEffectWithoutPublishingOutput()
 	{
-		using McpFilePathsTests.Scratch scratch = new();
+		using McpFileScratch scratch = new();
 		string generated = Path.Combine(scratch.Root, "too-large.dll");
 		string output = Path.Combine(scratch.Root, "exported.dll");
 		using (FileStream stream = File.Create(generated))
@@ -177,7 +177,7 @@ public sealed class ExecCSharpToolsTests
 	[Fact]
 	public void CompileCSharp_CancelledAfterCompilerReturn_ReportsPartialEffectWithoutPublishingOutput()
 	{
-		using McpFilePathsTests.Scratch scratch = new();
+		using McpFileScratch scratch = new();
 		using CancellationTokenSource cancellation = new();
 		string generated = Path.Combine(scratch.Root, "ce-generated.dll");
 		string output = Path.Combine(scratch.Root, "exported.dll");
@@ -195,7 +195,7 @@ public sealed class ExecCSharpToolsTests
 	[Fact]
 	public void CompileCSharp_ExistingOutputWithoutOverwrite_RefusesBeforeCompilerDispatch()
 	{
-		using McpFilePathsTests.Scratch scratch = new();
+		using McpFileScratch scratch = new();
 		string output = Path.Combine(scratch.Root, "exported.dll");
 		File.WriteAllBytes(output, [8]);
 		Harness harness = new(executor: new CompilerLua(Path.Combine(scratch.Root, "unused.dll")));
@@ -241,7 +241,7 @@ public sealed class ExecCSharpToolsTests
 			get;
 		}
 
-		internal ExecCSharpTools Tools(McpFilePathsTests.Scratch scratch)
+		internal ExecCSharpTools Tools(McpFileScratch scratch)
 		{
 			string registry = scratch.CreateFolder("registry");
 			string data = scratch.CreateFolder("data");

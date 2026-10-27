@@ -4,7 +4,7 @@ CheatEngine.Mcp is a Windows integration that connects MCP-compatible AI clients
 It provides structured tools for inspecting processes, analyzing memory and code, and managing Cheat Engine workflows.
 A plugin runs inside Cheat Engine; one standalone stdio gateway connects your client to one or more explicitly selected instances.
 
-> **Beta software.** Download a matching plugin and gateway from [Releases](https://github.com/CheatEngineNet/CheatEngine.Mcp/releases) and follow that package's instructions.
+> Download a matching plugin and gateway from [Releases](https://github.com/CheatEngineNet/CheatEngine.Mcp/releases) and follow that package's instructions.
 > This README describes the current source; features may differ from the latest published build.
 
 [Capabilities](#capabilities) · [Installation](#install-and-connect) · [First use](#first-use) · [Configuration](#configuration) · [Troubleshooting](#troubleshooting) · [Development](#build-from-source)
@@ -309,6 +309,7 @@ pwsh -NoProfile -File eng/Release.ps1
 
 This runs the publish pipeline and writes one verified ZIP plus `SHA256SUMS.txt` under `artifacts/releases/<version>/`.
 To package an already published distribution without rebuilding it, pass `-DistributionPath artifacts/dist/release`.
+For GitHub upload, that prebuilt distribution must also supply its sibling `artifacts/dist/release.release-manifest.json` and an independently reviewed SHA-256 digest; see [Releases](CONTRIBUTING.md#releases).
 GitHub upload is explicit; see [Releases](CONTRIBUTING.md#releases).
 
 ## Verification
@@ -326,6 +327,11 @@ Verification is split by the boundary being exercised:
 The [all-tool qualification report](docs/qualification/all-tools/README.md) distinguishes positive adapter evidence, routing checks, expected refusals, and verified native behavior for each tool.
 A passing portable suite or successful routing call does not establish native success for every tool.
 See the [test project guide](tests/CheatEngine.Mcp.Tests/README.md) and [live qualification instructions](CONTRIBUTING.md#live-qualification) for prerequisites and commands.
+
+For 2.0, native qualification of six optional DBK/DBVM operations is deferred because a suitable
+environment is unavailable. They remain unqualified under their existing capability gates;
+this is an accepted release limitation. See the [qualification scope](docs/qualification/all-tools/README.md#accepted-20-qualification-limit)
+for the affected operations and the remaining release gates.
 
 ## Repository layout
 

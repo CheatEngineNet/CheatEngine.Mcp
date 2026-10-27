@@ -13,8 +13,9 @@ machine and lose unsaved work in every program. Read this page before any `kerne
   work in every application and closed what they do not need.
 - **Consent per call.** Before each load, write or watch, say what happens, what could break and how to recover, then
   wait for a yes. See [safety](safety.md). Call `kernel_get_status` first; it loads nothing.
-- **Not live-tested.** The project's live qualification never calls the kernel tools; only unit tests with simulated CE
-  functions cover them. Report what they return and promise nothing more.
+- **Qualification.** A private-host native case covers the read-only `kernel_get_status` query, including unchanged
+  driver inventory and repeated state after gateway restart. The six operations that initialize DBVM, translate or
+  access physical memory, or arm/poll watches still have only simulated-CE coverage, not native success qualification.
 
 ## What DBK and DBVM are
 
@@ -169,9 +170,9 @@ range and returns a `kernel_start_watch.jobId`:
   page slows everything that uses it.
 - `kernel_start_watch.options` bits: without bit 0, DBVM logs each instruction address (RIP) once until the next poll
   empties its log and only counts repeats, which MCP does not return; bit 0 logs the same RIP again when the registers
-  differ. Bit 1 ignores the byte size and logs the whole page. Bits 2 and 3 make DBVM record FPU state and a 4 KB stack
-  snapshot, which MCP never returns. MCP refuses higher bits, which can grow DBVM's log without bound or change
-  execution. Leave the options at 0 without a reason.
+  differ. Bit 1 ignores the byte size and logs the whole page. MCP refuses bits 2 and above: FPU and stack snapshots
+  are not returned, and higher flags can grow DBVM's log without bound or change execution. Leave the options at 0
+  without a reason.
 - `kernel_start_watch.internalEntryCount`, 1 to 4096 (default 1024), bounds DBVM's own log between polls.
 - `kernel_start_watch.lifetimeSeconds` is 1 to 300, or less when `Mcp:Execution:JobMaxTtlSeconds` is lower; the
   default comes from `Mcp:Execution:JobDefaultTtlSeconds` (120). `kernel_start_watch.bufferLimit` is 1 to
@@ -195,7 +196,9 @@ plugin shutdown do too. A running watch is a tracked job (kind `kernelwatch`): i
 `debugger_detach` (`busy`) until it ends. Stop every watch before switching targets or ending the session;
 `runtime_list_jobs` and `runtime_list_resources` show what remains.
 
-If disabling fails, `runtime_stop_job` returns `partial_effect`, the job reports `cleanupError` and
+After disabling, MCP requires CE's watch-log API to confirm that the same watch ID is inactive. The disable function
+returns no value, so returning from it alone does not confirm cleanup. If disabling fails or removal is unconfirmed,
+`runtime_stop_job` returns `partial_effect`, the job reports `cleanupError` and
 `requiresManualRecovery`, and the watch may stay armed. MCP never retries that cleanup and `runtime_release_resources`
 skips it; only a reboot removes DBVM and its watches. Tell the user. The entry stays listed and blocks a target switch.
 `runtime_release_resources(acknowledgeIds=["<id>"])` makes MCP forget it without disarming anything, and the same call

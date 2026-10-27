@@ -5,6 +5,7 @@ using CheatEngine.Client.Processes;
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Files;
 using CheatEngine.Mcp.Tests.Core;
+using CheatEngine.Mcp.Tests.Support;
 using CheatEngine.Mcp.Tests.Tools.Modules;
 using CheatEngine.Mcp.Tools.Symbol;
 using CheatEngine.SDK.Engine.Inspection;
@@ -15,7 +16,7 @@ namespace CheatEngine.Mcp.Tests.Tools.Symbol;
 /// <summary><c>symbol_find</c> over a simulated target whose fixed Lua result is canned.</summary>
 public sealed class SymbolFindToolTests : IDisposable
 {
-	private readonly McpFilePathsTests.Scratch _scratch = new();
+	private readonly McpFileScratch _scratch = new();
 	private static CancellationToken Token => TestContext.Current.CancellationToken;
 
 	public static TheoryData<string?, string?, int, int, ToolErrorKind, string> RefusedArguments => new()

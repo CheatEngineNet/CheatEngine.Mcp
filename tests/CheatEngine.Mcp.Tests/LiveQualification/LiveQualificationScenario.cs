@@ -18,6 +18,7 @@ internal enum LiveQualificationScenario
 	Debugger,
 	Execution,
 	SymbolFixture,
+	SymbolSources,
 	ProcessCreate,
 	Mono,
 	Inspection,

@@ -91,6 +91,22 @@ public sealed class UtilToolsTests
 	}
 
 	[Theory]
+	[InlineData("FF", McpValueType.String)]
+	[InlineData("C2", McpValueType.String)]
+	[InlineData("00 D8", McpValueType.WString)]
+	[InlineData("00 DC", McpValueType.WString)]
+	public void ConvertValue_MalformedEncodedBytes_IsAStructuredTargetTypeError(string bytes, McpValueType targetType)
+	{
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			UtilTools.ConvertValue(bytes, McpValueType.Bytes, targetType));
+
+		Assert.Equal((ToolErrorKind.InvalidArgument, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Equal("""{"parameter":"targetType"}""", exception.Error.Details!.Value.GetRawText());
+		Assert.Contains("valid text", exception.Error.Message, StringComparison.Ordinal);
+	}
+
+	[Theory]
 	[InlineData("0xFFFFFFFFFFFFFFFF + 2", "1", "1", "1")]
 	[InlineData("0x8000000000000000 >> 1", "4611686018427387904", "4611686018427387904", "4000000000000000")]
 	[InlineData("(1 << 63) + (1 << 63)", "0", "0", "0")]

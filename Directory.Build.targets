@@ -1,10 +1,19 @@
 <Project>
+  <!-- ASP.NET Core shared-framework references lack AOT/trim metadata. Keep the exception explicit and guarded below. -->
+  <PropertyGroup Condition="'$(CeMcpUseAspNetCoreReferenceCompatibilityException)' == 'true'">
+    <VerifyReferenceAotCompatibility>false</VerifyReferenceAotCompatibility>
+    <VerifyReferenceTrimCompatibility>false</VerifyReferenceTrimCompatibility>
+  </PropertyGroup>
   <Target Name="CeMcpPreserveSourceConfiguration" BeforeTargets="AssignProjectConfiguration"
           DependsOnTargets="IncludeTransitiveProjectReferences">
     <ItemGroup>
       <ProjectReference Update="@(ProjectReference)"
-                        Condition="$([System.String]::Copy('%(ProjectReference.FullPath)').Contains('/externals/')) or $([System.String]::Copy('%(ProjectReference.FullPath)').Contains('\externals\'))"
-                        AdditionalProperties="%(ProjectReference.AdditionalProperties);ShouldUnsetParentConfigurationAndPlatform=false"/>
+                        Condition="$([System.String]::Copy('%(ProjectReference.FullPath)').Contains('/externals/')) or $([System.String]::Copy('%(ProjectReference.FullPath)').Contains('\externals\'))">
+        <!-- Use the same source project configuration for direct and transitive references. -->
+        <SetPlatform>Platform=AnyCPU</SetPlatform>
+        <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
+        <AdditionalProperties>%(ProjectReference.AdditionalProperties);ShouldUnsetParentConfigurationAndPlatform=false</AdditionalProperties>
+      </ProjectReference>
     </ItemGroup>
   </Target>
   <Import Project="$(CeMcpSdkSourceRoot)/src/CheatEngine.SDK/build/CheatEngine.SDK.targets"
@@ -103,8 +112,8 @@
            Condition="'$(CeMcpProductProject)' == 'true' and '$(IsAotCompatible)' != 'true'"
            Text="$(MSBuildProjectName) is a product project and must keep IsAotCompatible=true."/>
     <Error Code="CEMCP005"
-           Condition="'$(CeMcpProductProject)' == 'true' and ('$(VerifyReferenceAotCompatibility)' != 'true' or '$(VerifyReferenceTrimCompatibility)' != 'true') and '$(_CeMcpUsesAspNetCore)' != 'true'"
-           Text="$(MSBuildProjectName) must keep VerifyReferenceAotCompatibility and VerifyReferenceTrimCompatibility; only a project with a FrameworkReference to Microsoft.AspNetCore.App may turn them off."/>
+           Condition="'$(CeMcpProductProject)' == 'true' and ('$(VerifyReferenceAotCompatibility)' != 'true' or '$(VerifyReferenceTrimCompatibility)' != 'true') and ('$(_CeMcpUsesAspNetCore)' != 'true' or '$(CeMcpUseAspNetCoreReferenceCompatibilityException)' != 'true')"
+           Text="$(MSBuildProjectName) must keep VerifyReferenceAotCompatibility and VerifyReferenceTrimCompatibility; disabling them requires Microsoft.AspNetCore.App and CeMcpUseAspNetCoreReferenceCompatibilityException=true."/>
     <Error Code="CEMCP006"
            Condition="'$(McpPluginProject)' == 'true' and ('$(PublishAot)' == 'true' or '$(SelfContained)' == 'true' or '$(PublishSingleFile)' == 'true' or '$(PublishTrimmed)' == 'true' or '$(PublishReadyToRun)' == 'true' or '$(DebugType)' != 'embedded')"
            Text="CE loads a framework-dependent managed plugin bundled with Costura: remove PublishAot, SelfContained, PublishSingleFile, PublishTrimmed and PublishReadyToRun, and keep DebugType=embedded."/>

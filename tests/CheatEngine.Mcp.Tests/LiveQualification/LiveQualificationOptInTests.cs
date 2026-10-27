@@ -394,6 +394,43 @@ public sealed class LiveQualificationOptInTests
 		};
 	}
 
+	[Fact]
+	public void Evaluate_SymbolSourcesWithTempdirDisabled_RefusesBeforeDirectoryInspection()
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.ScenarioVariable] = "symbol-sources";
+		variables[LiveQualificationOptIn.SymbolFixtureOptInVariable] = LiveQualificationOptIn.SymbolFixtureAcknowledgement;
+		variables[LiveQualificationOptIn.SymbolSourcesOptInVariable] = LiveQualificationOptIn.SymbolSourcesAcknowledgement;
+		variables[LiveQualificationOptIn.WfpIsolationOptInVariable] = LiveQualificationOptIn.WfpIsolationAcknowledgement;
+
+		LiveQualificationDecision decision = LiveQualificationOptIn.Evaluate(variables.GetValueOrDefault,
+			Repository, LocalData, Installation, static _ => throw new InvalidOperationException("Must refuse before inspection."),
+			static () => false);
+
+		Assert.False(decision.IsAuthorized);
+		Assert.Null(decision.Inputs);
+		Assert.Contains("Don't use tempdir", decision.Refusal, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Evaluate_SymbolSourcesRequiresEveryAcknowledgementBeforeDirectoryInspection()
+	{
+		Dictionary<string, string?> variables = Authorized();
+		variables[LiveQualificationOptIn.ScenarioVariable] = "symbol-sources";
+		variables[LiveQualificationOptIn.SymbolFixtureOptInVariable] = LiveQualificationOptIn.SymbolFixtureAcknowledgement;
+		variables[LiveQualificationOptIn.SymbolSourcesOptInVariable] = LiveQualificationOptIn.SymbolSourcesAcknowledgement;
+
+		LiveQualificationDecision refused = LiveQualificationOptIn.Evaluate(variables.GetValueOrDefault,
+			Repository, LocalData, Installation, static _ => throw new InvalidOperationException("Must refuse before inspection."));
+
+		Assert.False(refused.IsAuthorized);
+		Assert.Contains(LiveQualificationOptIn.WfpIsolationOptInVariable, refused.Refusal, StringComparison.Ordinal);
+		variables[LiveQualificationOptIn.WfpIsolationOptInVariable] = LiveQualificationOptIn.WfpIsolationAcknowledgement;
+		LiveQualificationDecision authorized = Evaluate(variables);
+		Assert.True(authorized.IsAuthorized, authorized.Refusal);
+		Assert.Equal(LiveQualificationOptIn.WfpIsolationAcknowledgement, authorized.Inputs!.WfpIsolationAcknowledgement);
+	}
+
 	[Theory]
 	[InlineData("assembler", null)]
 	[InlineData("assembler", "true")]

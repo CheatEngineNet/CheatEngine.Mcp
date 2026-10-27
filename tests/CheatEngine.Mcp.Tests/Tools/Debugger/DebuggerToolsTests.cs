@@ -66,6 +66,25 @@ public sealed class DebuggerToolsTests
 		Assert.Empty(harness.Resources.List());
 	}
 
+	[Fact]
+	public void SetBreakpoint_PageException_UsesThePageExceptionAdapterMethod()
+	{
+		StateTestHarness harness = new();
+		DebuggerTools tools = CreateTools(harness);
+		harness.Answer<DebuggerBreakpointSet>(_ => new DebuggerBreakpointSet("returned-id", "401000",
+			DebuggerBreakpointTrigger.Execute, 1, DebuggerBreakpointMethod.PageException, null, false));
+
+		DebuggerBreakpointSet set = tools.SetBreakpoint("game.exe+10", DebuggerBreakpointTrigger.Execute, 1,
+			DebuggerBreakpointMethod.PageException, cancellationToken: Token);
+
+		(string operation, string source) = Assert.Single(harness.LuaCalls);
+		Assert.Equal(CheatEngineToolNames.DebuggerSetBreakpoint, operation);
+		Assert.Contains("[5] = \"execute\", [6] = \"pageException\"", source, StringComparison.Ordinal);
+		Assert.Equal((DebuggerBreakpointTrigger.Execute, 1, DebuggerBreakpointMethod.PageException),
+			(set.Trigger, set.Size, set.Method));
+		Assert.Single(harness.Resources.List());
+	}
+
 	[Theory]
 	[InlineData("XMM0=1", "register")]
 	[InlineData("RAX=not-hex", "stopCondition")]
@@ -464,6 +483,23 @@ public sealed class DebuggerToolsTests
 		Assert.Equal(CheatEngineToolNames.DebuggerStartCapture, operation);
 		Assert.Contains(arguments, source, StringComparison.Ordinal);
 		Assert.Contains("[3] = 8, [4] = 30000, [5] = \"game.exe+10\"", source, StringComparison.Ordinal);
+		Assert.Equal(started.JobId, Assert.Single(harness.Resources.List()).Id);
+		Assert.Equal(1, harness.Jobs.Count);
+	}
+
+	[Fact]
+	public void StartCapture_WriteTrigger_ForwardsTheDataWatchSizeToTheFixedScript()
+	{
+		StateTestHarness harness = new();
+		DebuggerTools tools = CreateTools(harness);
+		harness.Answer<DebuggerJobStarted>(_ => new DebuggerJobStarted("ignored", 42, "401010", 30));
+
+		DebuggerJobStarted started = tools.StartCapture("game.exe+10", DebuggerBreakpointTrigger.Write, 4,
+			maximumHits: 8, lifetimeSeconds: 30, cancellationToken: Token);
+
+		(string operation, string source) = Assert.Single(harness.LuaCalls);
+		Assert.Equal(CheatEngineToolNames.DebuggerStartCapture, operation);
+		Assert.Contains("[6] = \"write\", [7] = 4, [8] = false, [9] = false", source, StringComparison.Ordinal);
 		Assert.Equal(started.JobId, Assert.Single(harness.Resources.List()).Id);
 		Assert.Equal(1, harness.Jobs.Count);
 	}

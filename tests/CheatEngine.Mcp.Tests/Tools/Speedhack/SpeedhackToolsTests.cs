@@ -67,11 +67,22 @@ public sealed class SpeedhackToolsTests
 		Assert.Contains("speedhack_getSpeed()", SpeedhackScripts.GetState, StringComparison.Ordinal);
 		Assert.Contains("getAddressSafe", SpeedhackScripts.GetState, StringComparison.Ordinal);
 		Assert.Contains("speedhack_setSpeed(a[1])", SpeedhackScripts.SetSpeed, StringComparison.Ordinal);
-		Assert.Contains("resourceRecord(a[3], a[2], 'speedhack'", SpeedhackScripts.SetSpeed,
+		Assert.Contains("pcall(resourceRecord, a[3], a[2], 'speedhack'", SpeedhackScripts.SetSpeed,
 			StringComparison.Ordinal);
 		Assert.Contains("speedhack_setSpeed(1)", SpeedhackScripts.SetSpeed, StringComparison.Ordinal);
 		Assert.Contains("mcp.err('invalid_state'", SpeedhackScripts.SetSpeed, StringComparison.Ordinal);
 		Assert.DoesNotContain("${", SpeedhackScripts.SetSpeed, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void SetSpeed_ReservesTheRestoreActionBeforeChangingTheTarget()
+	{
+		string body = SpeedhackScripts.SetSpeed;
+		int reserve = body.IndexOf("pcall(resourceRecord", StringComparison.Ordinal);
+		int set = body.IndexOf("speedhack_setSpeed(a[1])", StringComparison.Ordinal);
+
+		Assert.True(reserve >= 0 && reserve < set);
+		Assert.Contains("MCP could not reserve a speedhack restore action", body, StringComparison.Ordinal);
 	}
 
 	[Theory]
@@ -203,7 +214,7 @@ public sealed class SpeedhackToolsTests
 	public void SetSpeed_RestoreAction_RestoresOnlyTheProcessItSpedUpAndChecksItsOwnSpeed()
 	{
 		string body = SpeedhackScripts.SetSpeed;
-		int record = body.IndexOf("resourceRecord(a[3], a[2], 'speedhack'", StringComparison.Ordinal);
+		int record = body.IndexOf("pcall(resourceRecord, a[3], a[2], 'speedhack'", StringComparison.Ordinal);
 		int check = body.IndexOf("assert(getOpenedProcessID() == pid", record, StringComparison.Ordinal);
 		int target = body.IndexOf("pcall(readFloat, address)", record, StringComparison.Ordinal);
 		int restore = body.IndexOf("speedhack_setSpeed(1)", record, StringComparison.Ordinal);

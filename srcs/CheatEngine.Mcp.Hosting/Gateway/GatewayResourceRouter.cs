@@ -145,42 +145,42 @@ internal sealed partial class GatewayResourceRouter(
 			Uri = backendUri,
 			Meta = GatewayMeta.ForBackend(request.Meta)
 		};
-		using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-		deadline.CancelAfter(options.CallTimeout);
+		using CancellationTokenSource deadline = GatewayForwardingPolicy.CreateDeadline(options.CallTimeout,
+			cancellationToken);
 		try
 		{
 			return await lease.Client.ReadResourceAsync(forwarded, deadline.Token).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-		{
-			throw;
-		}
-		catch (OperationCanceledException) when (deadline.IsCancellationRequested)
-		{
-			lease.Evict("read timeout");
-			LogUnavailable(logger, instanceId, "read timeout");
-			throw GatewayErrors.ResourceFailure(ToolErrorKind.Timeout,
-				$"Cheat Engine instance '{instanceId}' did not answer within {options.CallTimeout.TotalSeconds:0} s.",
-				ToolHostEffect.Unknown, "A resource read changes nothing; read it again when the instance responds.",
-				version);
-		}
-		catch (McpProtocolException exception)
-		{
-			// The backend answered with a JSON-RPC error: same data, code chosen for the upstream version.
-			throw GatewayErrors.FromBackend(exception, version);
-		}
 		catch (Exception exception)
 		{
-			lease.Evict("transport failure");
-			string reason = exception is HttpRequestException failure
-				? BackendHttp.Describe(failure)
-				: $"The connection failed while reading ({exception.GetType().Name}).";
-			LogUnavailable(logger, instanceId, reason);
-			throw GatewayErrors.ResourceFailure(ToolErrorKind.InstanceUnavailable,
-				$"Cheat Engine instance '{instanceId}' is unavailable: {reason}",
-				exception is HttpRequestException http && BackendHttp.NeverReachedBackend(http)
-					? ToolHostEffect.NotStarted
-					: ToolHostEffect.Unknown, GatewayErrors.RediscoverHint, version);
+			GatewayForwardingOutcome outcome = GatewayForwardingPolicy.Classify(exception, cancellationToken,
+				deadline.Token);
+			switch (outcome.Kind)
+			{
+				case GatewayForwardingFailureKind.CallerCancelled:
+					throw;
+				case GatewayForwardingFailureKind.Timeout:
+					lease.Evict("read timeout");
+					LogUnavailable(logger, instanceId, "read timeout");
+					throw GatewayErrors.ResourceFailure(ToolErrorKind.Timeout,
+						$"Cheat Engine instance '{instanceId}' did not answer within {options.CallTimeout.TotalSeconds:0} s.",
+						ToolHostEffect.Unknown, "A resource read changes nothing; read it again when the instance responds.",
+						version);
+				case GatewayForwardingFailureKind.BackendProtocol:
+					// The backend answered with a JSON-RPC error: same data, code chosen for the upstream version.
+					throw GatewayErrors.FromBackend((McpProtocolException) exception, version);
+				case GatewayForwardingFailureKind.TransportFailure:
+					lease.Evict("transport failure");
+					string reason = exception is HttpRequestException failure
+						? BackendHttp.Describe(failure)
+						: $"The connection failed while reading ({exception.GetType().Name}).";
+					LogUnavailable(logger, instanceId, reason);
+					throw GatewayErrors.ResourceFailure(ToolErrorKind.InstanceUnavailable,
+						$"Cheat Engine instance '{instanceId}' is unavailable: {reason}", outcome.HostEffect,
+						GatewayErrors.RediscoverHint, version);
+				default:
+					throw new InvalidOperationException($"Unknown forwarding outcome '{outcome.Kind}'.");
+			}
 		}
 	}
 

@@ -82,6 +82,21 @@ public sealed class LiveSandboxOptionsTests
 	}
 
 	[Fact]
+	public void ValidateFor_SymbolSourcesRequiresItsOwnIsolatedExecutionConfiguration()
+	{
+		LiveSandboxOptions sources = LiveSandboxOptions.Smoke with
+		{
+			SymbolSourcesQualification = true,
+			EnableTargetCodeExecution = true
+		};
+		sources.ValidateFor(LiveQualificationScenario.SymbolSources);
+		Assert.True(sources.RequiresCapabilityConfiguration);
+		Assert.True(sources.UsesTargetFirstExecutionShutdown);
+		Assert.Throws<InvalidOperationException>(() => (sources with { EnableTargetCodeExecution = false }).ValidateFor(LiveQualificationScenario.SymbolSources));
+		Assert.Throws<InvalidOperationException>(() => (sources with { SymbolFixtureQualification = true }).ValidateFor(LiveQualificationScenario.SymbolSources));
+	}
+
+	[Fact]
 	public void ValidateFor_ExactScenarioOptions_Accept()
 	{
 		LiveSandboxOptions.Smoke.ValidateFor(LiveQualificationScenario.Smoke);

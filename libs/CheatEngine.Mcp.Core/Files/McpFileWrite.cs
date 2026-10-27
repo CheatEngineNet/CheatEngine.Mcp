@@ -19,7 +19,8 @@ public sealed class McpFileWrite : IDisposable
 	private bool _disposed;
 	private bool _externalWritePrepared;
 
-	internal McpFileWrite(string fullPath, List<SafeFileHandle> directories, string name, bool overwrite)
+	internal McpFileWrite(string fullPath, List<SafeFileHandle> directories, string name, bool overwrite,
+		bool destinationExisted, bool preserveDestinationExtension)
 	{
 		ArgumentNullException.ThrowIfNull(directories);
 		ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -33,7 +34,8 @@ public sealed class McpFileWrite : IDisposable
 		_directory = directories[^1];
 		_name = name;
 		_overwrite = overwrite;
-		_temporaryName = TemporaryName();
+		DestinationExisted = destinationExisted;
+		_temporaryName = TemporaryName(preserveDestinationExtension ? Path.GetExtension(name) : null);
 		SafeFileHandle? file = null;
 		try
 		{
@@ -50,6 +52,12 @@ public sealed class McpFileWrite : IDisposable
 
 	/// <summary>The normalized destination path, retained for the tool result after this transaction commits.</summary>
 	public string FullPath
+	{
+		get;
+	}
+
+	/// <summary>Whether the anchored destination existed when this transaction reserved its temporary file.</summary>
+	public bool DestinationExisted
 	{
 		get;
 	}
@@ -182,9 +190,9 @@ public sealed class McpFileWrite : IDisposable
 		return _cleanupConfirmed;
 	}
 
-	private static string TemporaryName()
+	private static string TemporaryName(string? extension)
 	{
-		return $".{Guid.NewGuid():N}.partial";
+		return $".{Guid.NewGuid():N}.partial{extension}";
 	}
 
 	private void DisposeDirectories()

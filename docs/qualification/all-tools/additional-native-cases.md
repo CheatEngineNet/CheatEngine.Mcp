@@ -27,13 +27,22 @@ patches. Any failed rollback fails the session and prevents further automatic na
 
 ## Windows debugger
 
-Select `CHEATENGINE_MCP_LIVE_QUALIFICATION_SCENARIO=debugger` and set
+Select a Windows-debugger scenario below and set
 `CHEATENGINE_MCP_LIVE_DEBUGGER_QUALIFICATION` to
 `I_AUTHORIZE_WINDOWS_DEBUGGER_CHECKS_ON_OWNED_DISPOSABLE_TARGETS`, together with the normal live acknowledgement.
-All four optional gates remain disabled. The fixture uses the Windows debugger on the owned target only, with
-bounded waits and independently observed process/thread identity. It verifies stopped state and context, then
-continues and detaches before the target is stopped. This initial fixture does not establish coverage for trace,
-capture, run-to or stepping against a known function.
+All four optional gates remain disabled. Each run uses private CE copies and the owned x64 target, with bounded
+waits and independently observed process/thread identity.
+
+| Scenario | Checks |
+| --- | --- |
+| `debugger-basic` | Attach, break the published thread, read context and heuristic stack frames, continue, detach and cleanup. The stack oracle follows the encoded Sleep call's return offset. |
+| `debugger-events` | Ignored-thread state, execute breakpoints, capture/poll, bounded trace/poll and event-hook/job/breakpoint cleanup. |
+| `debugger-execution` | Execute breakpoints, register write/readback/restoration, single-step, run-to and cleanup. |
+
+Set `CHEATENGINE_MCP_LIVE_QUALIFICATION_SCENARIO` to one scenario at a time and inspect its restoration and cleanup
+receipts before the next run. `debugger` combines these workloads. Leave
+`CHEATENGINE_MCP_LIVE_DEBUGGER_TRANSITION_DIAGNOSTIC` unset: the historical observer diagnostic retains the separate
+evidence prerequisites in [the checklist](../../../TODO.md). Successful functional runs do not explain that old failure.
 
 ## Existing compiler and managed-injection cases
 

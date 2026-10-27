@@ -107,9 +107,9 @@ public sealed class ArchitectureTests
 	}
 
 	[Fact]
-	public void State_ProductAssemblies_HoldNoMutableStaticFields()
+	public void State_ProductAssemblies_HoldNoReassignableStaticFields()
 	{
-		// All state belongs to a DI lifetime; stateless helpers and compiler caches are fine.
+		// Field references cannot be reassigned. Collection immutability is a separate invariant.
 		string[] mutable = Product.SelectMany(static assembly => assembly.GetTypes())
 			.Where(static type => !type.IsDefined(typeof(CompilerGeneratedAttribute), false))
 			.SelectMany(static type => type.GetFields(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic

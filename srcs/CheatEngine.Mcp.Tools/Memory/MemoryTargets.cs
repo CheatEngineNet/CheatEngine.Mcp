@@ -256,6 +256,23 @@ internal static class MemoryTargets
 				"Cheat Engine does not report the target's pointer size, so pointer values cannot be sized.");
 	}
 
+	/// <summary>Refuses a range that crosses the selected target's address-space boundary.</summary>
+	/// <param name="target">The resolved first address.</param>
+	/// <param name="size">The checked positive number of bytes.</param>
+	/// <param name="pointerBytes">The selected target's known pointer width.</param>
+	/// <param name="parameter">The parameter that carried the range size.</param>
+	internal static void RequireRangeFitsTargetAddressSpace(Address target, int size, int pointerBytes,
+		string parameter = "size")
+	{
+		ulong maximum = pointerBytes == 4 ? uint.MaxValue : ulong.MaxValue;
+		ulong start = target.ToUInt64();
+		if (start > maximum || (ulong) size - 1 > maximum - start)
+		{
+			throw CheatEngineToolException.InvalidArgument(parameter,
+				"extends past the selected target's address space.");
+		}
+	}
+
 	/// <summary>The target-selection epoch, inside the current dispatch.</summary>
 	/// <param name="client">The activation's Client.</param>
 	/// <param name="cancellationToken">The token of the enclosing dispatch body.</param>

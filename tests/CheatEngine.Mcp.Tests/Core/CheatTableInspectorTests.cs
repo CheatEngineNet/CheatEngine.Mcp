@@ -6,6 +6,7 @@ using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Features;
 using CheatEngine.Mcp.Core.Files;
 using CheatEngine.Mcp.Core.Tables;
+using CheatEngine.Mcp.Tests.Support;
 
 using Microsoft.Extensions.Options;
 
@@ -231,7 +232,7 @@ public sealed class CheatTableInspectorTests
 	[Fact]
 	public void Inspect_HeldFile_InspectsTheBytesThatStayPinned()
 	{
-		using McpFilePathsTests.Scratch scratch = new();
+		using McpFileScratch scratch = new();
 		string file = Path.Combine(scratch.CreateFolder("tables"), "game.CT");
 		File.WriteAllText(file, Table("<LuaScript>print(1)</LuaScript>"));
 		McpFilePaths paths = new(new McpFileOptions(), Path.Combine(scratch.Root, "registry"),

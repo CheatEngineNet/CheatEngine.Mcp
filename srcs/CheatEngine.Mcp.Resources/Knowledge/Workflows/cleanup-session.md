@@ -2,9 +2,8 @@
 
 ## Goal
 
-Undo what this session changed in the game and in Cheat Engine, release what it owns in a safe order, and report what
-needs manual recovery. Touch only this session's work. `{keepAddressList}`: yes (the default) keeps its records; no
-deletes them after asking.
+Undo this session's game and Cheat Engine changes, safely release its resources and report manual recovery.
+Touch only this session's work. `{keepAddressList}`: yes (default) keeps its records; no deletes them after asking.
 
 ## Steps
 
@@ -39,8 +38,9 @@ deletes them after asking.
 
 ## Decisions
 
-- Script deactivation, deletion and patch release (including `runtime_release_resources`) can show a CE dialog or
-  block CE while the DISABLE section runs. Warn the user and inspect any dialog before retrying a timed-out cleanup.
+- Deactivation and patch release (including `runtime_release_resources`) can block CE or show a DISABLE dialog:
+  warn the user and inspect it before retrying. Deletion never runs DISABLE: deactivate scripts and children first
+  to keep their undo records until restoration succeeds. OnDestroy callbacks can run during deletion.
 - `partial_effect`, an incomplete release or `asm_release_patch.released` false: stop there, report the `hint` and
   what remains; repeat once only when the result says retryable.
 - `not_found` on a stop, delete or release: it already ended; confirm with the list tools.
@@ -67,5 +67,5 @@ deletes them after asking.
 ## Report
 
 A table: item | action (stopped, restored, released, deleted, kept) | result | what the user must still do by hand.
-Then what was kept on purpose, what failed (with its `hint`), and what stays until the game restarts (speedhack
-hooks, even at speed 1; the Mono collector DLL). See [errors and recovery](../Documents/errors-and-recovery.md).
+Report kept items, failures with their `hint`, and restart-only effects (speedhack hooks, even at speed 1; the Mono
+collector DLL). See [errors and recovery](../Documents/errors-and-recovery.md).

@@ -211,10 +211,10 @@ not target memory, and needs no switch.
   Omitting `parentId` succeeds only for a record already at the root. Cheat Engine 7.7 exposes no supported
   operation to detach a child; that request returns `unsupported` without changing the record. Any record can be
   a parent; Cheat Engine refuses a cycle. A moved `+offset` record resolves against its new ancestors.
-- `record_delete(ids=[<id>])` deletes records with their children (`deleted` counts the listed ids). By Cheat
-  Engine's source a delete does not run `[DISABLE]`: an active script's patch stays with no record left to undo it,
-  so deactivate scripts, children included, first. An active listed script record needs Mcp:EnableAutoAssembler. A
-  failure keeps the earlier deletions. Delete only what this session created or the user named.
+- `record_delete(ids=[<id>])` deletes records and children (`deleted` counts listed ids). It never runs `[DISABLE]`:
+  deactivate every active script first, or its patch remains and its undo record is lost. Any active script in a
+  subtree needs Mcp:EnableAutoAssembler. Preflight allows 4096 distinct records and 64 levels per subtree. Earlier
+  deletions survive a failure. Delete only this session's records or those the user named.
 - `record_clear()` preflights the whole list, then deletes records through their current IDs (above 100000 records
   it refuses). It needs Mcp:EnableAutoAssembler when any record is an active script. If callbacks leave new records
   behind, the result reports `partial_effect`; inspect the list before deciding what to do next. There is no undo:
@@ -261,8 +261,10 @@ not target memory, and needs no switch.
 - `table_save(path="<absolute path under a table root>", overwrite=false)` saves the whole current table (records,
   scripts, code list, user-defined symbols, structures, comments, forms, table Lua) as unprotected XML, even under a
   `.CETRAINER` name. Prefer `.CT`. It needs no switch but may wait on a Cheat Engine dialog.
-- An existing file fails with `invalid_argument` unless `table_save.overwrite` is true; ask before overwriting
-  (`replacedExisting` reports it). A failed save can leave a partial file: never overwrite the only copy.
+- MCP saves to an anchored temporary file, then publishes it atomically. Existing files need `overwrite=true` and
+  consent; otherwise they fail with `invalid_argument`. `replacedExisting` describes reservation time. A concurrent
+  creator wins when `overwrite=false`, producing `partial_effect`. Failed saves preserve the destination;
+  `cleanup_unconfirmed` means a temporary table may remain in the root. Keep a backup.
 - Raw heap addresses are saved as typed and break in the next session.
 - After a Mono attach, Cheat Engine sets the table's `UsesMono` option by default, so the saved table carries it: its
   later load, and a process open while it is set (unless Cheat Engine ignores the option), need

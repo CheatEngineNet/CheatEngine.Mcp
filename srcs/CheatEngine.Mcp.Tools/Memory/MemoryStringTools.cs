@@ -87,7 +87,7 @@ public sealed class MemoryStringTools
 			long epoch = MemoryTargets.SelectionEpoch(client, token);
 			Address target = MemoryTargets.Resolve(client, expression, "address", token);
 			MemoryTargets.RequireSameTarget(client, epoch, CheatEngineToolNames.MemoryFindStrings, token);
-			RequireRangeFitsTargetAddressSpace(target, size, MemoryTargets.PointerBytes(client, token));
+			MemoryTargets.RequireRangeFitsTargetAddressSpace(target, size, MemoryTargets.PointerBytes(client, token));
 			MemoryTargets.RequireSameTarget(client, epoch, CheatEngineToolNames.MemoryFindStrings, token);
 			byte[] bytes = [.. client.Memory.ReadBytes(new MemoryBytesReadRequest(target, size), token)];
 			MemoryTargets.RequireSameTarget(client, epoch, CheatEngineToolNames.MemoryFindStrings, token);
@@ -262,17 +262,6 @@ public sealed class MemoryStringTools
 		}
 
 		return characters == text.Length ? (text, false) : (text[..characters], true);
-	}
-
-	private static void RequireRangeFitsTargetAddressSpace(Address target, int size, int pointerBytes)
-	{
-		ulong maximum = pointerBytes == 4 ? uint.MaxValue : ulong.MaxValue;
-		ulong start = target.ToUInt64();
-		if (start > maximum || (ulong) size - 1 > maximum - start)
-		{
-			throw CheatEngineToolException.InvalidArgument("size",
-				"extends past the selected target's address space.");
-		}
 	}
 
 	private sealed record DecodedRun(int Offset, int ByteLength, string Text);

@@ -18,11 +18,11 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 	private static lua_State* s_state;
 
 	[Fact]
-	public void LuaToolOperation_ValuesRoundTripAndStackRestores()
+	public void NativeLuaProbeOperation_ValuesRoundTripAndStackRestores()
 	{
 		using RuntimeScope scope = CreateScope();
 		int initialTop = LuaApi.lua_gettop(s_state);
-		PluginLuaToolRuntime.LuaToolOperation operation = new("roundtrip",
+		NativeLuaProbeOperation operation = new("roundtrip",
 			LuaToolRuntime.BuildSource("return table.pack(a[1], a[2], a[3], a[4], a[5])",
 				["\u2603\U0001F98A\"\\", null, true, false, ulong.MaxValue]));
 
@@ -35,7 +35,7 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 		Assert.Equal(new object?[] { "\u2603\U0001F98A\"\\", null, true, false, -1L }, values);
 		Assert.True(initialTop == LuaApi.lua_gettop(s_state), "The operation must restore the Lua stack.");
 
-		PluginLuaToolRuntime.LuaToolOperation followUp = new("follow_up", "return 'still usable'");
+		NativeLuaProbeOperation followUp = new("follow_up", "return 'still usable'");
 		Assert.True(
 			followUp.TryExecute(ActiveContext.Instance, out object? followUpResult,
 				out CheatEngineFailure followUpFailure), followUpFailure.Message);
@@ -44,7 +44,7 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 	}
 
 	[Fact]
-	public void LuaToolOperation_CompileRuntimeAndCopyFailures_ReportCorrectHostEffect()
+	public void NativeLuaProbeOperation_CompileRuntimeAndCopyFailures_ReportCorrectHostEffect()
 	{
 		using RuntimeScope scope = CreateScope();
 
@@ -59,10 +59,10 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 	}
 
 	[Fact]
-	public void LuaToolOperation_MapAndArrayResults_AreCopiedWithoutLuaHandles()
+	public void NativeLuaProbeOperation_MapAndArrayResults_AreCopiedWithoutLuaHandles()
 	{
 		using RuntimeScope scope = CreateScope();
-		PluginLuaToolRuntime.LuaToolOperation operation = new("map", "return { label = 'map', values = { 'x', 'y' } }");
+		NativeLuaProbeOperation operation = new("map", "return { label = 'map', values = { 'x', 'y' } }");
 
 		Assert.True(operation.TryExecute(ActiveContext.Instance, out object? result, out CheatEngineFailure failure),
 			failure.Message);
@@ -75,7 +75,7 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 
 	private static void AssertFailure(string source, CheatEngineHostEffect expectedEffect)
 	{
-		PluginLuaToolRuntime.LuaToolOperation operation = new("failure", source);
+		NativeLuaProbeOperation operation = new("failure", source);
 
 		bool succeeded =
 			operation.TryExecute(ActiveContext.Instance, out object? result, out CheatEngineFailure failure);
@@ -88,14 +88,14 @@ public sealed unsafe partial class NativeLuaToolRuntimeTests
 
 	private static void InstallStubs(string source)
 	{
-		PluginLuaToolRuntime.LuaToolOperation operation = new("stubs", source);
+		NativeLuaProbeOperation operation = new("stubs", source);
 		Assert.True(operation.TryExecute(ActiveContext.Instance, out _, out CheatEngineFailure failure),
 			failure.Message);
 	}
 
 	private static object? ReadGlobal(string name)
 	{
-		PluginLuaToolRuntime.LuaToolOperation operation = new("read_global", $"return _G['{name}']");
+		NativeLuaProbeOperation operation = new("read_global", $"return _G['{name}']");
 		Assert.True(operation.TryExecute(ActiveContext.Instance, out object? result, out CheatEngineFailure failure),
 			failure.Message);
 		return result;

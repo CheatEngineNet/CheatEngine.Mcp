@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
@@ -194,6 +195,30 @@ public sealed partial class NativeLuaToolRuntimeTests
 		Assert.Equal("not_found", PollError(own, 0, 10).Kind);
 		// The sweeping activation keeps its own namespace, so its numbering never restarts.
 		Assert.Equal("capture-bbbb22-2", CreateJob("capture", 10, 60000, 0));
+	}
+
+	[Fact]
+	public void LuaJobKernel_CleanedNamespacesAtCapacity_ArePrunedBeforeANewActivationStarts()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(JobHostStubs);
+		string liveId = CreateJob("capture", 1, 60000, 0, EarlierNamespace);
+		for (int index = 1; index <= LuaJobKernelScripts.MaximumNamespaces + 1; index++)
+		{
+			string namespaceId = index.ToString("x6", CultureInfo.InvariantCulture);
+			string id = CreateJob("capture", 1, 60000, 0, namespaceId);
+			LuaJobStop stopped = ReadKernel(LuaJobKernelScripts.Stop, StateJsonContext.Default.LuaJobStop,
+				namespaceId, id);
+			Assert.True(stopped.Released);
+		}
+
+		KernelPage live = ReadKernel(LuaJobKernelScripts.Poll, StateJsonContext.Default.LuaJobPage,
+			EarlierNamespace, liveId, 0L, 10L);
+		Assert.Equal(liveId, live.Job.JobId);
+		Assert.Equal(2L, EvaluateLua("rawget(_G, '__cheatengine_mcp_state').namespaceCount"));
+		Assert.Equal("capture-000042-1", CreateJob("capture", 1, 60000, 0, "000042"));
+		Assert.Equal(liveId, ReadKernel(LuaJobKernelScripts.Poll, StateJsonContext.Default.LuaJobPage,
+			EarlierNamespace, liveId, 0L, 10L).Job.JobId);
 	}
 
 	[Fact]

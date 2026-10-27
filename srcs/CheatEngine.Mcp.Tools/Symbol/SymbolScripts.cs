@@ -254,6 +254,12 @@ internal static class SymbolScripts
 	internal const string EnableSources = """
 	                                      local windows = false
 	                                      local kernel = false
+	                                      if a[1] and type(enableWindowsSymbols) ~= 'function' then
+	                                          return mcp.err('unsupported', 'This Cheat Engine build has no Windows-symbol source API.', 'not_started')
+	                                      end
+	                                      if a[2] and type(enableKernelSymbols) ~= 'function' then
+	                                          return mcp.err('unsupported', 'This Cheat Engine build has no kernel-symbol source API.', 'not_started')
+	                                      end
 	                                      if a[1] then
 	                                          local ok = pcall(enableWindowsSymbols)
 	                                          if not ok then return mcp.err('host_refused', 'Cheat Engine could not enable Windows symbols; the download may have started.', 'unknown') end
@@ -261,7 +267,10 @@ internal static class SymbolScripts
 	                                      end
 	                                      if a[2] then
 	                                          local ok = pcall(enableKernelSymbols)
-	                                          if not ok then return mcp.err('partial_effect', 'Cheat Engine could not enable kernel symbols; Windows symbols may already be enabled.', 'started') end
+	                                          if not ok then
+	                                              if windows then return mcp.err('partial_effect', 'Cheat Engine could not enable kernel symbols; Windows symbols are already enabled.', 'started') end
+	                                              return mcp.err('host_refused', 'Cheat Engine could not confirm kernel-symbol enabling; symbol loading may have started.', 'unknown')
+	                                          end
 	                                          kernel = true
 	                                      end
 	                                      return {windowsEnabled = windows, kernelEnabled = kernel, externalAccess = windows}

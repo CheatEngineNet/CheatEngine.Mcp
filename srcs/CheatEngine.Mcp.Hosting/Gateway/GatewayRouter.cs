@@ -96,8 +96,8 @@ internal sealed partial class GatewayRouter(
 					StringComparer.Ordinal),
 			Meta = GatewayMeta.ForBackend(request.Meta)
 		};
-		using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-		deadline.CancelAfter(options.CallTimeout);
+		using CancellationTokenSource deadline = GatewayForwardingPolicy.CreateDeadline(options.CallTimeout,
+			cancellationToken);
 		try
 		{
 			// A backend result, including its own isError result, passes through unchanged, except that links to the
@@ -106,33 +106,32 @@ internal sealed partial class GatewayRouter(
 			RewriteResourceUris(result.Content, instanceId);
 			return result;
 		}
-		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-		{
-			// The upstream cancelled: the SDK sends no response, and the backend already saw the cancellation.
-			throw;
-		}
-		catch (OperationCanceledException) when (deadline.IsCancellationRequested)
-		{
-			lease.Evict("call timeout");
-			LogTimeout(logger, instanceId, request.Name, options.CallTimeout.TotalSeconds);
-			return GatewayErrors.Timeout(request.Name, instanceId, options.CallTimeout);
-		}
-		catch (McpProtocolException)
-		{
-			// The backend answered with a JSON-RPC error; the upstream receives the same error.
-			throw;
-		}
 		catch (Exception exception)
 		{
-			lease.Evict("transport failure");
-			ToolHostEffect effect = exception is HttpRequestException http && BackendHttp.NeverReachedBackend(http)
-				? ToolHostEffect.NotStarted
-				: ToolHostEffect.Unknown;
-			string reason = exception is HttpRequestException failure
-				? BackendHttp.Describe(failure)
-				: $"The connection failed while forwarding the call ({exception.GetType().Name}).";
-			LogUnavailable(logger, instanceId, request.Name, reason);
-			return GatewayErrors.Unavailable(request.Name, instanceId, reason, effect);
+			GatewayForwardingOutcome outcome = GatewayForwardingPolicy.Classify(exception, cancellationToken,
+				deadline.Token);
+			switch (outcome.Kind)
+			{
+				case GatewayForwardingFailureKind.CallerCancelled:
+					// The upstream cancelled: the SDK sends no response, and the backend already saw the cancellation.
+					throw;
+				case GatewayForwardingFailureKind.Timeout:
+					lease.Evict("call timeout");
+					LogTimeout(logger, instanceId, request.Name, options.CallTimeout.TotalSeconds);
+					return GatewayErrors.Timeout(request.Name, instanceId, options.CallTimeout);
+				case GatewayForwardingFailureKind.BackendProtocol:
+					// The backend answered with a JSON-RPC error; the upstream receives the same error.
+					throw;
+				case GatewayForwardingFailureKind.TransportFailure:
+					lease.Evict("transport failure");
+					string reason = exception is HttpRequestException failure
+						? BackendHttp.Describe(failure)
+						: $"The connection failed while forwarding the call ({exception.GetType().Name}).";
+					LogUnavailable(logger, instanceId, request.Name, reason);
+					return GatewayErrors.Unavailable(request.Name, instanceId, reason, outcome.HostEffect);
+				default:
+					throw new InvalidOperationException($"Unknown forwarding outcome '{outcome.Kind}'.");
+			}
 		}
 	}
 

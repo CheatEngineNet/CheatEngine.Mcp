@@ -227,6 +227,9 @@ public sealed class MemoryReadToolsTests
 	{
 		TargetDouble target = new();
 		target.Epochs.Enqueue(1);
+		target.Epochs.Enqueue(1);
+		target.Epochs.Enqueue(1);
+		target.Epochs.Enqueue(1);
 		target.Epochs.Enqueue(2);
 		target.Memory = (_, arguments) =>
 			ImmutableArray.Create(new byte[((MemoryBytesReadRequest) arguments[0]!).Length]);
@@ -237,6 +240,42 @@ public sealed class MemoryReadToolsTests
 
 		Assert.Equal(ToolErrorKind.TargetChanged, exception.Error.Kind);
 		Assert.Equal(2, target.Dispatcher.Calls);
+		Assert.Equal(2, target.CallsTo("Memory").Length);
+	}
+
+	[Theory]
+	[InlineData("FFFFFFFF", 4)]
+	[InlineData("FFFFFFFFFFFFFFFF", 8)]
+	public void Compare_RangeOutsideTargetAddressSpace_RefusesBeforeReads(string address, int pointerBytes)
+	{
+		TargetDouble target = new()
+		{
+			Bitness = pointerBytes == 4 ? PointerSize.Bit32 : PointerSize.Bit64
+		};
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			new MemoryReadTools(target.Dispatch).Compare(address, "100", 2, cancellationToken: Token));
+
+		Assert.Equal((ToolErrorKind.InvalidArgument, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Empty(target.CallsTo("Memory"));
+	}
+
+	[Theory]
+	[InlineData("FFFFFFFF", 4)]
+	[InlineData("FFFFFFFFFFFFFFFF", 8)]
+	public void Compare_FinalAddressWithinTargetAddressSpace_IsRead(string address, int pointerBytes)
+	{
+		TargetDouble target = new()
+		{
+			Bitness = pointerBytes == 4 ? PointerSize.Bit32 : PointerSize.Bit64,
+			Memory = static (_, _) => ImmutableArray.Create<byte>(0x5A)
+		};
+
+		MemoryCompareResult result = new MemoryReadTools(target.Dispatch).Compare(address, address, 1,
+			cancellationToken: Token);
+
+		Assert.True(result.Equal);
 		Assert.Equal(2, target.CallsTo("Memory").Length);
 	}
 
@@ -257,12 +296,53 @@ public sealed class MemoryReadToolsTests
 			new MemoryReadTools(target.Dispatch).Hash("10000", memory.Length, cancellationToken: Token);
 		MemoryHashResult md5 =
 			new MemoryReadTools(target.Dispatch).Hash("10000", memory.Length, MemoryHashAlgorithm.Md5, Token);
+		MemoryHashResult sha1 =
+			new MemoryReadTools(target.Dispatch).Hash("10000", memory.Length, MemoryHashAlgorithm.Sha1, Token);
 
 		Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(memory)), sha256.Hash);
 		using IncrementalHash expected = IncrementalHash.CreateHash(HashAlgorithmName.MD5);
 		expected.AppendData(memory);
 		Assert.Equal(Convert.ToHexStringLower(expected.GetHashAndReset()), md5.Hash);
-		Assert.Equal(4, target.Dispatcher.Calls);
+		using IncrementalHash expectedSha1 = IncrementalHash.CreateHash(HashAlgorithmName.SHA1);
+		expectedSha1.AppendData(memory);
+		Assert.Equal(Convert.ToHexStringLower(expectedSha1.GetHashAndReset()), sha1.Hash);
+		Assert.Equal(("10000", memory.Length, MemoryHashAlgorithm.Sha1), (sha1.Address, sha1.Size, sha1.Algorithm));
+		Assert.Equal(6, target.Dispatcher.Calls);
+	}
+
+	[Theory]
+	[InlineData("FFFFFFFF", 4)]
+	[InlineData("FFFFFFFFFFFFFFFF", 8)]
+	public void Hash_RangeOutsideTargetAddressSpace_RefusesBeforeReads(string address, int pointerBytes)
+	{
+		TargetDouble target = new()
+		{
+			Bitness = pointerBytes == 4 ? PointerSize.Bit32 : PointerSize.Bit64
+		};
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			new MemoryReadTools(target.Dispatch).Hash(address, 2, cancellationToken: Token));
+
+		Assert.Equal((ToolErrorKind.InvalidArgument, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Empty(target.CallsTo("Memory"));
+	}
+
+	[Theory]
+	[InlineData("FFFFFFFF", 4)]
+	[InlineData("FFFFFFFFFFFFFFFF", 8)]
+	public void Hash_FinalAddressWithinTargetAddressSpace_IsRead(string address, int pointerBytes)
+	{
+		TargetDouble target = new()
+		{
+			Bitness = pointerBytes == 4 ? PointerSize.Bit32 : PointerSize.Bit64,
+			Memory = static (_, _) => ImmutableArray.Create<byte>(0x5A)
+		};
+
+		MemoryHashResult result = new MemoryReadTools(target.Dispatch).Hash(address, 1, cancellationToken: Token);
+
+		Assert.Equal(Convert.ToHexStringLower(SHA256.HashData([0x5A])), result.Hash);
+		Assert.Single(target.CallsTo("Memory"));
 	}
 
 	private static (Type Primitive, object Value) Primitive(McpValueType type)

@@ -6,15 +6,17 @@ using CheatEngine.Client.Memory;
 using CheatEngine.Client.Results;
 using CheatEngine.Mcp.Core.Contract;
 using CheatEngine.Mcp.Core.Files;
+using CheatEngine.Mcp.Tests.Support;
 using CheatEngine.Mcp.Tools.Memory;
 using CheatEngine.SDK.Engine.Enums;
 using CheatEngine.SDK.Engine.Inspection;
+using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Mcp.Tests.Tools.Memory;
 
 /// <summary>Memory dumps: the host-file policy runs before any read, and only a complete dump replaces the file.</summary>
-public sealed class MemoryFileToolsTests : IDisposable
+public sealed class MemoryFileToolsTests : IAsyncDisposable
 {
 	private readonly string _root = Path.Combine(Path.GetTempPath(), $"CheatEngine.Mcp.Tests-{Guid.NewGuid():N}");
 
@@ -27,9 +29,9 @@ public sealed class MemoryFileToolsTests : IDisposable
 
 	private static CancellationToken Token => TestContext.Current.CancellationToken;
 
-	public void Dispose()
+	public ValueTask DisposeAsync()
 	{
-		Directory.Delete(_root, true);
+		return new ValueTask(TestDirectory.DeleteStrictAsync(_root));
 	}
 
 	[Theory]
@@ -131,6 +133,9 @@ public sealed class MemoryFileToolsTests : IDisposable
 	{
 		TargetDouble target = new();
 		target.Epochs.Enqueue(1);
+		target.Epochs.Enqueue(1);
+		target.Epochs.Enqueue(1);
+		target.Epochs.Enqueue(1);
 		target.Epochs.Enqueue(2);
 		target.Memory = (_, arguments) =>
 		{
@@ -143,7 +148,48 @@ public sealed class MemoryFileToolsTests : IDisposable
 			Tools(target, true).DumpToFile("10000", MemoryTargets.ChunkBytes + 1, path, cancellationToken: Token));
 
 		Assert.Equal(ToolErrorKind.TargetChanged, exception.Error.Kind);
+		Assert.Single(target.CallsTo("Memory"));
 		Assert.Empty(Directory.GetFiles(Path.Combine(_root, "dumps")));
+	}
+
+	[Theory]
+	[InlineData("FFFFFFFF", 4)]
+	[InlineData("FFFFFFFFFFFFFFFF", 8)]
+	public void DumpToFile_RangeOutsideTargetAddressSpace_RefusesBeforeReads(string address, int pointerBytes)
+	{
+		TargetDouble target = new()
+		{
+			Bitness = pointerBytes == 4 ? PointerSize.Bit32 : PointerSize.Bit64
+		};
+		string path = Path.Combine(_root, "dumps", "outside.bin");
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			Tools(target, true).DumpToFile(address, 2, path, cancellationToken: Token));
+
+		Assert.Equal((ToolErrorKind.InvalidArgument, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.StartsWith("size", exception.Error.Message, StringComparison.Ordinal);
+		Assert.Empty(target.CallsTo("Memory"));
+		Assert.False(File.Exists(path));
+	}
+
+	[Theory]
+	[InlineData("FFFFFFFF", 4)]
+	[InlineData("FFFFFFFFFFFFFFFF", 8)]
+	public void DumpToFile_FinalAddressWithinTargetAddressSpace_IsWritten(string address, int pointerBytes)
+	{
+		TargetDouble target = new()
+		{
+			Bitness = pointerBytes == 4 ? PointerSize.Bit32 : PointerSize.Bit64,
+			Memory = static (_, _) => new MemoryBytesReadOutcome(1, ImmutableArray.Create<byte>(0x5A), null)
+		};
+		string path = Path.Combine(_root, "dumps", "final-byte.bin");
+
+		FileDumpResult result = Tools(target, true).DumpToFile(address, 1, path, cancellationToken: Token);
+
+		Assert.Equal((address, 1), (result.Address, result.BytesWritten));
+		Assert.Equal([0x5A], File.ReadAllBytes(path));
+		Assert.Single(target.CallsTo("Memory"));
 	}
 
 	[Fact]
@@ -182,6 +228,93 @@ public sealed class MemoryFileToolsTests : IDisposable
 			(exception.Error.Kind, exception.Error.HostEffect));
 		Assert.Equal(0, target.Dispatcher.Calls);
 		Assert.Empty(target.Calls);
+	}
+
+	[Fact]
+	public void LoadFromFile_TargetChangedDuringResolution_RefusesBeforeWrites()
+	{
+		TargetDouble target = new();
+		target.Epochs.Enqueue(1);
+		target.Epochs.Enqueue(2);
+		string path = Path.Combine(_root, "dumps", "changed-during-resolution.bin");
+		File.WriteAllBytes(path, [0x90]);
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			Tools(target, true).LoadFromFile("1000", path, Token));
+
+		Assert.Equal((ToolErrorKind.TargetChanged, ToolHostEffect.NotApplied),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Empty(target.CallsTo("Memory"));
+		Assert.Equal(0, target.Mutations);
+	}
+
+	[Fact]
+	public void LoadFromFile_TargetChangedDuringPointerWidthRead_RefusesBeforeWrites()
+	{
+		TargetDouble target = new();
+		target.Epochs.Enqueue(1);
+		target.Epochs.Enqueue(1);
+		target.Epochs.Enqueue(2);
+		string path = Path.Combine(_root, "dumps", "changed-during-width-read.bin");
+		File.WriteAllBytes(path, [0x90]);
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			Tools(target, true).LoadFromFile("1000", path, Token));
+
+		Assert.Equal((ToolErrorKind.TargetChanged, ToolHostEffect.NotApplied),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.Empty(target.CallsTo("Memory"));
+		Assert.Equal(0, target.Mutations);
+	}
+
+	[Theory]
+	[InlineData("FFFFFFFF", 4)]
+	[InlineData("FFFFFFFFFFFFFFFF", 8)]
+	public void LoadFromFile_RangeOutsideTargetAddressSpace_RefusesBeforeWrites(string address, int pointerBytes)
+	{
+		TargetDouble target = new()
+		{
+			Bitness = pointerBytes == 4 ? PointerSize.Bit32 : PointerSize.Bit64
+		};
+		string path = Path.Combine(_root, "dumps", "outside-load.bin");
+		File.WriteAllBytes(path, [0x90, 0x91]);
+
+		CheatEngineToolException exception = Assert.Throws<CheatEngineToolException>(() =>
+			Tools(target, true).LoadFromFile(address, path, Token));
+
+		Assert.Equal((ToolErrorKind.InvalidArgument, ToolHostEffect.NotStarted),
+			(exception.Error.Kind, exception.Error.HostEffect));
+		Assert.StartsWith("address", exception.Error.Message, StringComparison.Ordinal);
+		Assert.Empty(target.CallsTo("Memory"));
+		Assert.Equal(0, target.Mutations);
+	}
+
+	[Theory]
+	[InlineData("FFFFFFFF", 4)]
+	[InlineData("FFFFFFFFFFFFFFFF", 8)]
+	public void LoadFromFile_FinalAddressWithinTargetAddressSpace_IsWritten(string address, int pointerBytes)
+	{
+		TargetDouble target = new()
+		{
+			Bitness = pointerBytes == 4 ? PointerSize.Bit32 : PointerSize.Bit64
+		};
+		string path = Path.Combine(_root, "dumps", "final-load-byte.bin");
+		File.WriteAllBytes(path, [0x5A]);
+		MemoryBytesWriteRequest? write = null;
+		target.Memory = (method, arguments) =>
+		{
+			Assert.Equal(nameof(IMemoryClient.WriteBytes), method.Name);
+			write = Assert.IsType<MemoryBytesWriteRequest>(arguments[0]);
+			return null;
+		};
+
+		FileLoadResult result = Tools(target, true).LoadFromFile(address, path, Token);
+
+		Assert.Equal(new FileLoadResult(path, address, 1), result);
+		MemoryBytesWriteRequest actualWrite = Assert.IsType<MemoryBytesWriteRequest>(write);
+		Assert.Equal(Convert.ToUInt64(address, 16), actualWrite.Address.ToUInt64());
+		Assert.Equal([0x5A], actualWrite.Bytes);
+		Assert.Single(target.CallsTo("Memory"));
 	}
 
 	[Fact]

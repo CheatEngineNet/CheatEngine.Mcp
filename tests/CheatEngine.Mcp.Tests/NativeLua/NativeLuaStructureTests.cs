@@ -837,7 +837,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 	/// <summary>Evaluates a Lua expression over the stubs' globals.</summary>
 	private static object? LuaValue(string expression)
 	{
-		PluginLuaToolRuntime.LuaToolOperation operation = new("structure_probe", "return " + expression);
+		NativeLuaProbeOperation operation = new("structure_probe", "return " + expression);
 		Assert.True(operation.TryExecute(ActiveContext.Instance, out object? result, out CheatEngineFailure failure),
 			failure.Message);
 		return result;

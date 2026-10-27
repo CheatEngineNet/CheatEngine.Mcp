@@ -265,11 +265,13 @@ public sealed class JobRegistryTests
 	{
 		StateTestHarness harness = new(onMainThread: true);
 		using SemaphoreSlim gate = new(0);
+		TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		ManagedJob<long> job = harness.Jobs.StartManaged<long>("probe", TimeSpan.FromSeconds(60), 8,
 			async (_, token) =>
 			{
 				try
 				{
+					entered.TrySetResult();
 					await Task.Delay(Timeout.Infinite, token).ConfigureAwait(false);
 				}
 				finally
@@ -277,6 +279,7 @@ public sealed class JobRegistryTests
 					await gate.WaitAsync(Wait, Token).ConfigureAwait(false);
 				}
 			});
+		await entered.Task.WaitAsync(Wait, Token);
 
 		CheatEngineToolException pending =
 			Assert.Throws<CheatEngineToolException>(() => harness.Jobs.Stop(job.Id, Token));
@@ -291,6 +294,58 @@ public sealed class JobRegistryTests
 		Assert.Equal(JobState.Stopped, job.State);
 		Assert.True(harness.Jobs.Stop(job.Id, Token).AlreadyReleased);
 		Assert.Equal(0, harness.Resources.Count);
+	}
+
+	[Fact]
+	public async Task Stop_RecentJobAtTombstoneCapacity_RemainsIdempotent()
+	{
+		StateTestHarness harness = new();
+		ManagedJob<long>? first = null;
+		ManagedJob<long>? latest = null;
+		for (int index = 0; index <= JobRegistry.MaximumTombstones; index++)
+		{
+			ManagedJob<long> job = harness.Jobs.StartManaged<long>("probe", TimeSpan.FromSeconds(60), 8,
+				static (_, _) => Task.CompletedTask);
+			await job.Completion.WaitAsync(Wait, Token);
+			Assert.True(harness.Jobs.Stop(job.Id, Token).Released);
+			first ??= job;
+			latest = job;
+		}
+
+		ManagedJob<long> oldest = Assert.IsType<ManagedJob<long>>(first);
+		ManagedJob<long> mostRecent = Assert.IsType<ManagedJob<long>>(latest);
+		Assert.True(harness.Jobs.Stop(mostRecent.Id, Token).AlreadyReleased);
+		Assert.Equal(ToolErrorKind.NotFound, Refusal(() => harness.Jobs.Stop(oldest.Id, Token)).Kind);
+	}
+
+	[Fact]
+	public async Task Stop_ExpiredTombstoneThenCapacity_EvictsTheOldestFreshStop()
+	{
+		StateTestHarness harness = new();
+		ManagedJob<long> expired = harness.Jobs.StartManaged<long>("probe", TimeSpan.FromSeconds(1), 8,
+			static (_, _) => Task.CompletedTask);
+		await expired.Completion.WaitAsync(Wait, Token);
+		Assert.True(harness.Jobs.Stop(expired.Id, Token).Released);
+		harness.Time.Advance(TimeSpan.FromSeconds(2));
+		Assert.Equal(0, harness.Jobs.Count);
+		Assert.Equal(ToolErrorKind.NotFound, Refusal(() => harness.Jobs.Stop(expired.Id, Token)).Kind);
+
+		ManagedJob<long>? firstFresh = null;
+		ManagedJob<long>? latestFresh = null;
+		for (int index = 0; index <= JobRegistry.MaximumTombstones; index++)
+		{
+			ManagedJob<long> job = harness.Jobs.StartManaged<long>("probe", TimeSpan.FromSeconds(60), 8,
+				static (_, _) => Task.CompletedTask);
+			await job.Completion.WaitAsync(Wait, Token);
+			Assert.True(harness.Jobs.Stop(job.Id, Token).Released);
+			firstFresh ??= job;
+			latestFresh = job;
+		}
+
+		ManagedJob<long> oldestFresh = Assert.IsType<ManagedJob<long>>(firstFresh);
+		ManagedJob<long> mostRecent = Assert.IsType<ManagedJob<long>>(latestFresh);
+		Assert.Equal(ToolErrorKind.NotFound, Refusal(() => harness.Jobs.Stop(oldestFresh.Id, Token)).Kind);
+		Assert.True(harness.Jobs.Stop(mostRecent.Id, Token).AlreadyReleased);
 	}
 
 	[Fact]

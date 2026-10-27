@@ -45,11 +45,11 @@ an active Cheat Engine instance.
 The project targets `net10.0` for Windows x64 and is a framework-dependent
 Cheat Engine plugin. It is not published as Native AOT.
 
-Direct package references are:
+Direct source, package, and framework dependencies are:
 
-- `CheatEngine.Client`, which supplies the plugin-hosting activation model and
+- The pinned `CheatEngine.Client` source projects, which supply the plugin-hosting activation model and
   the supported Cheat Engine API surface.
-- `CheatEngine.SDK`, which generates the plugin entry point and deploys the
+- The pinned `CheatEngine.SDK` source projects, which generate the plugin entry point and deploy the
   native Lua bridge.
 - `ModelContextProtocol.AspNetCore`, which supplies the backend transport.
 - `Costura.Fody` and `Fody`, build-time weaving packages that embed managed
@@ -61,6 +61,7 @@ It references every product library because it is the final composition root:
 Core, Hosting, Tools, Resources, and Prompts. Package versions are centralized
 in [`../../Directory.Packages.props`](../../Directory.Packages.props), and
 locked restores use this project's `packages.lock.json`.
+Git submodule pointers record the Client and SDK revisions separately from NuGet package versions.
 
 The shared build settings enable nullable references, analyzers, deterministic
 builds, locked package restore, embedded symbols, and x64 output. The project
