@@ -7,7 +7,44 @@ and Lua adapter tests do not establish native tool success.
 
 ## Current status
 
-The latest catalog-wide native report remains **current-27 (2026-10-21): 200 verified,
+### Frozen 2.0 checkpoint — 2026-10-27
+
+The validated checkpoint is source `e0420eea243d2426d240da61bc1bc4f26ac6ae1d`, with Client
+`bc60c2dfc906b22bb0d2185ca3775142377d03b2` and SDK `c8173a7ef45e4e37482a229cb88802f0ee15684e`.
+[SDK PR #101](https://github.com/CheatEngineNet/CheatEngine.SDK/pull/101) passed its required checks and merged
+upstream, preserving the recorded SDK commit on `main`.
+
+The Debug and Release portable suites each passed **6,017**, NativeLua passed **822**, and SDK repository policy
+passed **202**, with zero failures or skips. Three Client AOB properties each exercised 1,000 generated cases.
+Style and whitespace verification used SDK 10.0.403, returned exit 0, and reported 0 of 1,711 formattable files changed.
+Both configurations passed the isolated plugin-load and Native AOT gateway probes. The five-file Release ZIP,
+checksum and source/dependency manifests were verified locally.
+
+| Release checkpoint identity | SHA-256 |
+|---|---|
+| Plugin | `9E3BC1B309FDA1DA943882B60A36D5D3575463DCC5D86B9C78F4B4877715D605` |
+| Gateway | `89E5DC88C40D184D9D7A5AEF9888149DD4267FB9F7897A4AED27C845BA0E2EBB` |
+| Per-tool report | `0750213B32063AD02A4EFBF4A7375465BC558B809B8E7BB52A69880F05AA6749` |
+
+The checkpoint's [per-tool report](../../../artifacts/final-release-20261027/qualification-final/tool-results.json)
+records **22 verified**, **31 observed only in a failed session**, and **154 not verified**.
+Smoke and inspection passed. State workflows failed when `pointer_save_map` refused a path that could not be
+verified without following a reparse point. That message does not identify a raw NTSTATUS or establish the
+historical BindFlt diagnosis as this session's cause. All three sessions restored user state, left installed CE
+files unchanged and recorded no cleanup failures.
+
+The six kernel/DBVM cases remain the accepted deferral. Of the other 201 tools, **179 remain unqualified**.
+`symbol_enable_sources` is still nondeferred and unqualified. The maintainer kept WFP activation pending and
+then instructed that CE launches stop. Further CE/live qualification requires renewed explicit authorization.
+
+This checkpoint is not final release qualification: `nativeQualificationComplete=false`, and the named Astra
+final review remains open. Later documentation or source commits do not inherit this checkpoint's identities
+or receipts. The [readiness record](../../../artifacts/final-release-20261027/readiness-closeout.json) and
+[format diagnostics](../../../artifacts/final-release-20261027/format-final-diagnostic.json) retain local evidence.
+
+### Historical bundle 06
+
+The earlier catalog-wide native report is **current-27 (2026-10-21): 200 verified,
 7 unverified**, with `nativeQualificationComplete=false`. It applies only to bundle 06:
 
 | Identity | Value |

@@ -7,6 +7,9 @@ The historical records below remain open where evidence is missing; they are not
 to restart diagnostics. Resume a blocked item only when its listed prerequisite changes
 and the user requests that work. Do not repeat an unchanged diagnostic attempt.
 
+The maintainer subsequently kept WFP/source activation pending and instructed that CE launches stop.
+CE/live qualification is on hold for this maintenance pass until renewed explicit authorization.
+
 ## Accepted qualification limits for 2.0
 
 On 2026-10-27 the maintainer explicitly deferred kernel/DBVM native qualification because
@@ -23,6 +26,17 @@ This deferral does not include `symbol_enable_sources` or the other release gate
 
 ## Evidence already recorded
 
+- Frozen source checkpoint **`e0420ee`**: Debug and Release portable suites each passed **6,017**,
+  NativeLua **822**, SDK policy **202**, and three Client AOB properties at **1,000 cases each**.
+  Both configurations passed zero-warning builds, isolated plugin probes and Native AOT smoke checks;
+  diagnostic format verification returned exit 0 and reported 0 of 1,711 formattable files changed. Local Release packaging
+  and source/dependency manifest checks passed. SDK servicing PR #101 merged upstream with the pinned
+  commit preserved. Its native report has **22 verified / 31 observed only in a failed session /
+  154 not verified**, leaving **179 of 201 required tools unqualified**. Smoke and inspection passed;
+  state workflows failed at a no-reparse path refusal. Its message does not establish a raw NTSTATUS
+  or the cause of this run. All three sessions restored user state, left installed files unchanged, and had no cleanup
+  failures. See [the checkpoint identities and evidence](docs/qualification/all-tools/README.md#current-status).
+  These results belong only to `e0420ee`; later documentation or source commits are not that validated candidate.
 - Double tool-test audit: **207 of 207 tools** have executed automated evidence. Every
   backend tool has a reviewed positive adapter mapping, and every gateway tool has routing
   or discovery tests. Independent assertion review covered all 207 tools and led to new
@@ -89,10 +103,11 @@ Git history. The removed run journals are backed up under
   See the [source qualification plan](docs/qualification/all-tools/symbol-source-test.md).
 ## Gates for a future qualified release
 
-- [ ] Review and commit the local MCP and SDK servicing changes in their own repositories,
-  then record the reviewed dependency revisions in MCP. The SDK pin, documentation and implicit
-  tool locks changed locally; its production implementation and ABI did not change in this pass.
-  Freeze only after those source/dependency trees are clean and reproducible.
+- [x] Review and commit the local MCP and SDK servicing changes in their own repositories,
+  then record the reviewed dependency revisions in MCP. Checkpoint `e0420ee` is clean and records
+  upstream Client `bc60c2d` and SDK `c8173a7`; SDK PR #101 merged with the same tree and preserved ancestry.
+  SDK production implementation and ABI did not change in the servicing pass. A later source candidate
+  still requires its own clean freeze and verification.
 - [ ] Obtain fresh MCP receipts for the exact CE/SDK tuple. Client's catalog profile still
   describes CE 7.7.0.10621; it reports qualification status rather than admitting operations.
   Keep Client's `Unknown/NotExecuted` status honest. MCP receipts for CE 7.7.1.10828 do not
@@ -100,7 +115,9 @@ Git history. The removed run journals are backed up under
 - [ ] Freeze one final plugin/gateway/source candidate and run all required native success,
   restart and cleanup cases against those exact binaries, excluding the six deferred kernel
   operations above. Never pool different candidates.
-- [ ] Regenerate the per-tool report and reconcile documentation from passing receipts.
+- [x] Regenerate the checkpoint per-tool report and reconcile documentation from passing receipts,
+  retaining failed-session observations separately. The `e0420ee` report has 22 verified tools;
+  its 31 failed-session observations are not passing qualifications.
   Keep the whole-catalog `nativeQualificationComplete=false` while any native case remains
   unqualified, including deferred cases. Record the accepted 2.0 limitation separately from
   the results of its required native cases.
