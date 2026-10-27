@@ -51,10 +51,25 @@ work queue. Do not repeat unchanged diagnostic runs or mark an environment block
 
 ## Reproduce the evidence report
 
-Use [the test guide](../../../tests/CheatEngine.Mcp.Tests/README.md) to create fresh portable
-and NativeLua TRX reports. Then supply their actual paths to
-[`eng/Write-AllToolQualificationReport.ps1`](../../../eng/Write-AllToolQualificationReport.ps1),
-using `-GatewayTrx`, `-PortableTrx`, `-NativeLuaTrx` and a new `-OutputDirectory`.
+After a locked restore and Release build, create a portable TRX from the repository root:
+
+```powershell
+dotnet test --project tests/CheatEngine.Mcp.Tests -c Release --no-restore --no-build --filter-not-trait Category=LiveQualification --filter-not-trait Category=NativeLua --fail-skips on --report-trx --report-trx-filename portable.trx --results-directory artifacts/all-tools/portable
+```
+
+The output is `artifacts/all-tools/portable/portable.trx`. This suite includes gateway-routing
+tests, so supply that same file to **both** `-GatewayTrx` and `-PortableTrx` when calling
+[`eng/Write-AllToolQualificationReport.ps1`](../../../eng/Write-AllToolQualificationReport.ps1):
+
+```powershell
+$portableTrx = './artifacts/all-tools/portable/portable.trx'
+./eng/Write-AllToolQualificationReport.ps1 -GatewayTrx $portableTrx -PortableTrx $portableTrx -OutputDirectory './artifacts/all-tools/portable-report'
+```
+
+Use [the test guide](../../../tests/CheatEngine.Mcp.Tests/README.md) to create a separate
+NativeLua TRX and pass its actual path with `-NativeLuaTrx` when that suite has been run.
+Use a new output directory for each evidence report; the portable-only example does not
+establish NativeLua or native-host qualification.
 For native qualification, pass the exact candidate's session summaries with `-LiveSummaries`
 as a PowerShell array. Do not combine different plugin/gateway hashes or change a frozen
 candidate during a live session.

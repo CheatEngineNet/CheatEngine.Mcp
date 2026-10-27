@@ -44,19 +44,19 @@ jobs:
       - name: Package release assets
         run: pwsh -NoProfile -File eng/Release.ps1 -DistributionPath artifacts/dist/release
       - name: Upload Debug distribution
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: CheatEngine.Mcp-debug
           path: artifacts/dist/debug/**
           if-no-files-found: error
       - name: Upload Release distribution
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: CheatEngine.Mcp-release
           path: artifacts/dist/release/**
           if-no-files-found: error
       - name: Upload release assets
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: CheatEngine.Mcp-release-assets
           path: artifacts/releases/**
