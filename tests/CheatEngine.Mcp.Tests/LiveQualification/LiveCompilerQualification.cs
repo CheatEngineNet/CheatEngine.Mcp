@@ -81,7 +81,8 @@ internal static class LiveCompilerQualification
 		LiveSandboxOptions options = new(true, true)
 		{
 			Variant = LiveCompilerVariant.HeldExportAfterB,
-			TempTopology = CompilerTempTopology.Shared
+			TempTopology = CompilerTempTopology.Shared,
+			SeedPluginChecklistAtStartup = true
 		};
 		await using LiveSandboxSession sandbox = await LiveSandboxSession.StartAsync(inputs, options);
 		RecordAdmission(sandbox, candidate, "held_export_after_b");

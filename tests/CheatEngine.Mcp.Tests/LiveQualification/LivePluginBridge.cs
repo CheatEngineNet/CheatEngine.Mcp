@@ -16,6 +16,11 @@ internal static class LivePluginBridge
 		local function pluginSafe(value)
 		  return tostring(value):gsub('[^%w:%.%-%_ ]','?'):sub(1,32)
 		end
+		local function pluginCheckedState(checklist)
+		  local checked=checklist.Checked[0]
+		  assert(type(checked)=='boolean', 'plugin checkbox state is not boolean')
+		  return checked and 'checked' or 'unchecked'
+		end
 		local function pluginBreakpointSnapshot()
 		  local success,list=pcall(debug_getBreakpointList)
 		  if not success or type(list)~='table' then return -1, success and 'not-table' or pluginSafe(list) end
@@ -125,7 +130,7 @@ internal static class LivePluginBridge
 		    if not success then pluginError(nonce,action,reason); return end
 		    pluginResponse('ok\n'..nonce..'\n'..action); return
 		  end
-		  local success,reason=pcall(function()
+		  local success,afterReload,afterToggle,afterApply=pcall(function()
 		    assert((action=='enable') ~= pluginEnabled, 'plugin requested state is already active')
 		    local f=assert(getSettingsForm(), 'settings form unavailable')
 		    local settingsClass=tostring(f.ClassName):sub(1,128)
@@ -141,11 +146,19 @@ internal static class LivePluginBridge
 		      '; settingsClass='..settingsClass..'; beforeReload='..tostring(beforeReload))
 		    assert(tostring(clb.Items[0])==__BASENAME__..':'..__DISPLAY__, 'owned MCP plugin row not found')
 		    clb.ItemIndex=0
+		    local afterReload=pluginCheckedState(clb)
 		    sendMessage(clb.Handle,0x0100,0x20,0); sendMessage(clb.Handle,0x0101,0x20,0)
-		    ok.doClick(); pluginEnabled=(action=='enable')
+		    local afterToggle=pluginCheckedState(clb)
+		    ok.doClick()
+		    local afterApply=pluginCheckedState(clb)
+		    local expected=action=='enable' and 'checked' or 'unchecked'
+		    assert(afterToggle==expected and afterApply==expected, 'plugin checkbox transition mismatch'..
+		      '; afterReload='..afterReload..'; afterToggle='..afterToggle..'; afterApply='..afterApply..'; expected='..expected)
+		    pluginEnabled=(action=='enable')
+		    return afterReload,afterToggle,afterApply
 		  end)
-		  if not success then pluginError(nonce,action,reason); return end
-		  pluginResponse('ok\n'..nonce..'\n'..action)
+		  if not success then pluginError(nonce,action,afterReload); return end
+		  pluginResponse('ok\n'..nonce..'\n'..action..'\n'..afterReload..'\n'..afterToggle..'\n'..afterApply)
 		end
 		""";
 

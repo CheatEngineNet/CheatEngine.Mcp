@@ -24,22 +24,30 @@ checksum and source/dependency manifests were verified locally.
 |---|---|
 | Plugin | `9E3BC1B309FDA1DA943882B60A36D5D3575463DCC5D86B9C78F4B4877715D605` |
 | Gateway | `89E5DC88C40D184D9D7A5AEF9888149DD4267FB9F7897A4AED27C845BA0E2EBB` |
-| Per-tool report | `0750213B32063AD02A4EFBF4A7375465BC558B809B8E7BB52A69880F05AA6749` |
+| Resumed per-tool report | `61CA7D5E47450D1A7DFB4584C2CA262657A9E62B9EC9EEB9F71CC3C2BF03A102` |
 
-The checkpoint's [per-tool report](../../../artifacts/final-release-20261027/qualification-final/tool-results.json)
-records **22 verified**, **31 observed only in a failed session**, and **154 not verified**.
-Smoke and inspection passed. State workflows failed when `pointer_save_map` refused a path that could not be
-verified without following a reparse point. That message does not identify a raw NTSTATUS or establish the
-historical BindFlt diagnosis as this session's cause. All three sessions restored user state, left installed CE
-files unchanged and recorded no cleanup failures.
+The checkpoint's resumed [per-tool report](../../../artifacts/final-release-20261027/qualification-resume-native-closeout/tool-results.json)
+records **154 verified**, **15 observed only in failed sessions**, and **38 not verified** across 20 ordinary
+sessions. Every session restored user state and left installed CE files unchanged. The failed scanner session
+lacks graceful menu-disable evidence, which remains a cleanup failure. State workflows passed with the
+profile-root run directory; the earlier path refusal still does not identify a raw NTSTATUS or prove its cause.
+The three Windows-debugger scenarios, assembler, execution, symbol fixture, process creation, Mono, compiler
+and managed injection passed on these exact binaries. Extended compiler reload and plugin re-enable remain
+incomplete. The scanner failure and negative provider stack top remain unresolved.
 
-The six kernel/DBVM cases remain the accepted deferral. Of the other 201 tools, **179 remain unqualified**.
-`symbol_enable_sources` is still nondeferred and unqualified. The maintainer kept WFP activation pending and
-then instructed that CE launches stop. Further CE/live qualification requires renewed explicit authorization.
+The six kernel/DBVM cases remain the accepted deferral. Of the other 201 tools, **47 remain unqualified**.
+`symbol_enable_sources` is still nondeferred and unqualified. The maintainer renewed ordinary CE testing
+after the earlier stop instruction and explicitly kept WFP activation pending.
+
+An isolated provider diagnostic subsequently completed with 2,344 records, no overflow and no negative top.
+It restored user state and installed files, but uses diagnostic binaries and is excluded from qualification.
+The [capture manifest](../../../artifacts/final-release-20261027/provider-capture/manifest.json) records its
+source patches and input hashes. Its unscoped epoch/generation labels have a documented provenance
+limitation. This healthy capture neither explains nor fixes the earlier failures.
 
 This checkpoint is not final release qualification: `nativeQualificationComplete=false`, and the named Astra
 final review remains open. Later documentation or source commits do not inherit this checkpoint's identities
-or receipts. The [readiness record](../../../artifacts/final-release-20261027/readiness-closeout.json) and
+or receipts. The [resumed readiness record](../../../artifacts/final-release-20261027/readiness-resumed-20261027.json) and
 [format diagnostics](../../../artifacts/final-release-20261027/format-final-diagnostic.json) retain local evidence.
 
 ### Historical bundle 06

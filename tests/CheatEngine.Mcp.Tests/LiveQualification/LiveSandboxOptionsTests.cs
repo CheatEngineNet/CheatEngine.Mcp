@@ -419,9 +419,20 @@ public sealed class LiveSandboxOptionsTests
 		LiveSandboxOptions held = new(true, true)
 		{
 			Variant = LiveCompilerVariant.HeldExportAfterB,
-			TempTopology = CompilerTempTopology.Shared
+			TempTopology = CompilerTempTopology.Shared,
+			SeedPluginChecklistAtStartup = true
 		};
 		held.ValidateFor(LiveQualificationScenario.CompilerExtended);
+		new LiveSandboxOptions(true, true)
+		{
+			Variant = LiveCompilerVariant.PrivateCompilerAbsent
+		}
+			.ValidateFor(LiveQualificationScenario.CompilerExtended);
+		Assert.Throws<InvalidOperationException>(() => (held with
+		{
+			SeedPluginChecklistAtStartup = false
+		})
+			.ValidateFor(LiveQualificationScenario.CompilerExtended));
 		Assert.Throws<InvalidOperationException>(() => (held with
 		{
 			TempTopology = CompilerTempTopology.Isolated

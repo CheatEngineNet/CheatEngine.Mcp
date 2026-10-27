@@ -19,7 +19,7 @@ public sealed partial class NativeLuaToolRuntimeTests
 		using RuntimeScope scope = CreateScope();
 		InstallStubs(Stubs("7\ndisable\n", "CheatEngine.Mcp.dll:CheatEngine.Mcp"));
 		RunPluginBridge("pluginEnabled=true; pluginControl()");
-		Assert.Equal("ok\n7\ndisable", EvaluateLua("response"));
+		Assert.Equal("ok\n7\ndisable\nchecked\nunchecked\nunchecked", EvaluateLua("response"));
 		Assert.Equal(2L, EvaluateLua("#messages"));
 		Assert.Equal(0x0100L, EvaluateLua("messages[1][2]"));
 		Assert.Equal(0x0101L, EvaluateLua("messages[2][2]"));
@@ -66,8 +66,49 @@ public sealed partial class NativeLuaToolRuntimeTests
 		InstallStubs(Stubs("9\nenable\n", "CheatEngine.Mcp.dll:CheatEngine.Mcp"));
 		RunPluginBridge("pluginEnabled=false; pluginControl()");
 		Assert.True((bool) EvaluateLua("pluginEnabled")!);
-		Assert.Equal("ok\n9\nenable", EvaluateLua("response"));
+		Assert.Equal("ok\n9\nenable\nunchecked\nchecked\nchecked", EvaluateLua("response"));
 		Assert.Equal(1L, EvaluateLua("okClicks"));
+	}
+
+	[Fact]
+	public void LivePluginBridge_CheckboxDoesNotToggle_RefusesAfterApplyingSettingsWithSanitizedStates()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(Stubs("9\nenable\n", "CheatEngine.Mcp.dll:CheatEngine.Mcp", toggleOnSpace: false));
+		RunPluginBridge("pluginEnabled=false; pluginControl()");
+		string response = (string) EvaluateLua("response")!;
+		Assert.StartsWith("error\n9\nenable\n", response, StringComparison.Ordinal);
+		Assert.Contains("plugin checkbox transition mismatch; afterReload=unchecked; afterToggle=unchecked; afterApply=unchecked; expected=checked", response,
+			StringComparison.Ordinal);
+		Assert.False((bool) EvaluateLua("pluginEnabled")!);
+		Assert.Equal(1L, EvaluateLua("okClicks"));
+	}
+
+	[Fact]
+	public void LivePluginBridge_SettingsApplyRevertsCheckbox_RefusesAfterCapturingAllTransitionStates()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(Stubs("7\ndisable\n", "CheatEngine.Mcp.dll:CheatEngine.Mcp", checkedAfterApply: true));
+		RunPluginBridge("pluginEnabled=true; pluginControl()");
+		string response = (string) EvaluateLua("response")!;
+		Assert.StartsWith("error\n7\ndisable\n", response, StringComparison.Ordinal);
+		Assert.Contains("plugin checkbox transition mismatch; afterReload=checked; afterToggle=unchecked; afterApply=checked; expected=unchecked", response,
+			StringComparison.Ordinal);
+		Assert.True((bool) EvaluateLua("pluginEnabled")!);
+		Assert.Equal(1L, EvaluateLua("okClicks"));
+	}
+
+	[Fact]
+	public void LivePluginBridge_NonBooleanCheckboxState_RefusesBeforeSendingTheToggle()
+	{
+		using RuntimeScope scope = CreateScope();
+		InstallStubs(Stubs("7\ndisable\n", "CheatEngine.Mcp.dll:CheatEngine.Mcp"));
+		RunPluginBridge("pluginEnabled=true; pluginCheckbox.Checked[0]='invalid'; pluginControl()");
+		string response = (string) EvaluateLua("response")!;
+		Assert.StartsWith("error\n7\ndisable\n", response, StringComparison.Ordinal);
+		Assert.Contains("plugin checkbox state is not boolean", response, StringComparison.Ordinal);
+		Assert.Equal(0L, EvaluateLua("#messages"));
+		Assert.Equal(0L, EvaluateLua("okClicks"));
 	}
 
 	[Fact]
@@ -141,7 +182,8 @@ public sealed partial class NativeLuaToolRuntimeTests
 	}
 
 	private static string Stubs(string command, string row, int count = 1, int? countAfterReload = null,
-		string settingsClass = "TformSettings", bool pluginChecked = false, bool statusHookPresent = false) => $$"""
+		string settingsClass = "TformSettings", bool? pluginChecked = null, bool statusHookPresent = false,
+		bool toggleOnSpace = true, bool? checkedAfterApply = null) => $$"""
 		response=''; messages={}; okClicks=0; settingsFormRequested=false; pluginCommand={{Quote(command)}}
 		io={open=function(_,mode) if mode=='r' then return {read=function() return pluginCommand end,close=function() end} end return {write=function(_,v) response=response..v end,close=function() end} end}
 		os={remove=function() return true end,rename=function() return true end}
@@ -152,8 +194,13 @@ public sealed partial class NativeLuaToolRuntimeTests
 		end
 		local clb={Items=items,Handle=99}
 		clb.Checked={}
-		clb.Checked[0]={{pluginChecked.ToString().ToLowerInvariant()}}
-		local pc,tab,ok={},{},{doClick=function() okClicks=okClicks+1 end}
+		clb.Checked[0]={{(pluginChecked ?? command.Contains("\ndisable\n", StringComparison.Ordinal)).ToString().ToLowerInvariant()}}
+		pluginCheckbox=clb
+		local pc,tab={},{}
+		local ok={doClick=function()
+		  okClicks=okClicks+1
+		  {{(checkedAfterApply.HasValue ? "clb.Checked[0]=" + checkedAfterApply.Value.ToString().ToLowerInvariant() : string.Empty)}}
+		end}
 		local f={ClassName={{Quote(settingsClass)}},findComponentByName=function(n) return ({pcSetting=pc,Plugins=tab,clbPlugins=clb,btnOK=ok})[n] end}
 		getSettingsForm=function() settingsFormRequested=true; return f end
 		getOpenedProcessID=function() return 77 end
@@ -163,7 +210,11 @@ public sealed partial class NativeLuaToolRuntimeTests
 		  menu.findComponentByName=function(_) return {{(statusHookPresent ? "true" : "nil")}} end
 		  return {Menu=menu}
 		end
-		sendMessage=function(...) table.insert(messages,{...}) end
+		sendMessage=function(...)
+		  local message=select(2,...)
+		  table.insert(messages,{...})
+		  if message==0x0101 and {{toggleOnSpace.ToString().ToLowerInvariant()}} then clb.Checked[0]=not clb.Checked[0] end
+		end
 		""";
 
 	private static void RunPluginBridge(string tail) => InstallStubs(LivePluginBridge.Render("request", "response", Quote) + "\n" + tail);

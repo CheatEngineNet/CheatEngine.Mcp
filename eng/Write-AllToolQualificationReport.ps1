@@ -224,7 +224,16 @@ function Read-LiveSession([string] $SummaryPath) {
             throw "Live summary '$summaryPath' has invalid selected_distribution.$key."
         }
     }
-    $diagnosticOnly = $live['diagnosticOnly'] -eq $true
+    # Pre-flag summaries from the two diagnostic runners recorded these exact keys without a
+    # top-level discriminator. Treat them as diagnostic evidence; never promote them to qualification.
+    $legacyDiagnosticMarkers = @(
+        'dispatch_diagnostic_case',
+        'dispatch_diagnostic_prelude',
+        'dispatch_diagnostic_step',
+        'dispatch_diagnostic_gateway_cleanup_failure'
+    )
+    $diagnosticOnly = $live['diagnosticOnly'] -eq $true -or
+        @($legacyDiagnosticMarkers | Where-Object { $live.ContainsKey($_) }).Count -gt 0
     $passed = $live['passed'] -eq $true -and $live['userStateRestored'] -eq $true -and
         $live['sourceInstallationUnchanged'] -eq $true -and @($live['cleanupFailures']).Count -eq 0 -and -not $diagnosticOnly
     return @{ summaryPath = $summaryPath; summarySha256 = (Get-FileHash -LiteralPath $summaryPath).Hash;

@@ -82,8 +82,11 @@ internal sealed partial class LiveSandboxSession
 		{
 			throw new InvalidOperationException($"The fixed CE Plugin Manager bridge rejected {action}: {fields[3]}");
 		}
-		if (fields.Length != 3 || fields[0] != "ok" || !long.TryParse(fields[1], out long received)
-			|| received != nonce || fields[2] != action)
+		string expectedBeforeToggle = enabled ? "unchecked" : "checked";
+		string expectedAfterToggle = enabled ? "checked" : "unchecked";
+		if (fields.Length != 6 || fields[0] != "ok" || !long.TryParse(fields[1], out long received)
+			|| received != nonce || fields[2] != action || fields[3] != expectedBeforeToggle
+			|| fields[4] != expectedAfterToggle || fields[5] != expectedAfterToggle)
 		{
 			throw new InvalidOperationException("The fixed CE Plugin Manager bridge returned an invalid response.");
 		}

@@ -7,8 +7,8 @@ The historical records below remain open where evidence is missing; they are not
 to restart diagnostics. Resume a blocked item only when its listed prerequisite changes
 and the user requests that work. Do not repeat an unchanged diagnostic attempt.
 
-The maintainer subsequently kept WFP/source activation pending and instructed that CE launches stop.
-CE/live qualification is on hold for this maintenance pass until renewed explicit authorization.
+The maintainer renewed ordinary CE testing after the earlier stop instruction and explicitly kept
+WFP/source activation pending. Use private CE copies and owned targets; kernel/DBVM remains deferred.
 
 ## Accepted qualification limits for 2.0
 
@@ -31,11 +31,12 @@ This deferral does not include `symbol_enable_sources` or the other release gate
   Both configurations passed zero-warning builds, isolated plugin probes and Native AOT smoke checks;
   diagnostic format verification returned exit 0 and reported 0 of 1,711 formattable files changed. Local Release packaging
   and source/dependency manifest checks passed. SDK servicing PR #101 merged upstream with the pinned
-  commit preserved. Its native report has **22 verified / 31 observed only in a failed session /
-  154 not verified**, leaving **179 of 201 required tools unqualified**. Smoke and inspection passed;
-  state workflows failed at a no-reparse path refusal. Its message does not establish a raw NTSTATUS
-  or the cause of this run. All three sessions restored user state, left installed files unchanged, and had no cleanup
-  failures. See [the checkpoint identities and evidence](docs/qualification/all-tools/README.md#current-status).
+  commit preserved. Its resumed native report has **154 verified / 15 observed only in failed sessions /
+  38 not verified**, leaving **47 of 201 required tools unqualified**. The 20 ordinary sessions all restored
+  user state and left installed files unchanged. The failed scanner session lacks graceful menu-disable
+  evidence; its cleanup failure remains recorded. State workflows passed using the profile-root run directory;
+  that does not establish the cause of the earlier path refusal. Scanner and plugin re-enable failures remain open.
+  See [the checkpoint identities and evidence](docs/qualification/all-tools/README.md#current-status).
   These results belong only to `e0420ee`; later documentation or source commits are not that validated candidate.
 - Double tool-test audit: **207 of 207 tools** have executed automated evidence. Every
   backend tool has a reviewed positive adapter mapping, and every gateway tool has routing
@@ -87,6 +88,14 @@ Git history. The removed run journals are backed up under
 
 ## Blocked native work
 
+- [ ] **Current scanner/provider failure:** the frozen candidate's workflow session terminated with
+  `C0000409` / corrupt-list-entry fast-fail, and a separate diagnostic observed a negative provider stack top.
+  The matching dump has no validated caller stack. A reviewed, isolated diagnostic capture subsequently
+  recorded 2,344 healthy observations with no overflow; this is non-reproduction, not a cause or fix.
+  Preserve its raw trace and the failed receipts. Do not repeat an unchanged diagnostic.
+- [ ] **Plugin re-enable qualification:** disable produced the SDK callback, but enable was acknowledged
+  without a second enable callback or discovery identity. The harness now checks the owned Settings
+  checkbox after reload, toggle and apply; native verification of the repaired harness remains required.
 - [ ] **Historical provider-state failure:** establish the cause of the old `-101889`
   state. Resume only with new evidence containing the provider pointer, thread IDs,
   Lua state identity/generation and raw fields, alongside healthy-state calibration.
@@ -116,8 +125,9 @@ Git history. The removed run journals are backed up under
   restart and cleanup cases against those exact binaries, excluding the six deferred kernel
   operations above. Never pool different candidates.
 - [x] Regenerate the checkpoint per-tool report and reconcile documentation from passing receipts,
-  retaining failed-session observations separately. The `e0420ee` report has 22 verified tools;
-  its 31 failed-session observations are not passing qualifications.
+  retaining failed-session observations separately. The resumed `e0420ee` report has 154 verified tools,
+  15 failed-session observations and 38 unverified tools; 47 of 201 required tools remain unqualified.
+  Failed-session observations are not passing qualifications.
   Keep the whole-catalog `nativeQualificationComplete=false` while any native case remains
   unqualified, including deferred cases. Record the accepted 2.0 limitation separately from
   the results of its required native cases.

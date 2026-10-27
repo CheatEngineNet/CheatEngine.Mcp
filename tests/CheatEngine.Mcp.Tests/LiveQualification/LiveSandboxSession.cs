@@ -50,6 +50,7 @@ internal sealed partial class LiveSandboxSession : IAsyncDisposable
 		_options = options;
 		_report["schema"] = "cheatengine-mcp-live-multi-instance/v1";
 		_report["runId"] = layout.RunId;
+		_report["diagnosticOnly"] = options.DispatchDiagnostic || options.DebuggerTransitionDiagnostic;
 		InstanceDirectory = Path.Combine(layout.RunDirectory, "instances");
 		GatewayExecutablePath = Path.Combine(layout.RunDirectory, "gateway", "CheatEngine.Mcp.Gateway.exe");
 	}

@@ -135,6 +135,32 @@ public sealed class AllToolQualificationReportTests
 	}
 
 	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task Report_LegacyDispatchDiagnosticMarkerWithoutTrueFlag_RemainsDiagnosticOnly(bool writesFalseFlag)
+	{
+		await using ReportFixture fixture = new();
+		JsonObject summaryFields = new()
+		{
+			["dispatch_diagnostic_case"] = new JsonObject
+			{
+				["case"] = "NamedScanThenAob",
+				["step"] = "completed"
+			}
+		};
+		string summary = fixture.CreateSession("legacy-dispatch-diagnostic", ["all_tools_dotnet_get_type"],
+			diagnosticOnly: writesFalseFlag ? false : null, additionalSummaryFields: summaryFields);
+
+		RunResult run = await fixture.RunAsync(summary);
+
+		Assert.Equal(0, run.ExitCode);
+		JsonObject tool = Tool(fixture.ReadReport(), "dotnet_get_type");
+		Assert.Equal("diagnostic_only", tool["live"]!.GetValue<string>());
+		Assert.False(tool["liveEvidence"]!["sessions"]![0]!["passed"]!.GetValue<bool>());
+		Assert.True(tool["liveEvidence"]!["sessions"]![0]!["diagnosticOnly"]!.GetValue<bool>());
+	}
+
+	[Theory]
 	[InlineData("duplicate path", "Duplicate live summary path")]
 	[InlineData("duplicate run", "Duplicate live runId")]
 	[InlineData("product mismatch", "different candidate bundles")]
@@ -255,8 +281,8 @@ public sealed class AllToolQualificationReportTests
 		}
 
 		internal string CreateSession(string runId, IReadOnlyList<string> receipts, bool passed = true,
-			bool diagnosticOnly = false, string productVersion = "2.0.0", string? pluginSha256 = null,
-			string? gatewaySha256 = null)
+			bool? diagnosticOnly = false, string productVersion = "2.0.0", string? pluginSha256 = null,
+			string? gatewaySha256 = null, JsonObject? additionalSummaryFields = null)
 		{
 			string directory = Path.Combine(_root, runId + "-" + Guid.NewGuid().ToString("N"));
 			Directory.CreateDirectory(directory);
@@ -268,7 +294,6 @@ public sealed class AllToolQualificationReportTests
 				["userStateRestored"] = true,
 				["sourceInstallationUnchanged"] = true,
 				["cleanupFailures"] = new JsonArray(),
-				["diagnosticOnly"] = diagnosticOnly,
 				["selected_distribution"] = new JsonObject
 				{
 					["productVersion"] = productVersion,
@@ -277,6 +302,17 @@ public sealed class AllToolQualificationReportTests
 				},
 				["host"] = new JsonObject()
 			};
+			if (diagnosticOnly is { } isDiagnostic)
+			{
+				summary["diagnosticOnly"] = isDiagnostic;
+			}
+			if (additionalSummaryFields is not null)
+			{
+				foreach ((string name, JsonNode? value) in additionalSummaryFields)
+				{
+					summary[name] = value?.DeepClone();
+				}
+			}
 			string summaryPath = Path.Combine(directory, "summary.json");
 			File.WriteAllText(summaryPath, summary.ToJsonString());
 			File.WriteAllLines(Path.Combine(directory, "receipts.jsonl"), receipts.Select(static name =>

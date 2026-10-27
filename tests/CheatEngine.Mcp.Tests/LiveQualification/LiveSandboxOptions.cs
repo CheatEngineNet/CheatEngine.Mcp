@@ -108,6 +108,8 @@ internal sealed record LiveSandboxOptions(bool CompilerQualification, bool Enabl
 			or LiveQualificationScenario.CompilerInjection;
 		bool injection = scenario == LiveQualificationScenario.CompilerInjection;
 		bool extended = scenario == LiveQualificationScenario.CompilerExtended;
+		bool startupSeed = scenario is LiveQualificationScenario.PluginLifecycle or LiveQualificationScenario.PluginLifecycleActive
+			|| (extended && Variant == LiveCompilerVariant.HeldExportAfterB);
 		bool execution = scenario == LiveQualificationScenario.Execution;
 		bool symbolFixture = scenario == LiveQualificationScenario.SymbolFixture;
 		bool symbolSources = scenario == LiveQualificationScenario.SymbolSources;
@@ -134,7 +136,7 @@ internal sealed record LiveSandboxOptions(bool CompilerQualification, bool Enabl
 			&& (!symbolSources || (EnableTargetCodeExecution && !CompilerQualification && !EnableManagedInjection && !SymbolFixtureQualification))
 			&& (!injection || EnableTargetCodeExecution)
 			&& LifecycleQualification == (scenario is LiveQualificationScenario.Lifecycle or LiveQualificationScenario.PluginLifecycle or LiveQualificationScenario.PluginLifecycleActive)
-			&& SeedPluginChecklistAtStartup == (scenario is LiveQualificationScenario.PluginLifecycle or LiveQualificationScenario.PluginLifecycleActive)
+			&& SeedPluginChecklistAtStartup == startupSeed
 			&& ActivePluginLifecycleQualification == activePluginLifecycle
 			&& WorkflowQualification == (scenario == LiveQualificationScenario.Workflows)
 			&& InspectionQualification == (scenario == LiveQualificationScenario.Inspection)
