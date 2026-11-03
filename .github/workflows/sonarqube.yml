@@ -10,6 +10,8 @@ permissions:
 jobs:
   build:
     name: Build and analyze
+    # Dependabot PRs have no Actions secrets. Analyze the merged code on main.
+    if: github.event_name != 'pull_request' || github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: windows-latest
     env:
       SONAR_SCANNER_VERSION: "12.0.0"
