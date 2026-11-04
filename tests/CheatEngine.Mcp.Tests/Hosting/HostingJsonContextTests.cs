@@ -31,7 +31,9 @@ public sealed class HostingJsonContextTests
 
 	private const string ListJson =
 		"{\"instances\":[{\"instanceId\":\"" + InstanceId + "\",\"name\":\"" + EscapedName + "\","
-		+ "\"processId\":4242,\"pluginVersion\":\"2.0.0.0\"}],\"discoveryIncomplete\":true}";
+		+ "\"processId\":4242,\"pluginVersion\":\"2.0.0.0\"}],\"discoveryIncomplete\":true,"
+		+ "\"diagnostics\":{\"registryStatus\":\"ready\",\"recordsFound\":8,\"candidates\":3,\"rejectedRecords\":2,"
+		+ "\"expiredRecords\":2,\"unobservableProcesses\":1,\"unavailableInstances\":1,\"pendingInstances\":1}}";
 
 	private static readonly InstanceDescriptor Descriptor = new(InstanceId, "Cheat Engine <main> & \"\u00E9\"",
 		Guid.Parse("01234567-89ab-cdef-0123-456789abcdef"), 4242, 638000000000000000, "http://127.0.0.1:40001/",
@@ -64,7 +66,8 @@ public sealed class HostingJsonContextTests
 	public void InstanceListResult_SourceGeneratedJson_KeepsTheInstanceListShape()
 	{
 		InstanceListResult result = new(
-			[new InstanceListEntry(InstanceId, Descriptor.Name, Descriptor.ProcessId, Descriptor.PluginVersion)], true);
+			[new InstanceListEntry(InstanceId, Descriptor.Name, Descriptor.ProcessId, Descriptor.PluginVersion)], true,
+			CreateDiagnostics());
 
 		Assert.Equal(ListJson,
 			JsonSerializer.SerializeToElement(result, HostingJsonContext.Default.InstanceListResult).GetRawText());
@@ -95,12 +98,27 @@ public sealed class HostingJsonContextTests
 		string list = JsonSerializer.Serialize(new
 		{
 			instances = entries,
-			discoveryIncomplete = true
+			discoveryIncomplete = true,
+			diagnostics = CreateDiagnostics()
 		}, reflection);
 
 		Assert.Equal(DescriptorJson, descriptor);
 		Assert.Equal(IdentityJson, identity);
 		Assert.Equal(ListJson, list);
+	}
+
+	private static InstanceDiscoveryDiagnostics CreateDiagnostics()
+	{
+		return new InstanceDiscoveryDiagnostics
+		{
+			RecordsFound = 8,
+			Candidates = 3,
+			RejectedRecords = 2,
+			ExpiredRecords = 2,
+			UnobservableProcesses = 1,
+			UnavailableInstances = 1,
+			PendingInstances = 1
+		};
 	}
 
 	[Fact]

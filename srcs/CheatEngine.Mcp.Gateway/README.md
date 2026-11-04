@@ -35,6 +35,7 @@ The composed server instructions, static knowledge documents, workflow bodies, a
 The gateway offers instance_list as its local tool.
 It verifies active registry candidates and returns the available instance IDs, names, Cheat Engine process IDs, and plugin versions.
 The result excludes discovery tokens and backend endpoints.
+Aggregate diagnostics distinguish a missing or unreadable registry, rejected or expired records, and unavailable or unfinished backend verification.
 
 Every composed backend tool has a required instanceId argument added by the gateway.
 For a routed call, the gateway reads the current registry, checks the authenticated /instance identity endpoint, connects to that exact backend, removes instanceId, and forwards the request once.
@@ -55,7 +56,8 @@ It rewrites returned live resource URIs back into gateway form.
 ### Timeouts and connection reuse
 
 The default routed-call timeout is 45 seconds.
-When it expires, the gateway evicts the pooled client and reports a timeout with an unknown host effect.
+It covers registry lookup, identity verification, connection setup and forwarding, including live-resource reads.
+Expiry before forwarding reports a timeout with not_started; expiry after forwarding evicts the pooled client and reports an unknown host effect.
 It does not issue a second call.
 
 The backend-client pool uses one stateless MCP client for a verified record.

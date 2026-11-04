@@ -25,7 +25,7 @@ public sealed class GatewayToolCatalogTests
 		Assert.False(annotations.OpenWorldHint);
 		JsonElement output = tool.OutputSchema!.Value;
 		Assert.Equal("object", output.GetProperty("type").GetString());
-		Assert.Equal(["discoveryIncomplete", "instances"],
+		Assert.Equal(["diagnostics", "discoveryIncomplete", "instances"],
 			output.GetProperty("properties").EnumerateObject().Select(static property => property.Name)
 				.Order(StringComparer.Ordinal));
 		Assert.Empty(tool.InputSchema.GetProperty("properties").EnumerateObject());

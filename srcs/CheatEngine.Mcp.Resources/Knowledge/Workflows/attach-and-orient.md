@@ -51,6 +51,7 @@ when it is not given, choose it with the user), classify its runtime and report 
 
 ## Pitfalls
 
+- Empty gateway discovery: inspect `instance_list.diagnostics`.
 - `instance_list.processId` is Cheat Engine's own PID, not the game's.
 - Two Cheat Engine instances attached to one game share its memory, and their changes collide.
 - After an attach, `symbol_find.symbolsLoaded` false means Cheat Engine is still loading symbols or listing IL2CPP

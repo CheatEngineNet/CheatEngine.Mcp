@@ -110,10 +110,12 @@ internal sealed partial class GatewayResourceRouter(
 				"such as ?offset=0&limit=10.", version);
 		}
 
+		using CancellationTokenSource deadline = GatewayForwardingPolicy.CreateDeadline(options.CallTimeout,
+			cancellationToken);
 		BackendConnectionPool.BackendLease lease;
 		try
 		{
-			lease = await connector.ConnectAsync(instanceId, cancellationToken).ConfigureAwait(false);
+			lease = await connector.ConnectAsync(instanceId, deadline.Token).ConfigureAwait(false);
 		}
 		catch (GatewayRoutingException exception)
 		{
@@ -122,11 +124,22 @@ internal sealed partial class GatewayResourceRouter(
 				$"Cheat Engine instance '{instanceId}' is unavailable: {exception.Message}", ToolHostEffect.NotStarted,
 				GatewayErrors.RediscoverHint, version);
 		}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+		{
+			throw;
+		}
+		catch (OperationCanceledException) when (deadline.IsCancellationRequested)
+		{
+			LogUnavailable(logger, instanceId, "read timeout before forwarding");
+			throw GatewayErrors.ResourceFailure(ToolErrorKind.Timeout,
+				$"Cheat Engine instance '{instanceId}' was not ready within {options.CallTimeout.TotalSeconds:0} s; the resource read was not sent.",
+				ToolHostEffect.NotStarted, GatewayErrors.RediscoverHint, version);
+		}
 
 		using (lease)
 		{
 			ReadResourceResult result = await ForwardAsync(lease, context.Params!, backendUri, instanceId, version,
-				cancellationToken).ConfigureAwait(false);
+				cancellationToken, deadline.Token).ConfigureAwait(false);
 			foreach (ResourceContents contents in result.Contents)
 			{
 				contents.Uri = McpResourceUris.RewriteContentUri(contents.Uri, instanceId);
@@ -138,23 +151,21 @@ internal sealed partial class GatewayResourceRouter(
 
 	private async Task<ReadResourceResult> ForwardAsync(BackendConnectionPool.BackendLease lease,
 		ReadResourceRequestParams request, string backendUri, string instanceId, string? version,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken, CancellationToken deadlineToken)
 	{
 		ReadResourceRequestParams forwarded = new()
 		{
 			Uri = backendUri,
 			Meta = GatewayMeta.ForBackend(request.Meta)
 		};
-		using CancellationTokenSource deadline = GatewayForwardingPolicy.CreateDeadline(options.CallTimeout,
-			cancellationToken);
 		try
 		{
-			return await lease.Client.ReadResourceAsync(forwarded, deadline.Token).ConfigureAwait(false);
+			return await lease.Client.ReadResourceAsync(forwarded, deadlineToken).ConfigureAwait(false);
 		}
 		catch (Exception exception)
 		{
 			GatewayForwardingOutcome outcome = GatewayForwardingPolicy.Classify(exception, cancellationToken,
-				deadline.Token);
+				deadlineToken);
 			switch (outcome.Kind)
 			{
 				case GatewayForwardingFailureKind.CallerCancelled:

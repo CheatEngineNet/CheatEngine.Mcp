@@ -146,6 +146,7 @@ An invalid schema therefore prevents the gateway from accepting a client connect
 
 GatewayToolCatalog derives every backend tool from the shared manifest and adds a required string instanceId as the first input property.
 The gateway owns instance_list, which has no instanceId and returns only verified instance IDs, display names, Cheat Engine process IDs, and plugin versions.
+Its diagnostics report registry availability and aggregate counts of rejected, expired, unobservable, unavailable and pending candidates without exposing record contents or paths.
 
 For every other tool call, GatewayRouter:
 
@@ -163,6 +164,8 @@ The upstream client independently negotiates its own protocol version with the g
 
 Gateway failures distinguish between a call that never reached the selected backend and a call whose final host effect is unknown.
 The router never falls back to another instance and never retries a call.
+The configured call deadline covers registry lookup, identity verification, connection setup and forwarding for both tools and live-resource reads.
+Deadline expiry before forwarding reports timeout with not_started; expiry after forwarding reports unknown.
 
 ### Connection pool
 

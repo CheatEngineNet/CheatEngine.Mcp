@@ -151,7 +151,7 @@ A remote or browser-only client needs a Windows-local component capable of launc
 Ask the client to **list Cheat Engine instances and inspect the selected target without changing memory**.
 The intended call sequence is:
 
-1. `instance_list()` returns verified plugin instances with `instanceId`, display name, Cheat Engine process ID, and plugin version.
+1. `instance_list()` returns verified plugin instances with `instanceId`, display name, Cheat Engine process ID, and plugin version, plus aggregate diagnostics for missing or rejected instances.
 2. Choose the intended instance and pass its exact `instanceId` to `runtime_get_info` and `runtime_get_overview`.
 3. Check whether Cheat Engine has a target process open.
    The instance's `processId` is Cheat Engine's PID; the target has its own PID.
@@ -231,6 +231,8 @@ See the [configuration reference](srcs/CheatEngine.Mcp.Resources/Knowledge/Docum
 | `MCP_GATEWAY_CALL_TIMEOUT_SECONDS` | Gateway | Set a routed-call timeout from 5 to 3600 seconds; default 45. |
 
 The gateway also accepts `--instance-directory <absolute path>` and `--call-timeout-seconds <5..3600>`.
+The call timeout includes discovery lookup, identity verification, connection setup and forwarding.
+A timeout before forwarding reports `not_started`; after forwarding the host effect is `unknown` and the gateway never replays the operation.
 Arguments override its environment variables.
 If you move the registry, set `MCP_INSTANCE_DIRECTORY` for both the Cheat Engine and AI-client processes, or pass the matching directory to the gateway.
 Do not set it to an empty value.

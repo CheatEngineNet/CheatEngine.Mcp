@@ -207,7 +207,9 @@ public sealed class GatewayServerTests
 		Assert.Equal(
 			"{\"instances\":[{\"instanceId\":\"" + backend.Descriptor.InstanceId + "\",\"name\":\"listed\"," +
 			"\"processId\":" + backend.Descriptor.ProcessId + ",\"pluginVersion\":\"2.0.0\"}]," +
-			"\"discoveryIncomplete\":false}", structured);
+			"\"discoveryIncomplete\":false,\"diagnostics\":{\"registryStatus\":\"ready\",\"recordsFound\":1," +
+			"\"candidates\":1,\"rejectedRecords\":0,\"expiredRecords\":0,\"unobservableProcesses\":0," +
+			"\"unavailableInstances\":0,\"pendingInstances\":0}}", structured);
 	}
 
 	[Fact]
@@ -264,6 +266,90 @@ public sealed class GatewayServerTests
 		await CallJsonAsync(client, "runtime_get_info", backend.RoutedArguments());
 		Assert.Equal(2, backend.ForwardedCallCount);
 		Assert.Equal(2, backend.InitializeCount);
+	}
+
+	[Theory]
+	[InlineData(true)]
+	[InlineData(false)]
+	public async Task CallTool_PreForwardIdentityOrInitializeDelay_ReturnsTimeoutNotStartedWithoutForwarding(bool identity)
+	{
+		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync(TimeSpan.FromSeconds(1));
+		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "delayed");
+		await using McpClient client = await gateway.ConnectAsync();
+		if (identity)
+		{
+			backend.BlockIdentity();
+		}
+		else
+		{
+			backend.BlockInitialize();
+		}
+
+		Task<CallToolResult> call = client.CallToolAsync("runtime_get_info", backend.RoutedArguments(),
+			cancellationToken: TestContext.Current.CancellationToken).AsTask();
+		await (identity ? backend.IdentityRequested : backend.InitializeRequested)
+			.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+		CallToolResult result = await call.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+		ToolError error = AssertEnvelope(result, ToolErrorKind.Timeout, ToolHostEffect.NotStarted);
+		Assert.Contains("not sent", error.Message, StringComparison.Ordinal);
+		Assert.Contains(CheatEngineToolNames.InstanceList, error.Hint, StringComparison.Ordinal);
+		Assert.Equal(0, backend.ForwardedCallCount);
+		if (identity)
+		{
+			Assert.Equal(1, backend.IdentityProbeCount);
+			backend.ReleaseIdentity();
+		}
+		else
+		{
+			Assert.Equal(1, backend.InitializeCount);
+			backend.ReleaseInitialize();
+		}
+
+		await CallJsonAsync(client, "runtime_get_info", backend.RoutedArguments());
+		Assert.Equal(1, backend.ForwardedCallCount);
+	}
+
+	[Fact]
+	public async Task CallTool_IdentityDelayThenForward_UsesTheRemainingCallBudget()
+	{
+		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync(TimeSpan.FromSeconds(6));
+		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "cumulative-budget");
+		await using McpClient client = await gateway.ConnectAsync();
+		backend.BlockIdentity();
+		backend.HangUntilCancelled = true;
+
+		Task<CallToolResult> call = client.CallToolAsync("runtime_get_info", backend.RoutedArguments(),
+			cancellationToken: TestContext.Current.CancellationToken).AsTask();
+		await backend.IdentityRequested.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+		await Task.Delay(TimeSpan.FromSeconds(4), TestContext.Current.CancellationToken);
+		backend.ReleaseIdentity();
+		await backend.WaitUntilForwardedAsync(TestContext.Current.CancellationToken)
+			.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+		CallToolResult result = await call.WaitAsync(TimeSpan.FromSeconds(4), TestContext.Current.CancellationToken);
+		AssertEnvelope(result, ToolErrorKind.Timeout, ToolHostEffect.Unknown);
+		Assert.Equal(1, backend.ForwardedCallCount);
+	}
+
+	[Fact]
+	public async Task CallTool_CallerCancellationDuringIdentityVerification_DoesNotForward()
+	{
+		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync(TimeSpan.FromSeconds(10));
+		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "cancelled-before-forward");
+		await using McpClient client = await gateway.ConnectAsync();
+		backend.BlockIdentity();
+		using CancellationTokenSource cancellation = new();
+
+		Task<CallToolResult> call = client.CallToolAsync("runtime_get_info", backend.RoutedArguments(),
+			cancellationToken: cancellation.Token).AsTask();
+		await backend.IdentityRequested.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+		await cancellation.CancelAsync();
+
+		await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await call);
+		Assert.Equal(0, backend.ForwardedCallCount);
+		backend.ReleaseIdentity();
 	}
 
 	[Fact]

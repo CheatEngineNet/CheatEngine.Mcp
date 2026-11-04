@@ -74,6 +74,14 @@ internal static class GatewayErrors
 			"operation may still be running or may have completed.", tool, ToolHostEffect.Unknown, NoReplayHint);
 	}
 
+	/// <summary>The call's deadline expired before the gateway forwarded it to the backend.</summary>
+	internal static CallToolResult ConnectTimeout(string tool, string instanceId, TimeSpan timeout)
+	{
+		return Create(ToolErrorKind.Timeout,
+			$"Cheat Engine instance '{Echo(instanceId)}' was not ready within {timeout.TotalSeconds:0} s; the operation was not sent.",
+			tool, ToolHostEffect.NotStarted, RediscoverHint);
+	}
+
 	/// <summary>A resource URI the gateway does not serve or route: a JSON-RPC not-found error.</summary>
 	/// <param name="uri">The requested URI.</param>
 	/// <param name="hint">What to read instead.</param>

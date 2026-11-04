@@ -23,7 +23,7 @@ leave Cheat Engine (CE) clean. The rules for every session and the index of guid
 1. `instance_list()`: choose by `name` and `processId` (CE's own process id, not the game's); ask when names repeat.
    `discoveryIncomplete` true means the 10-second discovery budget ran out: call again before concluding that an
    instance is missing. An `instanceId` lasts one plugin activation: after a CE restart or a plugin re-enable, list
-   again.
+   again. If the list is empty or partial, inspect `diagnostics` as described in [connection troubleshooting](connection-troubleshooting.md#discovery-and-instance-ids).
 2. `runtime_get_info()`: `hostVersion` (CE), `pluginVersion`, the Client `capabilities` (`name`, `isAvailable`,
    `reason`) and `gates`, one boolean per `Mcp:Enable…` switch (`autoAssembler`, `unsafeLua`, `targetCodeExecution`,
    `kernelAccess`). Tell the user which switches are off before planning work that needs them.

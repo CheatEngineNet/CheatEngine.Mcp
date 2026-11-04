@@ -126,7 +126,12 @@ internal sealed class FakeBackend : IAsyncDisposable
 	private readonly WebApplication _application;
 	private readonly TaskCompletionSource _cancelled = new(TaskCreationOptions.RunContinuationsAsynchronously);
 	private readonly TaskCompletionSource _forwarded = new(TaskCreationOptions.RunContinuationsAsynchronously);
+	private readonly TaskCompletionSource _identityRequested = new(TaskCreationOptions.RunContinuationsAsynchronously);
+	private readonly TaskCompletionSource _initializeRequested = new(TaskCreationOptions.RunContinuationsAsynchronously);
+	private readonly TaskCompletionSource _readRequested = new(TaskCreationOptions.RunContinuationsAsynchronously);
 	private readonly InstanceRegistry _registry;
+	private TaskCompletionSource? _identityGate;
+	private TaskCompletionSource? _initializeGate;
 	private int _forwardedCalls;
 	private int _identityProbes;
 	private int _initializeRequests;
@@ -190,6 +195,13 @@ internal sealed class FakeBackend : IAsyncDisposable
 		set;
 	}
 
+	/// <summary>Whether a forwarded resource read blocks until its request is cancelled.</summary>
+	internal bool HangReadUntilCancelled
+	{
+		get;
+		set;
+	}
+
 	/// <summary>Completes when a hanging call observed its cancellation.</summary>
 	internal Task Cancelled => _cancelled.Task;
 
@@ -215,6 +227,39 @@ internal sealed class FakeBackend : IAsyncDisposable
 
 	/// <summary>How many times <c>/instance</c> was probed.</summary>
 	internal int IdentityProbeCount => Volatile.Read(ref _identityProbes);
+
+	/// <summary>Completes when the backend received an identity request.</summary>
+	internal Task IdentityRequested => _identityRequested.Task;
+
+	/// <summary>Completes when the backend received an initialize request.</summary>
+	internal Task InitializeRequested => _initializeRequested.Task;
+
+	/// <summary>Completes when the backend received a resource read.</summary>
+	internal Task ReadRequested => _readRequested.Task;
+
+	/// <summary>Holds identity responses until the request is cancelled or <see cref="ReleaseIdentity"/> runs.</summary>
+	internal void BlockIdentity()
+	{
+		Volatile.Write(ref _identityGate, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
+	}
+
+	/// <summary>Holds initialize handling until the request is cancelled or <see cref="ReleaseInitialize"/> runs.</summary>
+	internal void BlockInitialize()
+	{
+		Volatile.Write(ref _initializeGate, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
+	}
+
+	/// <summary>Lets a blocked identity response continue.</summary>
+	internal void ReleaseIdentity()
+	{
+		Volatile.Read(ref _identityGate)?.TrySetResult();
+	}
+
+	/// <summary>Lets a blocked initialize request continue.</summary>
+	internal void ReleaseInitialize()
+	{
+		Volatile.Read(ref _initializeGate)?.TrySetResult();
+	}
 
 	/// <summary>
 	///     Replaces the default read result: the backend URI as JSON plus a nested <c>cheatengine://instance/…</c>
@@ -257,8 +302,14 @@ internal sealed class FakeBackend : IAsyncDisposable
 				if (context.JsonRpcMessage is JsonRpcRequest { Method: RequestMethods.Initialize } initialize)
 				{
 					Interlocked.Increment(ref backend!._initializeRequests);
+					backend._initializeRequested.TrySetResult();
 					backend.InitializeProtocolVersions.Enqueue(
 						initialize.Params?["protocolVersion"]?.GetValue<string>() ?? string.Empty);
+					TaskCompletionSource? gate = Volatile.Read(ref backend._initializeGate);
+					if (gate is not null)
+					{
+						await gate.Task.WaitAsync(cancellationToken);
+					}
 				}
 
 				await next(context, cancellationToken);
@@ -266,7 +317,7 @@ internal sealed class FakeBackend : IAsyncDisposable
 			.WithListToolsHandler(static (_, _) => ValueTask.FromResult(new ListToolsResult { Tools = [] }))
 			.WithCallToolHandler((context, cancellationToken) => backend!.ForwardAsync(context.Params!,
 				cancellationToken))
-			.WithReadResourceHandler((context, _) => ValueTask.FromResult(backend!.Read(context.Params!.Uri)));
+			.WithReadResourceHandler((context, cancellationToken) => backend!.ReadAsync(context.Params!.Uri, cancellationToken));
 		WebApplication application = builder.Build();
 		application.Use(async (context, next) =>
 		{
@@ -279,10 +330,17 @@ internal sealed class FakeBackend : IAsyncDisposable
 
 			await next(context);
 		});
-		application.MapGet("/instance", context =>
+		application.MapGet("/instance", async context =>
 		{
 			Interlocked.Increment(ref backend!._identityProbes);
-			return context.Response.WriteAsJsonAsync(InstanceIdentity.From(backend.ReportedIdentity),
+			backend._identityRequested.TrySetResult();
+			TaskCompletionSource? gate = Volatile.Read(ref backend._identityGate);
+			if (gate is not null)
+			{
+				await gate.Task.WaitAsync(context.RequestAborted);
+			}
+
+			await context.Response.WriteAsJsonAsync(InstanceIdentity.From(backend.ReportedIdentity),
 				HostingJsonContext.Default.InstanceIdentity, cancellationToken: context.RequestAborted);
 		});
 		application.MapMcp();
@@ -329,9 +387,15 @@ internal sealed class FakeBackend : IAsyncDisposable
 		}
 	}
 
-	private ReadResourceResult Read(string uri)
+	private async ValueTask<ReadResourceResult> ReadAsync(string uri, CancellationToken cancellationToken)
 	{
 		ReadUris.Enqueue(uri);
+		_readRequested.TrySetResult();
+		if (HangReadUntilCancelled)
+		{
+			await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+		}
+
 		if (RespondToRead is { } respond)
 		{
 			return respond(uri);

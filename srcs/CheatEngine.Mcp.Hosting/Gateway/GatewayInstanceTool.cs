@@ -55,12 +55,14 @@ internal sealed class GatewayInstanceTool
 	public async Task<InstanceListResult> ListAsync(CancellationToken cancellationToken)
 	{
 		InstanceListEntry?[] discovered = [];
+		InstanceDiscoveryDiagnostics diagnostics = new();
+		int unavailable = 0;
 		bool discoveryIncomplete = false;
 		using CancellationTokenSource deadline = new(_discoveryBudget, _time);
 		using CancellationTokenSource operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, deadline.Token);
 		try
 		{
-			InstanceDescriptor[] instances = _registry.ReadActive(operation.Token).ToArray();
+			InstanceDescriptor[] instances = _registry.ReadActive(operation.Token, diagnostics).ToArray();
 			discovered = new InstanceListEntry?[instances.Length];
 			await Parallel.ForEachAsync(Enumerable.Range(0, instances.Length),
 				new ParallelOptions
@@ -71,6 +73,10 @@ internal sealed class GatewayInstanceTool
 				async (index, token) =>
 				{
 					discovered[index] = await ProbeAsync(instances[index], token).ConfigureAwait(false);
+					if (discovered[index] is null)
+					{
+						Interlocked.Increment(ref unavailable);
+					}
 				}).ConfigureAwait(false);
 		}
 		catch (OperationCanceledException) when (deadline.IsCancellationRequested &&
@@ -81,7 +87,10 @@ internal sealed class GatewayInstanceTool
 		}
 
 		cancellationToken.ThrowIfCancellationRequested();
-		return new InstanceListResult(discovered.OfType<InstanceListEntry>().ToArray(), discoveryIncomplete);
+		InstanceListEntry[] verified = discovered.OfType<InstanceListEntry>().ToArray();
+		diagnostics.UnavailableInstances = unavailable;
+		diagnostics.PendingInstances = diagnostics.Candidates - verified.Length - unavailable;
+		return new InstanceListResult(verified, discoveryIncomplete, diagnostics);
 	}
 
 	/// <summary>The tool's protocol metadata, built from <see cref="ListAsync" /> without any instance.</summary>

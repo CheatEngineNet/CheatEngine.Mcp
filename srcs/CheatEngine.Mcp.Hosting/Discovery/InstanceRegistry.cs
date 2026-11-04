@@ -23,24 +23,39 @@ public sealed class InstanceRegistry(string directory)
 		return ReadActive(CancellationToken.None);
 	}
 
-	internal IReadOnlyList<InstanceDescriptor> ReadActive(CancellationToken cancellationToken)
+	internal IReadOnlyList<InstanceDescriptor> ReadActive(CancellationToken cancellationToken,
+		InstanceDiscoveryDiagnostics? diagnostics = null)
 	{
 		cancellationToken.ThrowIfCancellationRequested();
 		string[] paths;
 		try
 		{
-			if (!Directory.Exists(DirectoryPath))
-			{
-				return [];
-			}
-
 			// Materialize while the directory exists: its deletion must be equivalent to no active records, rather than
 			// leaking a transient filesystem error through discovery.
 			paths = [.. Directory.EnumerateFiles(DirectoryPath, "*.json")];
 		}
+		catch (DirectoryNotFoundException)
+		{
+			if (diagnostics is not null)
+			{
+				diagnostics.RegistryStatus = File.Exists(DirectoryPath) ? "unavailable" : "missing";
+			}
+
+			return [];
+		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 		{
+			if (diagnostics is not null)
+			{
+				diagnostics.RegistryStatus = "unavailable";
+			}
+
 			return [];
+		}
+
+		if (diagnostics is not null)
+		{
+			diagnostics.RecordsFound = paths.Length;
 		}
 
 		List<InstanceDescriptor> instances = [];
@@ -53,6 +68,11 @@ public sealed class InstanceRegistry(string directory)
 					FileShare.ReadWrite | FileShare.Delete);
 				if (file.Length > 16384)
 				{
+					if (diagnostics is not null)
+					{
+						diagnostics.RejectedRecords++;
+					}
+
 					continue;
 				}
 
@@ -62,6 +82,11 @@ public sealed class InstanceRegistry(string directory)
 									 || !string.Equals(Path.GetFileNameWithoutExtension(path),
 										 instance.ActivationId.ToString("N"), StringComparison.Ordinal))
 				{
+					if (diagnostics is not null)
+					{
+						diagnostics.RejectedRecords++;
+					}
+
 					continue;
 				}
 
@@ -69,15 +94,36 @@ public sealed class InstanceRegistry(string directory)
 				{
 					case ProcessLiveness.Alive:
 						instances.Add(instance);
+						if (diagnostics is not null)
+						{
+							diagnostics.Candidates++;
+						}
+
 						break;
 					case ProcessLiveness.Expired:
+						if (diagnostics is not null)
+						{
+							diagnostics.ExpiredRecords++;
+						}
+
 						DeleteExpiredRecord(path, instance);
+						break;
+					case ProcessLiveness.Unknown:
+						if (diagnostics is not null)
+						{
+							diagnostics.UnobservableProcesses++;
+						}
+
 						break;
 				}
 			}
 			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
 			{
 				// A publisher may disappear mid-read. Malformed records are not connection instructions.
+				if (diagnostics is not null)
+				{
+					diagnostics.RejectedRecords++;
+				}
 			}
 		}
 

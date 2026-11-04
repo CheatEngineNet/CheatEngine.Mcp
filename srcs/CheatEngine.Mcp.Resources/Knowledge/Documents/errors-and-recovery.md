@@ -1,10 +1,7 @@
 # Failure kinds and recovery
 
-Read this page when a tool call returns `isError`, a resource or prompt read fails, or a call times out. It explains
-the error envelope, every failure kind with its next step, and how to recover without repeating a side effect. Session
-rules are in [workflows](workflows.md) and consent in [safety](safety.md); the
-[explain_error](../Workflows/explain-error.md) prompt walks through one failure, and
-[cleanup_session](../Workflows/cleanup-session.md) releases what a session owns.
+Error kinds, host effects and recovery without replaying side effects.
+See [workflows](workflows.md), [safety](safety.md), [explain_error](../Workflows/explain-error.md) and [cleanup_session](../Workflows/cleanup-session.md).
 
 ## Decide the next step
 
@@ -69,7 +66,7 @@ Not every negative answer is a failure. Check these fields in successful results
 | `not_found` | Unknown or expired id, name, symbol, module or address: a stopped job or one past its lifetime (`Mcp:Execution:JobDefaultTtlSeconds`, 120 s by default, 300 s at most), a released patch, a deleted record or scanner, a symbol this activation did not register, an id of an earlier activation. | List the current items and use a fresh id. Never read it as success. |
 | `not_attached` | No target process is selected; for a `mono_` or `dotnet_` tool, also no attached (or an aborted) Mono or .NET data collector. | `process_list`, then `process_attach` the target the user authorized; for Mono, `mono_get_status` and, with consent, `mono_attach`. |
 | `busy` | Something competes: the main scan runs, owned resources block `debugger_detach` or a target change (orphans too), a snapshot, rescan or code dissect still runs, nested first scans disagree on `scan_first.includeMapped`, the target is paused or stopped where a call must run code in it or read .NET data, or the activation is at `Mcp:Execution:MaxConcurrentDispatches` (4) or `Mcp:Execution:MaxJobs` (16). | Wait or poll, stop the scan (`scan_stop`) or a job, or release resources with consent; repeat once when `retryable`. |
-| `timeout` | A deadline passed. At the gateway the outcome is `unknown`; a bounded read past its dispatch budget reports `completed` (see Timeouts below). | Never repeat a mutation; read the state. Narrow a read and repeat it. |
+| `timeout` | Gateway deadline: `not_started` before forwarding, `unknown` afterward. Bounded read: `completed`. | Rediscover after `not_started`; inspect before repeating mutations after `unknown`; narrow bounded reads. |
 | `cancelled` | A cancellation was observed before the operation completed. | Repeat only after `not_started` or `not_applied` (then it is `retryable`). |
 | `capability_disabled` | An `Mcp:Enable...` switch named in the message is off; nothing ran (`runtime_get_info.gates` shows all four). Some tools need it only for some arguments or content, such as `debugger_attach` with VEH or kernel, or `table_load`. | Tell the user; only they change it, then disable and re-enable the plugin ([configuration](configuration.md)). Never work around it. |
 | `unsupported` | This CE build, target or runtime cannot do it: a missing CE API or extension (DBVM, Mono, the scan-region override), a speedhack on a non-x86/x64 target, no .NET runtime, a generic or array Mono object, a debugger MCP cannot drive (DBVM, GDB server, ceserver); also `asm_check` on a script that needs more than the Auto Assembler switch, uses `globalalloc` or a Lua `$` token. | Do not retry; choose another approach. `runtime_get_info` lists the Client capabilities. After a `debugger_attach` refusal with `completed`, detach the debugger. |
@@ -151,10 +148,9 @@ matches no resource at all can come back from the protocol library without `data
 
 ## Timeouts, cancellation and lost connections
 
-- The gateway waits 45 s per tool call or resource read by default (`--call-timeout-seconds` or
-  `MCP_GATEWAY_CALL_TIMEOUT_SECONDS`, 5 to 3600, set by the user), a CE dialog waiting for the user included, then
-  returns `timeout` with `hostEffect: unknown`. The backend may still run or have finished the operation. The gateway
-  never sends the call again, and never to another instance.
+- The gateway's 45 s deadline (`--call-timeout-seconds` or `MCP_GATEWAY_CALL_TIMEOUT_SECONDS`, 5-3600) covers
+  identity checks, connection setup and forwarding, including dialogs. Timeout reports `not_started` before sending,
+  otherwise `unknown`: the backend may still run or have finished. The gateway never replays or redirects the call.
 - After an unknown outcome, read the state on the same instance (`process_get_current`, `runtime_list_resources`,
   `runtime_list_jobs`, and a read of what the call would change) and decide with the user.
 - `code_find_references`, `code_find_strings` and `lua_find_api` fail with `timeout` and `completed` when they run past

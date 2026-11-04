@@ -48,8 +48,8 @@ public sealed class GatewayOptions
 	}
 
 	/// <summary>
-	///     How long the gateway waits for one routed tool call. When it expires the call is reported as a timeout with an
-	///     unknown host effect and is never sent again.
+	///     How long one routed tool call or resource read may take, including identity verification and connection setup.
+	///     Expiry before forwarding reports not_started; after forwarding it reports unknown. The call is never replayed.
 	/// </summary>
 	public TimeSpan CallTimeout
 	{

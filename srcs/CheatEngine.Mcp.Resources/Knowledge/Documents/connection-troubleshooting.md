@@ -83,24 +83,19 @@ that a backend is healthy. Restart the client session when new tools do not appe
 ## Discovery and instance ids
 
 - **The result.** `instance_list()` returns `instances` (`instanceId`, `name`, `processId`, `pluginVersion`), ordered by
-  name, and `discoveryIncomplete`. The `processId` is CE's own process, not the target's; an instance is listed with or
+  name, `discoveryIncomplete` and `diagnostics`. The `processId` is CE's own process, not the target's; an instance is listed with or
   without a target.
-- **What is listed.** Only backends that answer and confirm the identity in their record. Records of a CE that closed
-  or crashed are ignored: the gateway checks the process id and start time. Every routed call checks the identity
-  again.
+- **What is listed.** Backends with matching process identity and a verified response; every routed call verifies again.
 - **Incomplete discovery.** `discoveryIncomplete: true` means that the 10-second budget ran out. Call `instance_list()`
   again before you conclude that an instance is missing.
+- **Diagnostics.** `diagnostics.registryStatus` is `ready`, `missing` or `unavailable`; an empty readable registry has zero `recordsFound`.
+  Counts distinguish rejected/expired records, uninspectable processes and failed/pending backend checks, without exposing paths, endpoints or credentials.
 - **Lifetime.** An `instanceId` (`ce-<CE process id>-<32 hex digits>`) lasts one plugin activation; a re-enable or a
   CE restart creates a new one. There is no default instance.
 - **Names** may repeat (default `Cheat Engine <CE process id>`). Choose by `processId`, or ask the user.
-- **As resources.** `cheatengine://instances` returns the same list. Once the gateway has confirmed an instance in this
-  session (through `instance_list()`, a read of `cheatengine://instances`, or a routed call or read), its resource list
-  also shows that instance's concrete live resources: runtime, process, threads, jobs, resources, patches, speedhack,
-  scanners, debugger, pointer maps and pointer scans, such as `cheatengine://instances/{instanceId}/runtime` with the
-  real id. Each is titled `<title> (CE '<name>', pid <CE process id>)` and is never cached. The parameterised ones
-  (modules, memory, records, structures and others) stay in the template list. About 1-2 s after an instance appears,
-  goes away or restarts, the gateway sends `notifications/resources/list_changed` to a client that has listed
-  resources.
+- **As resources.** `cheatengine://instances` returns the same list and diagnostics.
+  Verified instances expose uncached live resources under `cheatengine://instances/{instanceId}/`; parameterised resources remain templates.
+  Discovery changes trigger `notifications/resources/list_changed` after about 1-2 s for clients that listed resources.
 - **Completion.** In a client's template picker, `{instanceId}` offers only instances verified in the last 10 s, so
   call `instance_list()` first if it offers nothing. `{module}`, `{structure}`, `{scannerName}` and `{scanName}` then
   complete from the chosen instance. A completion never contacts an unverified instance and offers nothing on any
@@ -128,6 +123,8 @@ that a backend is healthy. Restart the client session when new tools do not appe
   `MCP_INSTANCE_DIRECTORY`) must use the same registry directory. A running process does not see an environment
   variable set after it started.
 - If `discoveryIncomplete` is true, call `instance_list()` again.
+- `diagnostics.registryStatus` `missing`: check directory settings and activation; `unavailable`: check directory access.
+  Nonzero `unavailableInstances`: check plugin status and rediscover.
 
 **Only one of several CE processes appears**
 
@@ -161,8 +158,10 @@ that a backend is healthy. Restart the client session when new tools do not appe
 **`timeout`**
 
 - From the gateway: the call outlasted its call timeout, 45 s by default, set with `--call-timeout-seconds` or
-  `MCP_GATEWAY_CALL_TIMEOUT_SECONDS` (5-3600). The error has `hostEffect` `unknown`, is not `retryable` and is never
-  resent: the operation may still be running or may have completed. A resource read that times out changed nothing;
+  `MCP_GATEWAY_CALL_TIMEOUT_SECONDS` (5-3600), including identity verification and connection setup.
+  Before forwarding, `hostEffect` is `not_started`: rediscover before deciding whether to try again.
+  After forwarding it is `unknown`: the operation may still be running or may have completed.
+  Neither timeout is automatically retried. A resource read that times out changed nothing;
   read it again once the instance answers.
 - With `hostEffect` `completed`, a bounded read stopped at its budget and changed nothing. Narrow it and read again.
 - Ask the user to look for an open CE dialog. The tool's `_meta` `cheatengine/dispatchClass` tells what to expect:

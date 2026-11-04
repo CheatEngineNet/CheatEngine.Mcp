@@ -253,6 +253,81 @@ public sealed class GatewayResourceTests
 	}
 
 	[Theory]
+	[InlineData(true)]
+	[InlineData(false)]
+	public async Task ReadResource_PreForwardIdentityOrInitializeDelay_ReturnsTimeoutNotStartedWithoutForwarding(bool identity)
+	{
+		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync(TimeSpan.FromSeconds(1),
+			extraPrimitives: RoutedProbe);
+		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "delayed");
+		await using McpClient client = await gateway.ConnectAsync();
+		if (identity)
+		{
+			backend.BlockIdentity();
+		}
+		else
+		{
+			backend.BlockInitialize();
+		}
+
+		string uri = $"cheatengine://instances/{backend.Descriptor.InstanceId}/probes/alpha";
+		Task<ReadResourceResult> read = client.ReadResourceAsync(uri,
+			cancellationToken: TestContext.Current.CancellationToken).AsTask();
+		await (identity ? backend.IdentityRequested : backend.InitializeRequested)
+			.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+		McpProtocolException failure = await Assert.ThrowsAsync<McpProtocolException>(async () =>
+			await read.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
+
+		Assert.Equal(McpErrorCode.InternalError, failure.ErrorCode);
+		Assert.Equal("timeout", failure.Data["kind"]);
+		Assert.Equal("not_started", failure.Data["hostEffect"]);
+		Assert.Contains(CheatEngineToolNames.InstanceList, Assert.IsType<string>(failure.Data["hint"]),
+			StringComparison.Ordinal);
+		Assert.Empty(backend.ReadUris);
+		if (identity)
+		{
+			Assert.Equal(1, backend.IdentityProbeCount);
+			backend.ReleaseIdentity();
+		}
+		else
+		{
+			Assert.Equal(1, backend.InitializeCount);
+			backend.ReleaseInitialize();
+		}
+
+		ReadResourceResult recovered = await client.ReadResourceAsync(uri,
+			cancellationToken: TestContext.Current.CancellationToken);
+		Assert.NotEmpty(recovered.Contents);
+		Assert.Single(backend.ReadUris);
+	}
+
+	[Fact]
+	public async Task ReadResource_IdentityDelayThenForward_UsesTheRemainingCallBudget()
+	{
+		await using GatewayTestHost gateway = await GatewayTestHost.StartAsync(TimeSpan.FromSeconds(6),
+			extraPrimitives: RoutedProbe);
+		await using FakeBackend backend = await FakeBackend.StartAsync(gateway.Registry, "cumulative-budget");
+		await using McpClient client = await gateway.ConnectAsync();
+		backend.BlockIdentity();
+		backend.HangReadUntilCancelled = true;
+		string uri = $"cheatengine://instances/{backend.Descriptor.InstanceId}/probes/alpha";
+
+		Task<ReadResourceResult> read = client.ReadResourceAsync(uri,
+			cancellationToken: TestContext.Current.CancellationToken).AsTask();
+		await backend.IdentityRequested.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+		await Task.Delay(TimeSpan.FromSeconds(4), TestContext.Current.CancellationToken);
+		backend.ReleaseIdentity();
+		await backend.ReadRequested.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+		McpProtocolException failure = await Assert.ThrowsAsync<McpProtocolException>(async () =>
+			await read.WaitAsync(TimeSpan.FromSeconds(4), TestContext.Current.CancellationToken));
+		Assert.Equal("timeout", failure.Data["kind"]);
+		Assert.Equal("unknown", failure.Data["hostEffect"]);
+		Assert.Single(backend.ReadUris);
+	}
+
+	[Theory]
 	[InlineData("2025-06-18", McpErrorCode.ResourceNotFound)]
 	[InlineData("2026-07-28", McpErrorCode.InvalidParams)]
 	public async Task ReadResource_UnknownPathOrBackendForm_IsNotFoundWithoutContactingTheBackend(string version,

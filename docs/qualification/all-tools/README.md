@@ -7,7 +7,25 @@ and Lua adapter tests do not establish native tool success.
 
 ## Current status
 
-### Frozen 2.0 checkpoint — 2026-10-27
+### Latest recorded 2.0 candidate - 2026-10-27
+
+Source `69e1a43b5e0afcc5a013b6312044f428c1931afb`, Client `bc60c2dfc906b22bb0d2185ca3775142377d03b2`
+and SDK `c8173a7ef45e4e37482a229cb88802f0ee15684e` have a later [per-tool report](../../../artifacts/release-repair-20261027/qualification-final/tool-results.json)
+with **200 verified**, **zero failed-session observations** and **seven unverified** tools.
+Its SHA-256 is `55104203D086E0F25338234FB996D39E2E1461FC0CCD387C161918820BD17012`.
+The [final evidence review](../../../artifacts/release-repair-20261027/final-evidence-review.md) records 19 passing native sessions,
+restored user state, unchanged installed CE files and no cleanup failures on that exact candidate.
+It includes repeated plugin re-enable, active-resource cleanup and compiler reload evidence.
+Portable Debug and Release each passed 6,019 tests, and NativeLua passed 825.
+
+The six deferred kernel/DBVM operations and `symbol_enable_sources` remain unqualified, so `nativeQualificationComplete=false`.
+The approved Sol/high review cleared ordinary qualification only; it was not an Astra run or full native qualification.
+Passing scanner sessions do not explain the historical fast-fail or negative provider state.
+This supersedes the older checkpoint's progress counts below, without erasing its failures.
+Later source or binary candidates do not inherit these receipts, including the November stability fixes.
+The subsequent SDK pin `9322037` has the same source tree as `c8173a7`; it is still a different recorded revision.
+
+### Earlier frozen 2.0 checkpoint - 2026-10-27
 
 The validated checkpoint is source `e0420eea243d2426d240da61bc1bc4f26ac6ae1d`, with Client
 `bc60c2dfc906b22bb0d2185ca3775142377d03b2` and SDK `c8173a7ef45e4e37482a229cb88802f0ee15684e`.

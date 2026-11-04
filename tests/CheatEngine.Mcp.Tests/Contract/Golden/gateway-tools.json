@@ -6521,11 +6521,55 @@
         "discoveryIncomplete": {
           "description": "True when discovery stopped at its 10 s budget; call instance_list again before concluding that an instance is missing.",
           "type": "boolean"
+        },
+        "diagnostics": {
+          "description": "Aggregate discovery outcomes for troubleshooting an empty or partial list; contains no paths, endpoints or credentials.",
+          "type": "object",
+          "properties": {
+            "registryStatus": {
+              "description": "ready when the registry was readable, missing when it does not exist, unavailable when it could not be read.",
+              "type": "string",
+              "enum": [
+                "ready",
+                "missing",
+                "unavailable"
+              ]
+            },
+            "recordsFound": {
+              "description": "Registry files found before inspection; discovery may stop before every file is examined.",
+              "type": "integer"
+            },
+            "candidates": {
+              "description": "Valid records whose process identity was confirmed; only these are eligible for backend verification.",
+              "type": "integer"
+            },
+            "rejectedRecords": {
+              "description": "Malformed, oversized, invalid or unreadable records omitted from this discovery.",
+              "type": "integer"
+            },
+            "expiredRecords": {
+              "description": "Records omitted because their process exited or its start time no longer matches.",
+              "type": "integer"
+            },
+            "unobservableProcesses": {
+              "description": "Records omitted because the process identity could not be inspected; the records were preserved.",
+              "type": "integer"
+            },
+            "unavailableInstances": {
+              "description": "Candidates whose backend was unreachable or did not confirm its identity; no record details are exposed.",
+              "type": "integer"
+            },
+            "pendingInstances": {
+              "description": "Candidates whose backend verification did not finish within this discovery; retry when discoveryIncomplete is true.",
+              "type": "integer"
+            }
+          }
         }
       },
       "required": [
         "instances",
-        "discoveryIncomplete"
+        "discoveryIncomplete",
+        "diagnostics"
       ]
     },
     "annotations": {

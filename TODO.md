@@ -1,6 +1,8 @@
 # Remaining work
 
-Maintenance checkpoint: 2026-10-27. This is the only active checklist.
+Maintenance checkpoint: 2026-11-04. This is the only active checklist.
+The latest recorded native candidate is `69e1a43`, summarized in [current qualification status](docs/qualification/all-tools/README.md#current-status).
+Its later evidence supersedes the older checkpoint's progress counts below; it does not qualify subsequent source changes.
 
 The user requested local release repairs and bounded debugger validation after the cleanup.
 The historical records below remain open where evidence is missing; they are not instructions
@@ -26,6 +28,12 @@ This deferral does not include `symbol_enable_sources` or the other release gate
 
 ## Evidence already recorded
 
+- Candidate **`69e1a43`**: **200 of 207 tools verified** in 19 passing native sessions, with restored state,
+  unchanged installed files and no cleanup failures. Plugin re-enable, active cleanup and compiler reload passed.
+  Debug and Release portable suites each passed **6,019**, and NativeLua passed **825**.
+  The Sol/high final review cleared the approved ordinary scope; it did not claim Astra or full native qualification.
+  The six deferred kernel operations and `symbol_enable_sources` remain open.
+  The [current qualification status](docs/qualification/all-tools/README.md#current-status) links the exact report and review.
 - Frozen source checkpoint **`e0420ee`**: Debug and Release portable suites each passed **6,017**,
   NativeLua **822**, SDK policy **202**, and three Client AOB properties at **1,000 cases each**.
   Both configurations passed zero-warning builds, isolated plugin probes and Native AOT smoke checks;
@@ -88,14 +96,12 @@ Git history. The removed run journals are backed up under
 
 ## Blocked native work
 
-- [ ] **Current scanner/provider failure:** the frozen candidate's workflow session terminated with
+- [ ] **Historical scanner/provider failure:** the earlier `e0420ee` workflow session terminated with
   `C0000409` / corrupt-list-entry fast-fail, and a separate diagnostic observed a negative provider stack top.
   The matching dump has no validated caller stack. A reviewed, isolated diagnostic capture subsequently
   recorded 2,344 healthy observations with no overflow; this is non-reproduction, not a cause or fix.
+  The later `69e1a43` scanner session passed, establishing non-reproduction only.
   Preserve its raw trace and the failed receipts. Do not repeat an unchanged diagnostic.
-- [ ] **Plugin re-enable qualification:** disable produced the SDK callback, but enable was acknowledged
-  without a second enable callback or discovery identity. The harness now checks the owned Settings
-  checkbox after reload, toggle and apply; native verification of the repaired harness remains required.
 - [ ] **Historical provider-state failure:** establish the cause of the old `-101889`
   state. Resume only with new evidence containing the provider pointer, thread IDs,
   Lua state identity/generation and raw fields, alongside healthy-state calibration.
@@ -117,27 +123,32 @@ Git history. The removed run journals are backed up under
   upstream Client `bc60c2d` and SDK `c8173a7`; SDK PR #101 merged with the same tree and preserved ancestry.
   SDK production implementation and ABI did not change in the servicing pass. A later source candidate
   still requires its own clean freeze and verification.
-- [ ] Obtain fresh MCP receipts for the exact CE/SDK tuple. Client's catalog profile still
+- [ ] Obtain fresh MCP receipts for any new candidate's exact CE/SDK tuple. Candidate `69e1a43` has its own passing receipts.
+  Client's catalog profile still
   describes CE 7.7.0.10621; it reports qualification status rather than admitting operations.
   Keep Client's `Unknown/NotExecuted` status honest. MCP receipts for CE 7.7.1.10828 do not
   qualify or rename that Client profile.
 - [ ] Freeze one final plugin/gateway/source candidate and run all required native success,
   restart and cleanup cases against those exact binaries, excluding the six deferred kernel
-  operations above. Never pool different candidates.
+  operations above. Candidate `69e1a43` completed ordinary cases; later changes need their own evidence.
+  Never pool different candidates.
 - [x] Regenerate the checkpoint per-tool report and reconcile documentation from passing receipts,
-  retaining failed-session observations separately. The resumed `e0420ee` report has 154 verified tools,
-  15 failed-session observations and 38 unverified tools; 47 of 201 required tools remain unqualified.
+  retaining failed-session observations separately. The latest `69e1a43` report has 200 verified tools,
+  zero failed-session observations and seven unverified tools; `symbol_enable_sources` is the one nondeferred gap.
   Failed-session observations are not passing qualifications.
   Keep the whole-catalog `nativeQualificationComplete=false` while any native case remains
   unqualified, including deferred cases. Record the accepted 2.0 limitation separately from
   the results of its required native cases.
-- [ ] Complete the previously requested fresh independent final qualification review
-  (Astra), with required Release/Debug, formatting, packaging and fuzzing checks.
-  A bounded cleanup review does not satisfy that final release gate.
+- [ ] Complete an independent final qualification review for the next candidate with its required checks.
+  The recorded Sol/high fallback review cleared `69e1a43` for the approved ordinary scope only.
 - [ ] Publish only when explicitly requested, then verify the remote commit and artifacts.
   Local cleanup commits do not authorize a push or another beta release.
 
 ## Repository handoff
+
+Named scans remain synchronous under the pinned Client contract.
+An asynchronous scan lifecycle needs Client/SDK support and native qualification; moving the current call to a background job would still block Cheat Engine's main thread.
+Keep that follow-up separate from the gateway deadline and discovery-diagnostic fixes.
 
 Client and SDK changes belong in their own Git repositories, followed by the MCP commit
 that records their revisions. Local integration commits may precede upstream review;

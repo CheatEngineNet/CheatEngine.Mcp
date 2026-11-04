@@ -14,6 +14,122 @@ namespace CheatEngine.Mcp.Tests.Hosting;
 [Collection(nameof(SerialTestGroup))]
 public sealed class GatewayInstanceDiscoveryTests
 {
+	[Theory]
+	[InlineData(false, "missing")]
+	[InlineData(true, "ready")]
+	public async Task ListAsync_MissingOrEmptyRegistry_ExplainsEmptyDiscovery(bool createDirectory, string status)
+	{
+		string directory = NewDirectory();
+		if (createDirectory)
+		{
+			Directory.CreateDirectory(directory);
+		}
+
+		using InstanceIdentityVerifier verifier = new(TimeProvider.System);
+		try
+		{
+			GatewayInstanceTool tool = new(new InstanceRegistry(directory), verifier);
+			InstanceListResult result = await tool.ListAsync(TestContext.Current.CancellationToken);
+
+			Assert.Empty(result.Instances);
+			Assert.False(result.DiscoveryIncomplete);
+			Assert.Equal(status, result.Diagnostics.RegistryStatus);
+			Assert.Equal(0, result.Diagnostics.RecordsFound);
+			Assert.Equal(0, result.Diagnostics.Candidates);
+			Assert.Equal(0, result.Diagnostics.RejectedRecords);
+			Assert.Equal(0, result.Diagnostics.ExpiredRecords);
+			Assert.Equal(0, result.Diagnostics.UnobservableProcesses);
+			Assert.Equal(0, result.Diagnostics.UnavailableInstances);
+			Assert.Equal(0, result.Diagnostics.PendingInstances);
+			string payload = JsonSerializer.Serialize(result, HostingJsonContext.Default.InstanceListResult);
+			Assert.DoesNotContain(directory, payload, StringComparison.Ordinal);
+			using JsonDocument serialized = JsonDocument.Parse(payload);
+			Assert.Equal(status, serialized.RootElement.GetProperty("diagnostics")
+				.GetProperty("registryStatus").GetString());
+		}
+		finally
+		{
+			await GatewayTestDirectory.DeleteAsync(directory);
+		}
+	}
+
+	[Fact]
+	public async Task ListAsync_InvalidAndExpiredRecords_ReportsReasonsWithoutRecordContents()
+	{
+		string directory = NewDirectory();
+		InstanceRegistry registry = new(directory);
+		FakeBackend healthy = await FakeBackend.StartAsync(registry, "healthy");
+		using InstanceIdentityVerifier verifier = new(TimeProvider.System);
+		InstanceDescriptor expired = CreateDescriptor("expired-secret-name", healthy.Descriptor.Endpoint) with
+		{
+			ProcessStartUtcTicks = healthy.Descriptor.ProcessStartUtcTicks - TimeSpan.TicksPerSecond
+		};
+		string expiredPath = Path.Combine(directory, expired.ActivationId.ToString("N") + ".json");
+		try
+		{
+			await File.WriteAllTextAsync(expiredPath,
+				JsonSerializer.Serialize(expired, HostingJsonContext.Default.InstanceDescriptor),
+				TestContext.Current.CancellationToken);
+			await File.WriteAllTextAsync(Path.Combine(directory, "malformed.json"), "{broken-secret-record",
+				TestContext.Current.CancellationToken);
+			await File.WriteAllTextAsync(Path.Combine(directory, "oversized.json"), new string('x', 16385),
+				TestContext.Current.CancellationToken);
+			await File.WriteAllTextAsync(Path.Combine(directory, "invalid.json"), "null",
+				TestContext.Current.CancellationToken);
+			using FileStream unreadable = new(Path.Combine(directory, "unreadable.json"), FileMode.Create,
+				FileAccess.ReadWrite, FileShare.None);
+			GatewayInstanceTool tool = new(registry, verifier);
+			InstanceListResult result = await tool.ListAsync(TestContext.Current.CancellationToken);
+
+			Assert.Equal(healthy.Descriptor.InstanceId, Assert.Single(result.Instances).InstanceId);
+			Assert.False(result.DiscoveryIncomplete);
+			Assert.Equal("ready", result.Diagnostics.RegistryStatus);
+			Assert.Equal(6, result.Diagnostics.RecordsFound);
+			Assert.Equal(1, result.Diagnostics.Candidates);
+			Assert.Equal(4, result.Diagnostics.RejectedRecords);
+			Assert.Equal(1, result.Diagnostics.ExpiredRecords);
+			Assert.Equal(0, result.Diagnostics.UnobservableProcesses);
+			Assert.Equal(0, result.Diagnostics.UnavailableInstances);
+			Assert.Equal(0, result.Diagnostics.PendingInstances);
+			Assert.False(File.Exists(expiredPath));
+			string payload = JsonSerializer.Serialize(result, HostingJsonContext.Default.InstanceListResult);
+			Assert.DoesNotContain("expired-secret-name", payload, StringComparison.Ordinal);
+			Assert.DoesNotContain("broken-secret-record", payload, StringComparison.Ordinal);
+			Assert.DoesNotContain(expired.AccessToken, payload, StringComparison.Ordinal);
+			Assert.DoesNotContain(healthy.Descriptor.AccessToken, payload, StringComparison.Ordinal);
+			Assert.DoesNotContain(healthy.Descriptor.Endpoint, payload, StringComparison.Ordinal);
+			Assert.DoesNotContain(JsonSerializer.Serialize(directory), payload, StringComparison.Ordinal);
+		}
+		finally
+		{
+			await healthy.DisposeAsync();
+			await GatewayTestDirectory.DeleteAsync(directory);
+		}
+	}
+
+	[Fact]
+	public async Task ListAsync_RegistryPathIsAFile_ReportsUnavailable()
+	{
+		string path = NewDirectory();
+		await File.WriteAllTextAsync(path, "not-a-registry", TestContext.Current.CancellationToken);
+		using InstanceIdentityVerifier verifier = new(TimeProvider.System);
+		try
+		{
+			GatewayInstanceTool tool = new(new InstanceRegistry(path), verifier);
+			InstanceListResult result = await tool.ListAsync(TestContext.Current.CancellationToken);
+
+			Assert.Empty(result.Instances);
+			Assert.False(result.DiscoveryIncomplete);
+			Assert.Equal("unavailable", result.Diagnostics.RegistryStatus);
+			Assert.Equal(0, result.Diagnostics.RecordsFound);
+			Assert.Equal(0, result.Diagnostics.Candidates);
+		}
+		finally
+		{
+			File.Delete(path);
+		}
+	}
+
 	[Fact]
 	public async Task ListAsync_StaleCandidateAlongsideHealthyCandidate_ReturnsOnlyVerifiedInstanceWithoutSecrets()
 	{
@@ -35,6 +151,9 @@ public sealed class GatewayInstanceDiscoveryTests
 
 			Assert.Equal([healthy.Descriptor.InstanceId], result.Instances.Select(static instance => instance.InstanceId));
 			Assert.False(result.DiscoveryIncomplete);
+			Assert.Equal(2, result.Diagnostics.Candidates);
+			Assert.Equal(1, result.Diagnostics.UnavailableInstances);
+			Assert.Equal(0, result.Diagnostics.PendingInstances);
 			Assert.DoesNotContain(healthy.Descriptor.AccessToken, payload, StringComparison.Ordinal);
 			Assert.DoesNotContain(stale.Descriptor.AccessToken, payload, StringComparison.Ordinal);
 			Assert.DoesNotContain(healthy.Descriptor.Endpoint, payload, StringComparison.Ordinal);
@@ -76,6 +195,9 @@ public sealed class GatewayInstanceDiscoveryTests
 
 			Assert.Equal([healthy.Descriptor.InstanceId], result.Instances.Select(static instance => instance.InstanceId));
 			Assert.True(result.DiscoveryIncomplete);
+			Assert.Equal(2, result.Diagnostics.Candidates);
+			Assert.Equal(0, result.Diagnostics.UnavailableInstances);
+			Assert.Equal(1, result.Diagnostics.PendingInstances);
 			Assert.True(verifier.IsConfirmed(healthy.Descriptor));
 			Assert.False(verifier.IsConfirmed(stalled));
 		}

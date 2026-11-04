@@ -70,7 +70,7 @@
       "uri": "cheatengine://docs/connection-troubleshooting",
       "description": "Plugin, gateway and AI-client setup, and what to check when instance_list is empty, an instance is unavailable, or a call times out, is busy or is refused by a setting.",
       "mimeType": "text/markdown",
-      "size": 24299
+      "size": 24350
     },
     {
       "name": "doc_debugger",
@@ -94,7 +94,7 @@
       "uri": "cheatengine://docs/errors-and-recovery",
       "description": "The error envelope and resource error codes, every failure kind and host effect with its next step, timeouts, stale ids, and releasing or acknowledging owned resources without repeating a side effect.",
       "mimeType": "text/markdown",
-      "size": 24739
+      "size": 24430
     },
     {
       "name": "doc_game_engines",
@@ -110,7 +110,7 @@
       "uri": "cheatengine://docs/getting-started",
       "description": "Start here when new: what the plugin and gateway are, the first calls of a session, the settings that gate features, where the docs and prompts live, scope and consent, and how to release what MCP holds.",
       "mimeType": "text/markdown",
-      "size": 18388
+      "size": 18563
     },
     {
       "name": "doc_glossary",
@@ -198,7 +198,7 @@
       "uri": "cheatengine://docs/tool-map",
       "description": "Every tool by domain with its purpose, the setting (gate) it needs and its dispatch class; the running schema stays the authority for parameters and results.",
       "mimeType": "text/markdown",
-      "size": 27007
+      "size": 27041
     },
     {
       "name": "doc_troubleshooting_scans",

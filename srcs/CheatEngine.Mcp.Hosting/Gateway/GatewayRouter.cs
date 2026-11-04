@@ -60,10 +60,12 @@ internal sealed partial class GatewayRouter(
 		}
 
 		string instanceId = routing.GetString()!;
+		using CancellationTokenSource deadline = GatewayForwardingPolicy.CreateDeadline(options.CallTimeout,
+			cancellationToken);
 		BackendConnectionPool.BackendLease lease;
 		try
 		{
-			lease = await connector.ConnectAsync(instanceId, cancellationToken).ConfigureAwait(false);
+			lease = await connector.ConnectAsync(instanceId, deadline.Token).ConfigureAwait(false);
 		}
 		catch (GatewayRoutingException exception) when (exception.UnknownInstance)
 		{
@@ -74,15 +76,24 @@ internal sealed partial class GatewayRouter(
 			LogUnavailable(logger, instanceId, request.Name, exception.Message);
 			return GatewayErrors.Unavailable(request.Name, instanceId, exception.Message, ToolHostEffect.NotStarted);
 		}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+		{
+			throw;
+		}
+		catch (OperationCanceledException) when (deadline.IsCancellationRequested)
+		{
+			LogUnavailable(logger, instanceId, request.Name, "call deadline expired before forwarding; operation not sent");
+			return GatewayErrors.ConnectTimeout(request.Name, instanceId, options.CallTimeout);
+		}
 
 		using (lease)
 		{
-			return await ForwardAsync(lease, request, instanceId, cancellationToken).ConfigureAwait(false);
+			return await ForwardAsync(lease, request, instanceId, cancellationToken, deadline.Token).ConfigureAwait(false);
 		}
 	}
 
 	private async Task<CallToolResult> ForwardAsync(BackendConnectionPool.BackendLease lease,
-		CallToolRequestParams request, string instanceId, CancellationToken cancellationToken)
+		CallToolRequestParams request, string instanceId, CancellationToken cancellationToken, CancellationToken deadlineToken)
 	{
 		// Only the tool's own arguments and trace context travel: the routing argument, protocol-reserved _meta, the
 		// upstream progress token and MRTR state belong to the upstream session, not to this hop.
@@ -96,20 +107,18 @@ internal sealed partial class GatewayRouter(
 					StringComparer.Ordinal),
 			Meta = GatewayMeta.ForBackend(request.Meta)
 		};
-		using CancellationTokenSource deadline = GatewayForwardingPolicy.CreateDeadline(options.CallTimeout,
-			cancellationToken);
 		try
 		{
 			// A backend result, including its own isError result, passes through unchanged, except that links to the
 			// backend's live resources gain the instance prefix so the upstream client can read them through here.
-			CallToolResult result = await lease.Client.CallToolAsync(forwarded, deadline.Token).ConfigureAwait(false);
+			CallToolResult result = await lease.Client.CallToolAsync(forwarded, deadlineToken).ConfigureAwait(false);
 			RewriteResourceUris(result.Content, instanceId);
 			return result;
 		}
 		catch (Exception exception)
 		{
 			GatewayForwardingOutcome outcome = GatewayForwardingPolicy.Classify(exception, cancellationToken,
-				deadline.Token);
+				deadlineToken);
 			switch (outcome.Kind)
 			{
 				case GatewayForwardingFailureKind.CallerCancelled:

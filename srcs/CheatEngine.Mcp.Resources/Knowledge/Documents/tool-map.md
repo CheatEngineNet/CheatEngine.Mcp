@@ -30,7 +30,7 @@ Guides: [getting started](getting-started.md), [workflows](workflows.md).
 
 | Tool | Gate | Purpose |
 |---|---|---|
-| `instance_list` | | List the verified local CE instances and their `instanceId`; call it first. |
+| `instance_list` | | List verified local CE instances and their `instanceId`, with aggregate discovery diagnostics; call it first. |
 
 ## runtime
 
